@@ -32,18 +32,18 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+dependencies = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "pydantic>=2.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/Elroyper/ClawSentry"
 Documentation = "https://elroyper.github.io/ClawSentry/"
 Repository = "https://github.com/Elroyper/ClawSentry"
 Changelog = "https://github.com/Elroyper/ClawSentry/blob/main/CHANGELOG.md"
 "Bug Tracker" = "https://github.com/Elroyper/ClawSentry/issues"
-
-dependencies = [
-    "fastapi>=0.100",
-    "uvicorn[standard]>=0.23",
-    "pydantic>=2.0",
-]
 
 [project.optional-dependencies]
 llm = [
