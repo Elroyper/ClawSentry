@@ -6,13 +6,23 @@ on:
     paths:
       - 'site-docs/**'
       - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +34,16 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: |
-          pip install mkdocs-material mkdocs-git-revision-date-localized-plugin
+        run: pip install mkdocs-material mkdocs-git-revision-date-localized-plugin
+
+      - name: Build site
+        run: mkdocs build --site-dir site
+
+      - name: Upload pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
 
       - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy --force
+        id: deployment
+        uses: actions/deploy-pages@v4
