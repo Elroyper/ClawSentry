@@ -51,7 +51,7 @@ hide:
 
 [:octicons-download-16: 快速安装](#_3){ .md-button .md-button--primary }
 [:octicons-book-16: 快速开始](getting-started/quickstart.md){ .md-button }
-[:octicons-mark-github-16: GitHub](https://github.com/Elroyper/ClawSentry){ .md-button }
+[:octicons-mark-github-16: GitHub](https://github.com/AI45Lab/ClawSentry){ .md-button }
 
 </div>
 
@@ -184,7 +184,7 @@ graph TB
 === "开发环境"
 
     ```bash
-    git clone https://github.com/Elroyper/ClawSentry.git
+    git clone https://github.com/AI45Lab/ClawSentry.git
     cd ClawSentry
     pip install -e ".[dev]"
     ```

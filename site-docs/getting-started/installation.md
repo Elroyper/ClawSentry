@@ -108,7 +108,7 @@ ClawSentry 采用分层依赖设计，你可以根据实际需求选择安装：
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/Elroyper/ClawSentry.git
+git clone https://github.com/AI45Lab/ClawSentry.git
 cd ClawSentry
 
 # 2. 创建并激活虚拟环境
