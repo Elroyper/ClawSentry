@@ -314,6 +314,7 @@ async def run_stack(args: argparse.Namespace) -> None:
     analyzer = build_analyzer_from_env(
         trajectory_store=gateway.trajectory_store,
         patterns_path=detection_config.attack_patterns_path,
+        evolved_patterns_path=detection_config.evolved_patterns_path if detection_config.evolving_enabled else None,
     )
     if analyzer is not None:
         # Replace the default rule-only engine with one backed by the LLM analyzer.

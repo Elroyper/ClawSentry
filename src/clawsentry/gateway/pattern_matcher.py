@@ -55,14 +55,21 @@ class AttackPattern:
 # YAML loading
 # ---------------------------------------------------------------------------
 
-def load_patterns(path: Optional[str] = None) -> list[AttackPattern]:
-    """Load attack patterns from a YAML file.
+def load_patterns(
+    path: Optional[str] = None,
+    *,
+    evolved_path: Optional[str] = None,
+) -> list[AttackPattern]:
+    """Load attack patterns from a YAML file, optionally merging evolved patterns.
 
     Parameters
     ----------
     path : str | None
         Path to a custom YAML file.  If *None*, the default
         ``attack_patterns.yaml`` bundled alongside this module is used.
+    evolved_path : str | None
+        Path to an evolved patterns YAML file.  If provided, active evolved
+        patterns (experimental/stable) are appended after core patterns.
 
     Returns
     -------
@@ -78,11 +85,35 @@ def load_patterns(path: Optional[str] = None) -> list[AttackPattern]:
         with open(file_path) as f:
             data = yaml.safe_load(f)
         if not data or "patterns" not in data:
-            return []
-        return [_parse_pattern(p) for p in data["patterns"]]
+            patterns: list[AttackPattern] = []
+        else:
+            patterns = [_parse_pattern(p) for p in data["patterns"]]
     except Exception as exc:
         logger.warning("Failed to load attack patterns from %s: %s", file_path, exc)
-        return []
+        patterns = []
+
+    # Load evolved patterns if path provided
+    if evolved_path:
+        try:
+            evolved_file = Path(evolved_path)
+            if evolved_file.is_file():
+                with open(evolved_file, encoding="utf-8") as fh:
+                    edata = yaml.safe_load(fh)
+                if edata and isinstance(edata.get("patterns"), list):
+                    core_ids = {p.id for p in patterns}
+                    for raw_ep in edata["patterns"]:
+                        ep = _parse_evolved_pattern(raw_ep)
+                        if ep.id in core_ids:
+                            logger.warning("evolved pattern %s conflicts with core, skipping", ep.id)
+                            continue
+                        if ep.is_active:
+                            patterns.append(ep)
+            else:
+                logger.debug("evolved patterns file not found: %s", evolved_path)
+        except Exception:
+            logger.warning("failed to load evolved patterns from %s", evolved_path, exc_info=True)
+
+    return patterns
 
 
 def _precompile_trigger_patterns(triggers: dict[str, Any]) -> None:
@@ -147,6 +178,38 @@ def _parse_pattern(raw: dict) -> AttackPattern:
     )
 
 
+def _parse_evolved_pattern(raw: dict) -> "EvolvedPattern":
+    """Parse a YAML dict into an EvolvedPattern instance."""
+    from .pattern_evolution import EvolvedPattern, PatternStatus
+
+    base = _parse_pattern(raw)
+    status_str = raw.get("status", "candidate")
+    try:
+        status = PatternStatus(status_str)
+    except ValueError:
+        status = PatternStatus.CANDIDATE
+
+    return EvolvedPattern(
+        id=base.id,
+        category=base.category,
+        description=base.description,
+        risk_level=base.risk_level,
+        triggers=base.triggers,
+        detection=base.detection,
+        false_positive_filters=base.false_positive_filters,
+        risk_escalation=base.risk_escalation,
+        references=base.references,
+        mitre_attack=base.mitre_attack,
+        status=status,
+        confidence=float(raw.get("confidence", 0.0)),
+        source_framework=raw.get("source_framework", ""),
+        confirmed_count=int(raw.get("confirmed_count", 0)),
+        false_positive_count=int(raw.get("false_positive_count", 0)),
+        created_at=raw.get("created_at", ""),
+        last_triggered_at=raw.get("last_triggered_at"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Matcher
 # ---------------------------------------------------------------------------
@@ -164,15 +227,21 @@ class PatternMatcher:
     Call :meth:`reload` to hot-reload patterns without restarting the process.
     """
 
-    def __init__(self, patterns_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        patterns_path: Optional[str] = None,
+        *,
+        evolved_patterns_path: Optional[str] = None,
+    ) -> None:
         self._path = patterns_path
-        self.patterns = load_patterns(patterns_path)
+        self._evolved_path = evolved_patterns_path
+        self.patterns = load_patterns(patterns_path, evolved_path=evolved_patterns_path)
 
     # -- public API ---------------------------------------------------------
 
     def reload(self) -> None:
-        """Hot-reload patterns from the YAML file."""
-        self.patterns = load_patterns(self._path)
+        """Hot-reload patterns from disk (core + evolved)."""
+        self.patterns = load_patterns(self._path, evolved_path=self._evolved_path)
 
     def match(
         self,

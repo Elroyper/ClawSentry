@@ -52,6 +52,10 @@ class DetectionConfig:
     trajectory_max_events: int = 50
     trajectory_max_sessions: int = 10_000
 
+    # --- E-5: Self-evolving pattern repository ---
+    evolving_enabled: bool = False
+    evolved_patterns_path: Optional[str] = None
+
     def __post_init__(self) -> None:
         # Convert list to tuple if passed (convenience for callers)
         if isinstance(self.post_action_whitelist, list):
@@ -106,6 +110,7 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_POST_ACTION_MONITOR", "post_action_monitor", float),
     ("CS_TRAJECTORY_MAX_EVENTS", "trajectory_max_events", int),
     ("CS_TRAJECTORY_MAX_SESSIONS", "trajectory_max_sessions", int),
+    ("CS_EVOLVED_PATTERNS_PATH", "evolved_patterns_path", str),
 ]
 
 # Comma-separated list vars handled separately
@@ -139,6 +144,14 @@ def build_detection_config_from_env() -> DetectionConfig:
         items = [s.strip() for s in raw.split(",") if s.strip()]
         if items:
             overrides[field_name] = tuple(items)
+
+    # Bool env vars (special handling: "1"/"true"/"yes" → True)
+    _bool_env = os.getenv("CS_EVOLVING_ENABLED", "").strip().lower()
+    if _bool_env in ("1", "true", "yes"):
+        overrides["evolving_enabled"] = True
+    elif _bool_env in ("0", "false", "no"):
+        overrides["evolving_enabled"] = False
+    # else: omit → use default (False)
 
     try:
         return DetectionConfig(**overrides)

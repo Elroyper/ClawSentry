@@ -665,3 +665,34 @@ class TestDetectionConfigWhitelistImmutability:
     def test_whitelist_hashable_when_set(self):
         config = DetectionConfig(post_action_whitelist=("*.log",))
         hash(config)  # should not raise
+
+
+# =========================================================================
+# 11. E-5: Evolving pattern config fields
+# =========================================================================
+
+
+class TestEvolvingConfig:
+    """E-5: evolving pattern config fields."""
+
+    def test_evolving_disabled_by_default(self):
+        cfg = DetectionConfig()
+        assert cfg.evolving_enabled is False
+        assert cfg.evolved_patterns_path is None
+
+    def test_evolving_from_env(self, monkeypatch):
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "1")
+        monkeypatch.setenv("CS_EVOLVED_PATTERNS_PATH", "/tmp/evolved.yaml")
+        cfg = build_detection_config_from_env()
+        assert cfg.evolving_enabled is True
+        assert cfg.evolved_patterns_path == "/tmp/evolved.yaml"
+
+    def test_evolving_disabled_env_zero(self, monkeypatch):
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "0")
+        cfg = build_detection_config_from_env()
+        assert cfg.evolving_enabled is False
+
+    def test_evolving_invalid_env_ignored(self, monkeypatch):
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "not-a-bool")
+        cfg = build_detection_config_from_env()
+        assert cfg.evolving_enabled is False  # fallback to default

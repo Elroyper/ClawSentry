@@ -70,9 +70,13 @@ class L1PolicyEngine:
             d4_mid_threshold=self._config.d4_mid_threshold,
         )
         self._min_score_for_level = _build_min_score_map(self._config)
+        _evolved = self._config.evolved_patterns_path if self._config.evolving_enabled else None
         self._analyzer = (
             analyzer if analyzer is not None
-            else RuleBasedAnalyzer(patterns_path=self._config.attack_patterns_path)
+            else RuleBasedAnalyzer(
+                patterns_path=self._config.attack_patterns_path,
+                evolved_patterns_path=_evolved,
+            )
         )
 
     @property

@@ -121,8 +121,8 @@ def has_manual_l2_escalation_flag(context: Optional[DecisionContext]) -> bool:
 class RuleBasedAnalyzer:
     """L2 rule-based semantic analyzer — extracted from L1PolicyEngine._run_l2_analysis."""
 
-    def __init__(self, patterns_path: Optional[str] = None) -> None:
-        self._pattern_matcher = PatternMatcher(patterns_path=patterns_path)
+    def __init__(self, patterns_path: Optional[str] = None, *, evolved_patterns_path: Optional[str] = None) -> None:
+        self._pattern_matcher = PatternMatcher(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path)
 
     @property
     def analyzer_id(self) -> str:

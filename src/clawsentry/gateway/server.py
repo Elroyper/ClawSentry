@@ -52,6 +52,7 @@ from .models import (
     utc_now_iso,
 )
 from .detection_config import DetectionConfig
+from .pattern_evolution import PatternEvolutionManager
 from .policy_engine import L1PolicyEngine
 from .post_action_analyzer import PostActionAnalyzer
 from .trajectory_analyzer import TrajectoryAnalyzer
@@ -852,7 +853,7 @@ class EventBus:
             "queue": queue,
             "session_id": session_id,
             "min_risk": min_risk,
-            "event_types": event_types or {"decision", "session_risk_change", "session_start", "session_enforcement_change", "post_action_finding", "trajectory_alert"},
+            "event_types": event_types or {"decision", "session_risk_change", "session_start", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved"},
         }
         return subscriber_id, queue
 
@@ -1015,6 +1016,11 @@ class SupervisionGateway:
         self.trajectory_analyzer = TrajectoryAnalyzer(
             max_events_per_session=self._detection_config.trajectory_max_events,
             max_sessions=self._detection_config.trajectory_max_sessions,
+        )
+        # E-5: Self-evolving pattern repository
+        self.evolution_manager = PatternEvolutionManager(
+            store_path=self._detection_config.evolved_patterns_path or "",
+            enabled=self._detection_config.evolving_enabled,
         )
         self._start_time = time.monotonic()
         self._ready = True
@@ -1356,6 +1362,25 @@ class SupervisionGateway:
             except Exception:
                 logger.exception("post-action analysis failed for event %s", req.event.event_id)
 
+        # --- E-5: Extract candidate pattern from confirmed high-risk events ---
+        if (
+            self.evolution_manager._enabled
+            and req.event.event_type == EventType.PRE_ACTION
+            and decision.risk_level in (RiskLevel.HIGH, RiskLevel.CRITICAL)
+        ):
+            try:
+                self.evolution_manager.extract_candidate(
+                    event_id=req.event.event_id,
+                    session_id=str(req.event.session_id or ""),
+                    tool_name=req.event.tool_name or "",
+                    command=str(req.event.payload.get("command", "")) if req.event.payload else "",
+                    risk_level=decision.risk_level,
+                    source_framework=req.event.source_framework or "",
+                    reasons=decision.reason.split("; ") if decision.reason else [],
+                )
+            except Exception:
+                logger.warning("evolved pattern extraction failed", exc_info=True)
+
         return self._jsonrpc_success(rpc_id, resp_dict)
 
     def _make_enforcement_decision(
@@ -1684,12 +1709,12 @@ def create_http_app(
                 media_type="application/json",
             )
 
-        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert"}
+        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved"}
         if types:
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_evolved"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -1923,6 +1948,69 @@ def create_http_app(
             "session_id": session_id,
             "released": released,
         }
+
+    # --- E-5: Self-evolving pattern endpoints ---
+
+    @app.get("/ahp/patterns")
+    async def list_patterns_endpoint(request: Request):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        return Response(
+            content=json.dumps({"patterns": gateway.evolution_manager.list_patterns()}),
+            media_type="application/json",
+        )
+
+    @app.post("/ahp/patterns/confirm")
+    async def confirm_pattern_endpoint(request: Request):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if not gateway.evolution_manager._enabled:
+            return Response(
+                content=json.dumps({"error": "pattern evolution is disabled (CS_EVOLVING_ENABLED=0)"}),
+                status_code=403,
+                media_type="application/json",
+            )
+        try:
+            body = await request.json()
+        except Exception:
+            return Response(
+                content=json.dumps({"error": "invalid JSON"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        pattern_id = body.get("pattern_id")
+        confirmed = body.get("confirmed")
+        if not pattern_id or confirmed is None:
+            return Response(
+                content=json.dumps({"error": "pattern_id and confirmed (bool) are required"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        result = gateway.evolution_manager.confirm(pattern_id, confirmed=bool(confirmed))
+        if result == "not_found":
+            return Response(
+                content=json.dumps({"error": "pattern not found"}),
+                status_code=404,
+                media_type="application/json",
+            )
+        # Broadcast SSE event
+        gateway.event_bus.broadcast({
+            "type": "pattern_evolved",
+            "pattern_id": pattern_id,
+            "action": result,
+        })
+        # Trigger hot-reload so new experimental/stable patterns take effect
+        if result in ("promoted_to_experimental", "promoted_to_stable"):
+            try:
+                gateway.policy_engine._analyzer._pattern_matcher.reload()
+            except AttributeError:
+                logger.debug("could not hot-reload PatternMatcher (composite analyzer?)")
+        return Response(
+            content=json.dumps({"result": result, "pattern_id": pattern_id}),
+            media_type="application/json",
+        )
 
     # --- Web Dashboard UI (static SPA) ---
     _ui_dir = ui_dir if ui_dir is not None else _DEFAULT_UI_DIR

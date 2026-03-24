@@ -73,7 +73,7 @@ clawsentry-harness = "clawsentry.adapters.a3s_gateway_harness:main"
 clawsentry-stack = "clawsentry.gateway.stack:main"
 
 [tool.setuptools.package-data]
-clawsentry = ["ui/dist/**", "gateway/skills/*.yaml", "gateway/attack_patterns.yaml"]
+clawsentry = ["ui/dist/**", "gateway/skills/*.yaml", "gateway/attack_patterns.yaml", "gateway/evolved_patterns.yaml"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
