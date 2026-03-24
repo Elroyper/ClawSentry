@@ -550,3 +550,79 @@ class TestEventTextSizeCap:
         )
         text = event_text(event)
         assert "echo hello" in text
+
+
+# ===========================================================================
+# CompositeAnalyzer — all-zero-confidence fallback (Task 9)
+# ===========================================================================
+
+class TestCompositeAllZeroConfidence:
+    """When every analyzer returns a valid L2Result with confidence=0.0,
+    CompositeAnalyzer must fall back to the L1 snapshot level."""
+
+    def test_all_analyzers_zero_confidence_falls_back_to_l1(self):
+        class ZeroConfA:
+            @property
+            def analyzer_id(self):
+                return "zero-a"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["zero-a says critical"],
+                    confidence=0.0,
+                    analyzer_id="zero-a",
+                    latency_ms=0.1,
+                )
+
+        class ZeroConfB:
+            @property
+            def analyzer_id(self):
+                return "zero-b"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["zero-b says high"],
+                    confidence=0.0,
+                    analyzer_id="zero-b",
+                    latency_ms=0.2,
+                )
+
+        composite = CompositeAnalyzer(analyzers=[ZeroConfA(), ZeroConfB()])
+        snap = _snap(RiskLevel.MEDIUM, score=2)
+        result = asyncio.run(
+            composite.analyze(_evt(tool_name="write_file"), _ctx(), snap, 5000)
+        )
+        # Both results are filtered (confidence == 0.0) → fallback to L1 level
+        assert result.target_level == RiskLevel.MEDIUM
+        assert result.confidence == 0.0
+        assert "All analyzers degraded" in result.reasons[0]
+
+
+# ===========================================================================
+# event_text UTF-8 truncation safety (Task 9)
+# ===========================================================================
+
+class TestEventTextTruncationUtf8Safety:
+    """70K Chinese characters → RuleBasedAnalyzer handles without error."""
+
+    def test_70k_chinese_chars_no_error(self):
+        big_chinese = "\u4e2d" * 70_000  # 70 000 × '中'
+        evt = _evt(tool_name="bash", payload={"content": big_chinese})
+        analyzer = RuleBasedAnalyzer()
+        snap = _snap(RiskLevel.LOW, score=1)
+        result = asyncio.run(
+            analyzer.analyze(evt, _ctx(), snap, 5000)
+        )
+        # Must complete without error and return a valid L2Result
+        assert isinstance(result, L2Result)
+        assert result.confidence == 1.0
+        assert result.analyzer_id == "rule-based"
+
+    def test_event_text_truncated_within_limit(self):
+        from clawsentry.gateway.semantic_analyzer import event_text, _MAX_EVENT_TEXT_LEN
+        big_chinese = "\u4e2d" * 70_000
+        evt = _evt(tool_name="bash", payload={"content": big_chinese})
+        text = event_text(evt)
+        assert len(text) <= _MAX_EVENT_TEXT_LEN

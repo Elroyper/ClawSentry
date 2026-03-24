@@ -754,3 +754,50 @@ class TestPrecompiledRegexes:
             assert "_compiled" in p.detection, (
                 f"Pattern {p.id} missing '_compiled' in detection dict"
             )
+
+
+# ---------- 审查缺口补充 (2026-03-24) ----------
+
+
+class TestFPSuppressionCompanion:
+    """C1: 误报抑制测试需要伴随正向测试证明模式本身能触发。"""
+
+    def test_path_traversal_detected_on_non_whitelisted_path(self):
+        from clawsentry.gateway.pattern_matcher import PatternMatcher
+
+        matcher = PatternMatcher()
+        results = matcher.match(
+            tool_name="read_file",
+            payload={"path": "/workspace/data/../../etc/passwd"},
+            content="/workspace/data/../../etc/passwd",
+        )
+        pattern_ids = [r.id for r in results]
+        assert "ASI03-001" in pattern_ids
+
+
+class TestZeroWidthCharPattern:
+    """M3: ASI01-003 零宽字符注入模式验证。"""
+
+    def test_zero_width_space_detected(self):
+        from clawsentry.gateway.pattern_matcher import PatternMatcher
+
+        matcher = PatternMatcher()
+        results = matcher.match(
+            tool_name="read_file",
+            payload={"path": "/app/input.txt"},
+            content="normal text\u200bhidden instruction",
+        )
+        pattern_ids = [r.id for r in results]
+        assert "ASI01-003" in pattern_ids
+
+    def test_bom_character_detected(self):
+        from clawsentry.gateway.pattern_matcher import PatternMatcher
+
+        matcher = PatternMatcher()
+        results = matcher.match(
+            tool_name="read_file",
+            payload={"path": "/app/input.txt"},
+            content="normal text\ufeffhidden",
+        )
+        pattern_ids = [r.id for r in results]
+        assert "ASI01-003" in pattern_ids

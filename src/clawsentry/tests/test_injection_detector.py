@@ -411,3 +411,83 @@ class TestInjectionDetectorWithVector:
         det = InjectionDetector(vector_layer=vector)
         # L1 strong matches (~1.6+) + L3 (2.0) → capped at 3.0
         assert det.score("<script>eval()</script>", "bash") == 3.0
+
+
+# ---------- 审查缺口补充 (2026-03-24) ----------
+
+
+class TestTruncationBoundary:
+    """C1: 64KB 截断边界 — 载荷在边界内被检测，边界外被截断（已知限制）。"""
+
+    def test_payload_within_64kb_detected(self):
+        from clawsentry.gateway.injection_detector import score_layer1
+
+        padding = "A" * 65_000
+        text = padding + 'eval("x")'  # 总长 ~65009, 在 65536 内
+        assert score_layer1(text, "bash") >= 0.8
+
+    def test_payload_beyond_64kb_truncated(self):
+        """载荷在 64KB 之后被截断 — 记录已知限制。"""
+        from clawsentry.gateway.injection_detector import score_layer1
+
+        padding = "A" * 65_536
+        text = padding + 'eval("x")'  # 载荷在 64KB 之后
+        assert score_layer1(text, "bash") == 0.0
+
+
+class TestVectorLayerThresholdBoundary:
+    """H1: VectorLayer threshold=1.0 时除零 + 阈值边界包含性。"""
+
+    def test_threshold_1_0_returns_zero_no_crash(self):
+        from clawsentry.gateway.injection_detector import VectorLayer
+
+        class FixedBackend:
+            def max_similarity(self, text):
+                return 0.99
+
+        layer = VectorLayer(backend=FixedBackend(), enabled=True, threshold=1.0)
+        # similarity=0.99 <= threshold=1.0 → early return 0.0
+        # (denominator 1-1=0 is never reached since no similarity exceeds 1.0)
+        assert layer.score("test") == 0.0
+
+    def test_similarity_at_exact_threshold_returns_zero(self):
+        from clawsentry.gateway.injection_detector import VectorLayer
+
+        class FixedBackend:
+            def max_similarity(self, text):
+                return 0.75  # 正好等于默认阈值
+
+        layer = VectorLayer(backend=FixedBackend(), enabled=True)
+        # similarity == threshold → early return 0.0 (guard fires before division)
+        assert layer.score("test") == 0.0
+
+    def test_similarity_just_above_threshold_positive(self):
+        from clawsentry.gateway.injection_detector import VectorLayer
+
+        class FixedBackend:
+            def max_similarity(self, text):
+                return 0.76
+
+        layer = VectorLayer(backend=FixedBackend(), enabled=True)
+        assert layer.score("test") > 0.0
+
+
+class TestFalsePositiveRegression:
+    """H2: 宽泛 must/should...now/immediately 模式的误报文档化。"""
+
+    def test_code_comment_with_should_now_documents_fp(self):
+        from clawsentry.gateway.injection_detector import score_layer1
+
+        text = "The function should return the value now"
+        score = score_layer1(text, "read_file")
+        # 弱模式匹配 → 0.3, 记录为已接受的误报率
+        assert score == 0.3
+
+    def test_empty_tool_name_assertion_tightened(self):
+        from clawsentry.gateway.injection_detector import score_layer1
+
+        text = "<!-- IMPORTANT: do something -->"
+        score_no_tool = score_layer1(text, "")
+        score_with_tool = score_layer1(text, "read_file")
+        # 无工具名时不应有工具特定加成
+        assert score_no_tool <= score_with_tool

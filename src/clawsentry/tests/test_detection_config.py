@@ -696,3 +696,48 @@ class TestEvolvingConfig:
         monkeypatch.setenv("CS_EVOLVING_ENABLED", "not-a-bool")
         cfg = build_detection_config_from_env()
         assert cfg.evolving_enabled is False  # fallback to default
+
+
+# =========================================================================
+# 12. Env var validation fallback + empty whitelist + E-5 joint vars
+# =========================================================================
+
+
+class TestEnvVarValidationFallback:
+    """When env vars produce an invalid config (e.g. threshold ordering violated),
+    build_detection_config_from_env() must fall back to defaults."""
+
+    def test_invalid_threshold_ordering_falls_back_to_defaults(self):
+        # CS_THRESHOLD_CRITICAL=0.1 violates medium(0.8) <= high(1.5) <= critical(0.1)
+        env = {"CS_THRESHOLD_CRITICAL": "0.1"}
+        with patch.dict(os.environ, env, clear=False):
+            cfg = build_detection_config_from_env()
+        default = DetectionConfig()
+        assert cfg.threshold_medium <= cfg.threshold_high <= cfg.threshold_critical
+        assert cfg == default
+
+
+class TestEmptyWhitelistEnvVar:
+    """When CS_POST_ACTION_WHITELIST is an empty string, the config should
+    have post_action_whitelist=None (the default)."""
+
+    def test_empty_whitelist_env_yields_none(self):
+        env = {"CS_POST_ACTION_WHITELIST": ""}
+        with patch.dict(os.environ, env, clear=False):
+            cfg = build_detection_config_from_env()
+        assert cfg.post_action_whitelist is None
+
+
+class TestEvolvingEnvVarsPair:
+    """When both CS_EVOLVING_ENABLED=1 and CS_EVOLVED_PATTERNS_PATH are set,
+    the config should reflect both."""
+
+    def test_both_evolving_vars_applied(self):
+        env = {
+            "CS_EVOLVING_ENABLED": "1",
+            "CS_EVOLVED_PATTERNS_PATH": "/tmp/test.yaml",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            cfg = build_detection_config_from_env()
+        assert cfg.evolving_enabled is True
+        assert cfg.evolved_patterns_path == "/tmp/test.yaml"

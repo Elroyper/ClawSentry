@@ -718,3 +718,157 @@ class TestDangerousToolsConsistency:
     def test_mount_in_dangerous_tools(self):
         from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
         assert "mount" in DANGEROUS_TOOLS
+
+
+# ===========================================================================
+# MEDIUM risk → ALLOW decision
+# ===========================================================================
+
+class TestMediumRiskAllowDecision:
+    """MEDIUM-risk pre_action events should get DecisionVerdict.ALLOW (not BLOCK/DEFER)."""
+
+    def test_medium_risk_event_gets_allow(self):
+        """A MEDIUM-scoring event (D1=2, D2=1, D5=2 → score ~1.1) must be ALLOW."""
+        engine = L1PolicyEngine()
+        evt = _evt(
+            tool_name="http_request",
+            payload={"url": "https://example.com"},
+        )
+        decision, snapshot, tier = engine.evaluate(evt, _ctx(AgentTrustLevel.UNTRUSTED))
+        # Verify the snapshot is MEDIUM
+        assert snapshot.risk_level == RiskLevel.MEDIUM, (
+            f"Expected MEDIUM risk, got {snapshot.risk_level}"
+        )
+        # Core assertion: MEDIUM should be ALLOW, not BLOCK or DEFER
+        assert decision.decision == DecisionVerdict.ALLOW
+        assert decision.final is True
+
+    def test_medium_risk_reason_mentions_audit(self):
+        """MEDIUM-risk decision reason should mention 'allowed with audit'."""
+        engine = L1PolicyEngine()
+        evt = _evt(
+            tool_name="http_request",
+            payload={"url": "https://example.com"},
+        )
+        decision, _, _ = engine.evaluate(evt, _ctx(AgentTrustLevel.UNTRUSTED))
+        assert "Medium risk" in decision.reason
+        assert "allowed with audit" in decision.reason
+
+
+# ===========================================================================
+# SessionRiskTracker LRU eviction
+# ===========================================================================
+
+class TestSessionRiskTrackerEviction:
+    """LRU eviction in SessionRiskTracker when at max_sessions capacity."""
+
+    def test_eviction_at_capacity(self):
+        """When max_sessions is exceeded, the oldest session is evicted."""
+        tracker = SessionRiskTracker(max_sessions=3)
+        # Fill to capacity with 3 sessions
+        tracker.record_high_risk_event("s1")
+        tracker.record_high_risk_event("s2")
+        tracker.record_high_risk_event("s3")
+        # All three should be tracked
+        assert tracker.get_d4("s1") == 0  # 1 event < d4_mid_threshold(2)
+        assert tracker.get_d4("s2") == 0
+        assert tracker.get_d4("s3") == 0
+        # Inserting s4 should evict s1 (oldest by insertion order)
+        tracker.record_high_risk_event("s4")
+        assert tracker.get_d4("s1") == 0  # evicted, returns default 0
+        assert tracker.get_d4("s4") == 0  # newly inserted
+
+    def test_eviction_removes_oldest_not_newest(self):
+        """Eviction should remove the first-inserted session, preserving later ones."""
+        tracker = SessionRiskTracker(max_sessions=2)
+        # Record multiple events so s1 has a meaningful d4
+        for _ in range(3):
+            tracker.record_high_risk_event("s1")
+        for _ in range(3):
+            tracker.record_high_risk_event("s2")
+        assert tracker.get_d4("s1") == 1  # 3 events → d4=1
+        assert tracker.get_d4("s2") == 1
+        # Adding s3 should evict s1 (oldest)
+        tracker.record_high_risk_event("s3")
+        assert tracker.get_d4("s1") == 0  # evicted
+        assert tracker.get_d4("s2") == 1  # preserved
+        assert tracker.get_d4("s3") == 0  # new
+
+    def test_eviction_with_max_sessions_one(self):
+        """Edge case: max_sessions=1 should only keep the latest session."""
+        tracker = SessionRiskTracker(max_sessions=1)
+        for _ in range(5):
+            tracker.record_high_risk_event("s1")
+        assert tracker.get_d4("s1") == 2  # 5 events → d4=2
+        # Adding s2 evicts s1
+        tracker.record_high_risk_event("s2")
+        assert tracker.get_d4("s1") == 0  # evicted
+        assert tracker.get_d4("s2") == 0  # 1 event < threshold
+
+
+# ===========================================================================
+# L2 async context path (ThreadPoolExecutor branch)
+# ===========================================================================
+
+class TestL2AsyncContextPath:
+    """Test that evaluate() works correctly from within an async context,
+    which triggers the ThreadPoolExecutor branch in _run_l2_analysis."""
+
+    def test_l2_runs_via_thread_pool_in_async_context(self):
+        """When a running event loop exists, L2 analysis uses ThreadPoolExecutor."""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        from clawsentry.gateway.semantic_analyzer import L2Result
+
+        mock_analyzer = AsyncMock()
+        mock_analyzer.analyzer_id = "mock-l2"
+        mock_analyzer.analyze.return_value = L2Result(
+            target_level=RiskLevel.MEDIUM,
+            reasons=["mock escalation"],
+        )
+
+        engine = L1PolicyEngine(analyzer=mock_analyzer)
+        evt = _evt(
+            tool_name="http_request",
+            payload={"url": "https://example.com"},
+        )
+
+        async def _run_in_loop():
+            return engine.evaluate(evt, _ctx(AgentTrustLevel.UNTRUSTED))
+
+        decision, snapshot, tier = asyncio.run(_run_in_loop())
+        # The L2 analyzer was called (either path is fine)
+        assert mock_analyzer.analyze.called
+        assert tier == DecisionTier.L2
+        assert snapshot.classified_by == "L2"
+
+    def test_l2_runs_via_asyncio_run_without_loop(self):
+        """When no running event loop exists, L2 analysis uses asyncio.run directly."""
+        from unittest.mock import AsyncMock
+
+        from clawsentry.gateway.semantic_analyzer import L2Result
+
+        mock_analyzer = AsyncMock()
+        mock_analyzer.analyzer_id = "mock-l2"
+        mock_analyzer.analyze.return_value = L2Result(
+            target_level=RiskLevel.MEDIUM,
+            reasons=["mock escalation"],
+        )
+
+        engine = L1PolicyEngine(analyzer=mock_analyzer)
+        evt = _evt(
+            tool_name="http_request",
+            payload={"url": "https://example.com"},
+        )
+
+        # Call directly (no running event loop)
+        decision, snapshot, tier = engine.evaluate(
+            evt,
+            _ctx(AgentTrustLevel.UNTRUSTED),
+            requested_tier=DecisionTier.L2,
+        )
+        assert mock_analyzer.analyze.called
+        assert tier == DecisionTier.L2
+        assert snapshot.classified_by == "L2"
+        assert decision.decision is not None
