@@ -193,7 +193,9 @@ Agent 请求工具调用
 
     当文本长度 > 50 字节且香农熵 > 5.5 时，额外得分为：
 
-    \[\text{entropy\_score} = \min\!\left(\frac{\text{entropy} - 5.5}{2.5},\ 0.5\right)\]
+    \[
+    \text{entropy\_score} = \min\left(\frac{\text{entropy} - 5.5}{2.5},\; 0.5\right)
+    \]
 
     !!! tip "为何使用香农熵"
         正常代码和文本的香农熵通常低于 4.5。经过 Base64、XOR 或随机化混淆的内容熵值显著偏高（>5.5），可有效识别密集混淆段落，同时避免对正常英文/中文内容产生误报。
@@ -208,15 +210,21 @@ Agent 请求工具调用
 
 **单一信号命中：**
 
-\[\text{combined} = \text{score}[0]\]
+\[
+\text{combined} = \text{score}_0
+\]
 
 **多个信号命中（N ≥ 2）：**
 
-\[\text{combined} = \max(\text{scores}) + 0.15 \times (N - 1)\]
+\[
+\text{combined} = \max(\text{scores}) + 0.15 \times (N - 1)
+\]
 
 **上限约束：**
 
-\[\text{final} = \min(\text{combined},\ 3.0)\]
+\[
+\text{final} = \min(\text{combined},\; 3.0)
+\]
 
 !!! note "公式设计意图"
     多信号同时出现（如"数据外传 + 凭据暴露"）意味着更高的威胁置信度，因此通过 `+0.15 × (N-1)` 对多信号组合给予额外加权，而非简单求和，避免单个低分信号被过度放大。
