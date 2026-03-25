@@ -209,6 +209,13 @@ class OpenClawNormalizer:
         # Extract risk_hints (shared utility in models.py)
         risk_hints = extract_risk_hints(tool_name, str(payload.get("command", "")))
 
+        # Alias OpenClaw output fields to canonical "output" key for post-action analysis
+        if canonical_type == EventType.POST_ACTION and "output" not in payload and "result" not in payload:
+            for alias in ("toolOutput", "tool_output", "commandOutput", "command_output", "exitOutput", "stdout"):
+                if alias in payload and isinstance(payload[alias], str):
+                    payload = {**payload, "output": payload[alias]}
+                    break
+
         return CanonicalEvent(
             event_id=event_id,
             trace_id=effective_trace_id,

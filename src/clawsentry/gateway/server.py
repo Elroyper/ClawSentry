@@ -51,7 +51,8 @@ from .models import (
     SyncDecisionResponse,
     utc_now_iso,
 )
-from .detection_config import DetectionConfig
+from .detection_config import DetectionConfig, build_detection_config_from_env
+from .llm_factory import build_analyzer_from_env
 from .pattern_evolution import PatternEvolutionManager
 from .policy_engine import L1PolicyEngine
 from .post_action_analyzer import PostActionAnalyzer
@@ -1354,6 +1355,7 @@ class SupervisionGateway:
                             "type": "post_action_finding",
                             "event_id": req.event.event_id,
                             "session_id": session_id,
+                            "source_framework": req.event.source_framework,
                             "tier": finding.tier.value,
                             "patterns_matched": finding.patterns_matched,
                             "score": finding.score,
@@ -1577,6 +1579,23 @@ class _RateLimiter:
             return False
         bucket.append(now)
         return True
+
+
+def _find_and_reload_pattern_matcher(analyzer) -> bool:
+    """Traverse analyzer hierarchy to find and reload PatternMatcher.
+
+    Works with both RuleBasedAnalyzer (direct _pattern_matcher) and
+    CompositeAnalyzer (nested _analyzers list).
+    """
+    if hasattr(analyzer, '_pattern_matcher'):
+        analyzer._pattern_matcher.reload()
+        return True
+    if hasattr(analyzer, '_analyzers'):
+        for a in analyzer._analyzers:
+            if hasattr(a, '_pattern_matcher'):
+                a._pattern_matcher.reload()
+                return True
+    return False
 
 
 def create_http_app(
@@ -2003,10 +2022,8 @@ def create_http_app(
         })
         # Trigger hot-reload so new experimental/stable patterns take effect
         if result in ("promoted_to_experimental", "promoted_to_stable"):
-            try:
-                gateway.policy_engine._analyzer._pattern_matcher.reload()
-            except AttributeError:
-                logger.debug("could not hot-reload PatternMatcher (composite analyzer?)")
+            if not _find_and_reload_pattern_matcher(gateway.policy_engine._analyzer):
+                logger.warning("could not hot-reload PatternMatcher: no RuleBasedAnalyzer found")
         return Response(
             content=json.dumps({"result": result, "pattern_id": pattern_id}),
             media_type="application/json",
@@ -2108,10 +2125,25 @@ async def run_gateway(
     ssl_keyfile: str | None = None,
 ) -> None:
     """Run the Supervision Gateway with both UDS and HTTP transports."""
+    # Build detection config from CS_ environment variables
+    detection_config = build_detection_config_from_env()
+    logger.info("DetectionConfig: %s", detection_config)
+
     gateway = SupervisionGateway(
         trajectory_db_path=trajectory_db_path,
         trajectory_retention_seconds=trajectory_retention_seconds,
+        detection_config=detection_config,
     )
+
+    # Wire LLM analyzer (same pattern as stack.py)
+    analyzer = build_analyzer_from_env(
+        trajectory_store=gateway.trajectory_store,
+        patterns_path=detection_config.attack_patterns_path,
+        evolved_patterns_path=detection_config.evolved_patterns_path if detection_config.evolving_enabled else None,
+    )
+    if analyzer is not None:
+        gateway.policy_engine = L1PolicyEngine(analyzer=analyzer, config=detection_config)
+
     app = create_http_app(gateway)
 
     # Start UDS server

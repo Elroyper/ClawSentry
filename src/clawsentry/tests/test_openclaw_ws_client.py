@@ -402,6 +402,42 @@ class TestWSEventListener:
         assert client.listening is False
 
 
+class TestFutureRegistrationOrder:
+    """H-5: Future must be registered before WS frame is sent."""
+
+    async def test_pending_request_exists_when_send_called(self):
+        """_pending_requests should have the future before ws.send() executes."""
+        config = OpenClawApprovalClientConfig(enabled=True, ws_url="ws://localhost:0")
+        client = OpenClawApprovalClient(config)
+        send_time_pending_count: list[int] = []
+
+        class FakeWS:
+            async def send(self, data: str) -> None:
+                send_time_pending_count.append(len(client._pending_requests))
+
+        client._ws = FakeWS()
+        client._connected = True
+        client._listening = True
+
+        # Create a non-done task to satisfy the listener check
+        client._listener_task = asyncio.ensure_future(asyncio.sleep(999))
+
+        # Set up auto-resolution so _send_request can complete
+        async def resolve_soon() -> None:
+            await asyncio.sleep(0.01)
+            for rid, fut in list(client._pending_requests.items()):
+                if not fut.done():
+                    fut.set_result({"type": "res", "id": rid, "ok": True, "result": {}})
+
+        asyncio.create_task(resolve_soon())
+        await client._send_request("test.method", {})
+
+        assert send_time_pending_count == [1], (
+            f"Expected 1 pending request at send time, got {send_time_pending_count}"
+        )
+        client._listener_task.cancel()
+
+
 class TestResolveWithReason:
     """Tests for the optional reason parameter on resolve()."""
 

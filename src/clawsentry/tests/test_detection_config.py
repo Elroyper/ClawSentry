@@ -741,3 +741,36 @@ class TestEvolvingEnvVarsPair:
             cfg = build_detection_config_from_env()
         assert cfg.evolving_enabled is True
         assert cfg.evolved_patterns_path == "/tmp/test.yaml"
+
+
+# =========================================================================
+# 13. M-6: CS_EVOLVING_ENABLED unrecognized value warning
+# =========================================================================
+
+
+class TestEvolvingEnabledWarning:
+    """M-6: Unrecognized CS_EVOLVING_ENABLED value should log warning."""
+
+    def test_unrecognized_value_logs_warning(self, monkeypatch, caplog):
+        import logging
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "maybe")
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+            config = build_detection_config_from_env()
+        assert config.evolving_enabled is False
+        assert any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)
+
+    def test_valid_true_no_warning(self, monkeypatch, caplog):
+        import logging
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "true")
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+            config = build_detection_config_from_env()
+        assert config.evolving_enabled is True
+        assert not any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)
+
+    def test_empty_string_no_warning(self, monkeypatch, caplog):
+        import logging
+        monkeypatch.setenv("CS_EVOLVING_ENABLED", "")
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+            config = build_detection_config_from_env()
+        assert config.evolving_enabled is False
+        assert not any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)

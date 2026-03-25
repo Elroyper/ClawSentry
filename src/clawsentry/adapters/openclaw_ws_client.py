@@ -329,12 +329,11 @@ class OpenClawApprovalClient:
             "method": method,
             "params": params,
         }
-        await self._ws.send(json.dumps(frame))
-
         if self._listening and self._listener_task and not self._listener_task.done():
-            # Listener active: register a Future and let the loop resolve it
-            future: asyncio.Future[dict[str, Any]] = asyncio.get_event_loop().create_future()
+            # Register future BEFORE sending to avoid race condition (H-5)
+            future: asyncio.Future[dict[str, Any]] = asyncio.get_running_loop().create_future()
             self._pending_requests[request_id] = future
+            await self._ws.send(json.dumps(frame))
             try:
                 response = await asyncio.wait_for(
                     future,
@@ -346,6 +345,7 @@ class OpenClawApprovalClient:
                 return False
         else:
             # No listener: simple send-recv (backward-compatible)
+            await self._ws.send(json.dumps(frame))
             response_raw = await asyncio.wait_for(
                 self._ws.recv(),
                 timeout=self._config.resolve_timeout_s,

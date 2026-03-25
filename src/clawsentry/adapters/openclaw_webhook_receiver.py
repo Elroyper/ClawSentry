@@ -106,7 +106,7 @@ def create_webhook_app(
 
         # Normalize to CanonicalEvent
         event_type = parsed["type"]
-        session_id = parsed.get("sessionKey")
+        session_id = parsed.get("sessionKey") or parsed.get("sessionId")
         agent_id = parsed.get("agentId")
         payload = parsed.get("payload", parsed)
         run_id = (

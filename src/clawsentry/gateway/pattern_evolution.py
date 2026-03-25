@@ -360,6 +360,11 @@ class PatternEvolutionManager:
     ) -> None:
         self._enabled = enabled
         self._store_path = store_path
+        if enabled and not store_path.strip():
+            raise ValueError(
+                "store_path must be non-empty when pattern evolution is enabled; "
+                "set CS_EVOLVED_PATTERNS_PATH"
+            )
         self.store = EvolvedPatternStore(store_path, max_patterns=max_patterns) if enabled else None
         self._command_hashes: dict[str, str] = {}  # hash → pattern_id (dedup)
 
@@ -407,6 +412,7 @@ class PatternEvolutionManager:
         )
         if self.store.add(ep):
             self._command_hashes[cmd_hash] = pattern_id
+            self.store.save()
             return pattern_id
         return None
 

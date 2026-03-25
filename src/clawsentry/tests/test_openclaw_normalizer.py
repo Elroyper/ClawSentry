@@ -380,3 +380,57 @@ class TestRiskHints:
             session_id="s1", agent_id="a1",
         )
         assert evt.risk_hints == []
+
+
+# ===========================================================================
+# Post-Action Field Mapping (H-1)
+# ===========================================================================
+
+class TestPostActionFieldMapping:
+    """H-1: exec.approval.resolved must map output fields for post-action."""
+
+    def test_resolved_event_maps_tool_output(self, normalizer):
+        result = normalizer.normalize(
+            event_type="exec.approval.resolved",
+            payload={"approval_id": "ap-1", "tool": "bash", "toolOutput": "some output"},
+            session_id="s1",
+        )
+        assert result is not None
+        assert result.payload.get("output") == "some output"
+
+    def test_resolved_event_maps_command_output(self, normalizer):
+        result = normalizer.normalize(
+            event_type="exec.approval.resolved",
+            payload={"approval_id": "ap-1", "tool": "bash", "commandOutput": "cmd out"},
+            session_id="s1",
+        )
+        assert result is not None
+        assert result.payload.get("output") == "cmd out"
+
+    def test_resolved_event_preserves_existing_output(self, normalizer):
+        result = normalizer.normalize(
+            event_type="exec.approval.resolved",
+            payload={"approval_id": "ap-1", "output": "already present"},
+            session_id="s1",
+        )
+        assert result is not None
+        assert result.payload.get("output") == "already present"
+
+    def test_resolved_event_preserves_existing_result(self, normalizer):
+        result = normalizer.normalize(
+            event_type="exec.approval.resolved",
+            payload={"approval_id": "ap-1", "result": "result present"},
+            session_id="s1",
+        )
+        assert result is not None
+        assert result.payload.get("result") == "result present"
+        assert "output" not in result.payload  # should NOT alias when result exists
+
+    def test_non_post_action_no_aliasing(self, normalizer):
+        result = normalizer.normalize(
+            event_type="exec.approval.requested",
+            payload={"tool": "bash", "command": "ls", "toolOutput": "ignore"},
+            session_id="s1",
+        )
+        assert result is not None
+        assert "output" not in result.payload  # PRE_ACTION should not alias

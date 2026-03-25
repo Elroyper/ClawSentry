@@ -273,3 +273,43 @@ class TestIdempotency:
         assert resp2.status_code == 200
         # With max size = 1, second unique key must trigger eviction path.
         assert mock_gateway_client.request_decision.call_count == 2
+
+
+# ===========================================================================
+# Session ID Extraction — H-4
+# ===========================================================================
+
+class TestSessionIdExtraction:
+    """H-4: Webhook must try both sessionKey and sessionId."""
+
+    def test_webhook_falls_back_to_session_id(self, test_client, mock_gateway_client):
+        """Webhook should use sessionId when sessionKey is absent."""
+        body = json.dumps({
+            "type": "exec.approval.requested",
+            "sessionId": "sess-from-id-field",
+            "agentId": "a1",
+            "payload": {"approval_id": "ap-1", "tool": "read_file", "path": "/tmp/x"},
+        }).encode()
+        headers = _webhook_headers("tok-test", "test-secret", body)
+        resp = test_client.post("/webhook/openclaw", content=body, headers=headers)
+        assert resp.status_code == 200
+        # Verify the normalizer received the sessionId value
+        call_args = mock_gateway_client.request_decision.call_args
+        event = call_args[0][0]  # first positional arg = CanonicalEvent
+        assert event.session_id == "sess-from-id-field"
+
+    def test_webhook_prefers_session_key_over_session_id(self, test_client, mock_gateway_client):
+        """When both sessionKey and sessionId are present, sessionKey wins."""
+        body = json.dumps({
+            "type": "exec.approval.requested",
+            "sessionKey": "from-key",
+            "sessionId": "from-id",
+            "agentId": "a1",
+            "payload": {"approval_id": "ap-2", "tool": "read_file", "path": "/tmp/y"},
+        }).encode()
+        headers = _webhook_headers("tok-test", "test-secret", body)
+        resp = test_client.post("/webhook/openclaw", content=body, headers=headers)
+        assert resp.status_code == 200
+        call_args = mock_gateway_client.request_decision.call_args
+        event = call_args[0][0]
+        assert event.session_id == "from-key"

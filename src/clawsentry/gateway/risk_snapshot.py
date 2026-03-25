@@ -365,7 +365,7 @@ def _extract_text_for_d6(event: CanonicalEvent) -> str:
     """Extract analyzable text from event payload for D6 scoring."""
     payload = event.payload or {}
     parts: list[str] = []
-    for key in ("command", "content", "text", "body", "input", "code"):
+    for key in ("command", "content", "text", "body", "input", "code", "message", "transcript", "userMessage", "user_message"):
         val = payload.get(key)
         if isinstance(val, str) and val:
             parts.append(val)

@@ -151,7 +151,8 @@ def build_detection_config_from_env() -> DetectionConfig:
         overrides["evolving_enabled"] = True
     elif _bool_env in ("0", "false", "no"):
         overrides["evolving_enabled"] = False
-    # else: omit → use default (False)
+    elif _bool_env:
+        logger.warning("Invalid value for CS_EVOLVING_ENABLED=%r, using default (false)", _bool_env)
 
     try:
         return DetectionConfig(**overrides)

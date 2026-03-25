@@ -209,7 +209,7 @@ def verify_webhook_request(
             http_status=400,
             message="Body must be a JSON object",
         )
-    if not parsed.get("type") or not parsed.get("sessionKey"):
+    if not parsed.get("type") or not (parsed.get("sessionKey") or parsed.get("sessionId")):
         return SecurityCheckResult(
             ok=False,
             failure_class=FailureClass.INPUT_INVALID,
