@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **1239+ tests**, ~24 s full suite
+- **1483+ tests**, ~24 s full suite
 
 ## Installation
 
