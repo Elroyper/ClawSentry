@@ -137,12 +137,12 @@ clawsentry --help
 预期输出：
 
 ```
-usage: clawsentry [-h] {init,gateway,stack,harness,watch} ...
+usage: clawsentry [-h] {init,gateway,stack,harness,watch,doctor,audit} ...
 
 ClawSentry — AHP unified safety supervision framework.
 
 positional arguments:
-  {init,gateway,stack,harness,watch}
+  {init,gateway,stack,harness,watch,doctor,audit}
     init                Initialize framework integration.
     gateway             Start Supervision Gateway (auto-enables OpenClaw when configured).
     stack               Start full stack (Gateway + OpenClaw). Alias for gateway.
@@ -171,12 +171,12 @@ python -m pytest src/clawsentry/tests/ -v --tb=short
 
 ```
 ========================= test session starts ==========================
-collected 1483 items
+collected 1663 items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 1483 passed, 1 skipped in ~24s ===============
+========================= 1663 passed, 1 skipped in ~25s ===============
 ```
 
 !!! success "全部通过即安装成功"

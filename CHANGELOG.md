@@ -2,6 +2,37 @@
 
 本文件记录 ClawSentry 各版本的重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.6] — 2026-03-29
+
+### 新增
+
+#### 高价值功能（E-8，5 Features）
+
+- **`clawsentry doctor` CLI 命令**：离线配置安全审计，12 项检查（AUTH token 强度/Shannon 熵/UDS 权限/阈值排序/权重边界/LLM 配置/OpenClaw secret/监听地址/白名单正则/L2 预算/数据库路径），输出 PASS/WARN/FAIL 报告，支持 `--json` / `--no-color`，exit code 语义化（0=全 PASS, 1=有 FAIL, 2=仅 WARN）
+- **`clawsentry audit` CLI 命令**：离线审计日志查询，只读打开 SQLite trajectory 数据库，支持多维过滤（`--session` / `--since` / `--risk` / `--decision` / `--tool`），三种输出格式（`--format table|json|csv`），`--stats` 聚合统计模式（按风险等级/判决/框架/Top Sessions），参数化 SQL 防注入
+- **外部内容安全标记**：自动推断工具调用的内容来源（`external` / `user` / `unknown`），外部内容触发 D6 评分加成（默认 +0.3，`CS_EXTERNAL_CONTENT_D6_BOOST`）和 Post-action 乘数（默认 ×1.3，`CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER`），完全向后兼容
+- **D4 工具频率异常检测**：三层滑动窗口速率追踪——突发检测（同工具 ≥10 次/5s → D4=2）、重复滥用（同工具 ≥20 次/60s → D4=1）、整体速率（全工具 ≥60 次/min → D4=1），合并逻辑 `d4 = min(max(accum, freq), 2)`，6 个新 `CS_D4_FREQ_*` 环境变量
+- **Docker 生产部署**：多阶段 Dockerfile（python:3.12-slim，非 root 用户 `clawsentry`，healthcheck），docker-compose.yml（SQLite volume + env_file + healthcheck），`.env.example` 模板
+
+#### 新增环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_EXTERNAL_CONTENT_D6_BOOST` | `0.3` | 外部内容 D6 加成 |
+| `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | `1.3` | 外部内容 Post-action 乘数 |
+| `CS_D4_FREQ_ENABLED` | `true` | 启用频率异常检测 |
+| `CS_D4_FREQ_BURST_COUNT` | `10` | 突发检测阈值 |
+| `CS_D4_FREQ_BURST_WINDOW_S` | `5.0` | 突发检测窗口（秒） |
+| `CS_D4_FREQ_REPETITIVE_COUNT` | `20` | 重复滥用阈值 |
+| `CS_D4_FREQ_REPETITIVE_WINDOW_S` | `60.0` | 重复滥用窗口（秒） |
+| `CS_D4_FREQ_RATE_LIMIT_PER_MIN` | `60` | 整体速率限制 |
+
+### 测试覆盖
+- 测试总量：1483 → 1663（+180 tests, 0 regressions）
+- 新增测试文件：test_doctor_command.py (61) / test_audit_command.py (40) / test_content_origin.py (43) / test_d4_frequency.py (25) / test_docker.py (11)
+
+---
+
 ## [0.2.5] — 2026-03-29
 
 ### 新增
@@ -270,6 +301,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.2.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.4
 [0.2.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.3
