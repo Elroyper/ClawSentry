@@ -9,6 +9,7 @@ from clawsentry.gateway.models import RiskLevel
 from clawsentry.gateway.pattern_matcher import (
     AttackPattern,
     PatternMatcher,
+    _parse_pattern,
     load_patterns,
 )
 
@@ -801,3 +802,54 @@ class TestZeroWidthCharPattern:
         )
         pattern_ids = [r.id for r in results]
         assert "ASI01-003" in pattern_ids
+
+
+# ---------------------------------------------------------------------------
+# ReDoS protection integration tests
+# ---------------------------------------------------------------------------
+
+
+class TestReDoSProtectionIntegration:
+    """Verify unsafe patterns are skipped end-to-end, not run via fallback."""
+
+    def test_unsafe_detection_regex_produces_no_match(self):
+        """A YAML pattern with a ReDoS detection regex must not match via fallback."""
+        raw = {
+            "id": "TEST-REDOS-001",
+            "category": "test",
+            "description": "test ReDoS",
+            "risk_level": "high",
+            "triggers": {"tool_names": ["bash"]},
+            "detection": {
+                "regex_patterns": [
+                    {"pattern": "(a+)+b", "weight": 10}
+                ]
+            },
+        }
+        pattern = _parse_pattern(raw)
+        assert pattern.detection["_compiled"] == []
+
+        matcher = PatternMatcher.__new__(PatternMatcher)
+        matcher.patterns = [pattern]
+        matched, weight = matcher._detection_match(
+            pattern, content="aaaaaaaaaaab", payload={}
+        )
+        assert not matched, "Unsafe pattern must not match via fallback"
+
+    def test_mixed_safe_unsafe_patterns_partial_compile(self):
+        """Safe patterns still work when unsafe ones are skipped."""
+        raw = {
+            "id": "TEST-REDOS-002",
+            "category": "test",
+            "description": "test",
+            "risk_level": "medium",
+            "triggers": {"tool_names": ["bash"]},
+            "detection": {
+                "regex_patterns": [
+                    {"pattern": "(a+)+b", "weight": 10},
+                    {"pattern": "safe_keyword", "weight": 5},
+                ]
+            },
+        }
+        pattern = _parse_pattern(raw)
+        assert len(pattern.detection["_compiled"]) == 1  # only safe one compiled

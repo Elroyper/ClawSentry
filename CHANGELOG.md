@@ -2,6 +2,38 @@
 
 本文件记录 ClawSentry 各版本的重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [0.2.5] — 2026-03-29
+
+### 新增
+
+#### 安全检测能力增强（E-7 Hardening）
+
+- **Unicode 归一化层** (`text_utils.py` 新模块)：393 个不可见 Unicode 码点检测 + NFKC 归一化 + 不可见字符计数，排除 U+FE0F 避免 emoji 误报
+- **中文注入检测**：D6 `injection_detector.py` 新增 22 条中文注入模式（6 类：忽略/覆盖/新指令/时间锚定/安全绕过/角色扮演/系统标记/混合中英）
+- **混淆检测扩充**：`post_action_analyzer.py` 4→13 模式（base64-pipe/hex-pipe/printf-pipe/eval-decode/curl-pipe/process-sub/heredoc/octal/hex-escape/script-exec/var-expansion/reverse-slice/hex-char）+ curl-pipe-shell 安全域名白名单
+- **秘密泄露检测扩充**：新增 OpenAI/GitHub/AWS/Slack/Feishu/Bearer/ETH 7 种 secret 模式（含上下文约束避免误报）
+- **危险工具扩充**：`risk_snapshot.py` DANGEROUS_TOOLS 9→56（跨平台：shells/execution/privilege/file-ops/process/macOS/Windows/network/persistence），D3 模式 10→25
+- **ReDoS 安全正则编译** (`safe_regex.py` 新模块)：嵌套量词检测（含交替分支）+ `compile_safe_regex()` 门控
+- **NFKC 穿透**：`injection_detector` + `post_action_analyzer` 全部检测函数先归一化再匹配
+
+### 修复
+
+#### 审查修复（3-agent Sonnet review → 4 P0 + 17 P1）
+- **[P0]** `pattern_matcher.py`：移除 `_detection_match` 中 unsafe `re.search` fallback + `_eval_single_trigger` 中 `elif` 原始正则分支
+- **[P0]** `injection_detector.py`：`must/should.*now` 换行绕过修复（`.*` → `[^\n]*`）
+- **[P0]** `safe_regex.py`：`[]]` 字符类解析修复（首字符 `]` 不再提前终止解析）
+- **[P1]** `injection_detector.py`：`[系统...]` 强模式收紧（需 `提示/指令/命令/消息` 关键词），`data:base64` 限界 `{0,2048}`，新增 `无视` 弱模式，混合模式扩展 `忘记/抛弃`
+- **[P1]** `post_action_analyzer.py`：`detect_exfiltration` NFKC 归一化，`_is_safe_curl_pipe` 使用归一化文本，`sk-` 模式添加上下文约束，`var-expansion` 收紧需执行指示符，移除 `ghp_` 重复模式
+- **[P1]** `risk_snapshot.py`：`DANGEROUS_TOOLS` 同步到 `_score_d1`（扩展工具 D1=3），`dd` 需设备目标（`of=/dev/`），删除过宽 `rm -f /var/log/` 模式，`iptables` 移除 `-Z`（计数器重置非危险）
+- **[P1]** `text_utils` 测试精确化：393 精确计数断言 + 空字符串边界测试
+- **[P1]** `pattern_matcher.py`：trigger 编译添加 `DOTALL` 与 detection 一致
+
+### 测试覆盖
+- 测试总量：1304 → 1483（+179 tests, 0 regressions）
+- 14 commits（8 E-7 hardening + 6 review fixes）
+
+---
+
 ## [0.2.4] — 2026-03-26
 
 ### 修复
@@ -238,6 +270,10 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.2.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.5
+[0.2.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.4
+[0.2.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.3
+[0.2.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.1.0

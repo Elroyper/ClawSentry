@@ -22,6 +22,7 @@ from typing import Any, Optional
 import yaml
 
 from .models import RiskLevel
+from .safe_regex import compile_safe_regex
 
 _DEFAULT_PATTERNS_PATH = Path(__file__).parent / "attack_patterns.yaml"
 _MAX_DETECTION_INPUT_LEN = 102_400  # 100 KB — hard cap to prevent ReDoS on huge inputs
@@ -122,9 +123,12 @@ def _precompile_trigger_patterns(triggers: dict[str, Any]) -> None:
         raw_patterns = triggers.get(key)
         if raw_patterns:
             compiled_key = f"_compiled_{key}"
-            triggers[compiled_key] = [
-                re.compile(p, re.IGNORECASE) for p in raw_patterns
-            ]
+            compiled_list = []
+            for p in raw_patterns:
+                compiled = compile_safe_regex(p, re.IGNORECASE | re.DOTALL)
+                if compiled is not None:
+                    compiled_list.append(compiled)
+            triggers[compiled_key] = compiled_list
     # Handle nested conditions
     for cond in triggers.get("conditions", []):
         if "OR" in cond:
@@ -147,17 +151,18 @@ def _parse_pattern(raw: dict) -> AttackPattern:
     compiled: list[dict[str, Any]] = []
     for rp in detection.get("regex_patterns", []):
         if isinstance(rp, str):
-            compiled.append({
-                "compiled": re.compile(rp, re.IGNORECASE | re.DOTALL),
-                "weight": 5,
-            })
+            cre = compile_safe_regex(rp)
+            if cre is not None:
+                compiled.append({"compiled": cre, "weight": 5})
         elif isinstance(rp, dict):
             pat_str = rp.get("pattern", "")
             if pat_str:
-                compiled.append({
-                    "compiled": re.compile(pat_str, re.IGNORECASE | re.DOTALL),
-                    "weight": rp.get("weight", 5),
-                })
+                cre = compile_safe_regex(pat_str)
+                if cre is not None:
+                    compiled.append({
+                        "compiled": cre,
+                        "weight": rp.get("weight", 5),
+                    })
     detection["_compiled"] = compiled
 
     # Pre-compile trigger regex patterns
@@ -317,23 +322,10 @@ class PatternMatcher:
             command = str(payload.get("command", ""))
             if not any(cp.search(command) for cp in trigger["_compiled_command_patterns"]):
                 return False
-        elif "command_patterns" in trigger:
-            command = str(payload.get("command", ""))
-            if not any(
-                re.search(p, command, re.IGNORECASE)
-                for p in trigger["command_patterns"]
-            ):
-                return False
 
         # --- path_patterns (regex, pre-compiled) ---
         if "_compiled_path_patterns" in trigger:
             if not any(cp.search(path) for cp in trigger["_compiled_path_patterns"]):
-                return False
-        elif "path_patterns" in trigger:
-            if not any(
-                re.search(p, path, re.IGNORECASE)
-                for p in trigger["path_patterns"]
-            ):
                 return False
 
         return True
@@ -398,13 +390,6 @@ class PatternMatcher:
 
         if matched:
             return True, max_weight
-
-        # Fallback: handle any patterns that were not pre-compiled (backward compat)
-        for rp in detection.get("regex_patterns", []):
-            pat = rp if isinstance(rp, str) else rp.get("pattern", "")
-            weight = rp.get("weight", 5) if isinstance(rp, dict) else 0
-            if pat and re.search(pat, text, re.IGNORECASE | re.DOTALL):
-                return True, weight
 
         return False, 0
 

