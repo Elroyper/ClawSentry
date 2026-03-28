@@ -157,7 +157,7 @@ Agent 请求工具调用
 
     检测工具输出中意外暴露的凭据、密钥或敏感配置。每命中 1 个模式得 +0.5，上限 1.0。
 
-    共 8 个正则模式：
+    共 15 个正则模式：
 
     | 编号 | 类型 | 检测条件 |
     |------|------|---------|
@@ -168,7 +168,14 @@ Agent 请求工具调用
     | 5 | API 密钥字段 | `api_key` / `secret_key` / `access_token = ...`（值 ≥ 16 字符） |
     | 6 | Bearer Token | `Authorization: Bearer ...`（值 ≥ 20 字符） |
     | 7 | 数据库连接串 | `DATABASE_URL = scheme://user:pass@` |
-    | 8 | OpenAI API Key | `OPENAI_API_KEY = sk-...`（值 ≥ 20 字符） |
+    | 8 | OpenAI API Key | `OPENAI_API_KEY = sk-...`（值 ≥ 20 字符，含 sk-proj- 变体） |
+    | 9 | AWS IAM Key | `AKIA[0-9A-Z]{16}`（IAM 访问密钥格式） |
+    | 10 | Slack Token | `xoxb-` / `xoxp-` / `xoxs-` 开头 |
+    | 11 | Feishu/Lark Token | `t-[a-zA-Z0-9]{20,}` 飞书开放平台 Token |
+    | 12 | Bearer Token (通用) | `bearer\s+[a-zA-Z0-9._-]{20,}`（需上下文约束避免误报） |
+    | 13 | Ethereum Private Key | `0x[0-9a-fA-F]{64}`（ETH 私钥格式） |
+    | 14 | sk- Secret Key | `sk-[a-zA-Z0-9]{20,}`（需上下文约束：`key/token/api_key/secret` 前缀） |
+    | 15 | 私钥通用关键词 | `private_key` / `priv_key` 赋值（值 ≥ 16 字符） |
 
     触发条件：`score > 0.0` → `"secret_exposure"` 加入 `patterns_matched`
 
@@ -180,14 +187,25 @@ Agent 请求工具调用
 
     检测工具输出中包含的混淆代码，攻击者常用混淆规避静态分析。
 
-    **正则检测**：4 个模式，每条命中 +0.3：
+    **正则检测**：13 个模式，每条命中 +0.3：
 
-    | 模式 | 正则 | 说明 |
-    |------|------|------|
-    | Base64 管道执行 | `base64 -d ... \| ... bash/sh` | 典型 one-liner 混淆 |
-    | eval + base64 | `eval.*base64` | 动态执行解码内容 |
-    | 十六进制字节转义 | `\x[0-9a-f]{2}` | 字节级混淆 |
-    | 字符串反转 | `[::-1]` | Python 风格反转执行 |
+    | 模式 | 说明 |
+    |------|------|
+    | base64-pipe-exec | `base64 -d \| bash/sh` — 典型 one-liner 混淆 |
+    | hex-pipe-exec | `xxd -r \| bash/sh` — 十六进制解码执行 |
+    | printf-pipe-exec | `printf \x... \| bash/sh` — printf 字节注入 |
+    | eval-decode | `eval.*base64` — 动态解码执行 |
+    | curl-pipe-shell | `curl \| bash` — 远程脚本执行（含安全域名白名单豁免） |
+    | process-sub-remote | `bash <(curl/wget)` — 进程替换远程执行 |
+    | heredoc-exec | `bash <<EOF` — heredoc 注入执行 |
+    | octal-escape | `$'\123\456'` — 八进制转义隐藏命令 |
+    | hex-escape | `$'\x41\x42'` — 十六进制转义隐藏命令 |
+    | script-exec-encoded | `python/perl/ruby -e ... base64` — 脚本语言编码执行 |
+    | var-expansion | 变量拼接混淆（需执行指示符 `\|`/`>`/`;sh` 等） |
+    | reverse-slice | `[::-1]` — Python 风格反转执行 |
+    | hex-char | `\x[0-9a-f]{2}` — 字节级混淆 |
+
+    **curl-pipe-shell 安全域名白名单**：对 `brew.sh`、`bun.sh`、`rustup.rs`、`deno.land`、`raw.githubusercontent.com` 等已知合法 curl-pipe-shell 安装脚本进行豁免，避免误报。
 
     **Shannon 熵检测**（补充）：
 
