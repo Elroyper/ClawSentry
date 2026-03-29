@@ -100,3 +100,37 @@ class TestCodexDetectFramework:
             a3s_dir=a3s_dir,
         )
         assert result == "a3s-code"
+
+
+class TestCodexInitializerSessionDir:
+
+    def test_generates_session_dir_env_var(self, tmp_path, monkeypatch):
+        """init codex should set CS_CODEX_SESSION_DIR when Codex home detected."""
+        codex_home = tmp_path / ".codex"
+        sessions_dir = codex_home / "sessions"
+        sessions_dir.mkdir(parents=True)
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+        from clawsentry.cli.initializers.codex import CodexInitializer
+        result = CodexInitializer().generate_config(tmp_path)
+        assert "CS_CODEX_SESSION_DIR" in result.env_vars
+        assert result.env_vars["CS_CODEX_SESSION_DIR"] == str(sessions_dir)
+
+    def test_no_session_dir_when_codex_not_installed(self, tmp_path, monkeypatch):
+        """When Codex is not installed, CS_CODEX_SESSION_DIR should not be set."""
+        monkeypatch.setenv("CODEX_HOME", str(tmp_path / "nonexistent"))
+
+        from clawsentry.cli.initializers.codex import CodexInitializer
+        result = CodexInitializer().generate_config(tmp_path)
+        assert "CS_CODEX_SESSION_DIR" not in result.env_vars
+
+    def test_next_steps_no_curl(self, tmp_path, monkeypatch):
+        """next_steps should not mention curl or POST /ahp/codex."""
+        monkeypatch.setenv("CODEX_HOME", str(tmp_path / "nonexistent"))
+
+        from clawsentry.cli.initializers.codex import CodexInitializer
+        result = CodexInitializer().generate_config(tmp_path)
+        joined = " ".join(result.next_steps)
+        assert "curl" not in joined.lower()
+        assert "POST" not in joined
+        assert "codex" in joined.lower()

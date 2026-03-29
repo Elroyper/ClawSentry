@@ -2,6 +2,26 @@
 
 本文件记录 ClawSentry 各版本的重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [Unreleased]
+
+### 新增
+
+- **Codex Session Watcher**：零侵入实时监控 Codex session JSONL 日志，自动发现 `$CODEX_HOME/sessions/` 下活跃 session 文件，tail 新行 → CodexAdapter 归一化 → Gateway 评估 → SSE 广播，用户无需改变 Codex 使用方式
+- **`CS_CODEX_WATCH_POLL_INTERVAL` 环境变量**：可调 watcher 文件扫描间隔（默认 0.5s）
+- **`CS_CODEX_WATCH_ENABLED` 环境变量**：显式启用/禁用 session 监控
+
+### 改进
+
+- **`clawsentry init codex` 更新**：自动检测 Codex session 目录并配置 `CS_CODEX_SESSION_DIR`，移除手动 curl 引导，改为监控模式工作流
+- **quickstart.md 重构**：四框架标签页（Claude Code / a3s-code / OpenClaw / Codex）+ 框架集成能力对比表，明确标注 Codex = 监控模式、其他框架 = 完整拦截
+- **Codex 集成文档更新**：新增监控模式说明 + 架构图，HTTP API 降为高级用法
+
+### 测试覆盖
+
+- 测试总量：1760 → 1812（+52 tests, 0 regressions）
+
+---
+
 ## [0.2.7] — 2026-03-29
 
 ### 修复

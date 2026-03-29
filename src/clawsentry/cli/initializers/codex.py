@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import os
 import secrets
 from pathlib import Path
 
@@ -41,6 +41,12 @@ class CodexInitializer:
             "CS_FRAMEWORK": "codex",
         }
 
+        # Auto-detect Codex session directory
+        codex_home = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
+        sessions_dir = codex_home / "sessions"
+        if sessions_dir.is_dir():
+            env_vars["CS_CODEX_SESSION_DIR"] = str(sessions_dir)
+
         lines = ["# ClawSentry — Codex integration config"]
         for key, val in env_vars.items():
             lines.append(f"{key}={val}")
@@ -51,9 +57,9 @@ class CodexInitializer:
 
         next_steps = [
             f"source {ENV_FILE_NAME}",
-            "clawsentry gateway    # start Gateway on HTTP :8080",
-            "codex                  # run Codex (tool calls evaluated via POST /ahp/codex)",
-            'clawsentry watch --token "$CS_AUTH_TOKEN"    # real-time monitoring',
+            "clawsentry gateway    # start Gateway (auto-monitors Codex sessions)",
+            "codex                  # use Codex normally",
+            "clawsentry watch      # real-time risk evaluation (another terminal)",
         ]
 
         return InitResult(

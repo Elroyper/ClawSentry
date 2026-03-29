@@ -22,6 +22,7 @@ import contextlib
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
@@ -285,6 +286,30 @@ def validate_stack_config(
         sys.exit(1)
 
 
+def _detect_codex_session_dir() -> Optional[Path]:
+    """Auto-detect Codex session directory for session watcher."""
+    # 1. Explicit env var
+    explicit = os.environ.get("CS_CODEX_SESSION_DIR")
+    if explicit:
+        p = Path(explicit)
+        if p.is_dir():
+            return p
+        logger.warning("CS_CODEX_SESSION_DIR=%s does not exist", explicit)
+        return None
+
+    # 2. Disabled explicitly
+    if os.environ.get("CS_CODEX_WATCH_ENABLED", "").lower() in ("0", "false", "no"):
+        return None
+
+    # 3. Auto-detect from CODEX_HOME or ~/.codex
+    codex_home = os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
+    candidate = Path(codex_home) / "sessions"
+    if candidate.is_dir():
+        return candidate
+
+    return None
+
+
 async def run_stack(args: argparse.Namespace) -> None:
     # Preflight validation for enforcement-related config
     bootstrap_cfg = OpenClawBootstrapConfig.from_env()
@@ -336,6 +361,22 @@ async def run_stack(args: argparse.Namespace) -> None:
         # have been processed yet.
         gateway.policy_engine = L1PolicyEngine(analyzer=analyzer, config=detection_config)
     gateway_app = create_http_app(gateway)
+
+    # --- Codex session watcher (auto-detect) ---
+    codex_watcher_task: Optional[asyncio.Task] = None
+    codex_session_dir = _detect_codex_session_dir()
+    if codex_session_dir is not None:
+        from .codex_watcher import CodexSessionWatcher
+        from ..adapters.a3s_adapter import InProcessA3SAdapter
+        _codex_evaluator = InProcessA3SAdapter(gateway)
+        _poll = float(os.environ.get("CS_CODEX_WATCH_POLL_INTERVAL", "0.5"))
+        codex_watcher = CodexSessionWatcher(
+            session_dir=codex_session_dir,
+            evaluate_fn=_codex_evaluator.request_decision,
+            poll_interval=_poll,
+        )
+        codex_watcher_task = asyncio.create_task(codex_watcher.start())
+        logger.info("Codex session watcher active: %s", codex_session_dir)
 
     # OpenClaw runtime + webhook only when configured
     openclaw_runtime: Optional[OpenClawRuntime] = None
@@ -459,6 +500,11 @@ async def run_stack(args: argparse.Namespace) -> None:
         if webhook_task is not None:
             gather_tasks.append(webhook_task)
         await asyncio.gather(*gather_tasks, return_exceptions=True)
+
+        if codex_watcher_task is not None:
+            codex_watcher_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await codex_watcher_task
 
         cleanup_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
