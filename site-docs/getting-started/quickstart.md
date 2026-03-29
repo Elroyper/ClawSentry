@@ -48,9 +48,35 @@ clawsentry start
     clawsentry start --framework openclaw    # 指定框架
     clawsentry start --interactive           # 启用 DEFER 交互式审批
     clawsentry start --no-watch              # 仅启动 Gateway，不显示监控
+    clawsentry start --open-browser          # 启动后自动打开 Web UI
     ```
 
-按 `Ctrl+C` 优雅关闭 Gateway 和监控。
+按 `Ctrl+C` 优雅关闭 Gateway 和监控。也可以在其他终端执行：
+
+```bash
+clawsentry status    # 查看 Gateway 运行状态
+clawsentry stop      # 停止 Gateway
+```
+
+### 项目级配置
+
+不同项目可以使用不同的安全审核强度。在项目根目录创建 `.clawsentry.toml`：
+
+```bash
+clawsentry config init --preset high    # 创建配置文件，使用 high 预设
+clawsentry config show                  # 查看当前配置
+clawsentry config set strict            # 切换到 strict 预设
+clawsentry config disable               # 禁用当前项目的监控
+```
+
+4 个预设等级：
+
+| 预设 | 适用场景 | 审核强度 |
+|------|---------|---------|
+| `low` | 个人项目、学习 | 宽松，仅拦截最危险操作 |
+| `medium` (默认) | 日常开发 | 平衡安全与效率 |
+| `high` | 团队项目、敏感数据 | 严格，更多操作需审批 |
+| `strict` | CI/CD、安全审计 | 最严格，几乎所有高危操作被拦截 |
 
 ---
 
@@ -124,7 +150,7 @@ clawsentry init claude-code
 该命令会：
 
 - 生成 `.env.clawsentry`（认证令牌 + UDS 路径）
-- 自动注入 Hook 到 `~/.claude/settings.local.json`
+- 自动注入 Hook 到 `~/.claude/settings.json`
 
 ### 步骤 2: 启动监督网关
 

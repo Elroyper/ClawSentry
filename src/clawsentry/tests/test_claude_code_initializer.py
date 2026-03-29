@@ -29,7 +29,8 @@ class TestClaudeCodeInitializer:
     def test_generate_config_creates_hook_settings(self, tmp_path):
         init = ClaudeCodeInitializer()
         result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        settings_path = tmp_path / ".claude" / "settings.local.json"
+        # Hooks now written to settings.json (not settings.local.json)
+        settings_path = tmp_path / ".claude" / "settings.json"
         assert settings_path.exists()
         settings = json.loads(settings_path.read_text())
         assert "hooks" in settings
@@ -39,7 +40,7 @@ class TestClaudeCodeInitializer:
     def test_hook_command_uses_clawsentry_harness(self, tmp_path):
         init = ClaudeCodeInitializer()
         result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        settings_path = tmp_path / ".claude" / "settings.local.json"
+        settings_path = tmp_path / ".claude" / "settings.json"
         settings = json.loads(settings_path.read_text())
         hook_cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         assert "clawsentry-harness" in hook_cmd
@@ -50,12 +51,12 @@ class TestClaudeCodeInitializer:
         claude_home = tmp_path / ".claude"
         claude_home.mkdir()
         existing = {"env": {"MY_KEY": "my_value"}, "model": "opus"}
-        (claude_home / "settings.local.json").write_text(json.dumps(existing))
+        (claude_home / "settings.json").write_text(json.dumps(existing))
 
         init = ClaudeCodeInitializer()
         result = init.generate_config(tmp_path, claude_home=claude_home)
 
-        settings = json.loads((claude_home / "settings.local.json").read_text())
+        settings = json.loads((claude_home / "settings.json").read_text())
         # Existing keys preserved
         assert settings.get("env", {}).get("MY_KEY") == "my_value"
         assert settings.get("model") == "opus"
@@ -71,12 +72,12 @@ class TestClaudeCodeInitializer:
                 "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "my-notifier"}]}]
             }
         }
-        (claude_home / "settings.local.json").write_text(json.dumps(existing))
+        (claude_home / "settings.json").write_text(json.dumps(existing))
 
         init = ClaudeCodeInitializer()
         result = init.generate_config(tmp_path, claude_home=claude_home)
 
-        settings = json.loads((claude_home / "settings.local.json").read_text())
+        settings = json.loads((claude_home / "settings.json").read_text())
         # Existing hook preserved
         assert "Notification" in settings["hooks"]
         assert settings["hooks"]["Notification"][0]["hooks"][0]["command"] == "my-notifier"
@@ -112,14 +113,14 @@ class TestClaudeCodeUninstall:
     def test_uninstall_removes_hooks(self, tmp_path):
         claude_home = tmp_path / ".claude"
         init = ClaudeCodeInitializer()
-        # Install first
+        # Install first (writes to settings.json)
         init.generate_config(tmp_path, claude_home=claude_home)
-        settings = json.loads((claude_home / "settings.local.json").read_text())
+        settings = json.loads((claude_home / "settings.json").read_text())
         assert "PreToolUse" in settings["hooks"]
 
         # Uninstall
         result = init.uninstall(claude_home=claude_home)
-        settings = json.loads((claude_home / "settings.local.json").read_text())
+        settings = json.loads((claude_home / "settings.json").read_text())
         # ClawSentry hooks removed
         for hook_type in ("PreToolUse", "PostToolUse", "SessionStart", "SessionEnd"):
             if hook_type in settings.get("hooks", {}):
@@ -128,6 +129,7 @@ class TestClaudeCodeUninstall:
                     assert "clawsentry-harness" not in str(entry)
 
     def test_uninstall_preserves_other_hooks(self, tmp_path):
+        """Uninstall should preserve non-ClawSentry hooks."""
         claude_home = tmp_path / ".claude"
         claude_home.mkdir()
         existing = {
@@ -139,18 +141,39 @@ class TestClaudeCodeUninstall:
                 "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "my-notifier"}]}],
             }
         }
-        (claude_home / "settings.local.json").write_text(json.dumps(existing))
+        # Test with settings.json
+        (claude_home / "settings.json").write_text(json.dumps(existing))
 
         init = ClaudeCodeInitializer()
         init.uninstall(claude_home=claude_home)
 
-        settings = json.loads((claude_home / "settings.local.json").read_text())
+        settings = json.loads((claude_home / "settings.json").read_text())
         # Other hook preserved
         assert "Notification" in settings["hooks"]
         # ClawSentry entry removed, but other PreToolUse entry preserved
         pre_entries = settings["hooks"].get("PreToolUse", [])
         assert len(pre_entries) == 1
         assert "my-other-hook" in str(pre_entries[0])
+
+    def test_uninstall_cleans_legacy_settings_local(self, tmp_path):
+        """Uninstall should also clean hooks from legacy settings.local.json."""
+        claude_home = tmp_path / ".claude"
+        claude_home.mkdir()
+        # Legacy hooks in settings.local.json
+        legacy = {
+            "hooks": {
+                "PreToolUse": [
+                    {"matcher": "", "hooks": [{"type": "command", "command": "clawsentry-harness --framework claude-code"}]},
+                ],
+            }
+        }
+        (claude_home / "settings.local.json").write_text(json.dumps(legacy))
+
+        init = ClaudeCodeInitializer()
+        result = init.uninstall(claude_home=claude_home)
+
+        settings = json.loads((claude_home / "settings.local.json").read_text())
+        assert "hooks" not in settings or not settings.get("hooks")
 
     def test_uninstall_nonexistent_settings(self, tmp_path):
         """Uninstall on missing settings file should not crash."""

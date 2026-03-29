@@ -4,21 +4,44 @@
 
 ## [Unreleased]
 
+---
+
+## [0.2.8] — 2026-03-30
+
 ### 新增
 
-- **Codex Session Watcher**：零侵入实时监控 Codex session JSONL 日志，自动发现 `$CODEX_HOME/sessions/` 下活跃 session 文件，tail 新行 → CodexAdapter 归一化 → Gateway 评估 → SSE 广播，用户无需改变 Codex 使用方式
-- **`CS_CODEX_WATCH_POLL_INTERVAL` 环境变量**：可调 watcher 文件扫描间隔（默认 0.5s）
-- **`CS_CODEX_WATCH_ENABLED` 环境变量**：显式启用/禁用 session 监控
+#### 项目级安全配置（E-10）
+
+- **`.clawsentry.toml` 项目配置**：在项目根目录放置 `.clawsentry.toml` 即可自定义安全审核强度，harness 自动读取（60s TTL 缓存），支持 `enabled` 开关和 `preset` 预设等级
+- **4 个安全预设等级**：`low`（个人项目/学习）、`medium`（默认/日常开发）、`high`（团队/敏感项目）、`strict`（CI/安全审计），每个预设映射到不同的 `DetectionConfig` 阈值组合
+- **`clawsentry config` CLI 命令组**：`config init [--preset]` / `config show` / `config set <preset>` / `config disable` / `config enable`，快速管理项目级配置
+- **Gateway per-request 预设应用**：harness 通过 `_clawsentry_meta` 将项目预设信息传递到 Gateway，Gateway 的 `L1PolicyEngine.evaluate()` 支持 `config` 覆盖参数，实现每请求独立的检测配置
+- **`clawsentry stop` / `clawsentry status`**：PID 文件管理，一键停止/查询 Gateway 状态
+- **`clawsentry start --open-browser`**：启动后自动打开 Web UI
+
+#### Codex Session Watcher
+
+- **Codex Session Watcher**：零侵入实时监控 Codex session JSONL 日志，自动发现 `$CODEX_HOME/sessions/` 下活跃 session 文件，tail 新行 → CodexAdapter 归一化 → Gateway 评估 → SSE 广播
+- **`CS_CODEX_WATCH_POLL_INTERVAL` / `CS_CODEX_WATCH_ENABLED`**：可调 watcher 行为的环境变量
+
+### 修复
+
+- **`detect_framework` 检测失败**：修复只检查 `settings.local.json` 的 bug，现在同时检查 `settings.json` 和 `settings.local.json`
+- **Claude Code hooks 目标文件**：`clawsentry init claude-code` 改为写入 `~/.claude/settings.json`（而非 `settings.local.json`），避免被项目级配置覆盖
+- **Gateway 不可达时阻断所有工具**：当 Gateway UDS 不可达时，harness 的 fallback 决策现在 fail-open（允许），而非 fail-closed 阻断所有 Claude Code 工具调用
+- **`--uninstall` 清理遗留**：uninstall 现在同时清理 `settings.json` 和 `settings.local.json` 中的 hooks
 
 ### 改进
 
-- **`clawsentry init codex` 更新**：自动检测 Codex session 目录并配置 `CS_CODEX_SESSION_DIR`，移除手动 curl 引导，改为监控模式工作流
-- **quickstart.md 重构**：四框架标签页（Claude Code / a3s-code / OpenClaw / Codex）+ 框架集成能力对比表，明确标注 Codex = 监控模式、其他框架 = 完整拦截
-- **Codex 集成文档更新**：新增监控模式说明 + 架构图，HTTP API 降为高级用法
+- **`clawsentry init codex` 更新**：自动检测 Codex session 目录并配置 `CS_CODEX_SESSION_DIR`
+- **quickstart.md 重构**：四框架集成路径 + 框架能力对比表 + 项目级配置文档 + uv/Homebrew 安装方式
+- **installation.md 更新**：新增 `uv tool install` 和 Homebrew tap 安装标签页，更新 CLI 命令一览表
+- **Homebrew formula 骨架**：`homebrew/clawsentry.rb` 模板（待创建 tap 仓库后激活）
+- **Harness 诊断日志**：`CS_HARNESS_DIAG_LOG` 环境变量支持
 
 ### 测试覆盖
 
-- 测试总量：1760 → 1812（+52 tests, 0 regressions）
+- 测试总量：1760 → 1893（+133 tests, 0 regressions）
 
 ---
 
@@ -382,6 +405,8 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.2.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.8
+[0.2.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.6
 [0.2.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.5
 [0.2.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.4

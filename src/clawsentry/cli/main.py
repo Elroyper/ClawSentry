@@ -232,6 +232,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable ANSI colour codes in output.",
     )
 
+    # --- config ---
+    config_parser = sub.add_parser(
+        "config",
+        help="Manage project-level .clawsentry.toml configuration.",
+    )
+    config_sub = config_parser.add_subparsers(dest="config_command")
+
+    config_init = config_sub.add_parser("init", help="Create .clawsentry.toml in current directory.")
+    config_init.add_argument("--preset", default="medium", choices=["low", "medium", "high", "strict"])
+    config_init.add_argument("--force", action="store_true", default=False)
+
+    config_sub.add_parser("show", help="Show current project config.")
+
+    config_set = config_sub.add_parser("set", help="Change project preset.")
+    config_set.add_argument("preset", choices=["low", "medium", "high", "strict"])
+
+    config_sub.add_parser("disable", help="Disable ClawSentry for this project.")
+    config_sub.add_parser("enable", help="Enable ClawSentry for this project.")
+
     # --- start ---
     start_parser = sub.add_parser(
         "start",
@@ -267,6 +286,18 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Enable interactive DEFER handling in watch.",
     )
+    start_parser.add_argument(
+        "--open-browser",
+        action="store_true",
+        default=False,
+        help="Open the Web UI in a browser after gateway starts.",
+    )
+
+    # --- stop ---
+    sub.add_parser("stop", help="Stop running gateway.")
+
+    # --- status ---
+    sub.add_parser("status", help="Check gateway status.")
 
     return parser
 
@@ -367,6 +398,25 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(code)
 
+    elif args.command == "config":
+        from .config_command import (
+            run_config_init, run_config_show, run_config_set,
+            run_config_disable, run_config_enable,
+        )
+        target = Path(".")
+        if args.config_command == "init":
+            run_config_init(target_dir=target, preset=args.preset, force=args.force)
+        elif args.config_command == "show":
+            run_config_show(target_dir=target)
+        elif args.config_command == "set":
+            run_config_set(target_dir=target, preset=args.preset)
+        elif args.config_command == "disable":
+            run_config_disable(target_dir=target)
+        elif args.config_command == "enable":
+            run_config_enable(target_dir=target)
+        else:
+            print("Usage: clawsentry config {init,show,set,disable,enable}")
+
     elif args.command == "start":
         from .start_command import detect_framework, run_start
 
@@ -387,7 +437,16 @@ def main(argv: list[str] | None = None) -> None:
             port=args.port,
             no_watch=args.no_watch,
             interactive=args.interactive,
+            open_browser=args.open_browser,
         )
+
+    elif args.command == "stop":
+        from .start_command import run_stop
+        run_stop()
+
+    elif args.command == "status":
+        from .start_command import run_status
+        run_status()
 
 
 if __name__ == "__main__":

@@ -108,26 +108,33 @@ class L1PolicyEngine:
         context: Optional[DecisionContext] = None,
         requested_tier: DecisionTier = DecisionTier.L1,
         deadline_budget_ms: float | None = None,
+        config: Optional[DetectionConfig] = None,
     ) -> tuple[CanonicalDecision, RiskSnapshot, DecisionTier]:
         """
         Evaluate an event and produce a decision.
 
         Args:
             deadline_budget_ms: If set, caps L2 budget to remaining deadline.
+            config: Per-request config override (e.g. from project preset).
+                    Uses the engine's default config when ``None``.
 
         Returns:
             (decision, risk_snapshot, actual_tier)
         """
+        effective_config = config if config is not None else self._config
         start = time.monotonic()
 
-        l1_snapshot = compute_risk_snapshot(event, context, self._session_tracker, self._config)
+        l1_snapshot = compute_risk_snapshot(event, context, self._session_tracker, effective_config)
         snapshot = l1_snapshot
         decision = self._decide(event, snapshot)
         actual_tier = DecisionTier.L1
 
         if self._should_run_l2(event, context, l1_snapshot, requested_tier):
             try:
-                snapshot = self._run_l2_analysis(event, context, l1_snapshot, deadline_budget_ms)
+                snapshot = self._run_l2_analysis(
+                    event, context, l1_snapshot, deadline_budget_ms,
+                    config_override=effective_config,
+                )
                 decision = self._decide(event, snapshot)
                 actual_tier = DecisionTier.L2
             except Exception:
@@ -281,6 +288,7 @@ class L1PolicyEngine:
         context: Optional[DecisionContext],
         l1_snapshot: RiskSnapshot,
         deadline_budget_ms: float | None = None,
+        config_override: Optional[DetectionConfig] = None,
     ) -> RiskSnapshot:
         # Run async analyzer synchronously
         try:
@@ -288,9 +296,10 @@ class L1PolicyEngine:
         except RuntimeError:
             loop = None
 
-        budget = self._config.l2_budget_ms
-        if self._config.l3_budget_ms is not None:
-            budget = max(budget, self._config.l3_budget_ms)
+        cfg = config_override if config_override is not None else self._config
+        budget = cfg.l2_budget_ms
+        if cfg.l3_budget_ms is not None:
+            budget = max(budget, cfg.l3_budget_ms)
         if deadline_budget_ms is not None:
             budget = min(budget, max(0, deadline_budget_ms - _L2_OVERHEAD_MARGIN_MS))
         timeout_sec = budget / 1000.0

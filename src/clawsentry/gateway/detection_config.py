@@ -203,3 +203,119 @@ def build_detection_config_from_env() -> DetectionConfig:
             exc,
         )
         return DetectionConfig()
+
+
+# --- Preset security levels ---
+
+PRESETS: dict[str, dict[str, object]] = {
+    "low": {
+        "threshold_critical": 2.8,
+        "threshold_high": 2.0,
+        "threshold_medium": 1.2,
+        "d6_injection_multiplier": 0.3,
+        "post_action_emergency": 0.95,
+        "post_action_escalate": 0.7,
+        "post_action_monitor": 0.4,
+        "defer_timeout_action": "allow",
+    },
+    "medium": {},  # all defaults
+    "high": {
+        "threshold_critical": 1.8,
+        "threshold_high": 1.2,
+        "threshold_medium": 0.5,
+        "d6_injection_multiplier": 0.7,
+        "post_action_emergency": 0.8,
+        "post_action_escalate": 0.5,
+        "post_action_monitor": 0.2,
+    },
+    "strict": {
+        "threshold_critical": 1.3,
+        "threshold_high": 0.9,
+        "threshold_medium": 0.3,
+        "d6_injection_multiplier": 1.0,
+        "post_action_emergency": 0.7,
+        "post_action_escalate": 0.4,
+        "post_action_monitor": 0.15,
+    },
+}
+
+
+def from_preset(name: str, **overrides: object) -> DetectionConfig:
+    """Create a DetectionConfig from a named preset with optional overrides.
+
+    Raises KeyError if preset name is unknown.
+    """
+    if name not in PRESETS:
+        raise KeyError(f"Unknown preset: {name!r}. Available: {sorted(PRESETS.keys())}")
+    params = dict(PRESETS[name])
+    params.update(overrides)
+    return DetectionConfig(**params)
+
+
+def build_detection_config_with_preset(
+    preset_name: str,
+    project_overrides: dict[str, object],
+) -> DetectionConfig:
+    """Build a :class:`DetectionConfig` from a preset, project overrides, and env vars.
+
+    Priority chain (highest wins):
+      1. ``CS_`` environment variables
+      2. ``project_overrides`` (from ``.clawsentry.toml [overrides]``)
+      3. Preset values
+      4. :class:`DetectionConfig` defaults
+
+    If the preset name is unknown, logs a warning and falls back to defaults.
+    If the final combination violates validation, falls back to defaults.
+    """
+    # 1. Start from preset
+    try:
+        preset_params = dict(PRESETS[preset_name])
+    except KeyError:
+        logger.warning(
+            "Unknown preset %r in project config; using defaults", preset_name
+        )
+        preset_params = {}
+
+    # 2. Apply project overrides on top
+    params: dict[str, object] = {**preset_params, **project_overrides}
+
+    # 3. Apply env var overrides on top (highest priority)
+    for env_key, field_name, typ in _ENV_MAP:
+        raw = os.getenv(env_key)
+        if raw is None:
+            continue
+        try:
+            params[field_name] = typ(raw)
+        except (ValueError, TypeError):
+            logger.warning("Invalid value for %s=%r, using default", env_key, raw)
+
+    for env_key, field_name in _ENV_LIST_MAP:
+        raw = os.getenv(env_key)
+        if raw is None:
+            continue
+        items = [s.strip() for s in raw.split(",") if s.strip()]
+        if items:
+            params[field_name] = tuple(items)
+
+    def _parse_bool_env(env_key: str, field_name: str) -> None:
+        raw = os.getenv(env_key, "").strip().lower()
+        if raw in ("1", "true", "yes"):
+            params[field_name] = True
+        elif raw in ("0", "false", "no"):
+            params[field_name] = False
+        elif raw:
+            logger.warning("Invalid value for %s=%r, using default", env_key, raw)
+
+    _parse_bool_env("CS_EVOLVING_ENABLED", "evolving_enabled")
+    _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
+
+    try:
+        return DetectionConfig(**params)
+    except (ValueError, TypeError) as exc:
+        logger.error(
+            "Preset %r + overrides produce invalid DetectionConfig (%s); "
+            "falling back to defaults",
+            preset_name,
+            exc,
+        )
+        return DetectionConfig()

@@ -83,6 +83,7 @@ class TestCodexDetectFramework:
         result = detect_framework(
             openclaw_home=tmp_path / "fake_oc",
             a3s_dir=tmp_path / "fake_a3s",
+            claude_home=tmp_path / "fake_claude",
         )
         assert result is None
 

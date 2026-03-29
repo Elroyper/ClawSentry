@@ -1126,3 +1126,176 @@ class TestClaudeCodeRealHookFormat:
         assert hso is not None, f"Expected hookSpecificOutput for rm -rf, got: {block_resp}"
         assert hso["permissionDecision"] == "deny"
         assert "ClawSentry" in hso.get("permissionDecisionReason", "")
+
+
+# ===================================================================
+# Part 7: Fail-open when Gateway unreachable
+# ===================================================================
+
+
+class TestFailOpenOnGatewayUnreachable:
+    """When Gateway is down, Claude Code hooks should fail-open (allow).
+
+    Without this, a stopped Gateway blocks ALL tool calls and makes
+    Claude Code completely unusable.
+    """
+
+    @pytest.mark.asyncio
+    async def test_failopen_pretooluse_when_gateway_down(self):
+        """PreToolUse with unreachable Gateway → allow (not block/defer)."""
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent-socket-test.sock",
+            source_framework="claude-code",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        # Even dangerous commands should fail-open when Gateway is down
+        response = await harness.dispatch_async({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "rm -rf /tmp/test"},
+            "session_id": "failopen-test",
+            "cwd": "/tmp",
+        })
+        # None = allow — don't block developer when monitoring is down
+        assert response is None, \
+            f"Gateway down → should fail-open (None), got: {response}"
+
+    @pytest.mark.asyncio
+    async def test_failopen_safe_command_when_gateway_down(self):
+        """Safe Read with unreachable Gateway → allow."""
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent-socket-test.sock",
+            source_framework="claude-code",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {"file_path": "/tmp/test.txt"},
+            "session_id": "failopen-test-safe",
+            "cwd": "/tmp",
+        })
+        assert response is None
+
+
+# ===================================================================
+# Part 8: Project config (.clawsentry.toml) enabled flag in harness
+# ===================================================================
+
+
+class TestProjectConfigInHarness:
+    """Test that harness respects .clawsentry.toml enabled flag."""
+
+    @pytest.mark.asyncio
+    async def test_disabled_project_allows_all_native_hook(self, tmp_path):
+        """When .clawsentry.toml has enabled=false, native hook should allow everything."""
+        toml = tmp_path / ".clawsentry.toml"
+        toml.write_text('[project]\nenabled = false\n')
+
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent.sock",
+            source_framework="claude-code",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        # Clear cache to ensure fresh read
+        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
+        _project_config_cache.clear()
+
+        response = await harness.dispatch_async({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "rm -rf /"},
+            "session_id": "test",
+            "cwd": str(tmp_path),
+        })
+        assert response is None  # None = allow for Claude Code hooks
+
+    @pytest.mark.asyncio
+    async def test_disabled_project_allows_all_jsonrpc(self, tmp_path):
+        """When .clawsentry.toml has enabled=false, JSON-RPC should also allow."""
+        toml = tmp_path / ".clawsentry.toml"
+        toml.write_text('[project]\nenabled = false\n')
+
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent.sock",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
+        _project_config_cache.clear()
+
+        response = await harness.dispatch_async({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "pre_tool_use",
+                "payload": {
+                    "tool": "Bash",
+                    "command": "rm -rf /",
+                    "cwd": str(tmp_path),
+                },
+            },
+        })
+        assert response is not None
+        result = response.get("result", {})
+        assert result.get("action") == "continue"
+        assert "disabled" in result.get("reason", "").lower()
+
+    @pytest.mark.asyncio
+    async def test_enabled_project_proceeds_normally(self, tmp_path):
+        """When .clawsentry.toml has enabled=true, harness should proceed to Gateway."""
+        toml = tmp_path / ".clawsentry.toml"
+        toml.write_text('[project]\npreset = "strict"\n')
+
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent.sock",
+            source_framework="claude-code",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
+        _project_config_cache.clear()
+
+        # Gateway unreachable → fail-open → None
+        response = await harness.dispatch_async({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+            "session_id": "test",
+            "cwd": str(tmp_path),
+        })
+        assert response is None  # fail-open when gateway unreachable
+
+    @pytest.mark.asyncio
+    async def test_no_cwd_skips_project_check(self):
+        """When no cwd is provided, project config check should be skipped."""
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/clawsentry-nonexistent.sock",
+            source_framework="claude-code",
+            default_deadline_ms=500,
+            max_rpc_retries=0,
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        # No cwd → skip project config → proceed to gateway → fail-open
+        response = await harness.dispatch_async({
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "ls"},
+            "session_id": "test",
+        })
+        assert response is None  # fail-open

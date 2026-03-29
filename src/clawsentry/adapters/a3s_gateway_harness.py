@@ -14,6 +14,7 @@ from typing import Any, Optional
 try:
     from .a3s_adapter import A3SCodeAdapter
     from ..gateway.models import CanonicalDecision, DecisionVerdict
+    from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
     # Support direct script execution:
     # python src/clawsentry/adapters/a3s_gateway_harness.py
@@ -24,8 +25,32 @@ except ImportError:
         sys.path.insert(0, _SRC_ROOT)
     from clawsentry.adapters.a3s_adapter import A3SCodeAdapter  # type: ignore[no-redef]
     from clawsentry.gateway.models import CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
+    from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
+
+import time as _time
+from pathlib import Path as _Path
 
 logger = logging.getLogger("a3s-gateway-harness")
+
+# ---------------------------------------------------------------------------
+# Project config cache (.clawsentry.toml) — avoid re-reading TOML on every
+# tool call.  Keyed by cwd string, with a 60-second TTL.
+# ---------------------------------------------------------------------------
+
+_project_config_cache: dict[str, tuple[float, ProjectConfig]] = {}
+_PROJECT_CONFIG_TTL = 60.0  # seconds
+
+
+def _get_project_config(cwd: str) -> ProjectConfig:
+    """Load project config with 60s TTL cache."""
+    now = _time.monotonic()
+    cached = _project_config_cache.get(cwd)
+    if cached and (now - cached[0]) < _PROJECT_CONFIG_TTL:
+        return cached[1]
+    cfg = load_project_config(_Path(cwd))
+    _project_config_cache[cwd] = (now, cfg)
+    return cfg
+
 
 _EVENT_TO_HOOK: dict[str, str] = {
     "pre_action": "PreToolUse",
@@ -56,6 +81,21 @@ def _camel_to_snake(name: str) -> str:
 def _log_stderr(msg: str) -> None:
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"[{ts}] [a3s-gateway-harness] {msg}", file=sys.stderr, flush=True)
+
+
+_DIAG_LOG = os.environ.get("CS_HARNESS_DIAG_LOG", "")
+
+
+def _diag(msg: str) -> None:
+    """Write diagnostic message to file if CS_HARNESS_DIAG_LOG is set."""
+    if not _DIAG_LOG:
+        return
+    try:
+        ts = datetime.now().strftime("%H:%M:%S.%f")
+        with open(_DIAG_LOG, "a") as f:
+            f.write(f"[{ts}] {msg}\n")
+    except OSError:
+        pass
 
 
 def _resolve_payload(raw: Any) -> dict[str, Any]:
@@ -157,6 +197,18 @@ class A3SGatewayHarness:
         event_type_raw = str(params.get("event_type", "")).strip().lower()
         payload = _resolve_payload(params.get("payload"))
 
+        # Check project config from payload cwd (covers JSON-RPC path)
+        cwd = payload.get("cwd") or payload.get("working_directory", "")
+        if cwd:
+            project_cfg = _get_project_config(cwd)
+            if not project_cfg.enabled:
+                return {
+                    "action": "continue",
+                    "decision": "allow",
+                    "reason": "project monitoring disabled via .clawsentry.toml",
+                    "metadata": {"source": "clawsentry-gateway-harness"},
+                }
+
         hook_type = _EVENT_TO_HOOK.get(event_type_raw)
         if hook_type is None:
             return {
@@ -181,6 +233,16 @@ class A3SGatewayHarness:
             self.default_agent_id,
         )
 
+        # Inject project preset info into payload before normalization
+        project_preset = params.get("_project_preset")
+        project_overrides = params.get("_project_overrides")
+        if project_preset or project_overrides:
+            meta = payload.setdefault("_clawsentry_meta", {})
+            if project_preset:
+                meta["project_preset"] = project_preset
+            if project_overrides:
+                meta["project_overrides"] = project_overrides
+
         evt = self.adapter.normalize_hook_event(
             hook_type,
             payload,
@@ -194,6 +256,15 @@ class A3SGatewayHarness:
                 "reason": f"Event filtered: hook_type={hook_type}",
                 "metadata": {"source": "clawsentry-gateway-harness"},
             }
+
+        # Ensure project preset info survives normalization (adapter may
+        # rebuild _clawsentry_meta, so merge it into the event payload).
+        if (project_preset or project_overrides) and evt.payload is not None:
+            meta = evt.payload.setdefault("_clawsentry_meta", {})
+            if project_preset:
+                meta["project_preset"] = project_preset
+            if project_overrides:
+                meta["project_overrides"] = project_overrides
 
         decision = await self.adapter.request_decision(evt)
         return _decision_to_ahp_result(decision)
@@ -309,6 +380,21 @@ class A3SGatewayHarness:
         # --- Native hook path (Claude Code / direct hook command) ---
         params = self._convert_native_hook(msg)
         is_claude_code_hook = "hook_event_name" in msg
+
+        # Check project config (.clawsentry.toml)
+        cwd = msg.get("cwd") or msg.get("working_directory", "")
+        if cwd:
+            project_cfg = _get_project_config(cwd)
+            if not project_cfg.enabled:
+                _diag(f"project disabled via .clawsentry.toml at {cwd}")
+                if is_claude_code_hook:
+                    return None  # exit 0 = allow
+                return {"result": {"action": "continue", "reason": "project monitoring disabled"}}
+            # Attach preset info for Gateway to use
+            if project_cfg.preset != "medium" or project_cfg.overrides:
+                params["_project_preset"] = project_cfg.preset
+                params["_project_overrides"] = project_cfg.overrides
+
         if self.async_mode:
             # Dispatch in background — don't block the hook
             asyncio.ensure_future(self._async_dispatch(params))
@@ -338,14 +424,30 @@ class A3SGatewayHarness:
         - Exit code 2 → block (handled by run_stdio)
 
         We use the hookSpecificOutput approach for richer feedback.
+
+        **Fail-open on gateway unreachable**: When the Gateway is down,
+        fallback decisions (DEFER/BLOCK) would break the developer workflow
+        by blocking ALL tool calls.  We fail-open and log a warning instead.
         """
         action = result.get("action", "continue")
         if action in ("continue", "allow"):
             return None  # exit 0 = allow
 
+        metadata = result.get("metadata", {})
+        policy_id = metadata.get("policy_id", "")
+
+        # Fail-open when Gateway is unreachable — don't break developer workflow.
+        # Fallback decisions have policy_id "fallback-fail-closed" or "fallback-defer".
+        if policy_id.startswith("fallback-"):
+            _log_stderr(
+                f"Gateway unreachable — fail-open for {hook_event_name} "
+                f"(would have been: {action})"
+            )
+            return None  # allow: monitoring is down, don't block tools
+
         if action in ("block", "defer"):
             reason = result.get("reason", "Blocked by ClawSentry security policy")
-            risk_level = result.get("metadata", {}).get("risk_level", "unknown")
+            risk_level = metadata.get("risk_level", "unknown")
             return {
                 "hookSpecificOutput": {
                     "hookEventName": hook_event_name,
@@ -367,6 +469,7 @@ class A3SGatewayHarness:
 
     def run_stdio(self) -> None:
         _log_stderr("harness started")
+        _diag(f"harness started (async={self.async_mode}, uds={self.adapter.uds_path})")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -378,17 +481,30 @@ class A3SGatewayHarness:
                     msg = json.loads(line)
                 except json.JSONDecodeError as exc:
                     _log_stderr(f"invalid json: {exc}")
+                    _diag(f"invalid json: {exc}")
                     continue
 
-                response = loop.run_until_complete(self.dispatch_async(msg))
+                _diag(f"recv: hook_event={msg.get('hook_event_name', msg.get('method', '?'))} tool={msg.get('tool_name', '?')}")
+                try:
+                    response = loop.run_until_complete(self.dispatch_async(msg))
+                except Exception as exc:
+                    _diag(f"dispatch error: {exc}")
+                    _log_stderr(f"dispatch error: {exc}")
+                    continue
+                _diag(f"response: {json.dumps(response, ensure_ascii=False) if response else 'None (allow)'}")
                 if response is not None:
                     print(json.dumps(response, ensure_ascii=False), flush=True)
+        except Exception as exc:
+            _diag(f"run_stdio fatal: {exc}")
+            raise
         finally:
             # Wait for any --async background tasks to complete
             pending = asyncio.all_tasks(loop)
             if pending:
+                _diag(f"waiting for {len(pending)} async tasks")
                 loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
             loop.close()
+            _diag("harness exited")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

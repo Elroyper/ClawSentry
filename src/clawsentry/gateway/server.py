@@ -52,7 +52,11 @@ from .models import (
     utc_now_iso,
 )
 from .defer_manager import DeferManager
-from .detection_config import DetectionConfig, build_detection_config_from_env
+from .detection_config import (
+    DetectionConfig,
+    build_detection_config_from_env,
+    build_detection_config_with_preset,
+)
 from .llm_factory import build_analyzer_from_env
 from .pattern_evolution import PatternEvolutionManager
 from .policy_engine import L1PolicyEngine
@@ -95,6 +99,26 @@ INVALID_EVENT_RATE_WARNING_15M_MAX = 0.01
 JSONRPC_METHOD = "ahp/sync_decision"
 JSONRPC_VERSION = "2.0"
 MAX_WINDOW_SECONDS = 604800  # 1 week = 7 * 24 * 3600
+
+
+def _extract_project_config(
+    payload: Optional[dict[str, Any]],
+) -> tuple[Optional[str], dict[str, Any]]:
+    """Extract project preset/overrides from event payload metadata.
+
+    Returns ``(preset_name, overrides)`` where *preset_name* is ``None``
+    when no project preset is specified.
+    """
+    if not payload or not isinstance(payload, dict):
+        return None, {}
+    meta = payload.get("_clawsentry_meta")
+    if not isinstance(meta, dict):
+        return None, {}
+    preset = meta.get("project_preset")
+    overrides = meta.get("project_overrides", {})
+    if not isinstance(overrides, dict):
+        overrides = {}
+    return preset, overrides
 
 # ---------------------------------------------------------------------------
 # Authentication
@@ -1125,6 +1149,16 @@ class SupervisionGateway:
         start = time.monotonic()
         deadline_at = start + req.deadline_ms / 1000.0
 
+        # --- Project preset config (from .clawsentry.toml via harness) ---
+        _preset_name, _preset_overrides = _extract_project_config(
+            req.event.payload
+        )
+        project_config: Optional[DetectionConfig] = None
+        if _preset_name:
+            project_config = build_detection_config_with_preset(
+                _preset_name, _preset_overrides,
+            )
+
         # --- E-8: Record tool call for D4 frequency analysis ---
         if req.event.tool_name:
             self.policy_engine.session_tracker.record_tool_call(
@@ -1147,6 +1181,7 @@ class SupervisionGateway:
                 _, snapshot, _ = self.policy_engine.evaluate(
                     req.event, req.context, req.decision_tier,
                     deadline_budget_ms=remaining_ms,
+                    config=project_config,
                 )
             except Exception:
                 logger.exception("Policy engine error during enforcement snapshot")
@@ -1161,6 +1196,7 @@ class SupervisionGateway:
                 decision, snapshot, actual_tier = self.policy_engine.evaluate(
                     req.event, req.context, req.decision_tier,
                     deadline_budget_ms=remaining_ms,
+                    config=project_config,
                 )
             except Exception:
                 logger.exception("Policy engine error")
@@ -1365,7 +1401,7 @@ class SupervisionGateway:
                         tool_name=req.event.tool_name or "unknown",
                         event_id=req.event.event_id,
                         content_origin=_pa_origin,
-                        external_multiplier=self._detection_config.external_content_post_action_multiplier,
+                        external_multiplier=(project_config or self._detection_config).external_content_post_action_multiplier,
                     )
                     if finding.tier.value != "log_only":
                         self.event_bus.broadcast({

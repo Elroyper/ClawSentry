@@ -93,9 +93,13 @@ class ClaudeCodeInitializer:
         env_path.chmod(0o600)
         files_created.append(env_path)
 
-        # --- ~/.claude/settings.local.json ---
+        # --- ~/.claude/settings.json (hooks) ---
+        # Write hooks to settings.json (not settings.local.json) to ensure
+        # they survive project-level settings.local.json overrides.
+        # Claude Code merges settings from multiple files, but project-level
+        # settings.local.json may shadow the global one for some keys.
         effective_claude_home = claude_home or Path.home() / ".claude"
-        settings_path = effective_claude_home / "settings.local.json"
+        settings_path = effective_claude_home / "settings.json"
 
         new_hooks: dict[str, Any] = {}
         for hook_type, blocking in _HOOK_TYPES.items():
@@ -118,7 +122,7 @@ class ClaudeCodeInitializer:
         next_steps = [
             f"source {ENV_FILE_NAME}",
             "clawsentry gateway    # start Gateway on UDS + HTTP :8080",
-            "claude                 # hooks auto-loaded from ~/.claude/settings.local.json",
+            "claude                 # hooks auto-loaded from ~/.claude/settings.json",
             'clawsentry watch --token "$CS_AUTH_TOKEN"    # real-time monitoring',
         ]
 
@@ -130,39 +134,52 @@ class ClaudeCodeInitializer:
         )
 
     def uninstall(self, *, claude_home: Path | None = None) -> InitResult:
-        """Remove ClawSentry hooks from Claude Code settings."""
+        """Remove ClawSentry hooks from Claude Code settings.
+
+        Cleans hooks from both ``settings.json`` and ``settings.local.json``
+        to handle installations from older versions that wrote to
+        ``settings.local.json``.
+        """
         effective_claude_home = claude_home or Path.home() / ".claude"
-        settings_path = effective_claude_home / "settings.local.json"
         warnings: list[str] = []
+        cleaned_any = False
 
-        if not settings_path.exists():
-            warnings.append(f"{settings_path} not found, nothing to uninstall")
-            return InitResult(files_created=[], env_vars={}, next_steps=[], warnings=warnings)
+        # Clean hooks from both settings files (current=settings.json, legacy=settings.local.json)
+        for filename in ("settings.json", "settings.local.json"):
+            settings_path = effective_claude_home / filename
+            if not settings_path.exists():
+                continue
 
-        try:
-            settings = json.loads(settings_path.read_text())
-        except (json.JSONDecodeError, OSError) as exc:
-            warnings.append(f"Could not parse {settings_path}: {exc}")
-            return InitResult(files_created=[], env_vars={}, next_steps=[], warnings=warnings)
+            try:
+                settings = json.loads(settings_path.read_text())
+            except (json.JSONDecodeError, OSError) as exc:
+                warnings.append(f"Could not parse {settings_path}: {exc}")
+                continue
 
-        hooks = settings.get("hooks", {})
-        if not isinstance(hooks, dict):
-            hooks = {}
-            settings["hooks"] = hooks
+            hooks = settings.get("hooks", {})
+            if not isinstance(hooks, dict):
+                continue
 
-        for hook_type in list(hooks.keys()):
-            entries = hooks[hook_type]
-            if isinstance(entries, list):
-                filtered = [e for e in entries if _CLAWSENTRY_HOOK_MARKER not in str(e)]
-                if filtered:
-                    hooks[hook_type] = filtered
-                else:
-                    del hooks[hook_type]
+            changed = False
+            for hook_type in list(hooks.keys()):
+                entries = hooks[hook_type]
+                if isinstance(entries, list):
+                    filtered = [e for e in entries if _CLAWSENTRY_HOOK_MARKER not in str(e)]
+                    if len(filtered) != len(entries):
+                        changed = True
+                    if filtered:
+                        hooks[hook_type] = filtered
+                    else:
+                        del hooks[hook_type]
 
-        if not hooks and "hooks" in settings:
-            del settings["hooks"]
+            if changed:
+                if not hooks and "hooks" in settings:
+                    del settings["hooks"]
+                settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+                cleaned_any = True
 
-        settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+        if not cleaned_any:
+            warnings.append("No ClawSentry hooks found in settings files")
 
         return InitResult(
             files_created=[],

@@ -13,11 +13,33 @@ from .init_command import run_init
 from .initializers.base import ENV_FILE_NAME
 
 
+_PID_FILE = Path("/tmp/clawsentry-gateway.pid")
+
+
+def _write_pid_file(path: Path, pid: int) -> None:
+    path.write_text(str(pid))
+
+
+def _read_pid_file(path: Path) -> int | None:
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _remove_pid_file(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def detect_framework(
     *,
     openclaw_home: Path | None = None,
     a3s_dir: Path | None = None,
     codex_home: Path | None = None,
+    claude_home: Path | None = None,
 ) -> str | None:
     """Auto-detect which framework is configured.
 
@@ -42,17 +64,19 @@ def detect_framework(
         except OSError:
             pass
 
-    # Claude Code: check for ClawSentry hooks in settings
-    claude_settings = Path.home() / ".claude" / "settings.local.json"
-    if claude_settings.is_file():
-        try:
-            import json as _json
-            data = _json.loads(claude_settings.read_text())
-            hooks = data.get("hooks", {})
-            if any("clawsentry" in str(v) for v in hooks.values()):
-                return "claude-code"
-        except Exception:
-            pass
+    # Claude Code: check BOTH settings.json and settings.local.json
+    effective_claude_home = claude_home or Path.home() / ".claude"
+    for filename in ("settings.json", "settings.local.json"):
+        claude_settings = effective_claude_home / filename
+        if claude_settings.is_file():
+            try:
+                import json as _json
+                data = _json.loads(claude_settings.read_text())
+                hooks = data.get("hooks", {})
+                if any("clawsentry" in str(v) for v in hooks.values()):
+                    return "claude-code"
+            except Exception:
+                pass
 
     return None
 
@@ -177,6 +201,35 @@ def run_watch_loop(
     )
 
 
+def run_stop() -> None:
+    """Stop the running gateway process."""
+    pid = _read_pid_file(_PID_FILE)
+    if pid is None:
+        print("No running gateway found.")
+        return
+    import signal
+    try:
+        os.kill(pid, signal.SIGTERM)
+        print(f"Gateway (PID {pid}) stopped.")
+    except ProcessLookupError:
+        print(f"Gateway (PID {pid}) not running.")
+    _remove_pid_file(_PID_FILE)
+
+
+def run_status() -> None:
+    """Check gateway status."""
+    pid = _read_pid_file(_PID_FILE)
+    if pid is None:
+        print("Gateway: not running")
+        return
+    try:
+        os.kill(pid, 0)  # check if alive
+        print(f"Gateway: running (PID {pid})")
+    except ProcessLookupError:
+        print(f"Gateway: stale PID file (PID {pid} not found)")
+        _remove_pid_file(_PID_FILE)
+
+
 def run_start(
     *,
     framework: str,
@@ -186,6 +239,7 @@ def run_start(
     no_watch: bool = False,
     interactive: bool = False,
     openclaw_home: Path | None = None,
+    open_browser: bool = False,
 ) -> None:
     """Orchestrate: auto-init → launch gateway → health check → watch."""
     from .dotenv_loader import load_dotenv
@@ -218,12 +272,19 @@ def run_start(
 
     # 5. Launch gateway
     proc = launch_gateway(host=host, port=port, log_path=log_path)
+    _write_pid_file(_PID_FILE, proc.pid)
 
     # 6. Health check
     if not wait_for_health(gateway_url):
         print("Gateway failed to start. Check log:", log_path, file=sys.stderr)
         shutdown_gateway(proc)
+        _remove_pid_file(_PID_FILE)
         return
+
+    # 6b. Open browser if requested
+    if open_browser:
+        import webbrowser
+        webbrowser.open(ui_url)
 
     if no_watch:
         print(f"Gateway running (PID {proc.pid}). Use Ctrl+C or kill to stop.")
@@ -243,4 +304,5 @@ def run_start(
         print("\nShutting down...")
     finally:
         shutdown_gateway(proc)
+        _remove_pid_file(_PID_FILE)
         print(f"Gateway stopped. Log: {log_path}")
