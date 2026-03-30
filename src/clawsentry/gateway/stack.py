@@ -364,6 +364,7 @@ async def run_stack(args: argparse.Namespace) -> None:
         patterns_path=detection_config.attack_patterns_path,
         evolved_patterns_path=detection_config.evolved_patterns_path if detection_config.evolving_enabled else None,
         l3_budget_ms=detection_config.l3_budget_ms,
+        metrics=gateway.metrics,
     )
     if analyzer is not None:
         # Replace the default rule-only engine with one backed by the LLM analyzer.

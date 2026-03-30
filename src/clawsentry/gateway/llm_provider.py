@@ -21,6 +21,15 @@ class LLMProviderConfig:
     base_url: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class LLMUsage:
+    """Immutable record of token usage from a single LLM call."""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    provider: str = ""
+    model: str = ""
+
+
 @runtime_checkable
 class LLMProvider(Protocol):
     """Protocol for LLM provider implementations."""
@@ -46,6 +55,7 @@ class AnthropicProvider:
         self._config = config
         self._model = config.model or self.DEFAULT_MODEL
         self._client: Optional[object] = None
+        self._last_usage: LLMUsage = LLMUsage()
 
     def _get_client(self) -> object:
         """Lazy-init the Anthropic async client (deferred to avoid proxy issues at import)."""
@@ -77,6 +87,13 @@ class AnthropicProvider:
             ),
             timeout=timeout_ms / 1000,
         )
+        usage = getattr(response, "usage", None)
+        self._last_usage = LLMUsage(
+            input_tokens=getattr(usage, "input_tokens", 0) if usage else 0,
+            output_tokens=getattr(usage, "output_tokens", 0) if usage else 0,
+            provider="anthropic",
+            model=self._model,
+        )
         return response.content[0].text  # type: ignore[union-attr]
 
 
@@ -89,6 +106,7 @@ class OpenAIProvider:
         self._config = config
         self._model = config.model or self.DEFAULT_MODEL
         self._client: Optional[object] = None
+        self._last_usage: LLMUsage = LLMUsage()
 
     def _get_client(self) -> object:
         """Lazy-init the OpenAI async client (deferred to avoid proxy issues at import)."""
@@ -125,4 +143,66 @@ class OpenAIProvider:
             ),
             timeout=timeout_ms / 1000,
         )
+        usage = getattr(response, "usage", None)
+        self._last_usage = LLMUsage(
+            input_tokens=getattr(usage, "prompt_tokens", 0) if usage else 0,
+            output_tokens=getattr(usage, "completion_tokens", 0) if usage else 0,
+            provider="openai",
+            model=self._model,
+        )
         return response.choices[0].message.content  # type: ignore[union-attr]
+
+
+class InstrumentedProvider:
+    """Wrapper that delegates to an inner LLM provider and records metrics.
+
+    After each ``complete()`` call, reads ``inner._last_usage`` (with a
+    ``getattr`` fallback to ``LLMUsage()``) and reports token counts, status,
+    and tier to the provided ``MetricsCollector`` via ``record_llm_call()``.
+
+    Satisfies the ``LLMProvider`` Protocol (``provider_id`` property +
+    ``async complete() -> str``).
+    """
+
+    def __init__(self, inner: LLMProvider, metrics: object, *, tier: str) -> None:
+        self._inner = inner
+        self._metrics = metrics
+        self._tier = tier
+
+    @property
+    def provider_id(self) -> str:
+        return self._inner.provider_id
+
+    @property
+    def _last_usage(self) -> LLMUsage:
+        return getattr(self._inner, "_last_usage", LLMUsage())
+
+    async def complete(
+        self,
+        system_prompt: str,
+        user_message: str,
+        timeout_ms: float,
+        max_tokens: int = 256,
+    ) -> str:
+        status = "ok"
+        try:
+            result = await self._inner.complete(
+                system_prompt, user_message, timeout_ms, max_tokens,
+            )
+            return result
+        except asyncio.TimeoutError:
+            status = "timeout"
+            raise
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            usage = getattr(self._inner, "_last_usage", LLMUsage())
+            provider_name = usage.provider if usage.provider else self._inner.provider_id
+            self._metrics.record_llm_call(  # type: ignore[union-attr]
+                provider=provider_name,
+                tier=self._tier,
+                status=status,
+                input_tokens=usage.input_tokens,
+                output_tokens=usage.output_tokens,
+            )

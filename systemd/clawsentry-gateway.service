@@ -1,0 +1,28 @@
+[Unit]
+Description=ClawSentry AHP Supervision Gateway
+After=network.target
+Documentation=https://elroyper.github.io/ClawSentry/
+
+[Service]
+Type=simple
+User=clawsentry
+Group=clawsentry
+EnvironmentFile=/etc/clawsentry/gateway.env
+# Adjust ExecStart path based on your installation method:
+#   pip install: /usr/local/bin/clawsentry-gateway
+#   uv tool install: ~/.local/bin/clawsentry-gateway
+#   pipx: ~/.local/bin/clawsentry-gateway
+ExecStart=/usr/local/bin/clawsentry-gateway --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/clawsentry /tmp/clawsentry.sock
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
-from .llm_provider import AnthropicProvider, LLMProviderConfig, OpenAIProvider
+from .llm_provider import AnthropicProvider, InstrumentedProvider, LLMProviderConfig, OpenAIProvider
 from .semantic_analyzer import CompositeAnalyzer, LLMAnalyzer, RuleBasedAnalyzer
 
 logger = logging.getLogger("ahp.llm-factory")
@@ -30,6 +30,7 @@ def build_analyzer_from_env(
     patterns_path: Optional[str] = None,
     evolved_patterns_path: Optional[str] = None,
     l3_budget_ms: Optional[float] = None,
+    metrics: Optional[Any] = None,
 ) -> Optional[CompositeAnalyzer | LLMAnalyzer | RuleBasedAnalyzer]:
     """Build a SemanticAnalyzer from environment variables.
 
@@ -76,7 +77,10 @@ def build_analyzer_from_env(
         base_url or "(default)",
     )
 
-    analyzers: list = [RuleBasedAnalyzer(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path), LLMAnalyzer(provider)]
+    # Wrap L2 provider with instrumentation when metrics collector is provided.
+    l2_provider = InstrumentedProvider(provider, metrics, tier="L2") if metrics is not None else provider
+
+    analyzers: list = [RuleBasedAnalyzer(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path), LLMAnalyzer(l2_provider)]
 
     l3_enabled = os.getenv("CS_L3_ENABLED", "").strip().lower() in ("true", "1", "yes")
     if l3_enabled:
@@ -99,8 +103,10 @@ def build_analyzer_from_env(
             agent_config = AgentAnalyzerConfig()
             if l3_budget_ms is not None:
                 agent_config = AgentAnalyzerConfig(l3_budget_ms=l3_budget_ms)
+            # Wrap L3 provider separately so L2 and L3 calls are tracked independently.
+            l3_provider = InstrumentedProvider(provider, metrics, tier="L3") if metrics is not None else provider
             agent = AgentAnalyzer(
-                provider=provider,
+                provider=l3_provider,
                 toolkit=toolkit,
                 skill_registry=skill_registry,
                 config=agent_config,

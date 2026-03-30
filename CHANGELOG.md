@@ -6,6 +6,62 @@
 
 ---
 
+## [0.3.0] — 2026-03-31
+
+### 新增
+
+#### Prometheus 可观测性
+
+- **`/metrics` 端点**：Prometheus 格式的指标暴露端点，包含 8 个核心指标：决策计数 (`clawsentry_decisions_total`)、决策延迟 (`clawsentry_decision_latency_seconds`)、风险评分分布 (`clawsentry_risk_score`)、活跃会话 (`clawsentry_active_sessions`)、LLM 调用计数 (`clawsentry_llm_calls_total`)、LLM Token 用量 (`clawsentry_llm_tokens_total`)、LLM 成本估算 (`clawsentry_llm_cost_usd_total`)、DEFER 待处理数 (`clawsentry_defers_pending`)
+- **No-op 降级**：`prometheus_client` 为可选依赖 (`pip install clawsentry[metrics]`)，未安装时所有指标操作静默退化为 no-op，零强制依赖
+- **`CS_METRICS_AUTH`**：可选启用 `/metrics` 端点的 Bearer token 认证（默认无认证，与 `/health` 同级）
+
+#### LLM 成本追踪
+
+- **`InstrumentedProvider` 包装器**：透明包装 `AnthropicProvider` / `OpenAIProvider`，自动提取每次调用的 token 用量并上报 Prometheus 指标，LLMProvider Protocol 签名完全不变
+- **`LLMUsage` dataclass**：`input_tokens` / `output_tokens` / `provider` / `model` 四字段，每次 SDK 调用后存入 provider 的 `_last_usage` 属性
+- **成本估算**：基于硬编码参考价格（Anthropic $3/$15, OpenAI $2.5/$10 per M tokens）自动估算并累加到 `clawsentry_llm_cost_usd_total`
+
+#### LLM 每日预算控制
+
+- **`CS_LLM_DAILY_BUDGET_USD`**：设置每日 LLM 花费上限（默认 0 = 不限），超出后自动将 L2/L3 请求降级为 L1-only，decision reason 附加 `[LLM budget exhausted, L1-only]`
+- **`LLMBudgetTracker`**：线程安全（`threading.Lock`）的日预算追踪器，UTC 日期自动翻转，首次超预算时广播 SSE 事件
+
+#### 生产部署
+
+- **systemd 服务模板**：`systemd/clawsentry-gateway.service`，含安全加固（NoNewPrivileges / ProtectSystem=strict / ProtectHome / PrivateTmp）
+- **Docker Compose 可观测性栈**：Gateway + Prometheus + Grafana 三服务编排，Grafana 数据源自动配置，PromQL 查询参考文档
+- **Docker 镜像默认含 Prometheus**：Dockerfile 改为安装 `".[metrics]"`
+
+#### 安装途径
+
+- **Homebrew tap 更新**（实验性）：formula 骨架更新至 v0.3.0，添加 `head` 选项
+- **uv tool install**：验证并文档化 `uv tool install clawsentry` 安装路径
+
+### 改进
+
+- Docker Compose 格式升级至 Compose V2（移除已废弃的 `version` 键）
+- `[metrics]` 可选依赖组加入 `pyproject.toml`，`[all]` 组包含 metrics
+- 安装文档新增 Prometheus 可观测性标签页 + 依赖组表更新
+- Homebrew 状态从「建设中」改为「实验性」
+
+### 配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_METRICS_AUTH` | `false` | 启用 `/metrics` 端点认证 |
+| `CS_LLM_DAILY_BUDGET_USD` | `0` | 每日 LLM 预算（0=不限） |
+| `CS_PROMETHEUS_PORT` | `9090` | Docker Compose Prometheus 端口 |
+| `CS_GRAFANA_PORT` | `3000` | Docker Compose Grafana 端口 |
+| `CS_GRAFANA_PASSWORD` | `clawsentry` | Grafana admin 密码 |
+
+### 测试覆盖
+
+- 测试总量：2042 → 2144（+102 tests, 0 regressions）
+- 新增：test_metrics.py (23) / test_instrumented_provider.py (26) / test_budget_tracker.py (21) + P2 Mobile UI 32 tests (previously unreleased)
+
+---
+
 ## [0.2.9] — 2026-03-30
 
 ### 新增
@@ -442,6 +498,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.3.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.0
 [0.2.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.9
 [0.2.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.8
 [0.2.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.7

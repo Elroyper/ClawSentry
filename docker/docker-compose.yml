@@ -1,0 +1,60 @@
+# ClawSentry Gateway — Docker Compose with observability stack
+# Usage: docker compose up -d
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: clawsentry-gateway
+    ports:
+      - "${CS_HTTP_PORT:-8080}:8080"
+    volumes:
+      - clawsentry-data:/data
+    env_file:
+      - .env
+    environment:
+      - CS_HTTP_HOST=0.0.0.0
+      - CS_HTTP_PORT=8080
+      - CS_TRAJECTORY_DB_PATH=/data/clawsentry-trajectory.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: clawsentry-prometheus
+    ports:
+      - "${CS_PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: clawsentry-grafana
+    ports:
+      - "${CS_GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${CS_GRAFANA_PASSWORD:-clawsentry}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  clawsentry-data:
+  prometheus-data:
+  grafana-data:

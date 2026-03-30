@@ -61,6 +61,7 @@ from .llm_factory import build_analyzer_from_env
 from .pattern_evolution import PatternEvolutionManager
 from .policy_engine import L1PolicyEngine
 from .post_action_analyzer import PostActionAnalyzer
+from .metrics import LLMBudgetTracker, MetricsCollector
 from .trajectory_analyzer import TrajectoryAnalyzer
 from .session_enforcement import (
     EnforcementAction,
@@ -1066,6 +1067,13 @@ class SupervisionGateway:
             store_path=self._detection_config.evolved_patterns_path or "",
             enabled=self._detection_config.evolving_enabled,
         )
+        # P3: Prometheus metrics collector
+        _metrics_enabled = os.getenv("CS_METRICS_ENABLED", "true").lower() not in ("0", "false", "no")
+        self.metrics = MetricsCollector(enabled=_metrics_enabled)
+        # P3: LLM daily budget tracker
+        self.budget_tracker = LLMBudgetTracker(
+            daily_budget_usd=self._detection_config.llm_daily_budget_usd,
+        )
         self._start_time = time.monotonic()
         self._ready = True
 
@@ -1190,11 +1198,17 @@ class SupervisionGateway:
             actual_tier = DecisionTier.L1
             enforcement_applied = True
         else:
+            # --- P3: LLM budget check — force L1 if exhausted ---
+            requested_tier = req.decision_tier
+            budget_exhausted = not self.budget_tracker.can_spend()
+            if budget_exhausted:
+                requested_tier = DecisionTier.L1
+
             # Evaluate normally
             try:
                 remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
                 decision, snapshot, actual_tier = self.policy_engine.evaluate(
-                    req.event, req.context, req.decision_tier,
+                    req.event, req.context, requested_tier,
                     deadline_budget_ms=remaining_ms,
                     config=project_config,
                 )
@@ -1208,6 +1222,12 @@ class SupervisionGateway:
                     retry_after_ms=50,
                 )
                 return self._jsonrpc_error_with_data(rpc_id, -32603, error_resp)
+
+            # Annotate decision when budget forced L1-only downgrade
+            if budget_exhausted and req.decision_tier != DecisionTier.L1:
+                decision = decision.model_copy(update={
+                    "reason": decision.reason + " [LLM budget exhausted, L1-only]"
+                })
 
         # --- CS-012: Record decision BEFORE deadline check ---
         # Recording must happen unconditionally so that even deadline-exceeded
@@ -1303,6 +1323,20 @@ class SupervisionGateway:
                     "timestamp": occurred_at,
                 }
             )
+            self.metrics.session_started()
+
+        # --- P3: Record metrics ---
+        _latency_s = time.monotonic() - start
+        _source_fw = str(event_dict.get("source_framework") or "unknown")
+        _risk_score_val = float(snapshot_dict.get("composite_score") or 0.0)
+        self.metrics.record_decision(
+            verdict=str(decision_dict.get("decision") or "unknown"),
+            risk_level=current_risk_level,
+            risk_score=_risk_score_val,
+            tier=actual_tier.value,
+            source_framework=_source_fw,
+            latency_s=_latency_s,
+        )
 
         self.event_bus.broadcast(
             {
@@ -1446,6 +1480,7 @@ class SupervisionGateway:
         ):
             defer_id = f"cs-defer-{uuid.uuid4().hex[:12]}"
             self.defer_manager.register_defer(defer_id)
+            self.metrics.defer_registered()
 
             # Broadcast defer_pending event
             _defer_timeout = (project_config or self._detection_config).defer_timeout_s
@@ -1485,6 +1520,8 @@ class SupervisionGateway:
 
             # Update dict for response
             decision_dict = decision.model_dump(mode="json")
+
+            self.metrics.defer_resolved()
 
             # Broadcast defer_resolved event
             self.event_bus.broadcast({
@@ -1885,6 +1922,21 @@ def create_http_app(
     @app.get("/health")
     async def health_endpoint():
         return gateway.health()
+
+    # --- P3: Prometheus /metrics endpoint ---
+    _metrics_auth_enabled = os.getenv("CS_METRICS_AUTH", "").lower() in ("1", "true", "yes")
+
+    @app.get("/metrics")
+    async def metrics_endpoint(request: Request):
+        if _metrics_auth_enabled:
+            auth_result = await verify_auth(request)
+            if isinstance(auth_result, Response):
+                return auth_result
+        data = gateway.metrics.generate_metrics_text()
+        return Response(
+            content=data,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     @app.get("/report/summary")
     async def report_summary_endpoint(request: Request, window_seconds: Optional[int] = None):
