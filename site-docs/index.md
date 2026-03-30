@@ -35,36 +35,126 @@ hide:
     text-align: center;
   }
   .grid-cards .card h3 { margin-top: 0.5rem; }
+  .framework-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .framework-card {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+  .framework-card h3 { margin-top: 0.5rem; }
+  .latch-banner {
+    background: var(--md-code-bg-color);
+    border-left: 4px solid var(--md-accent-fg-color);
+    border-radius: 4px;
+    padding: 1rem 1.4rem;
+    margin: 1rem 0 2rem;
+  }
 </style>
 
 <div class="hero" markdown>
 
-# ClawSentry
+## :shield: ClawSentry
 
-## :shield:{ .lg } ClawSentry
-
-**Agent Harness Protocol (AHP) 参考实现**
+**AI Agent 会执行危险命令。ClawSentry 在执行前拦截。**
 { .tagline }
 
-面向 AI Agent 运行时的统一安全监督网关 —— 归一化多框架事件，三层递进决策，实时可视化监控。
+面向 Claude Code、a3s-code、OpenClaw、Codex 的实时安全监督网关。<br>
+三层递进决策（规则 → 语义 → Agent 审查），毫秒级响应，零代码侵入。
 { .tagline }
 
-[:octicons-download-16: 快速安装](#_3){ .md-button .md-button--primary }
-[:octicons-book-16: 快速开始](getting-started/quickstart.md){ .md-button }
+[:octicons-rocket-16: 选择你的框架开始](#choose-framework){ .md-button .md-button--primary }
+[:octicons-book-16: 查看文档](getting-started/quickstart.md){ .md-button }
 [:octicons-mark-github-16: GitHub](https://github.com/Elroyper/ClawSentry){ .md-button }
 
 </div>
 
 ---
 
-## 什么是 ClawSentry？
+<div class="grid-cards" markdown>
 
-**AHP（Agent Harness Protocol）** 是一套开放的 AI Agent 安全监督协议规范，定义了事件归一化、风险评估和决策执行的标准接口。
+<div class="card" markdown>
+### :shield: 拦截，而不只是记录
+AI 执行 `rm -rf` 或试图外传密钥前，ClawSentry 自动阻止——不是事后告警。
+</div>
 
-**ClawSentry** 是该协议的 Python 参考实现。它以 Sidecar 形式部署，拦截 Agent 运行时的工具调用事件，通过三层递进式决策模型（规则 → 语义 → Agent 审查）做出 ALLOW / DENY / DEFER 判决，并提供实时监控仪表板。
+<div class="card" markdown>
+### :zap: 不拖慢你的工作流
+L1 规则引擎 &lt;1ms 完成大多数决策；L2/L3 语义分析仅在必要时触发。
+</div>
 
-!!! tip "核心定位"
-    AHP 是**协议**，ClawSentry 是**实现**。协议定义"说什么"，实现决定"怎么做"。
+<div class="card" markdown>
+### :eye: 全链路可见
+每条工具调用都有记录、决策原因和完整审计轨迹，支持 CLI 终端 / Web 仪表板 / 移动端。
+</div>
+
+</div>
+
+---
+
+## 选择你的框架 { #choose-framework }
+
+<div class="framework-cards" markdown>
+
+<div class="card framework-card" markdown>
+### :material-console-line: Claude Code
+通过原生 Hook 系统接入，**自动拦截**高危操作。
+
+- 零侵入注入，不改动 Claude Code 本身
+- `PreToolUse` 阻塞式安全审查
+- 一键初始化 + 一键卸载
+
+[:octicons-arrow-right-24: Claude Code 快速开始](getting-started/quickstart.md)
+</div>
+
+<div class="card framework-card" markdown>
+### :material-console: a3s-code
+通过 stdio / HTTP 传输协议接入，**自动拦截**高危操作。
+
+- stdio harness 作为 Hook 进程
+- 支持 UDS（主）+ HTTP（备）双通道
+- 一键初始化配置
+
+[:octicons-arrow-right-24: a3s-code 快速开始](getting-started/quickstart.md)
+</div>
+
+<div class="card framework-card" markdown>
+### :material-web: OpenClaw
+通过 WebSocket 实时事件流接入，**自动拦截**高危操作。
+
+- 监听 `exec.approval.requested` 事件
+- 自动检测 OpenClaw 配置
+- 支持交互式 DEFER 审批
+
+[:octicons-arrow-right-24: OpenClaw 快速开始](getting-started/quickstart.md)
+</div>
+
+<div class="card framework-card" markdown>
+### :material-code-braces: Codex
+通过 session 日志监控接入，**实时风险评估**。
+
+- 自动监控 session 日志目录
+- 无原生 Hook，不自动拦截，提供评估建议
+- 建议配合 `--approval-policy untrusted`
+
+[:octicons-arrow-right-24: Codex 快速开始](getting-started/quickstart.md)
+</div>
+
+</div>
+
+<div class="latch-banner" markdown>
+
+:material-cellphone: **Latch 移动监控（可选增强）**
+
+随时随地在手机上查看安全事件，远程审批 DEFER 操作。支持所有框架，需单独安装。
+
+[:octicons-arrow-right-24: 了解 Latch 集成](integration/latch.md)
+
+</div>
 
 ---
 
@@ -73,24 +163,24 @@ hide:
 <div class="grid-cards" markdown>
 
 <div class="card" markdown>
-### :zap: 三层决策
+### :zap: 深度防御
 **L1 规则** (<1ms) → **L2 语义** (<3s) → **L3 Agent** (<30s)
 
-逐层升级，兼顾速度与深度
+逐层升级，绝大多数决策在 L1 毫秒级完成。
 </div>
 
 <div class="card" markdown>
-### :link: 四框架接入
+### :link: 统一多种 AI 框架
 **a3s-code** + **Claude Code** + **Codex** + **OpenClaw**
 
-统一 AHP 协议归一化事件
+统一 AHP 协议归一化所有框架事件。
 </div>
 
 <div class="card" markdown>
-### :satellite: 实时监控
-**SSE 推送** + **CLI Watch** + **Web 仪表板**
+### :satellite: 多端实时可见
+**CLI 终端** + **Web 仪表板** + **移动端（Latch）**
 
-决策/告警/会话全链路可观测
+决策/告警/会话三端同步，全链路可观测。
 </div>
 
 <div class="card" markdown>
@@ -104,86 +194,21 @@ hide:
 
 ---
 
-## 架构总览
-
-<figure markdown>
-  ![ClawSentry 架构总览](assets/architecture-overview.png)
-  <figcaption>ClawSentry — 统一 AI Agent 安全监督网关</figcaption>
-</figure>
-
-### 完整数据流
+## 工作原理
 
 ```mermaid
 flowchart LR
-    subgraph fw["Agent 框架"]
-        direction TB
-        A3S["a3s-code\nstdio / HTTP"]
-        CC["Claude Code\nHook + Harness"]
-        CX["Codex CLI\nHTTP"]
-        OC["OpenClaw\nWS / Webhook"]
-    end
-
-    subgraph gw["适配器层"]
-        direction TB
-        A3SA["A3S Adapter"]
-        CCA["Claude Code Adapter"]
-        CXA["Codex Adapter"]
-        OCA["OpenClaw Adapter"]
-    end
-
-    subgraph sync["同步决策路径（pre_action 阻塞）"]
-        direction TB
-        CE["CanonicalEvent\nAHP 归一化"]
-        PE["PolicyEngine\n决策编排 + 会话执法"]
-        L1["L1 规则引擎\n&lt;1ms · D1–D6 六维评分"]
-        L2["L2 语义分析\n&lt;3s · LLM + 25种攻击模式"]
-        L3["L3 审查 Agent\n&lt;30s · 多轮工具推理"]
-        CE --> PE --> L1
-        L1 -->|"不确定"| L2
-        L2 -->|"不确定"| L3
-        L1 & L2 & L3 -->|"CanonicalDecision"| PE
-    end
-
-    subgraph async["异步分析（post_action · 非阻塞）"]
-        direction TB
-        PA["Post-action 围栏\n注入/外传/凭证/混淆"]
-        TA["轨迹分析器\n5种多步攻击序列"]
-        PEV["自进化模式库\n信心评分 · YAML 持久化"]
-    end
-
-    subgraph obs["状态 & 可观测"]
-        direction TB
-        SR["SessionRegistry"]
-        EB["SSE EventBus"]
-        AR["AlertRegistry"]
-        DB[("TrajectoryStore\nSQLite")]
-    end
-
-    subgraph out["输出通道"]
-        direction TB
-        CLI["clawsentry watch\n终端实时监控"]
-        WEB["Web 仪表板\nReact SPA"]
-        API["REST API\n报表 & 管理"]
-    end
-
-    A3S --> A3SA
-    CC --> CCA
-    CX --> CXA
-    OC --> OCA
-    A3SA & CCA & CXA & OCA --> CE
-    PE -->|"同步判决"| A3SA & CCA & CXA & OCA
-
-    CE -.->|"post_action 异步"| PA & TA
-    L2 -.->|"候选模式"| PEV
-    L3 --> DB
-
-    PE --> SR
-    PA & TA --> EB
-    SR --> EB
-    EB --> AR
-    EB --> CLI & WEB
-    AR --> API
+    A["AI Agent\n执行工具调用"] -->|"pre_action 事件"| B["ClawSentry\n风险评估 &lt;1ms"]
+    B -->|"低风险"| C["✅ ALLOW\n正常执行"]
+    B -->|"高风险"| D["❌ BLOCK\n自动拦截"]
+    B -->|"中等风险"| E["⏸ DEFER\n等待审批"]
 ```
+
+??? note "查看完整架构图"
+    <figure markdown>
+      ![ClawSentry 架构总览](assets/architecture-overview.png)
+      <figcaption>ClawSentry — 统一 AI Agent 安全监督网关</figcaption>
+    </figure>
 
 ---
 
@@ -222,117 +247,85 @@ flowchart LR
 
 ---
 
-## 三层决策模型
+??? info "三层决策模型详解"
+    | 层级 | 名称 | 延迟 | 机制 | 适用场景 |
+    |:---:|:---|:---:|:---|:---|
+    | **L1** | 规则引擎 | <1ms | D1-D6 六维评分（命令危险度/参数敏感度/命令模式/历史行为/作用域权限/注入检测） | 明确的黑白名单、已知危险模式、注入尝试 |
+    | **L2** | 语义分析 | <3s | RuleBased / LLM / Composite 三种实现，SemanticAnalyzer 协议 | 需要上下文理解的灰度命令 |
+    | **L3** | 审查 Agent | <30s | AgentAnalyzer + ReadOnlyToolkit + SkillRegistry，多轮工具调用推理 | 复杂意图判断、需要取证分析 |
 
-| 层级 | 名称 | 延迟 | 机制 | 适用场景 |
-|:---:|:---|:---:|:---|:---|
-| **L1** | 规则引擎 | <1ms | D1-D6 六维评分（命令危险度/参数敏感度/命令模式/历史行为/作用域权限/注入检测） | 明确的黑白名单、已知危险模式、注入尝试 |
-| **L2** | 语义分析 | <3s | RuleBased / LLM / Composite 三种实现，SemanticAnalyzer 协议 | 需要上下文理解的灰度命令 |
-| **L3** | 审查 Agent | <30s | AgentAnalyzer + ReadOnlyToolkit + SkillRegistry，多轮工具调用推理 | 复杂意图判断、需要取证分析 |
+    ```
+                      ┌─ ALLOW/DENY ──→ 直接返回
+      Event ──→ L1 ──┤
+                      └─ 不确定 ──→ L2 ──┬─ ALLOW/DENY ──→ 返回
+                                          └─ 不确定 ──→ L3 ──→ 最终判决
+    ```
 
-```
-                  ┌─ ALLOW/DENY ──→ 直接返回
-  Event ──→ L1 ──┤
-                  └─ 不确定 ──→ L2 ──┬─ ALLOW/DENY ──→ 返回
-                                      └─ 不确定 ──→ L3 ──→ 最终判决
-```
-
-!!! note "升级策略"
-    每层仅在无法确定时才向上升级，保证绝大多数请求在 L1 毫秒级完成。L3 是终审，**永不降级**——任何 L3 内部失败将降级为 `confidence=0.0`（fail-closed）。
+    !!! note "升级策略"
+        每层仅在无法确定时才向上升级，保证绝大多数请求在 L1 毫秒级完成。L3 是终审，**永不降级**——任何 L3 内部失败将降级为 `confidence=0.0`（fail-closed）。
 
 ---
 
-## 四框架支持
+??? info "各框架接入详情"
+    === "a3s-code"
 
-=== "a3s-code"
+        通过 **stdio harness**（主通道）或 **HTTP Transport**（备通道）接入。
 
-    通过 **stdio harness**（主通道）或 **HTTP Transport**（备通道）接入。
+        ```bash
+        # stdio 模式 — 作为 a3s-code hook 进程
+        clawsentry-harness
 
-    ```bash
-    # stdio 模式 — 作为 a3s-code hook 进程
-    clawsentry-harness
+        # HTTP 模式 — POST /ahp/a3s
+        clawsentry-gateway
+        ```
 
-    # HTTP 模式 — POST /ahp/a3s
-    clawsentry-gateway
-    ```
+        详见 [a3s-code 集成指南](integration/a3s-code.md)
 
-    详见 [a3s-code 集成指南](integration/a3s-code.md)
+    === "Claude Code"
 
-=== "Claude Code"
+        通过 **Hook 系统** + **stdio harness** 接入，自动注入 `settings.json`。
 
-    通过 **Hook 系统** + **stdio harness** 接入，自动注入 `settings.local.json`。
+        ```bash
+        clawsentry init claude-code   # 一键配置 hooks
+        source .env.clawsentry
+        clawsentry gateway &          # 启动 Gateway
+        claude                        # 正常使用，所有工具调用自动监控
+        ```
 
-    ```bash
-    clawsentry init claude-code   # 一键配置 hooks
-    source .env.clawsentry
-    clawsentry gateway &          # 启动 Gateway
-    claude                        # 正常使用，所有工具调用自动监控
-    ```
+        详见 [Claude Code 集成指南](integration/claude-code.md)
 
-    详见 [Claude Code 集成指南](integration/claude-code.md)
+    === "Codex CLI"
 
-=== "Codex CLI"
+        通过 **HTTP Transport**（`POST /ahp/codex`）接入，简化 JSON 请求格式。
 
-    通过 **HTTP Transport**（`POST /ahp/codex`）接入，简化 JSON 请求格式。
+        ```bash
+        clawsentry init codex         # 生成配置
+        source .env.clawsentry
+        clawsentry gateway            # 启动 Gateway
+        ```
 
-    ```bash
-    clawsentry init codex         # 生成配置
-    source .env.clawsentry
-    clawsentry gateway            # 启动 Gateway
-    ```
+        详见 [Codex CLI 集成指南](integration/codex.md)
 
-    详见 [Codex CLI 集成指南](integration/codex.md)
+    === "OpenClaw"
 
-=== "OpenClaw"
+        通过 **WebSocket 实时监听** + **Webhook 接收** + **审批执行器** 接入。
 
-    通过 **WebSocket 实时监听** + **Webhook 接收** + **审批执行器** 接入。
+        ```bash
+        # 一键启动（自动检测 OpenClaw 配置）
+        clawsentry gateway
+        ```
 
-    ```bash
-    # 一键启动（自动检测 OpenClaw 配置）
-    clawsentry gateway
-    ```
-
-    详见 [OpenClaw 集成指南](integration/openclaw.md)
-
----
-
-## CLI 命令一览
-
-| 命令 | 说明 |
-|:---|:---|
-| `clawsentry init <framework>` | 零配置初始化（`--auto-detect` / `--setup` / `--dry-run`） |
-| `clawsentry gateway` | 启动 Gateway（智能检测框架，按需启用 WS/Webhook） |
-| `clawsentry watch` | SSE 实时终端监控（`--interactive` 支持 DEFER 运维确认） |
-| `clawsentry-gateway` | 直接启动 HTTP Gateway 服务 |
-| `clawsentry-harness` | 启动 a3s-code stdio harness |
-| `clawsentry-stack` | 全栈启动（Gateway + Adapter + 可选 WS） |
+        详见 [OpenClaw 集成指南](integration/openclaw.md)
 
 ---
 
-## REST API 概览
+## CLI 与 API
 
-| 端点 | 方法 | 说明 |
-|:---|:---:|:---|
-| `/health` | GET | 健康检查 |
-| `/ahp` | POST | OpenClaw Webhook 决策 |
-| `/ahp/a3s` | POST | a3s-code HTTP Transport |
-| `/ahp/codex` | POST | Codex CLI HTTP Transport |
-| `/ahp/resolve` | POST | DEFER 决策代理（allow-once / deny） |
-| `/ahp/patterns` | GET | 查询自进化模式库列表（需 `CS_EVOLVING_ENABLED=true`） |
-| `/ahp/patterns/confirm` | POST | 确认/拒绝进化模式，用于反馈驱动的模式学习 |
-| `/report/summary` | GET | 跨框架聚合统计 |
-| `/report/stream` | GET | SSE 实时推送 |
-| `/report/sessions` | GET | 活跃会话列表 |
-| `/report/session/{id}` | GET | 会话轨迹回放 |
-| `/report/session/{id}/risk` | GET | 会话风险详情 |
-| `/report/session/{id}/enforcement` | GET/POST | 会话执法状态 |
-| `/report/alerts` | GET | 告警列表 |
-| `/report/alerts/{id}/acknowledge` | POST | 确认告警 |
-| `/ui/*` | GET | Web 仪表板静态文件 |
-
-详见 [REST API 文档](api/decisions.md)
+- [CLI 命令参考 →](cli/index.md) — `init / gateway / watch / doctor / audit / config / start / stop / latch`
+- [REST API 文档 →](api/decisions.md) — 决策端点、报表监控、SSE 推送、认证
 
 ---
+
 
 ## Web 安全仪表板
 
