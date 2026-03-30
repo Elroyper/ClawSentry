@@ -197,6 +197,30 @@ class SessionRiskTracker:
 !!! abstract "与 SessionEnforcementPolicy 的关系"
     D4 记录会话级风险趋势供评分使用，而 `SessionEnforcementPolicy` 是更激进的策略层 —— 当累积高危次数超过阈值时，直接将整个会话锁定为强制 DEFER/BLOCK/L3 模式。两者互相补充但独立运作。
 
+### D4 频率异常检测 {#d4-frequency}
+
+除了历史高危事件累积之外，`SessionRiskTracker` 还内置**频率异常检测**（E-8），捕捉同一工具被异常高频调用的行为（如爆破、遍历、批量写入等）：
+
+| 模式 | 触发条件 | D4 加分 | 说明 |
+|------|---------|:-------:|------|
+| **Burst** | 同一工具 ≥ 10 次 / 5 秒 | → d4=2 | 短时高频调用，疑似脚本化攻击 |
+| **Repetitive** | 同一工具 ≥ 20 次 / 60 秒 | → d4=1 | 分钟级重复调用，疑似遍历 |
+| **Rate** | 所有工具合计 ≥ 60 次 / 分钟 | → d4=1 | 整体速率过高，疑似自动化操作 |
+
+三种模式独立检测，`D4 = max(历史累积分, 频率异常分)`。
+
+```bash
+# 频率检测配置变量
+CS_D4_FREQ_BURST_COUNT=10          # burst 触发阈值（次数）
+CS_D4_FREQ_BURST_WINDOW_S=5.0      # burst 时间窗口（秒）
+CS_D4_FREQ_REPETITIVE_COUNT=20     # repetitive 触发阈值
+CS_D4_FREQ_REPETITIVE_WINDOW_S=60.0
+CS_D4_FREQ_RATE_LIMIT_PER_MIN=60   # rate 整体速率阈值（次/分钟）
+```
+
+!!! tip "如何关闭频率检测"
+    若项目中 Agent 有合法的高频调用需求（如批量代码生成），可调高阈值或设置 `CS_D4_FREQ_BURST_COUNT=9999` 有效禁用。
+
 ---
 
 ### D5 — Agent 信任等级 (Agent Trust Level) {#d5}
@@ -319,6 +343,23 @@ detector = InjectionDetector(
 ```
 
 Layer 3 默认禁用（无 backend 时 score 固定返回 0.0），按需启用不影响其他评分层。
+
+### 外部内容来源安全加成 {#external-content}
+
+ClawSentry 通过 `infer_content_origin()` 推断每个事件的内容来源，对来自**外部输入**（网络响应、用户粘贴文本等）的事件额外增加安全权重：
+
+| 来源类型 | 推断依据 | D6 额外加成 | post-action 乘数 |
+|---------|---------|:-----------:|:----------------:|
+| **external** | `tool_name` 为 `web_fetch`/`http_request` 等，或 `_clawsentry_meta.content_origin=external` | +0.3 | ×1.3 |
+| **user** | 用户直接输入 | 无 | 无 |
+| **unknown** | 无法推断 | 无 | 无 |
+
+来源推断结果注入 `CanonicalEvent._clawsentry_meta.content_origin`，供 D6 注入检测和 Post-action 分析器读取。
+
+```bash
+CS_EXTERNAL_CONTENT_D6_BOOST=0.3               # 外部内容 D6 额外加分（默认 0.3）
+CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER=1.3  # 外部内容 post-action 评分乘数
+```
 
 ---
 
@@ -615,6 +656,8 @@ def make_fallback_decision(event, risk_hints_contain_high_danger=False):
 
 L1 引擎本身**零配置即可运行**。以下环境变量影响与 L1 相关的行为：
 
+### 会话策略
+
 | 环境变量 | 说明 | 默认值 |
 |----------|------|:------:|
 | `AHP_SESSION_ENFORCEMENT_ENABLED` | 启用会话级强制策略（在 L1 评估后检查） | `false` |
@@ -622,8 +665,36 @@ L1 引擎本身**零配置即可运行**。以下环境变量影响与 L1 相关
 | `AHP_SESSION_ENFORCEMENT_ACTION` | 强制策略动作 (`defer`/`block`/`l3_require`) | `defer` |
 | `AHP_RATE_LIMIT_PER_MINUTE` | Gateway 速率限制（超限返回 ENGINE_UNAVAILABLE） | `300` |
 
-!!! tip "调整评分阈值"
-    D1-D5 的短路规则在源码中硬编码，D6 相关参数（乘数权重、风险阈值、向量相似度阈值等）可通过 `CS_` 系列环境变量调整。详见 `src/clawsentry/gateway/detection_config.py` 中 `DetectionConfig` dataclass 和 `build_detection_config_from_env()` 工厂函数。
+### D4 频率异常检测
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|:------:|
+| `CS_D4_FREQ_BURST_COUNT` | Burst 模式触发阈值（同工具次数） | `10` |
+| `CS_D4_FREQ_BURST_WINDOW_S` | Burst 时间窗口（秒） | `5.0` |
+| `CS_D4_FREQ_REPETITIVE_COUNT` | Repetitive 模式触发阈值 | `20` |
+| `CS_D4_FREQ_REPETITIVE_WINDOW_S` | Repetitive 时间窗口（秒） | `60.0` |
+| `CS_D4_FREQ_RATE_LIMIT_PER_MIN` | Rate 模式整体速率阈值（次/分钟） | `60` |
+
+### 外部内容安全
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|:------:|
+| `CS_EXTERNAL_CONTENT_D6_BOOST` | 外部内容来源时 D6 额外加分 | `0.3` |
+| `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | 外部内容来源时 post-action 评分乘数 | `1.3` |
+
+### 风险阈值与评分权重
+
+D1-D5 的短路规则在源码中硬编码，综合评分阈值和 D6 参数可通过以下变量调整：
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|:------:|
+| `CS_THRESHOLD_MEDIUM` | MEDIUM 风险起始阈值 | `0.8` |
+| `CS_THRESHOLD_HIGH` | HIGH 风险起始阈值 | `1.5` |
+| `CS_THRESHOLD_CRITICAL` | CRITICAL 风险起始阈值 | `2.2` |
+| `CS_D6_INJECTION_MULTIPLIER` | D6 乘数权重（公式中 `0.5 × D6/3.0` 的系数） | `0.5` |
+
+!!! tip "使用预设快速调整"
+    也可通过 `.clawsentry.toml` 中的 `preset = "high"` 一键调整所有阈值，无需逐一设置环境变量。详见[安全预设配置](../configuration/detection-config.md#presets)。
 
 ---
 

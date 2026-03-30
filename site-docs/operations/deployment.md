@@ -32,64 +32,6 @@ clawsentry gateway --help
 
 ---
 
-## systemd 服务配置
-
-推荐使用 systemd 管理 ClawSentry Gateway 服务的生命周期。
-
-### 服务单元文件
-
-```ini title="/etc/systemd/system/clawsentry.service"
-[Unit]
-Description=ClawSentry AHP Supervision Gateway
-Documentation=https://clawsentry.readthedocs.io
-After=network.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=clawsentry
-Group=clawsentry
-EnvironmentFile=/etc/clawsentry/env
-ExecStart=/usr/local/bin/clawsentry gateway
-Restart=on-failure
-RestartSec=5
-StartLimitBurst=3
-StartLimitIntervalSec=60
-
-# 安全加固
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=read-only
-PrivateTmp=yes
-ReadWritePaths=/var/lib/clawsentry /tmp/clawsentry.sock
-
-# 资源限制
-LimitNOFILE=65536
-MemoryMax=512M
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 创建系统用户
-
-```bash
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin clawsentry
-sudo mkdir -p /var/lib/clawsentry
-sudo chown clawsentry:clawsentry /var/lib/clawsentry
-```
-
-### 启用并启动服务
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable clawsentry
-sudo systemctl start clawsentry
-sudo systemctl status clawsentry
-```
-
----
-
 ## 环境变量配置
 
 以下是生产环境推荐的完整环境变量配置文件：
@@ -110,7 +52,7 @@ CS_UDS_PATH=/tmp/clawsentry.sock
 # 轨迹数据库路径（SQLite）
 CS_TRAJECTORY_DB_PATH=/var/lib/clawsentry/trajectory.db
 
-# ===== LLM 配置（可选，启用 L2 LLM 分析） =====
+# ===== LLM 配置（可选，启用 L2/L3 分析） =====
 CS_LLM_PROVIDER=openai
 OPENAI_API_KEY=sk-your-api-key-here
 OPENAI_BASE_URL=https://api.openai.com/v1
@@ -119,8 +61,8 @@ CS_LLM_MODEL=gpt-4
 # 启用 L3 审查 Agent（可选）
 CS_L3_ENABLED=false
 
-# 自定义 L3 Skills 目录（可选）
-# AHP_SKILLS_DIR=/etc/clawsentry/skills
+# LLM 日费用预算（超出后降级至 L1 规则引擎）
+CS_LLM_DAILY_BUDGET_USD=10.0
 
 # ===== SSL/TLS（推荐） =====
 AHP_SSL_CERTFILE=/etc/clawsentry/ssl/cert.pem
@@ -129,23 +71,41 @@ AHP_SSL_KEYFILE=/etc/clawsentry/ssl/key.pem
 # ===== 速率限制 =====
 AHP_RATE_LIMIT_PER_MINUTE=300
 
-# ===== Webhook 安全（如果使用 OpenClaw Webhook） =====
-# AHP_WEBHOOK_IP_WHITELIST=127.0.0.1,10.0.0.0/8
-# AHP_WEBHOOK_TOKEN_TTL_SECONDS=3600
-
 # ===== 会话执法策略 =====
 AHP_SESSION_ENFORCEMENT_ENABLED=true
 AHP_SESSION_ENFORCEMENT_THRESHOLD=3
 AHP_SESSION_ENFORCEMENT_ACTION=defer
 AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS=600
 
+# ===== DEFER 配置 =====
+# DEFER 等待超时后的默认行为：block（默认）或 allow
+CS_DEFER_TIMEOUT_ACTION=block
+# DEFER 审批等待超时秒数（默认 300s）
+CS_DEFER_TIMEOUT_S=300
+# 启用 DEFER Bridge（接入 Latch Hub 移动端审批）
+CS_DEFER_BRIDGE_ENABLED=false
+
+# ===== Latch Hub 集成（移动端监控与推送审批） =====
+# CS_LATCH_HUB_URL=http://127.0.0.1:3006
+# CS_LATCH_HUB_PORT=3006
+# CS_HUB_BRIDGE_ENABLED=auto    # auto/true/false
+
+# ===== Codex Session Watcher（自动监控 OpenAI Codex 会话） =====
+# CS_CODEX_SESSION_DIR=/home/user/.codex/sessions
+# CS_CODEX_WATCH_ENABLED=true
+# CS_CODEX_WATCH_POLL_INTERVAL=0.5
+
+# ===== 自进化模式库（可选，默认关闭） =====
+# CS_EVOLVING_ENABLED=false
+# CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
+
 # ===== OpenClaw 集成（如果使用） =====
 # OPENCLAW_WS_URL=ws://127.0.0.1:18789
 # OPENCLAW_OPERATOR_TOKEN=your-openclaw-token
 # OPENCLAW_ENFORCEMENT_ENABLED=true
 
-# ===== dotenv 自动加载（可选） =====
-# 如果使用 .env 文件，Gateway 会自动加载
+# ===== Prometheus 指标 =====
+# CS_METRICS_AUTH=true          # 指标端点认证开关（默认 true）
 ```
 
 ---
@@ -443,6 +403,49 @@ AHP_RATE_LIMIT_PER_MINUTE=300
 ```
 
 超过限制时，API 返回 `RATE_LIMITED` 错误码，RPC 响应包含 `retry_after_ms` 字段。
+
+---
+
+## DEFER Bridge 与 Latch Hub
+
+DEFER Bridge 和 Latch Hub Bridge 是两个可选组件，将人工审批和实时推送集成到 ClawSentry 决策流中。
+
+### DEFER 超时配置
+
+当 Agent 操作被 DEFER 判决（等待人工审批）时，`CS_DEFER_TIMEOUT_ACTION` 决定超时后的默认行为：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_DEFER_TIMEOUT_ACTION` | `block` | 超时后默认行为：`block`（拒绝）或 `allow`（放行） |
+| `CS_DEFER_TIMEOUT_S` | `300` | 等待超时秒数 |
+| `CS_DEFER_BRIDGE_ENABLED` | `true` | 是否启用 Latch Hub 审批桥接 |
+
+!!! tip "安全默认"
+    生产环境推荐保持 `CS_DEFER_TIMEOUT_ACTION=block`（默认），即超时未审批时拒绝操作。仅在测试或低风险场景下使用 `allow`。
+
+### Latch Hub 集成
+
+[Latch](../integration/latch.md) 是可选的移动端监控组件，通过 Hub Bridge 将 ClawSentry 事件推送至手机/Web PWA，并支持远程 DEFER 审批。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_LATCH_HUB_URL` | (空) | Hub 基础 URL，如 `http://127.0.0.1:3006` |
+| `CS_LATCH_HUB_PORT` | `3006` | URL 未设置时的回退端口 |
+| `CS_HUB_BRIDGE_ENABLED` | `auto` | 事件转发开关：`auto`/`true`/`false` |
+
+`auto` 模式下，Bridge 仅在能连通 Hub 时自动启动；设为 `false` 则完全禁用推送。
+
+### Codex Session Watcher
+
+OpenAI Codex 没有原生 Hook 接口，ClawSentry 通过轮询 Codex Session JSONL 文件实现监控：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_CODEX_SESSION_DIR` | (自动检测) | Codex sessions 目录路径 |
+| `CS_CODEX_WATCH_ENABLED` | `true` | 是否自动启动 Watcher |
+| `CS_CODEX_WATCH_POLL_INTERVAL` | `0.5` | 轮询间隔（秒） |
+
+运行 `clawsentry init codex` 可自动检测 Codex 安装路径并生成配置。
 
 ---
 
@@ -867,9 +870,18 @@ sudo journalctl -u clawsentry-gateway -f
 - [x] LLM API Key 通过环境变量注入，不硬编码
 - [x] LLM 请求超时已配置（默认 3 秒）
 - [x] L3 Agent 的 ReadOnlyToolkit 确保只读访问
+- [x] `CS_LLM_DAILY_BUDGET_USD` 已设置合理上限，防止意外超支
+
+### DEFER 与 Latch
+
+- [x] `CS_DEFER_TIMEOUT_ACTION=block` 确保超时后默认拒绝（推荐）
+- [x] `CS_DEFER_TIMEOUT_S` 已按运维响应能力配置合适超时值
+- [x] 若启用 Latch Hub，`CS_AUTH_TOKEN` 与 Hub `CLI_API_TOKEN` 已同步（`clawsentry doctor` 检查 `LATCH_TOKEN_SYNC`）
 
 ### 监控
 
 - [x] 健康检查端点 `/health` 已加入监控系统
 - [x] SSE 事件流可观测（通过仪表板或 `clawsentry watch`）
 - [x] 告警通知渠道已配置
+- [x] Prometheus 指标端点已接入告警规则（高风险决策率、DEFER 积压）
+- [x] 运行 `clawsentry doctor` 确认所有检查项 PASS

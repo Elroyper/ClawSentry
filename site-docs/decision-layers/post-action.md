@@ -352,6 +352,10 @@ Post-action 分析器的四层响应阈值通过以下环境变量控制：
 | `CS_POST_ACTION_ESCALATE` | `float` | `0.6` | 达到此分数进入 `ESCALATE` |
 | `CS_POST_ACTION_EMERGENCY` | `float` | `0.9` | 达到此分数进入 `EMERGENCY` |
 | `CS_POST_ACTION_WHITELIST` | `string` | `""` | 逗号分隔的文件路径白名单正则列表 |
+| `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | `float` | `1.3` | 当工具输出来源为外部内容时，综合评分乘以此系数 |
+
+!!! info "外部内容来源放大"
+    当工具调用的上下文被识别为来自**外部内容**（网页抓取、用户文件上传、外部 API 响应等）时，post-action 综合评分会额外乘以 `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER`（默认 1.3），以更严格地对待潜在的间接注入风险。来源由 `infer_content_origin()` 根据工具名称和 payload 推断；同一外部来源事件在 L1 评分时还会触发 D6 +0.3（`CS_EXTERNAL_CONTENT_D6_BOOST`）。
 
 **示例：调低灵敏度（减少误报）：**
 

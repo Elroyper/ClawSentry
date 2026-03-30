@@ -425,6 +425,215 @@ description: ClawSentry 常见问题诊断与解决方案
 
 ---
 
+## Claude Code 集成
+
+??? question "Claude Code hook 未被触发"
+
+    **症状**：ClawSentry 运行正常，但执行 Claude Code 操作时 Gateway 无事件进入
+
+    **诊断**：
+    ```bash
+    # 检查 hooks 配置
+    cat ~/.claude/settings.json | python3 -m json.tool
+    # 查看 harness 入口
+    which clawsentry-harness
+    ```
+
+    **解决方案**：
+
+    1. **重新初始化**：
+       ```bash
+       clawsentry init claude-code
+       ```
+       此命令自动写入 `~/.claude/settings.json` 的 `hooks` 配置。
+
+    2. **手动检查 hooks 结构**：确认 `settings.json` 包含以下字段：
+       ```json
+       {
+         "hooks": {
+           "PreToolUse": [{"type": "command", "command": "clawsentry-harness"}],
+           "PostToolUse": [{"type": "command", "command": "clawsentry-harness --async"}]
+         }
+       }
+       ```
+
+    3. **harness 路径错误**：如果 Python 环境不在 PATH 中：
+       ```bash
+       # 使用绝对路径
+       which clawsentry-harness  # 获取完整路径
+       # 然后在 settings.json 中填入完整路径
+       ```
+
+??? question "clawsentry-harness 每次调用都返回非零退出码"
+
+    **症状**：Claude Code 执行操作时报错 `hook exited with non-zero status`
+
+    **诊断**：
+    ```bash
+    # 手动测试 harness（模拟 Claude Code hook 调用）
+    echo '{"hook_event_name":"PreToolUse","tool_name":"bash","tool_input":{"command":"ls"}}' | \
+      CS_AUTH_TOKEN=$CS_AUTH_TOKEN clawsentry-harness
+    ```
+
+    **解决方案**：
+
+    1. **Gateway 未运行**：先启动 Gateway
+       ```bash
+       clawsentry start --framework claude-code
+       ```
+
+    2. **Auth Token 不匹配**：确保 `.env.clawsentry` 中的 `CS_AUTH_TOKEN` 与 Gateway 使用的一致
+       ```bash
+       clawsentry doctor
+       ```
+
+    3. **harness 降级模式**：harness 默认在无法连接 Gateway 时降级为 `ALLOW`（不退出非零码）。若仍失败，检查 Python 环境
+
+??? question "DEFER 超时后 Agent 操作被意外放行"
+
+    **症状**：DEFER 决策超时未审批，但 Agent 操作仍被执行（未被拒绝）
+
+    **诊断**：
+    ```bash
+    echo $CS_DEFER_TIMEOUT_ACTION
+    ```
+
+    **解决方案**：
+
+    将 `CS_DEFER_TIMEOUT_ACTION` 设置为 `block`（默认值即为 `block`）：
+    ```bash
+    export CS_DEFER_TIMEOUT_ACTION=block
+    ```
+    若设为 `allow`，超时后会自动放行——仅在本地测试场景下使用此设置。
+
+---
+
+## Codex Session Watcher
+
+??? question "Codex 操作未被监控"
+
+    **症状**：Codex Agent 执行命令时 Gateway 无事件，`clawsentry watch` 无输出
+
+    **诊断**：
+    ```bash
+    # 检查 Codex session 目录
+    ls ~/.codex/sessions/
+    echo $CS_CODEX_SESSION_DIR
+    echo $CS_CODEX_WATCH_ENABLED
+    ```
+
+    **解决方案**：
+
+    1. **重新初始化 Codex 集成**：
+       ```bash
+       clawsentry init codex
+       ```
+       自动检测 Codex 安装路径并配置 `CS_CODEX_SESSION_DIR`。
+
+    2. **手动指定 session 目录**：
+       ```bash
+       export CS_CODEX_SESSION_DIR=~/.codex/sessions
+       clawsentry start
+       ```
+
+    3. **Watcher 被禁用**：确认 `CS_CODEX_WATCH_ENABLED` 未设置为 `false`
+
+??? question "Codex Session Watcher 日志显示 'session dir does not exist'"
+
+    **症状**：Gateway 启动时日志警告 `CS_CODEX_SESSION_DIR=... does not exist`
+
+    **解决方案**：
+
+    1. 确认 Codex 已安装且已运行过至少一次（首次运行才会创建 sessions 目录）
+    2. 手动创建目录并重启：
+       ```bash
+       mkdir -p ~/.codex/sessions
+       clawsentry start
+       ```
+
+---
+
+## Latch Hub 与 DEFER Bridge
+
+??? question "Latch Hub 无法连接"
+
+    **症状**：`clawsentry doctor` 的 `LATCH_HUB_HEALTH` 检查失败，或 `clawsentry latch status` 显示 Hub 已停止
+
+    **诊断**：
+    ```bash
+    curl http://127.0.0.1:3006/health
+    clawsentry latch status
+    cat ~/.clawsentry/run/latch-hub.log
+    ```
+
+    **解决方案**：
+
+    1. **Hub 未启动**：
+       ```bash
+       clawsentry latch start
+       ```
+
+    2. **端口冲突**：
+       ```bash
+       lsof -i :3006
+       export CS_LATCH_HUB_PORT=3007
+       clawsentry latch start
+       ```
+
+    3. **Latch 二进制未安装**：
+       ```bash
+       clawsentry latch install
+       ```
+
+??? question "DEFER Bridge 已启用但 Hub 未收到推送"
+
+    **症状**：`CS_DEFER_BRIDGE_ENABLED=true` 且 Hub 运行正常，但手机/Web PWA 未收到 DEFER 推送通知
+
+    **诊断**：
+    ```bash
+    clawsentry doctor  # 检查 LATCH_TOKEN_SYNC
+    curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+      http://127.0.0.1:8080/events  # 确认 SSE 流正常
+    ```
+
+    **解决方案**：
+
+    1. **Token 不匹配**：Hub 的 `CLI_API_TOKEN` 必须与 Gateway 的 `CS_AUTH_TOKEN` 一致。运行 `clawsentry doctor` 查看 `LATCH_TOKEN_SYNC` 检查结果
+
+    2. **HubBridge 未启用**：
+       ```bash
+       export CS_HUB_BRIDGE_ENABLED=true
+       # 重启 Gateway
+       clawsentry stop && clawsentry start --with-latch
+       ```
+
+    3. **Hub URL 配置错误**：确认 `CS_LATCH_HUB_URL=http://127.0.0.1:3006`（默认）或自定义端口
+
+    4. **Bridge 在 `auto` 模式下未自动启用**：
+       如果 Hub 启动后才检测到，Bridge 可能在 Gateway 启动时未自动连接，尝试：
+       ```bash
+       export CS_HUB_BRIDGE_ENABLED=true
+       ```
+       而非 `auto`。
+
+??? question "clawsentry doctor 的 LATCH_TOKEN_SYNC 失败"
+
+    **症状**：doctor 输出 `LATCH_TOKEN_SYNC: FAIL — CS_AUTH_TOKEN does not match Hub CLI_API_TOKEN`
+
+    **解决方案**：
+
+    重新同步 Token（ClawSentry 安装时会自动完成此步骤，但手动修改 Token 后需要重新同步）：
+
+    ```bash
+    # 更新 .clawsentry/run/latch-hub.env 或重新安装
+    clawsentry latch uninstall --keep-data
+    clawsentry latch install
+    ```
+
+    或手动在 Latch Hub 配置文件中将 `CLI_API_TOKEN` 设置为与 `CS_AUTH_TOKEN` 相同的值。
+
+---
+
 ## 误报与策略调优
 
 ??? question "高误报率：安全操作被标记为高风险"
@@ -596,6 +805,12 @@ description: ClawSentry 常见问题诊断与解决方案
 | `L3 AgentAnalyzer enabled` | INFO | L3 审查 Agent 初始化成功 |
 | `Unknown hook type` | WARNING | 收到无法映射的事件类型 |
 | `duplicate skill name` | WARNING | 自定义 Skill 名称与内置冲突 |
+| `Codex watcher started` | INFO | Codex Session Watcher 已启动，开始轮询 |
+| `CS_CODEX_SESSION_DIR=... does not exist` | WARNING | Codex sessions 目录不存在，Watcher 未启动 |
+| `LatchHubBridge: hub not reachable` | WARNING | Hub URL 不可达，Bridge 未自动启用 |
+| `LatchHubBridge: token mismatch` | ERROR | CS_AUTH_TOKEN 与 Hub CLI_API_TOKEN 不一致 |
+| `DEFER timed out, applying timeout action` | INFO | DEFER 超时，按 CS_DEFER_TIMEOUT_ACTION 处理 |
+| `LLM budget exceeded` | WARNING | LLM 日费用超出 CS_LLM_DAILY_BUDGET_USD 限额，降级 L1 |
 
 ### 日志级别建议
 
