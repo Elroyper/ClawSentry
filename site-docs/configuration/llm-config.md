@@ -411,6 +411,98 @@ CS_LLM_MODEL=deepseek-chat
 
 ---
 
+## InstrumentedProvider 可观测性包装器
+
+当安装 `clawsentry[metrics]` 依赖后，Gateway 会自动将所有 LLM Provider 包装为 `InstrumentedProvider`，在每次 LLM 调用后记录指标到 Prometheus。
+
+### LLMUsage 数据模型
+
+```python
+@dataclass(frozen=True)
+class LLMUsage:
+    input_tokens: int = 0      # 输入 token 数
+    output_tokens: int = 0     # 输出 token 数
+    provider: str = ""         # 提供商标识（anthropic/openai）
+    model: str = ""            # 模型 ID
+```
+
+### 自动包装机制
+
+`InstrumentedProvider` 透明地包装 LLM Provider：
+
+1. 委托 `complete()` 调用给内部 Provider
+2. 读取 `_last_usage` 获取 token 消耗
+3. 调用 `MetricsCollector.record_llm_call()` 记录：
+   - `clawsentry_llm_calls_total` — 按 provider/tier/status 计数
+   - `clawsentry_llm_tokens_total` — 按 provider/direction 累计
+   - `clawsentry_llm_cost_usd_total` — 按 provider 累计预估费用
+4. 状态追踪：`ok`（成功）、`timeout`（超时）、`error`（异常）
+5. 异常不被吞噬——记录指标后重新抛出
+
+### Protocol 兼容性
+
+`InstrumentedProvider` 实现 `LLMProvider` Protocol，对上层代码完全透明。`provider_id` 和 `_last_usage` 属性均委托给内部 Provider。
+
+### 预估价格
+
+| 提供商 | 输入价格 ($/M tokens) | 输出价格 ($/M tokens) |
+|--------|:---------------------:|:---------------------:|
+| Anthropic | $3.00 | $15.00 |
+| OpenAI | $2.50 | $10.00 |
+| 其他（默认） | $5.00 | $15.00 |
+
+!!! note "价格仅为估算"
+    预估价格用于 Prometheus 指标展示和预算控制，不代表实际账单金额。实际费用请参考各提供商官方定价页面。
+
+---
+
+## LLM 每日预算控制
+
+`LLMBudgetTracker` 提供线程安全的每日 LLM 支出限制，防止 L2/L3 决策层成本失控。
+
+### 配置
+
+```bash title=".env.clawsentry"
+# 设置每日预算为 $5.00
+CS_LLM_DAILY_BUDGET_USD=5.0
+
+# 0.0 = 无限制（默认）
+CS_LLM_DAILY_BUDGET_USD=0.0
+```
+
+### 工作机制
+
+1. **费用记录**：每次 LLM 调用完成后，`InstrumentedProvider` 计算预估费用并调用 `record_spend()`
+2. **预算检查**：下一次 LLM 调用前，`can_spend()` 检查当日累计是否超出预算
+3. **自动降级**：预算耗尽后，L2/L3 调用被跳过，所有事件仅走 L1 规则引擎
+4. **UTC 日期翻转**：每天 UTC 00:00 自动重置累计支出和状态
+
+### 降级行为
+
+| 状态 | 行为 |
+|------|------|
+| 预算充足 | 正常 L1+L2(+L3) 决策流程 |
+| 预算耗尽 | L2/L3 跳过，仅 L1 规则引擎 |
+| 新的 UTC 日期 | 自动重置，恢复完整决策流程 |
+
+### SSE 通知
+
+预算首次耗尽时，Gateway 通过 EventBus 广播事件通知运维人员。
+
+### 线程安全
+
+`LLMBudgetTracker` 使用 `threading.Lock` 保护所有状态访问，适合多线程/异步环境。
+
+!!! tip "建议预算设置"
+    | 场景 | 建议值 |
+    |------|--------|
+    | 开发/测试 | $1.00 - $2.00 |
+    | 小型生产 | $5.00 - $10.00 |
+    | 大规模生产 | $20.00 - $50.00 |
+    | 无限制 | `0.0`（默认） |
+
+---
+
 ## 故障排除
 
 ### 常见问题

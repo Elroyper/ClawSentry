@@ -32,7 +32,14 @@ clawsentry --help
 clawsentry init codex
 ```
 
-自动检测 Codex 安装目录，配置 session 日志监控。
+`init codex` 会：
+
+1. 自动检测 Codex session 目录
+2. 生成 `.env.clawsentry` 配置文件
+3. 提示监控模式使用方法
+
+!!! info "监控模式说明"
+    与 Claude Code 和 a3s-code 的拦截模式不同，Codex 集成为**纯监控模式**——ClawSentry 观察并评估所有操作，但不会阻止 Codex 执行。高风险操作通过 SSE 和告警通知运维人员。
 
 ### 2. 启动 Gateway
 
@@ -76,6 +83,42 @@ CodexAdapter → Gateway 评估（L1/L2/L3）
 
 ClawSentry 的 `CodexSessionWatcher` 会自动监控 Codex 写入的 session 日志文件，实时解析每一行 JSONL 事件。当检测到工具调用（`function_call`）时，通过 Gateway 的完整评估管线进行风险分析，结果通过 SSE 广播到 `watch` 终端和 Web UI。
 
+### Codex Session Watcher 架构
+
+由于 Codex 没有原生 Hook 系统，ClawSentry 通过 Session Watcher 实时监控 Codex 会话 JSONL 日志实现安全评估。
+
+```
+Codex 写入 JSONL
+    │
+    ▼
+CodexSessionWatcher (tail 轮询)
+    │
+    ▼
+CodexAdapter (归一化为 CanonicalEvent)
+    │
+    ▼
+Gateway (L1/L2/L3 决策)
+    │
+    ▼
+SSE 广播 (决策/告警/风险变更)
+```
+
+**工作机制：**
+
+1. `CodexSessionWatcher` 以可配置间隔（默认 1 秒）轮询 Codex session 目录
+2. 检测到新 JSONL 条目时，通过 `CodexAdapter` 归一化为 AHP `CanonicalEvent`
+3. 发送到 Gateway 进行完整的 L1/L2/L3 安全评估
+4. 决策结果通过 SSE 广播，但**不会阻断 Codex 操作**（监控模式）
+
+### 配置变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_CODEX_SESSION_DIR` | (自动检测) | Codex 会话 JSONL 目录。默认从 `$CODEX_HOME/sessions` 检测 |
+| `CS_CODEX_WATCH_ENABLED` | `true` | 启用 Session Watcher |
+| `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | 轮询间隔（秒）。降低值提高实时性，增加 I/O 开销 |
+| `CS_FRAMEWORK` | (自动检测) | 设为 `codex` 启用 Codex 专用检查和 Watcher |
+
 ---
 
 ## 一键启动
@@ -116,6 +159,41 @@ Codex 的 4 种事件类型映射到 AHP 规范事件：
 !!! info "Pre-action vs Post-action"
     - **`function_call`（pre_action）**：在 Codex 执行工具调用之前发送。ClawSentry 评估风险并返回 `continue` 或 `block`。这是安全拦截的核心事件。
     - **`function_call_output`（post_action）**：在工具执行完成后发送。ClawSentry 记录审计日志并进行 Post-action 分析（检测数据泄露、间接注入等）。
+
+---
+
+## HTTP API 端点
+
+Codex 事件也可通过 HTTP API 直接提交评估：
+
+**`POST /ahp/codex`**
+
+```json
+// 请求
+{
+  "event_type": "function_call",
+  "session_id": "codex-session-001",
+  "agent_id": "codex-agent",
+  "payload": {
+    "name": "shell",
+    "arguments": {"command": "rm -rf /tmp/*"},
+    "call_id": "call-001"
+  }
+}
+
+// 响应
+{
+  "result": {
+    "action": "continue",
+    "reason": "Low risk operation",
+    "risk_level": "low"
+  }
+}
+```
+
+响应中 `action` 为 `"continue"` 或 `"block"`。错误时返回 `"block"` 并附带原因 `"evaluation error (fail-closed)"`。
+
+详细的请求/响应格式和示例请参阅下方 [高级用法: HTTP API 直接调用](#advanced-http-api) 小节。
 
 ---
 
@@ -244,7 +322,7 @@ clawsentry audit --format csv > audit.csv
 
 ---
 
-## 高级用法: HTTP API 直接调用
+## 高级用法: HTTP API 直接调用 {#advanced-http-api}
 
 如果你需要在 CI/CD 流水线或自定义工具链中集成 ClawSentry 评估，可以直接调用 HTTP 端点：
 

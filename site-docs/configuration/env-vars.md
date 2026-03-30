@@ -61,6 +61,7 @@ CS_LLM_MODEL=gpt-4o
 | `CS_L3_ENABLED` | `false` | 启用 L3 审查 Agent。需要先配置 LLM provider。可选值：`true`/`1`/`yes` |
 | `ANTHROPIC_API_KEY` | - | Anthropic API 密钥。`CS_LLM_PROVIDER=anthropic` 时必填 |
 | `OPENAI_API_KEY` | - | OpenAI API 密钥。`CS_LLM_PROVIDER=openai` 时必填 |
+| `CS_LLM_API_KEY` | - | 通用 LLM API 密钥。作为 `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` 的替代方案，`doctor` 检查时也会检测此变量 |
 
 !!! warning "API 密钥安全"
     API 密钥属于敏感信息，建议通过 `.env.clawsentry` 文件或密钥管理系统注入，切勿硬编码在脚本或版本控制中。
@@ -241,6 +242,123 @@ ClawSentry 会自动检测 OpenClaw 配置状态：
 
 ---
 
+## D4 频率异常检测
+
+三层频率异常检测，捕获 Agent 行为中的突发、重复和速率异常。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_D4_FREQ_ENABLED` | `true` | 启用 D4 频率异常检测。可选值：`true`/`1`/`yes` |
+| `CS_D4_FREQ_BURST_COUNT` | `10` | 突发检测：同一工具在窗口期内调用次数 ≥ 此值 → D4=2 |
+| `CS_D4_FREQ_BURST_WINDOW_S` | `5.0` | 突发检测时间窗口（秒） |
+| `CS_D4_FREQ_REPETITIVE_COUNT` | `20` | 重复检测：同一工具在窗口期内调用次数 ≥ 此值 → D4=1 |
+| `CS_D4_FREQ_REPETITIVE_WINDOW_S` | `60.0` | 重复检测时间窗口（秒） |
+| `CS_D4_FREQ_RATE_LIMIT_PER_MIN` | `60` | 全局速率限制：所有工具每分钟总调用数 ≥ 此值 → D4=1 |
+
+!!! info "检测层级"
+    三层检测独立运行，取最高 D4 值：
+
+    - **突发（Burst）**：短时间内同一工具密集调用（如 5 秒内 ≥10 次） → D4=2
+    - **重复（Repetitive）**：中等时间窗口内同一工具大量调用（如 60 秒内 ≥20 次） → D4=1
+    - **速率（Rate）**：全局工具调用速率过高（如每分钟 ≥60 次） → D4=1
+
+---
+
+## 外部内容安全
+
+当工具处理外部来源内容时（如 fetch、http_request 等），自动提升安全检测灵敏度。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_EXTERNAL_CONTENT_D6_BOOST` | `0.3` | 外部内容 D6 注入检测加成值。叠加在原始 D6 评分之上 |
+| `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | `1.3` | 外部内容 Post-action 分析乘数。放大输出检测评分 |
+
+!!! example "内容来源推断"
+    ClawSentry 通过 `infer_content_origin()` 函数从 tool_name 和 payload 推断内容来源：
+
+    - `external`：fetch、http_request、curl、wget 等网络工具
+    - `user`：用户直接输入
+    - `unknown`：无法判断来源时使用默认值
+
+---
+
+## DEFER 桥接
+
+DEFER 决策的运维审批桥接配置，控制超时行为和操作员交互。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_DEFER_TIMEOUT_ACTION` | `block` | DEFER 超时后的默认动作。可选值：`block`（安全优先）或 `allow`（可用性优先） |
+| `CS_DEFER_TIMEOUT_S` | `300` (5 分钟) | DEFER 等待运维审批的超时时间（秒） |
+| `CS_DEFER_BRIDGE_ENABLED` | `true` | 启用 DEFER→运维审批桥接。可选值：`true`/`1`/`yes` |
+
+!!! warning "超时策略选择"
+    - `block`（默认）：超时后阻断操作，**安全优先**。适合生产环境。
+    - `allow`：超时后放行操作，**可用性优先**。适合开发/低安全场景。
+
+---
+
+## Latch Hub 集成
+
+Latch Hub 是可选的远程监控组件，支持移动设备推送审批和跨设备事件转发。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_LATCH_HUB_URL` | (空) | Latch Hub 基础 URL（如 `http://127.0.0.1:3006`） |
+| `CS_LATCH_HUB_PORT` | `3006` | Latch Hub 端口（当 `CS_LATCH_HUB_URL` 未设置时作为回退） |
+| `CS_HUB_BRIDGE_ENABLED` | `auto` | Hub 事件转发开关。`auto` 在检测到 Hub 运行时自动启用，`true` 强制启用，`false` 禁用 |
+
+---
+
+## Prometheus 可观测性
+
+Prometheus 指标导出配置，需安装 `clawsentry[metrics]` 可选依赖。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_METRICS_ENABLED` | `auto` | 指标端点启用模式。`auto` 在安装 prometheus_client 时自动启用 |
+| `CS_METRICS_AUTH` | `true` | `/metrics` 端点是否需要 Bearer Token 认证。设为 `false` 允许 Prometheus 无认证抓取 |
+
+---
+
+## LLM 每日预算
+
+限制 LLM API 每日支出，防止 L2/L3 决策层成本失控。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_LLM_DAILY_BUDGET_USD` | `0.0` (无限制) | 每日 LLM 支出上限（美元）。设为 `0` 表示无限制 |
+
+!!! info "预算机制"
+    - 按 UTC 日期计算，每天 00:00 UTC 自动重置
+    - 预算耗尽后，L2/L3 自动降级为 L1 纯规则决策
+    - 通过 SSE 广播预算耗尽事件
+    - 预算基于估算价格：Anthropic $3/$15 per M tokens，OpenAI $2.5/$10 per M tokens
+
+---
+
+## Codex Session Watcher
+
+Codex 无原生 Hook 系统，通过 Session Watcher 监控 JSONL 日志实现安全评估。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_CODEX_SESSION_DIR` | (自动检测) | Codex 会话 JSONL 目录路径。默认从 `$CODEX_HOME/sessions` 检测 |
+| `CODEX_HOME` | `~/.codex` | Codex 根目录。用于自动检测 session 目录，一般无需手动设置 |
+| `CS_CODEX_WATCH_ENABLED` | `true` | 启用 Codex Session Watcher |
+| `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | Watcher 轮询间隔（秒） |
+| `CS_FRAMEWORK` | (自动检测) | 框架标识。设为 `codex` 启用 Codex 专用检查和 Watcher |
+
+---
+
+## L3 审查 Agent 预算
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_L3_BUDGET_MS` | (空=使用 L2 预算) | L3 审查 Agent 独立超时（毫秒）。留空时使用 `CS_L2_BUDGET_MS` 的值。L3 通常需要更长时间（多轮工具调用），建议设为 15000-30000 |
+
+---
+
 ## 完整配置示例
 
 ### 最小配置（仅 L1 规则引擎）
@@ -293,6 +411,15 @@ AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS=600
 # Webhook 安全
 AHP_WEBHOOK_IP_WHITELIST=10.0.0.0/8
 AHP_WEBHOOK_TOKEN_TTL_SECONDS=3600
+
+# Prometheus + 预算
+CS_LLM_DAILY_BUDGET_USD=5.0
+CS_METRICS_AUTH=false
+
+# DEFER 桥接
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=300
+CS_DEFER_TIMEOUT_ACTION=block
 
 # OpenClaw 集成
 OPENCLAW_ENFORCEMENT_ENABLED=true

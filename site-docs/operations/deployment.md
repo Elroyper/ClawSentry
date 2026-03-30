@@ -499,6 +499,334 @@ volumes:
 
 ---
 
+## Prometheus 可观测性
+
+ClawSentry 通过 `/metrics` 端点导出 Prometheus 格式指标，支持决策延迟、LLM 成本、活跃会话等关键运营指标的监控和告警。
+
+### 安装
+
+```bash
+# 安装 metrics 可选依赖
+pip install "clawsentry[metrics]"
+
+# 或使用 uv
+uv pip install "clawsentry[metrics]"
+```
+
+### 指标端点
+
+安装 `prometheus_client` 后，`GET /metrics` 自动启用。
+
+```bash
+# 验证指标端点
+curl http://127.0.0.1:8080/metrics
+```
+
+未安装时返回降级提示（HTTP 200）：
+```
+# ClawSentry metrics disabled (prometheus_client not installed)
+```
+
+### 认证配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_METRICS_AUTH` | `true` | 指标端点认证开关 |
+
+- `true`（默认）：需要 Bearer Token（与 `CS_AUTH_TOKEN` 相同）
+- `false`：允许 Prometheus 无认证抓取
+
+```bash title=".env.clawsentry"
+# 允许 Prometheus 无认证抓取
+CS_METRICS_AUTH=false
+```
+
+### 关键指标
+
+| 指标名 | 类型 | 说明 |
+|--------|------|------|
+| `clawsentry_decisions_total` | Counter | 决策总数（按 verdict/risk_level/tier/source_framework） |
+| `clawsentry_decision_latency_seconds` | Histogram | 决策延迟分布 |
+| `clawsentry_llm_calls_total` | Counter | LLM API 调用总数 |
+| `clawsentry_llm_tokens_total` | Counter | Token 消耗总量 |
+| `clawsentry_llm_cost_usd_total` | Counter | 预估 LLM 成本（美元） |
+| `clawsentry_active_sessions` | Gauge | 当前活跃会话数 |
+| `clawsentry_defers_pending` | Gauge | 等待审批的 DEFER 数 |
+| `clawsentry_risk_score` | Histogram | 风险评分分布 |
+
+### 常用 PromQL
+
+```promql
+# 每分钟决策速率
+rate(clawsentry_decisions_total[5m])
+
+# 高风险决策占比
+sum(rate(clawsentry_decisions_total{risk_level=~"high|critical"}[5m]))
+/ sum(rate(clawsentry_decisions_total[5m]))
+
+# P99 决策延迟
+histogram_quantile(0.99, rate(clawsentry_decision_latency_seconds_bucket[5m]))
+
+# 每小时 LLM 成本
+increase(clawsentry_llm_cost_usd_total[1h])
+
+# DEFER 积压
+clawsentry_defers_pending
+```
+
+---
+
+## Docker Compose 可观测性栈
+
+ClawSentry 提供预配置的 Docker Compose 文件，一键部署 Gateway + Prometheus + Grafana 三服务可观测性栈。
+
+### 架构
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Gateway    │────▶│  Prometheus  │────▶│   Grafana    │
+│  :8080       │     │  :9090       │     │  :3000       │
+│  /metrics    │     │  15s scrape  │     │  dashboards  │
+└──────────────┘     └──────────────┘     └──────────────┘
+```
+
+### 快速启动
+
+```bash
+cd docker/
+cp .env.example .env
+# 编辑 .env 设置 CS_AUTH_TOKEN 等参数
+
+docker compose up -d
+```
+
+### 服务配置
+
+#### Gateway
+
+```yaml
+gateway:
+  build: .
+  ports:
+    - "${CS_HTTP_PORT:-8080}:8080"
+  volumes:
+    - clawsentry-data:/data
+  environment:
+    - CS_HTTP_HOST=0.0.0.0
+    - CS_HTTP_PORT=8080
+    - CS_TRAJECTORY_DB_PATH=/data/clawsentry-trajectory.db
+  env_file: .env
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+  restart: unless-stopped
+```
+
+#### Prometheus
+
+```yaml
+prometheus:
+  image: prom/prometheus:v2.53.0
+  ports:
+    - "${CS_PROMETHEUS_PORT:-9090}:9090"
+  volumes:
+    - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - prometheus-data:/prometheus
+  depends_on:
+    gateway:
+      condition: service_healthy
+  restart: unless-stopped
+```
+
+#### Grafana
+
+```yaml
+grafana:
+  image: grafana/grafana:11.1.0
+  ports:
+    - "${CS_GRAFANA_PORT:-3000}:3000"
+  environment:
+    - GF_SECURITY_ADMIN_PASSWORD=${CS_GRAFANA_PASSWORD:-clawsentry}
+    - GF_AUTH_ANONYMOUS_ENABLED=true
+    - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+  volumes:
+    - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    - grafana-data:/var/lib/grafana
+  depends_on:
+    - prometheus
+  restart: unless-stopped
+```
+
+### Prometheus 抓取配置
+
+```yaml title="docker/prometheus.yml"
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'clawsentry-gateway'
+    static_configs:
+      - targets: ['gateway:8080']
+```
+
+!!! tip "认证配置"
+    如果 `CS_METRICS_AUTH=true`（默认），需要在 Prometheus 抓取配置中添加 Bearer Token：
+    ```yaml
+    scrape_configs:
+      - job_name: 'clawsentry-gateway'
+        bearer_token: 'your-cs-auth-token'
+        static_configs:
+          - targets: ['gateway:8080']
+    ```
+
+    或设置 `CS_METRICS_AUTH=false` 允许无认证抓取。
+
+### 环境变量
+
+```bash title="docker/.env"
+CS_HTTP_PORT=8080
+CS_AUTH_TOKEN=your-secret-token
+CS_PROMETHEUS_PORT=9090
+CS_GRAFANA_PORT=3000
+CS_GRAFANA_PASSWORD=clawsentry
+CS_METRICS_AUTH=false
+```
+
+### 持久化卷
+
+| 卷名 | 用途 |
+|------|------|
+| `clawsentry-data` | Gateway SQLite 轨迹数据库 |
+| `prometheus-data` | Prometheus 时序数据 |
+| `grafana-data` | Grafana 仪表板和配置 |
+
+### 管理命令
+
+```bash
+# 查看服务状态
+docker compose ps
+
+# 查看 Gateway 日志
+docker compose logs -f gateway
+
+# 重启单个服务
+docker compose restart gateway
+
+# 停止并清理
+docker compose down
+
+# 停止并清理数据卷
+docker compose down -v
+```
+
+---
+
+## systemd 服务配置
+
+在 Linux 生产环境中，推荐使用 systemd 管理 ClawSentry Gateway 进程。
+
+### 完整 service 文件
+
+```ini title="/etc/systemd/system/clawsentry-gateway.service"
+[Unit]
+Description=ClawSentry AHP Supervision Gateway
+After=network.target
+Documentation=https://elroyper.github.io/ClawSentry/
+
+[Service]
+Type=simple
+User=clawsentry
+Group=clawsentry
+EnvironmentFile=/etc/clawsentry/gateway.env
+ExecStart=/usr/local/bin/clawsentry-gateway --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# 安全加固
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/clawsentry /tmp/clawsentry.sock
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 安全加固说明
+
+| 指令 | 说明 |
+|------|------|
+| `User=clawsentry` | 以专用非 root 用户运行 |
+| `NoNewPrivileges=yes` | 禁止进程获取新权限 |
+| `ProtectSystem=strict` | `/` 挂载为只读 |
+| `ProtectHome=yes` | `/home` 挂载为只读 |
+| `ReadWritePaths=` | 仅允许写入指定路径 |
+| `PrivateTmp=yes` | 隔离 `/tmp` 命名空间 |
+
+### 环境文件
+
+```bash title="/etc/clawsentry/gateway.env"
+CS_HTTP_HOST=127.0.0.1
+CS_HTTP_PORT=8080
+CS_AUTH_TOKEN=your-production-token
+CS_TRAJECTORY_DB_PATH=/var/lib/clawsentry/trajectory.db
+CS_UDS_PATH=/tmp/clawsentry.sock
+
+# LLM 配置（可选）
+CS_LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-xxx
+
+# Prometheus 指标
+CS_METRICS_AUTH=false
+CS_LLM_DAILY_BUDGET_USD=10.0
+```
+
+!!! warning "文件权限"
+    环境文件包含敏感信息（API 密钥、认证令牌）：
+    ```bash
+    chmod 600 /etc/clawsentry/gateway.env
+    chown clawsentry:clawsentry /etc/clawsentry/gateway.env
+    ```
+
+### 安装步骤
+
+```bash
+# 1. 创建专用用户
+sudo useradd -r -s /sbin/nologin clawsentry
+
+# 2. 创建数据目录
+sudo mkdir -p /var/lib/clawsentry /etc/clawsentry
+sudo chown clawsentry:clawsentry /var/lib/clawsentry
+
+# 3. 安装 ClawSentry
+sudo pip install "clawsentry[metrics,llm]"
+
+# 4. 复制配置文件
+sudo cp gateway.env /etc/clawsentry/gateway.env
+sudo chmod 600 /etc/clawsentry/gateway.env
+sudo chown clawsentry:clawsentry /etc/clawsentry/gateway.env
+
+# 5. 安装 systemd 服务
+sudo cp clawsentry-gateway.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 6. 启用并启动
+sudo systemctl enable clawsentry-gateway
+sudo systemctl start clawsentry-gateway
+
+# 7. 检查状态
+sudo systemctl status clawsentry-gateway
+sudo journalctl -u clawsentry-gateway -f
+```
+
+---
+
 ## 安全清单
 
 部署到生产环境前，请逐项确认以下检查项：

@@ -36,7 +36,7 @@ clawsentry-stack     # 等价于 clawsentry stack
     ```
 
 !!! abstract "本页快速导航"
-    [clawsentry start](#clawsentry-start) · [clawsentry init](#clawsentry-init) · [clawsentry gateway](#clawsentry-gateway) · [clawsentry stack](#clawsentry-stack) · [clawsentry harness](#clawsentry-harness) · [clawsentry watch](#clawsentry-watch)
+    [clawsentry start](#clawsentry-start) · [clawsentry stop](#clawsentry-stop) · [clawsentry status](#clawsentry-status) · [clawsentry init](#clawsentry-init) · [clawsentry gateway](#clawsentry-gateway) · [clawsentry stack](#clawsentry-stack) · [clawsentry harness](#clawsentry-harness) · [clawsentry watch](#clawsentry-watch) · [clawsentry audit](#clawsentry-audit) · [clawsentry doctor](#clawsentry-doctor) · [clawsentry config](#clawsentry-config) · [clawsentry latch](#clawsentry-latch)
 
 ---
 
@@ -47,19 +47,24 @@ clawsentry-stack     # 等价于 clawsentry stack
 ### 语法
 
 ```bash
-clawsentry start [--framework {openclaw,a3s-code}] [--host HOST] [--port PORT]
+clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
+                 [--host HOST] [--port PORT]
                  [--no-watch] [--interactive | -i]
+                 [--open-browser] [--with-latch] [--hub-port PORT]
 ```
 
 ### 选项
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--framework` | 自动检测 | 目标框架：`openclaw` 或 `a3s-code` |
+| `--framework` | 自动检测 | 目标框架：`a3s-code`、`claude-code`、`codex`、`openclaw` |
 | `--host` | `127.0.0.1` | Gateway HTTP 监听地址 |
 | `--port` | `8080` 或 `CS_HTTP_PORT` | Gateway HTTP 监听端口 |
 | `--no-watch` | `false` | 仅启动 Gateway，不显示实时监控 |
 | `--interactive` / `-i` | `false` | 启用 DEFER 决策交互式审批 |
+| `--open-browser` | `false` | 启动后在浏览器中打开 Web UI |
+| `--with-latch` | `false` | 同时启动 Latch Hub（需先运行 `clawsentry latch install`） |
+| `--hub-port` | `3006` | Latch Hub 端口，配合 `--with-latch` 使用 |
 
 ### 工作流程
 
@@ -159,13 +164,14 @@ Gateway 的 stdout/stderr 输出会写入临时日志文件：
 
 ```bash
 clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--dry-run]
+                             [--uninstall]
 ```
 
 ### 参数
 
 | 参数 | 说明 |
 |------|------|
-| `framework` | 目标框架，可选值：`a3s-code`、`openclaw` |
+| `framework` | 目标框架，可选值：`a3s-code`、`claude-code`、`codex`、`openclaw` |
 
 ### 选项
 
@@ -173,9 +179,10 @@ clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--
 |------|--------|------|
 | `--dir PATH` | `.`（当前目录） | 配置文件写入目录 |
 | `--force` | `false` | 覆盖已存在的配置文件 |
-| `--auto-detect` | `false` | 自动检测已有的框架配置（如 `~/.openclaw/` 中的 Gateway Token） |
-| `--setup` | `false` | 自动配置 OpenClaw 设置以支持 Monitor 集成（隐含 `--auto-detect`） |
-| `--dry-run` | `false` | 预览 `--setup` 将要执行的 OpenClaw 配置变更，但不实际应用 |
+| `--auto-detect` | `true` | 自动检测已有的框架配置（如 `~/.openclaw/` 中的 Gateway Token） |
+| `--setup` | `true` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`） |
+| `--dry-run` | `false` | 预览 `--setup` 将要执行的配置变更，但不实际应用 |
+| `--uninstall` | `false` | 移除 ClawSentry hooks（仅 `claude-code` 支持） |
 
 ### 示例
 
@@ -462,6 +469,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"ahp/handshake","params":{}}' | clawsentr
 ```bash
 clawsentry watch [--gateway-url URL] [--token TOKEN] [--filter TYPES]
                  [--json] [--no-color] [--interactive | -i]
+                 [--verbose | -v] [--no-emoji] [--compact]
 ```
 
 ### 选项
@@ -474,6 +482,9 @@ clawsentry watch [--gateway-url URL] [--token TOKEN] [--filter TYPES]
 | `--json` | `false` | 输出原始 JSON（适合管道处理） |
 | `--no-color` | `false` | 禁用 ANSI 颜色代码 |
 | `--interactive` / `-i` | `false` | DEFER 决策交互确认模式 |
+| `--verbose` / `-v` | `false` | 显示所有决策详情，包括 ALLOW |
+| `--no-emoji` | `false` | 禁用 emoji 输出（适合纯文本/窄终端环境） |
+| `--compact` | `false` | 紧凑格式，不使用 Unicode 边框绘制会话分组 |
 
 ### 支持的事件类型
 
@@ -561,6 +572,460 @@ clawsentry watch --interactive --token my-secret-token
 
 ---
 
+## clawsentry stop
+
+停止正在运行的 Gateway 进程。
+
+### 语法
+
+```bash
+clawsentry stop
+```
+
+此命令通过读取 PID 文件定位 Gateway 进程，发送 SIGTERM 信号实现优雅关闭。
+
+### 行为
+
+- 读取 `/tmp/clawsentry-gateway.pid` 获取进程 ID
+- 发送 SIGTERM 信号
+- 如果 PID 文件不存在或进程未运行，输出提示信息并退出
+
+### 示例
+
+```bash
+clawsentry stop
+```
+
+??? example "终端输出"
+    ```
+    Gateway (PID 12345) stopped.
+    ```
+
+---
+
+## clawsentry status
+
+查看 Gateway 运行状态。
+
+### 语法
+
+```bash
+clawsentry status
+```
+
+### 输出
+
+显示 Gateway 进程状态（running / not running / stale）和 PID 信息。
+
+### 示例
+
+```bash
+clawsentry status
+```
+
+??? example "终端输出 — 运行中"
+    ```
+    Gateway: running (PID 12345)
+    ```
+
+??? example "终端输出 — 未运行"
+    ```
+    Gateway: not running
+    ```
+
+??? example "终端输出 — PID 文件过期"
+    ```
+    Gateway: stale PID file (PID 12345 not found)
+    ```
+
+---
+
+## clawsentry audit
+
+离线查询轨迹数据库（Trajectory DB）中的审计记录，支持多维度过滤和聚合统计。
+
+### 语法
+
+```bash
+clawsentry audit [--db PATH] [--session ID] [--since DURATION]
+                 [--risk LEVEL] [--decision VERDICT] [--tool NAME]
+                 [--format {table|json|csv}] [--stats] [--limit N]
+                 [--no-color]
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--db PATH` | `CS_TRAJECTORY_DB_PATH` 或 `/tmp/clawsentry-trajectory.db` | SQLite 数据库文件路径 |
+| `--session ID` | `None` | 按会话 ID 过滤 |
+| `--since DURATION` | `None` | 时间窗口过滤，支持格式：`30m`、`1h`、`24h`、`7d` |
+| `--risk LEVEL` | `None` | 按风险等级过滤：`low`、`medium`、`high`、`critical` |
+| `--decision VERDICT` | `None` | 按决策结果过滤：`allow`、`block`、`defer`、`modify` |
+| `--tool NAME` | `None` | 按工具名称过滤 |
+| `--format` | `table` | 输出格式：`table`（表格）、`json`、`csv` |
+| `--stats` | `false` | 仅显示聚合统计信息 |
+| `--limit N` | `100` | 最大返回记录数 |
+| `--no-color` | `false` | 禁用 ANSI 颜色代码 |
+
+### 示例
+
+#### 查询最近 1 小时的高风险事件
+
+```bash
+clawsentry audit --since 1h --risk high
+```
+
+??? example "终端输出"
+    ```
+    ┌──────────────────────┬────────────┬─────────┬──────────┬────────────────────────────┐
+    │ timestamp            │ session    │ risk    │ decision │ command                    │
+    ├──────────────────────┼────────────┼─────────┼──────────┼────────────────────────────┤
+    │ 2026-03-31T14:23:05  │ sess-001   │ high    │ BLOCK    │ rm -rf /data               │
+    │ 2026-03-31T14:25:12  │ sess-001   │ high    │ DEFER    │ sudo chmod 777 /etc/passwd │
+    └──────────────────────┴────────────┴─────────┴──────────┴────────────────────────────┘
+    2 records found
+    ```
+
+#### 查看统计概览
+
+```bash
+clawsentry audit --since 24h --stats
+```
+
+??? example "终端输出"
+    ```
+    Audit Statistics (last 24h)
+    ───────────────────────────
+    Total events:     142
+    Sessions:         8
+
+    By decision:
+      ALLOW:          128 (90.1%)
+      BLOCK:          8   (5.6%)
+      DEFER:          4   (2.8%)
+      MODIFY:         2   (1.4%)
+
+    By risk:
+      low:            115 (81.0%)
+      medium:         19  (13.4%)
+      high:           7   (4.9%)
+      critical:       1   (0.7%)
+    ```
+
+#### 导出 JSON 格式
+
+```bash
+clawsentry audit --since 7d --format json --limit 500 > audit-report.json
+```
+
+#### 按会话和工具过滤
+
+```bash
+clawsentry audit --session sess-001 --tool bash
+```
+
+---
+
+## clawsentry doctor
+
+离线检查 ClawSentry 配置安全性，共执行 19 项检查，涵盖认证、网络、LLM、Latch 等类别。
+
+### 语法
+
+```bash
+clawsentry doctor [--json] [--no-color]
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--json` | `false` | 以 JSON 格式输出检查结果 |
+| `--no-color` | `false` | 禁用 ANSI 颜色代码 |
+
+### 退出码
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 所有检查均为 PASS |
+| `1` | 存在至少一项 FAIL |
+| `2` | 存在 WARN 但无 FAIL |
+
+### 检查项一览
+
+| 检查 ID | 类别 | 说明 |
+|---------|------|------|
+| `AUTH_PRESENCE` | 认证 | `CS_AUTH_TOKEN` 已设置 |
+| `AUTH_LENGTH` | 认证 | Token 长度 >= 32（16-31 警告，<16 失败） |
+| `AUTH_ENTROPY` | 认证 | Token 熵 >= 3.5 bits/char |
+| `AUTH_WEAK_VALUE` | 认证 | Token 非常见弱值/占位符 |
+| `UDS_PERMISSIONS` | UDS | Socket 权限为 `0o600`（仅属主可访问） |
+| `THRESHOLD_ORDERING` | 配置 | `CS_THRESHOLD_MEDIUM` <= `HIGH` <= `CRITICAL` |
+| `WEIGHT_BOUNDS` | 配置 | 所有权重 >= 0 |
+| `LLM_CONFIG` | LLM | LLM 提供商与 API 密钥一致性 |
+| `OPENCLAW_SECRET` | OpenClaw | 已设置 `CS_OPENCLAW_WEBHOOK_SECRET` |
+| `LISTEN_ADDRESS` | 网络 | 监听 localhost（公网地址警告） |
+| `WHITELIST_REGEX` | 正则 | Post-action 白名单正则可编译 |
+| `L2_BUDGET` | LLM | `CS_L2_BUDGET_MS` 为正数 |
+| `TRAJECTORY_DB` | 数据库 | 数据库目录可写 |
+| `CODEX_CONFIG` | Codex | `CS_FRAMEWORK=codex` 时 auth token 已设置 |
+| `LATCH_BINARY` | Latch | Latch 二进制已安装且可执行 |
+| `LATCH_HUB_HEALTH` | Latch | Latch Hub 健康端点响应正常 |
+| `LATCH_TOKEN_SYNC` | Latch | `CS_AUTH_TOKEN` 与 `CLI_API_TOKEN` 匹配 |
+| `DEFER_BRIDGE` | 桥接 | DEFER 桥接超时配置有效 |
+| `HUB_BRIDGE` | 桥接 | Latch Hub 桥接可达（如启用） |
+
+### 示例
+
+```bash
+clawsentry doctor
+```
+
+??? example "终端输出"
+    ```
+    ClawSentry Doctor — 19 checks
+    ══════════════════════════════
+
+    [PASS] AUTH_PRESENCE      CS_AUTH_TOKEN is set
+    [PASS] AUTH_LENGTH        Token length >= 32
+    [PASS] AUTH_ENTROPY       Token entropy >= 3.5 bits/char
+    [PASS] AUTH_WEAK_VALUE    Token is not a common weak value
+    [WARN] UDS_PERMISSIONS    Socket file not found (will be created on start)
+    [PASS] THRESHOLD_ORDERING Thresholds are in correct order
+    [PASS] WEIGHT_BOUNDS      All weights >= 0
+    [PASS] LLM_CONFIG         LLM provider/key consistency OK
+    [WARN] OPENCLAW_SECRET    CS_OPENCLAW_WEBHOOK_SECRET not set
+    [PASS] LISTEN_ADDRESS     Listening on localhost
+    [PASS] WHITELIST_REGEX    All whitelist patterns compile OK
+    [PASS] L2_BUDGET          CS_L2_BUDGET_MS is positive
+    [PASS] TRAJECTORY_DB      Database directory is writable
+    [PASS] CODEX_CONFIG       Codex config OK
+    [WARN] LATCH_BINARY       Latch binary not installed
+    [WARN] LATCH_HUB_HEALTH   Latch Hub not running
+    [WARN] LATCH_TOKEN_SYNC   Latch not configured, skipped
+    [PASS] DEFER_BRIDGE       DEFER bridge config OK
+    [PASS] HUB_BRIDGE         Hub bridge not enabled, skipped
+
+    ──────────────────────────────
+    Result: 14 PASS, 5 WARN, 0 FAIL
+    ```
+
+#### JSON 输出
+
+```bash
+clawsentry doctor --json
+```
+
+??? example "JSON 输出"
+    ```json
+    {
+      "checks": [
+        {"id": "AUTH_PRESENCE", "category": "auth", "status": "PASS", "message": "CS_AUTH_TOKEN is set"},
+        {"id": "AUTH_LENGTH", "category": "auth", "status": "PASS", "message": "Token length >= 32"}
+      ],
+      "summary": {"pass": 14, "warn": 5, "fail": 0}
+    }
+    ```
+
+---
+
+## clawsentry config
+
+管理项目级 `.clawsentry.toml` 配置文件。通过预设等级快速配置检测灵敏度。
+
+### 语法
+
+```bash
+clawsentry config <subcommand> [options]
+```
+
+### 子命令
+
+| 子命令 | 说明 |
+|--------|------|
+| `init` | 在当前目录创建 `.clawsentry.toml` |
+| `show` | 显示当前项目配置 |
+| `set <preset>` | 更新预设等级 |
+| `disable` | 禁用 ClawSentry（设置 `enabled = false`） |
+| `enable` | 启用 ClawSentry（设置 `enabled = true`） |
+
+### `config init` 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--preset` | `medium` | 预设等级：`low`、`medium`、`high`、`strict` |
+| `--force` | `false` | 覆盖已存在的 `.clawsentry.toml` |
+
+### 预设等级
+
+| 预设 | 说明 | 适用场景 |
+|------|------|----------|
+| `low` | 低灵敏度，仅拦截明确高危操作 | 个人开发、受信环境 |
+| `medium` | 平衡灵敏度（推荐） | 日常开发 |
+| `high` | 高灵敏度，更严格的阈值 | 团队协作、生产相关代码 |
+| `strict` | 最严格模式，几乎所有可疑操作均触发审查 | 安全敏感项目 |
+
+### 示例
+
+#### 初始化配置
+
+```bash
+clawsentry config init --preset high
+```
+
+??? example "终端输出"
+    ```
+    Created .clawsentry.toml with preset: high
+    ```
+
+#### 查看当前配置
+
+```bash
+clawsentry config show
+```
+
+??? example "终端输出"
+    ```
+    Project config: .clawsentry.toml
+      enabled: true
+      preset:  high
+    ```
+
+#### 更改预设等级
+
+```bash
+clawsentry config set strict
+```
+
+#### 临时禁用 / 启用
+
+```bash
+clawsentry config disable
+clawsentry config enable
+```
+
+### `.clawsentry.toml` 文件格式
+
+```toml
+[clawsentry]
+enabled = true
+preset = "high"
+```
+
+该文件应放置在项目根目录，Gateway 和 Harness 启动时会自动读取并应用预设配置。
+
+---
+
+## clawsentry latch
+
+管理 Latch 集成（下载安装、启停、状态查看）。Latch 提供跨设备手机监控、推送审批等增强功能。
+
+### 语法
+
+```bash
+clawsentry latch <subcommand> [options]
+```
+
+### 子命令
+
+| 子命令 | 说明 |
+|--------|------|
+| `install` | 下载并安装 Latch 二进制文件 |
+| `start` | 启动 Gateway + Latch Hub |
+| `stop` | 停止 Gateway + Latch Hub |
+| `status` | 查看 Latch 栈运行状态 |
+| `uninstall` | 卸载 Latch 二进制和数据 |
+
+### `latch install` 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--no-shortcut` | `false` | 跳过桌面快捷方式创建 |
+
+安装流程：
+
+1. 从 GitHub Release 下载对应平台的 Latch 二进制压缩包
+2. SHA-256 校验文件完整性
+3. 解压到 `~/.clawsentry/latch/bin/`（支持 `tar.gz` 和 `zip`）
+4. 设置可执行权限
+5. 创建桌面快捷方式（可通过 `--no-shortcut` 跳过）
+
+支持平台：Linux (x86_64, aarch64)、macOS (x86_64, arm64)、Windows (x86_64)
+
+### `latch start` 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--gateway-port` | `8080` 或 `CS_HTTP_PORT` | Gateway HTTP 端口 |
+| `--hub-port` | `3006` | Latch Hub 端口 |
+| `--no-browser` | `false` | 启动后不自动打开浏览器 |
+
+### `latch stop`
+
+停止 Gateway 和 Latch Hub 进程。
+
+```bash
+clawsentry latch stop
+```
+
+### `latch status`
+
+查看 Gateway 和 Latch Hub 的运行状态。
+
+```bash
+clawsentry latch status
+```
+
+### `latch uninstall` 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--keep-data` | `false` | 仅移除二进制和快捷方式，保留数据目录 |
+
+### 示例
+
+#### 安装 Latch
+
+```bash
+clawsentry latch install
+```
+
+??? example "终端输出"
+    ```
+    Downloading Latch v1.0.0 for linux-x86_64...
+    Verifying SHA-256 checksum... OK
+    Extracting to ~/.clawsentry/latch/bin/
+    Latch installed successfully.
+    ```
+
+#### 启动完整栈
+
+```bash
+clawsentry latch start --hub-port 3006
+```
+
+??? example "终端输出"
+    ```
+    Starting Gateway on 127.0.0.1:8080...
+    Starting Latch Hub on 127.0.0.1:3006...
+    Gateway + Latch Hub ready.
+    ```
+
+#### 查看状态
+
+```bash
+clawsentry latch status
+```
+
+#### 卸载（保留数据）
+
+```bash
+clawsentry latch uninstall --keep-data
+```
+
+---
+
 ## 独立入口点
 
 以下命令由 `pip install clawsentry` 注册为独立可执行文件，无需使用 `clawsentry` 前缀：
@@ -603,3 +1068,10 @@ clawsentry watch --interactive --token my-secret-token
 | `AHP_SESSION_ENFORCEMENT_ENABLED` | gateway | 启用会话级强制策略 |
 | `AHP_SSL_CERTFILE` | gateway | SSL 证书文件路径 |
 | `AHP_SSL_KEYFILE` | gateway | SSL 私钥文件路径 |
+| `CS_FRAMEWORK` | start, init | 框架类型标识（`a3s-code`/`claude-code`/`codex`/`openclaw`） |
+| `CS_CODEX_SESSION_DIR` | gateway | Codex 会话目录路径（用于 Session Watcher） |
+| `CS_DEFER_TIMEOUT_ACTION` | gateway, harness | DEFER 超时后的动作：`block`（默认）或 `allow` |
+| `CS_DEFER_TIMEOUT_S` | gateway, harness | DEFER 超时时间（秒），默认 `300` |
+| `CS_LLM_DAILY_BUDGET_USD` | gateway | LLM 每日预算（美元），超出后降级为纯规则引擎 |
+| `CS_METRICS_ENABLED` | gateway | 启用 Prometheus `/metrics` 端点 |
+| `CS_LATCH_HUB_URL` | gateway, doctor | Latch Hub 地址（如 `http://127.0.0.1:3006`） |

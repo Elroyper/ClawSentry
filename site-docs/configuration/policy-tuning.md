@@ -460,3 +460,188 @@ AHP_TRAJECTORY_RETENTION_SECONDS=7776000  # 90 天
     - [x] 会话执法已启用
     - [x] Webhook IP 白名单已配置
     - [x] 速率限制已配置
+
+---
+
+## DEFER 审批桥接
+
+当 L1/L2 决策为 DEFER 且 `defer_bridge_enabled=true` 时，Gateway 会将审批请求注册到 DeferManager，等待运维人员通过 CLI、Web UI 或移动端做出允许/拒绝决定。
+
+### 生命周期
+
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant GW as Gateway
+    participant DM as DeferManager
+    participant SSE as SSE 订阅者
+    participant Op as 运维人员
+
+    Agent->>GW: pre_action 请求
+    GW->>GW: L1/L2 评估 → DEFER
+    GW->>DM: 注册审批 (approval_id)
+    GW->>SSE: defer_pending 事件
+
+    alt 运维批准
+        Op->>GW: POST /ahp/resolve {allow}
+        GW->>DM: resolve(approved)
+        GW->>SSE: defer_resolved {approved}
+        GW->>Agent: ALLOW (source=OPERATOR)
+    else 运维拒绝
+        Op->>GW: POST /ahp/resolve {deny}
+        GW->>DM: resolve(denied)
+        GW->>SSE: defer_resolved {denied}
+        GW->>Agent: BLOCK (source=OPERATOR)
+    else 超时
+        DM->>GW: timeout
+        GW->>Agent: defer_timeout_action (block/allow)
+    end
+```
+
+### 触发条件
+
+DEFER 桥接在以下**所有条件**同时满足时激活：
+
+1. `defer_bridge_enabled = true`（DetectionConfig / 项目预设）
+2. 决策结果为 `DEFER`
+3. 事件类型为 `pre_action`
+4. 未被会话强制策略覆盖
+
+### 决策来源（DecisionSource）
+
+| 来源 | 说明 |
+|------|------|
+| `POLICY` | L1/L2/L3 引擎自动决策 |
+| `MANUAL` | 手动覆盖 |
+| `SYSTEM` | 系统级决策（如速率限制） |
+| `OPERATOR` | **运维人员通过 DEFER 桥接做出的决策** |
+
+### SSE 事件对
+
+| 事件 | 触发时机 | 关键字段 |
+|------|----------|----------|
+| `defer_pending` | DEFER 注册时 | `approval_id`, `defer_timeout_s` |
+| `defer_resolved` | 运维响应时 | `approval_id`, `resolution` (approved/denied) |
+
+### 解决端点
+
+`POST /ahp/resolve` 接受以下请求：
+
+```json
+{
+  "approval_id": "apr-xxx",
+  "action": "allow-once"
+}
+```
+
+或拒绝：
+
+```json
+{
+  "approval_id": "apr-xxx",
+  "action": "deny",
+  "reason": "operator rejected"
+}
+```
+
+**双重检查**：Gateway 在解决 DEFER 时会验证 approval_id 是否仍然有效（未超时、未重复解决）。
+
+### 配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_DEFER_BRIDGE_ENABLED` | `true` | 启用 DEFER 桥接 |
+| `CS_DEFER_TIMEOUT_S` | `300` | 超时时间（秒） |
+| `CS_DEFER_TIMEOUT_ACTION` | `block` | 超时动作：`block` 或 `allow` |
+
+### 完整示例
+
+```bash title=".env.clawsentry"
+# 启用 DEFER 桥接
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=180          # 3 分钟超时
+CS_DEFER_TIMEOUT_ACTION=block   # 超时阻断
+
+# 使用 watch CLI 交互审批
+# 终端 1: clawsentry gateway
+# 终端 2: clawsentry watch --interactive --token $CS_AUTH_TOKEN
+```
+
+!!! tip "交互式审批"
+    `clawsentry watch --interactive` 可直接在终端中对 DEFER 做出 Allow/Deny 决策：
+    ```
+    Command: sudo rm -rf /var/log
+    Reason:  Destructive operation on system logs
+    [A]llow  [D]eny  [S]kip (timeout in 175s) >
+    ```
+
+---
+
+## Latch Hub 事件转发
+
+LatchHubBridge 将 Gateway 的 SSE 事件通过 HTTP 转发至 Latch Hub，实现移动端/远程运维人员的实时监控和 DEFER 推送审批。
+
+### 架构
+
+```
+Gateway EventBus
+    │
+    ├─ decision
+    ├─ session_start
+    ├─ session_risk_change
+    ├─ alert
+    ├─ defer_pending
+    ├─ defer_resolved
+    ├─ post_action_finding
+    └─ session_enforcement_change
+         │
+         ▼
+    LatchHubBridge
+    (订阅 EventBus → HTTP POST)
+         │
+         ▼
+    Latch Hub CLI Session API
+    (推送到 Web / PWA / 移动端)
+```
+
+### 启动条件
+
+LatchHubBridge 在以下条件满足时自动启动：
+
+- `CS_HUB_BRIDGE_ENABLED=true`（或 `auto` 且检测到 Hub 运行）
+- Hub 基础 URL 可达（`CS_LATCH_HUB_URL` 或 `http://127.0.0.1:{CS_LATCH_HUB_PORT}`）
+
+### 事件格式化
+
+Bridge 将 ClawSentry 事件转换为人类可读的消息格式：
+
+| 事件 | 消息格式 |
+|------|----------|
+| `decision` | `[ALLOW/BLOCK/DEFER] tool_name (risk: level)` |
+| `alert` | `[ALERT:severity] message` |
+| `defer_pending` | `[DEFER PENDING] tool — awaiting approval (timeout: Ns)` |
+| `defer_resolved` | `[DEFER RESOLVED] allow/block` |
+| `session_start` | `[SESSION START] Agent: id (framework)` |
+| `session_risk_change` | `[RISK CHANGE] prev → curr` |
+
+### 配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_HUB_BRIDGE_ENABLED` | `auto` | `auto`/`true`/`false` |
+| `CS_LATCH_HUB_URL` | (空) | Hub 基础 URL |
+| `CS_LATCH_HUB_PORT` | `3006` | Hub 端口（URL 未设置时回退） |
+
+### 使用示例
+
+```bash title=".env.clawsentry"
+# 启用 Hub 转发
+CS_HUB_BRIDGE_ENABLED=true
+CS_LATCH_HUB_URL=http://127.0.0.1:3006
+
+# 一键启动（含 Latch）
+clawsentry start --with-latch
+```
+
+!!! info "Hub 会话映射"
+    Bridge 自动为每个 ClawSentry 会话创建对应的 Hub CLI 会话，无需手动配置。

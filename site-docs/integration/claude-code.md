@@ -192,6 +192,32 @@ harness 通过 UDS（Unix Domain Socket）与 Gateway 通信：
 4. Gateway 经 L1/L2/L3 决策引擎评估
 5. 判决返回给 harness，再传回 Claude Code
 
+### --async 非阻塞模式
+
+`PostToolUse`、`SessionStart`、`SessionEnd` 等非关键 Hook 使用 `--async` 模式运行，Harness 立即返回不等待 Gateway 响应：
+
+```bash
+clawsentry-harness --framework claude-code --async
+```
+
+- **非阻塞**：后台 dispatch 到 Gateway，不影响 Claude Code 执行流
+- **仅用于审计和监控事件**，不产生拦截决策
+- `PreToolUse` **必须**使用同步模式以确保拦截能力
+
+### 项目级配置
+
+在项目根目录创建 `.clawsentry.toml` 可为不同项目设置独立的安全预设：
+
+```toml title=".clawsentry.toml"
+[project]
+enabled = true
+preset = "high"     # low / medium / high / strict
+```
+
+Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒 TTL 缓存），并将预设覆盖发送到 Gateway。
+
+详见 [DetectionConfig 项目级配置](../configuration/detection-config.md#project-config)。
+
 ---
 
 ## 配置参考

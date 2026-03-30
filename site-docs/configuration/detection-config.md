@@ -263,6 +263,189 @@ CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
 
 ---
 
+### 安全预设等级 {#presets}
+
+ClawSentry 提供 4 个内置安全预设，通过 `.clawsentry.toml` 或 `clawsentry config set` 一键切换。
+
+| 参数 | low | medium (默认) | high | strict |
+|------|-----|---------------|------|--------|
+| `threshold_critical` | 2.8 | 2.2 | 1.8 | 1.3 |
+| `threshold_high` | 2.0 | 1.5 | 1.2 | 0.9 |
+| `threshold_medium` | 1.2 | 0.8 | 0.5 | 0.3 |
+| `d6_injection_multiplier` | 0.3 | 0.5 | 0.7 | 1.0 |
+| `post_action_emergency` | 0.95 | 0.9 | 0.8 | 0.7 |
+| `post_action_escalate` | 0.7 | 0.6 | 0.5 | 0.4 |
+| `post_action_monitor` | 0.4 | 0.3 | 0.2 | 0.15 |
+| `defer_timeout_action` | allow | block | block | block |
+| `defer_bridge_enabled` | false | true | true | true |
+
+!!! tip "选择建议"
+    - **low**：开发/测试环境，最大宽容度，DEFER 超时自动放行
+    - **medium**（默认）：平衡安全与可用性，适合大多数场景
+    - **high**：生产环境，更低的阈值意味着更多操作触发拦截
+    - **strict**：高安全场景，D6 注入乘数为 1.0（最大放大），阈值最低
+
+---
+
+### D4 频率异常检测 {#d4-freq}
+
+除传统的会话累积高危事件计数外，D4 还支持三层频率异常检测：
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `d4_freq_enabled` | `bool` | `True` | `CS_D4_FREQ_ENABLED` | 启用频率异常检测 |
+| `d4_freq_burst_count` | `int` | `10` | `CS_D4_FREQ_BURST_COUNT` | 突发阈值：窗口内同工具调用次数 |
+| `d4_freq_burst_window_s` | `float` | `5.0` | `CS_D4_FREQ_BURST_WINDOW_S` | 突发检测时间窗口（秒） |
+| `d4_freq_repetitive_count` | `int` | `20` | `CS_D4_FREQ_REPETITIVE_COUNT` | 重复阈值：窗口内同工具调用次数 |
+| `d4_freq_repetitive_window_s` | `float` | `60.0` | `CS_D4_FREQ_REPETITIVE_WINDOW_S` | 重复检测时间窗口（秒） |
+| `d4_freq_rate_limit_per_min` | `int` | `60` | `CS_D4_FREQ_RATE_LIMIT_PER_MIN` | 全局每分钟速率上限 |
+
+**三层检测模型：**
+
+```
+突发检测: 同一工具 ≥10 次/5s  → D4 = 2（高危）
+重复检测: 同一工具 ≥20 次/60s → D4 = 1（中危）
+速率检测: 全部工具 ≥60 次/min → D4 = 1（中危）
+```
+
+三层独立运行，最终 D4 取最高值。与传统 D4 累积值也取最高值。
+
+---
+
+### 外部内容安全 {#external-content}
+
+当检测到工具处理外部来源内容时，自动提升安全检测灵敏度。
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `external_content_d6_boost` | `float` | `0.3` | `CS_EXTERNAL_CONTENT_D6_BOOST` | 外部内容 D6 加成 |
+| `external_content_post_action_multiplier` | `float` | `1.3` | `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | 外部内容 Post-action 乘数 |
+
+**内容来源推断：**
+
+`infer_content_origin()` 通过 tool_name 和 payload 推断：
+
+- `external`：fetch、http_request、curl、wget 等网络获取工具
+- `user`：用户直接输入的内容
+- `unknown`：无法判断时的默认值
+
+外部内容的检测增强逻辑：
+- D6 注入评分 += `external_content_d6_boost`（默认 +0.3）
+- Post-action 评分 × `external_content_post_action_multiplier`（默认 ×1.3）
+
+---
+
+### DEFER 超时配置 {#defer-timeout}
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `defer_timeout_action` | `str` | `"block"` | `CS_DEFER_TIMEOUT_ACTION` | 超时动作：`block` 或 `allow` |
+| `defer_timeout_s` | `float` | `300.0` | `CS_DEFER_TIMEOUT_S` | 超时时间（秒） |
+| `defer_bridge_enabled` | `bool` | `True` | `CS_DEFER_BRIDGE_ENABLED` | 启用 DEFER 审批桥接 |
+
+**生命周期：**
+
+```
+DEFER 决策产生
+    │
+    ├─ defer_bridge_enabled=true
+    │   ├─ 注册审批请求，广播 defer_pending SSE 事件
+    │   ├─ 等待运维响应（最多 defer_timeout_s 秒）
+    │   ├─ 收到 allow → 转为 ALLOW（decision_source=OPERATOR）
+    │   ├─ 收到 deny  → 转为 BLOCK（decision_source=OPERATOR）
+    │   └─ 超时 → 执行 defer_timeout_action（block 或 allow）
+    │
+    └─ defer_bridge_enabled=false
+        └─ 直接返回 DEFER 给调用方处理
+```
+
+---
+
+### LLM 每日预算 {#llm-budget}
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `llm_daily_budget_usd` | `float` | `0.0` | `CS_LLM_DAILY_BUDGET_USD` | 每日 LLM 预算（美元），0.0 = 无限制 |
+
+预算控制机制：
+- UTC 00:00 每日自动重置
+- 每次 LLM 调用后记录预估费用
+- 预算耗尽后 L2/L3 自动降级为 L1 规则引擎
+- `can_spend()` 返回 `False` 时跳过 LLM 调用
+
+---
+
+## 项目级配置 (.clawsentry.toml) {#project-config}
+
+通过项目根目录的 `.clawsentry.toml` 文件，可以为不同项目设置独立的安全预设和参数覆盖，无需修改全局环境变量。
+
+### TOML Schema
+
+```toml title=".clawsentry.toml"
+[project]
+enabled = true
+preset = "medium"   # low / medium / high / strict
+
+[overrides]
+# 可选：覆盖预设中的单个参数
+# threshold_critical = 2.0
+# d6_injection_multiplier = 0.7
+```
+
+### 字段说明
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `project.enabled` | bool | `true` | 是否为此项目启用 ClawSentry |
+| `project.preset` | string | `"medium"` | 安全预设等级 |
+| `overrides.*` | 各类型 | (预设值) | 覆盖预设中的单个 DetectionConfig 字段 |
+
+### 配置优先级
+
+```
+CS_* 环境变量（最高优先级）
+    │
+    ▼
+.clawsentry.toml [overrides]
+    │
+    ▼
+预设值（PRESETS dict）
+    │
+    ▼
+DetectionConfig 默认值（最低优先级）
+```
+
+### 工作流
+
+1. Harness 启动时读取项目目录下的 `.clawsentry.toml`
+2. 解析 `[project]` 获取 `enabled` 和 `preset`
+3. 解析 `[overrides]` 获取字段级覆盖
+4. 通过 `from_preset(preset, **overrides)` 构建 `DetectionConfig`
+5. 发送到 Gateway，per-request 覆盖全局配置
+6. 60 秒 TTL 缓存，避免频繁文件 I/O
+
+### Fail-open 行为
+
+- 文件不存在 → 使用全局默认配置（`ProjectConfig()` 默认值）
+- 文件格式无效 → 记录 WARNING 日志，使用默认配置
+- 字段缺失 → 使用默认值填充
+
+### CLI 管理
+
+使用 `clawsentry config` 管理项目配置：
+
+```bash
+clawsentry config init --preset high     # 创建 .clawsentry.toml
+clawsentry config show                   # 显示当前配置
+clawsentry config set strict             # 切换预设
+clawsentry config disable                # 禁用项目配置
+clawsentry config enable                 # 重新启用
+```
+
+详见 [CLI 命令参考 > clawsentry config](../cli/index.md#clawsentry-config)。
+
+---
+
 ## 验证约束 {#validation}
 
 `DetectionConfig` 在 `__post_init__` 中执行以下验证。违反时的行为分为两类：
@@ -311,3 +494,4 @@ CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
 | `src/clawsentry/gateway/post_action_analyzer.py` | `post_action_*`（阈值和白名单） |
 | `src/clawsentry/gateway/trajectory_analyzer.py` | `trajectory_max_events`、`trajectory_max_sessions` |
 | `src/clawsentry/gateway/pattern_matcher.py` | `attack_patterns_path` |
+| `src/clawsentry/gateway/project_config.py` | `ProjectConfig` dataclass + `.clawsentry.toml` 加载 |
