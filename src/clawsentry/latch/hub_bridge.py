@@ -32,10 +32,17 @@ class LatchHubBridge:
         token: str = "",
         *,
         enabled: bool = True,
+        gateway_url: str = "",
+        gateway_token: str = "",
     ) -> None:
+        import os
         self.hub_url = hub_url.rstrip("/")
         self.token = token
         self.enabled = enabled
+        self._gateway_url = gateway_url or os.environ.get(
+            "CS_GATEWAY_URL", "http://127.0.0.1:8080",
+        )
+        self._gateway_token = gateway_token or os.environ.get("CS_AUTH_TOKEN", "")
         self._session_map: dict[str, str] = {}  # cs session_id -> hub session id
         self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
         self._task: Optional[asyncio.Task] = None
@@ -58,7 +65,21 @@ class LatchHubBridge:
         """Start the background forwarding loop."""
         if not self.enabled:
             return
+        await self._register_gateway()
         self._task = asyncio.create_task(self._forward_loop())
+
+    async def _register_gateway(self) -> None:
+        """Register Gateway URL with Hub so it can proxy API requests."""
+        if not self._gateway_url:
+            return
+        result = await self._hub_request("POST", "/cli/clawsentry/config", {
+            "gateway_url": self._gateway_url,
+            "auth_token": self._gateway_token,
+        })
+        if result is not None:
+            logger.info("Registered Gateway URL with Hub: %s", self._gateway_url)
+        else:
+            logger.warning("Failed to register Gateway URL with Hub")
 
     async def stop(self) -> None:
         """Stop the forwarding loop."""
@@ -112,18 +133,28 @@ class LatchHubBridge:
             return hub_id
         return None
 
-    async def _post_message(
-        self, hub_session_id: str, event: dict[str, Any],
-    ) -> None:
-        """Post an event as a message to a Hub CLI session."""
-        body = {
+    def _build_message_body(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Build a structured message body for Hub with event data + text fallback."""
+        event_type = str(event.get("type") or "unknown")
+        event_data = {k: v for k, v in event.items() if k != "session_id"}
+        return {
             "role": "system",
-            "content": self._format_message(event),
+            "content": {
+                "type": "event",
+                "data": event_data,
+                "text": self._format_message(event),
+            },
             "metadata": {
-                "event_type": str(event.get("type") or "unknown"),
+                "event_type": event_type,
                 "clawsentry": True,
             },
         }
+
+    async def _post_message(
+        self, hub_session_id: str, event: dict[str, Any],
+    ) -> None:
+        """Post an event as a structured message to a Hub CLI session."""
+        body = self._build_message_body(event)
         await self._hub_request(
             "POST", f"/cli/sessions/{hub_session_id}/messages", body,
         )
