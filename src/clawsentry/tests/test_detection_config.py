@@ -810,3 +810,26 @@ class TestDeferTimeoutConfig:
     def test_negative_defer_timeout_s_rejected(self):
         with pytest.raises(ValueError, match="defer_timeout_s"):
             DetectionConfig(defer_timeout_s=-1.0)
+
+
+# ---------------------------------------------------------------------------
+# E-9 Phase 4: DEFER bridge configuration
+# ---------------------------------------------------------------------------
+
+
+class TestDeferBridgeConfig:
+    """DetectionConfig should support defer_bridge_enabled flag."""
+
+    def test_defer_bridge_enabled_default_true(self):
+        cfg = DetectionConfig()
+        assert cfg.defer_bridge_enabled is True
+
+    def test_defer_bridge_enabled_env_override(self, monkeypatch):
+        monkeypatch.setenv("CS_DEFER_BRIDGE_ENABLED", "false")
+        cfg = build_detection_config_from_env()
+        assert cfg.defer_bridge_enabled is False
+
+    def test_defer_bridge_enabled_low_preset_false(self):
+        from clawsentry.gateway.detection_config import from_preset
+        cfg = from_preset("low")
+        assert cfg.defer_bridge_enabled is False

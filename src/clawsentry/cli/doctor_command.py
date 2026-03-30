@@ -1,6 +1,6 @@
 """``clawsentry doctor`` — offline configuration security audit.
 
-Loads ``.env.clawsentry``, runs 17 checks, and outputs a PASS/WARN/FAIL report.
+Loads ``.env.clawsentry``, runs 19 checks, and outputs a PASS/WARN/FAIL report.
 """
 
 from __future__ import annotations
@@ -326,6 +326,65 @@ def check_latch_token_sync() -> DoctorCheck:
 
 
 # ---------------------------------------------------------------------------
+# Bridge checks
+# ---------------------------------------------------------------------------
+
+
+def check_defer_bridge() -> DoctorCheck:
+    """Check DEFER bridge configuration."""
+    enabled_raw = (_env("CS_DEFER_BRIDGE_ENABLED") or "true").lower()
+    if enabled_raw in ("false", "0", "no"):
+        return DoctorCheck("DEFER_BRIDGE", "PASS",
+                           "DEFER bridge disabled (immediate DEFER return).")
+    timeout_action = _env("CS_DEFER_TIMEOUT_ACTION") or "block"
+    timeout_s = _env("CS_DEFER_TIMEOUT_S") or "300"
+    try:
+        timeout_val = float(timeout_s)
+    except ValueError:
+        return DoctorCheck("DEFER_BRIDGE", "WARN",
+                           f"CS_DEFER_TIMEOUT_S='{timeout_s}' is not a number.",
+                           detail="Using default timeout (300s).")
+    if timeout_action not in ("block", "allow"):
+        return DoctorCheck("DEFER_BRIDGE", "WARN",
+                           f"CS_DEFER_TIMEOUT_ACTION='{timeout_action}' invalid.",
+                           detail="Must be 'block' or 'allow'.")
+    return DoctorCheck("DEFER_BRIDGE", "PASS",
+                       f"DEFER bridge enabled (timeout: {int(timeout_val)}s, action: {timeout_action}).")
+
+
+def check_hub_bridge() -> DoctorCheck:
+    """Check Latch Hub bridge configuration and reachability."""
+    import urllib.request
+    import urllib.error
+
+    hub_enabled = (_env("CS_HUB_BRIDGE_ENABLED") or "auto").lower()
+    if hub_enabled == "false":
+        return DoctorCheck("HUB_BRIDGE", "PASS",
+                           "Hub bridge explicitly disabled.")
+
+    hub_url = _env("CS_LATCH_HUB_URL")
+    hub_port = _env("CS_LATCH_HUB_PORT") or "3006"
+    if not hub_url:
+        hub_url = f"http://127.0.0.1:{hub_port}"
+
+    health_url = f"{hub_url.rstrip('/')}/health"
+    try:
+        with urllib.request.urlopen(health_url, timeout=2) as resp:
+            if resp.status == 200:
+                return DoctorCheck("HUB_BRIDGE", "PASS",
+                                   f"Hub bridge reachable at {hub_url}.")
+    except (OSError, urllib.error.URLError):
+        pass
+
+    if hub_enabled == "true":
+        return DoctorCheck("HUB_BRIDGE", "WARN",
+                           f"Hub bridge enabled but not reachable at {hub_url}.",
+                           detail="Start Hub: clawsentry latch start")
+    return DoctorCheck("HUB_BRIDGE", "PASS",
+                       f"Hub bridge auto-mode, Hub not running at {hub_url} (OK).")
+
+
+# ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
 
@@ -347,6 +406,8 @@ ALL_CHECKS = [
     check_latch_binary,
     check_latch_hub_health,
     check_latch_token_sync,
+    check_defer_bridge,
+    check_hub_bridge,
 ]
 
 

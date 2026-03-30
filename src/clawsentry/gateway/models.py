@@ -57,6 +57,7 @@ class DecisionSource(str, enum.Enum):
     POLICY = "policy"
     MANUAL = "manual"
     SYSTEM = "system"
+    OPERATOR = "operator"
 
 
 class RiskLevel(str, enum.Enum):

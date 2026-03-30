@@ -254,11 +254,17 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- latch ---
     latch_parser = sub.add_parser(
         "latch",
-        help="Manage Latch integration (install/start/stop/status).",
+        help="Manage Latch integration (install/uninstall/start/stop/status).",
     )
     latch_sub = latch_parser.add_subparsers(dest="latch_command")
 
-    latch_sub.add_parser("install", help="Download and install Latch binary.")
+    latch_install_parser = latch_sub.add_parser("install", help="Download and install Latch binary.")
+    latch_install_parser.add_argument(
+        "--no-shortcut",
+        action="store_true",
+        default=False,
+        help="Skip desktop shortcut creation after install.",
+    )
 
     _latch_default_gw_port = int(os.environ.get("CS_HTTP_PORT", "8080"))
     latch_start_parser = latch_sub.add_parser("start", help="Start Gateway + Latch Hub.")
@@ -283,6 +289,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     latch_sub.add_parser("stop", help="Stop Gateway + Latch Hub.")
     latch_sub.add_parser("status", help="Show Latch stack status.")
+
+    latch_uninstall_parser = latch_sub.add_parser("uninstall", help="Uninstall Latch binary and data.")
+    latch_uninstall_parser.add_argument(
+        "--keep-data",
+        action="store_true",
+        default=False,
+        help="Keep data directories (only remove binary and shortcut).",
+    )
 
     # --- start ---
     start_parser = sub.add_parser(
@@ -324,6 +338,18 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Open the Web UI in a browser after gateway starts.",
+    )
+    start_parser.add_argument(
+        "--with-latch",
+        action="store_true",
+        default=False,
+        help="Start with Latch Hub (requires 'clawsentry latch install' first).",
+    )
+    start_parser.add_argument(
+        "--hub-port",
+        type=int,
+        default=3006,
+        help="Latch Hub port (default: 3006). Only used with --with-latch.",
     )
 
     # --- stop ---
@@ -453,9 +479,12 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "latch":
         from .latch_command import (
             run_latch_install, run_latch_start, run_latch_stop, run_latch_status,
+            run_latch_uninstall,
         )
         if args.latch_command == "install":
-            sys.exit(run_latch_install())
+            sys.exit(run_latch_install(no_shortcut=args.no_shortcut))
+        elif args.latch_command == "uninstall":
+            sys.exit(run_latch_uninstall(keep_data=args.keep_data))
         elif args.latch_command == "start":
             sys.exit(run_latch_start(
                 gateway_port=args.gateway_port,
@@ -467,7 +496,7 @@ def main(argv: list[str] | None = None) -> None:
         elif args.latch_command == "status":
             sys.exit(run_latch_status())
         else:
-            print("Usage: clawsentry latch {install,start,stop,status}")
+            print("Usage: clawsentry latch {install,uninstall,start,stop,status}")
 
     elif args.command == "start":
         from .start_command import detect_framework, run_start
@@ -490,6 +519,8 @@ def main(argv: list[str] | None = None) -> None:
             no_watch=args.no_watch,
             interactive=args.interactive,
             open_browser=args.open_browser,
+            with_latch=args.with_latch,
+            hub_port=args.hub_port,
         )
 
     elif args.command == "stop":

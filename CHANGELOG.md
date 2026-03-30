@@ -6,6 +6,43 @@
 
 ---
 
+## [0.2.9] — 2026-03-30
+
+### 新增
+
+#### DEFER → Operator 审批桥接（P1）
+
+- **DEFER Bridge**：Gateway 的 DEFER 决策现在支持等待操作员实时审批，而非立即返回。当 `defer_bridge_enabled=true`（默认）且事件类型为 `PRE_ACTION` 时，Gateway 会注册一个 `cs-defer-*` 审批 ID、广播 `defer_pending` SSE 事件，并阻塞等待操作员通过 `/ahp/resolve` 端点做出 allow/deny 决定
+- **`DecisionSource.OPERATOR`**：新增决策来源枚举值，标记由操作员审批产生的决策（区分于 `POLICY`/`MANUAL`/`SYSTEM`）
+- **`/ahp/resolve` DeferManager 支持**：resolve 端点现在优先检查 DeferManager 中的待处理请求（`cs-defer-*` ID），若匹配则直接解决；否则 fallback 到 OpenClaw approval_client，保持向后兼容
+- **`defer_pending` / `defer_resolved` SSE 事件**：新增两种 SSE 事件类型，EventBus 默认订阅，Watch CLI 和 Hub 均可接收
+
+#### Latch Hub 事件转发
+
+- **`LatchHubBridge`**：新模块 (`latch/hub_bridge.py`)，订阅 Gateway EventBus 并将事件转发到 Latch Hub CLI session API（`POST /cli/sessions` + `POST /cli/sessions/:id/messages`），支持自动创建 Hub session、HTTP 重试、人类可读消息格式化
+- **自动启动**：当 `CS_LATCH_HUB_URL` 或 `CS_LATCH_HUB_PORT` 配置时，`run_stack()` 自动启动 Hub bridge 后台任务
+
+#### Watch CLI 增强
+
+- **DEFER 事件格式化**：`clawsentry watch` 现在显示黄色 `DEFER PENDING`（含工具名、命令、超时、审批 ID）和绿色/红色 `DEFER RESOLVED: ALLOW/BLOCK` 事件
+
+#### Doctor 扩展
+
+- **19 项检查**（从 17 项增加）：新增 `DEFER_BRIDGE`（验证 DEFER 桥接配置）和 `HUB_BRIDGE`（验证 Hub 可达性）两项健康检查
+
+### 配置
+
+- **`CS_DEFER_BRIDGE_ENABLED`**（bool, 默认 `true`）：DEFER 桥接开关，`low` 预设默认关闭
+- **`CS_LATCH_HUB_URL`**（string, 默认空）：Hub 基础 URL，设置后启用事件转发
+- **`CS_HUB_BRIDGE_ENABLED`**（`auto`/`true`/`false`, 默认 `auto`）：Hub 事件桥接模式
+- **`CS_LATCH_HUB_PORT`**（int, 默认 `3006`）：Hub 端口（URL 未设时 fallback）
+
+### 测试覆盖
+
+- 测试总量：1970 → 2042（+72 tests, 0 regressions）
+
+---
+
 ## [0.2.8] — 2026-03-30
 
 ### 新增
@@ -405,6 +442,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.2.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.9
 [0.2.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.8
 [0.2.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.7
 [0.2.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.6

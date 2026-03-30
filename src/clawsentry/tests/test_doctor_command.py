@@ -15,6 +15,8 @@ from clawsentry.cli.doctor_command import (
     check_auth_entropy,
     check_auth_length,
     check_auth_presence,
+    check_defer_bridge,
+    check_hub_bridge,
     check_l2_budget,
     check_listen_address,
     check_llm_config,
@@ -348,6 +350,42 @@ class TestTrajectoryDb:
                            "/nonexistent/dir/test.db")
         r = check_trajectory_db()
         assert r.status == "WARN"
+
+
+# ===== DEFER_BRIDGE =====
+
+class TestDeferBridge:
+    def test_check_defer_bridge_enabled(self) -> None:
+        """No env vars set -> PASS with 'bridge enabled'."""
+        from unittest.mock import patch
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("CS_DEFER_BRIDGE_ENABLED", None)
+            os.environ.pop("CS_DEFER_TIMEOUT_ACTION", None)
+            os.environ.pop("CS_DEFER_TIMEOUT_S", None)
+            r = check_defer_bridge()
+        assert r.status == "PASS"
+        assert r.check_id == "DEFER_BRIDGE"
+        assert "bridge enabled" in r.message.lower()
+
+    def test_check_defer_bridge_disabled(self) -> None:
+        """CS_DEFER_BRIDGE_ENABLED=false -> PASS with 'disabled'."""
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"CS_DEFER_BRIDGE_ENABLED": "false"}):
+            r = check_defer_bridge()
+        assert r.status == "PASS"
+        assert "disabled" in r.message.lower()
+
+
+# ===== HUB_BRIDGE =====
+
+class TestHubBridge:
+    def test_check_hub_bridge_disabled(self) -> None:
+        """CS_HUB_BRIDGE_ENABLED=false -> PASS with 'disabled'."""
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"CS_HUB_BRIDGE_ENABLED": "false"}):
+            r = check_hub_bridge()
+        assert r.status == "PASS"
+        assert "disabled" in r.message.lower()
 
 
 # ===== Integration =====

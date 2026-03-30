@@ -190,8 +190,12 @@ def _build_openclaw_runtime(
 VALID_RESOLVE_DECISIONS = {"allow-once", "deny"}
 
 
-def add_resolve_endpoint(app, approval_client):
-    """Register POST /ahp/resolve on an existing FastAPI app."""
+def add_resolve_endpoint(app, approval_client, defer_manager=None):
+    """Register POST /ahp/resolve on an existing FastAPI app.
+
+    Checks DeferManager first for pending cs-defer-* IDs, then falls back
+    to the OpenClaw approval_client.
+    """
     from .server import _make_auth_dependency, _read_auth_token
 
     verify_auth = _make_auth_dependency(_read_auth_token())
@@ -203,12 +207,6 @@ def add_resolve_endpoint(app, approval_client):
         auth_result = await verify_auth(request)
         if isinstance(auth_result, Response):
             return auth_result
-
-        if approval_client is None:
-            return JSONResponse(
-                {"error": "resolve not available (no OpenClaw enforcement)"},
-                status_code=503,
-            )
 
         try:
             body = await request.json()
@@ -228,6 +226,18 @@ def add_resolve_endpoint(app, approval_client):
             return JSONResponse(
                 {"error": f"decision must be one of {sorted(VALID_RESOLVE_DECISIONS)}"},
                 status_code=400,
+            )
+
+        # --- P1: Try DeferManager first (cs-defer-* IDs) ---
+        if defer_manager is not None and defer_manager.is_pending(approval_id):
+            defer_manager.resolve_defer(approval_id, decision, reason)
+            return JSONResponse({"status": "ok", "approval_id": approval_id})
+
+        # --- Fallback to OpenClaw approval client ---
+        if approval_client is None:
+            return JSONResponse(
+                {"error": "resolve not available (no OpenClaw enforcement)"},
+                status_code=503,
             )
 
         try:
@@ -405,11 +415,35 @@ async def run_stack(args: argparse.Namespace) -> None:
                 DEFAULT_WEBHOOK_TOKEN,
             )
 
-    # Register /ahp/resolve — proxies DEFER decisions to OpenClaw WS client
+    # Register /ahp/resolve — resolves DEFER via DeferManager or OpenClaw WS client
     add_resolve_endpoint(
         gateway_app,
         openclaw_runtime.approval_client if openclaw_runtime else None,
+        defer_manager=gateway.defer_manager,
     )
+
+    # --- P1: Latch Hub event bridge ---
+    hub_bridge: Optional["LatchHubBridge"] = None
+    hub_bridge_task: Optional[asyncio.Task] = None
+    _hub_url = os.environ.get("CS_LATCH_HUB_URL", "")
+    _hub_enabled = os.environ.get("CS_HUB_BRIDGE_ENABLED", "auto").lower()
+    _hub_port = os.environ.get("CS_LATCH_HUB_PORT", "3006")
+
+    if not _hub_url and _hub_enabled != "false":
+        # Auto-detect: construct URL from port
+        _hub_url = f"http://127.0.0.1:{_hub_port}"
+
+    if _hub_url and _hub_enabled != "false":
+        from ..latch.hub_bridge import LatchHubBridge
+        _hub_token = os.environ.get("CS_AUTH_TOKEN", "")
+        hub_bridge = LatchHubBridge(
+            hub_url=_hub_url,
+            token=_hub_token,
+            enabled=(_hub_enabled == "true" or _hub_enabled == "auto"),
+        )
+        hub_bridge.subscribe(gateway.event_bus)
+        hub_bridge_task = asyncio.create_task(hub_bridge.start())
+        logger.info("Latch Hub bridge active: %s", _hub_url)
 
     uds_server = await start_uds_server(gateway, args.uds_path)
     cleanup_task = asyncio.create_task(periodic_cleanup(gateway.idempotency_cache, interval_seconds=10.0))
@@ -505,6 +539,11 @@ async def run_stack(args: argparse.Namespace) -> None:
             codex_watcher_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await codex_watcher_task
+
+        if hub_bridge_task is not None:
+            hub_bridge_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await hub_bridge_task
 
         cleanup_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

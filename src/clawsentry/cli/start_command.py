@@ -240,6 +240,8 @@ def run_start(
     interactive: bool = False,
     openclaw_home: Path | None = None,
     open_browser: bool = False,
+    with_latch: bool = False,
+    hub_port: int = 3006,
 ) -> None:
     """Orchestrate: auto-init → launch gateway → health check → watch."""
     from .dotenv_loader import load_dotenv
@@ -261,6 +263,24 @@ def run_start(
     ui_url = f"{gateway_url}/ui"
     if token:
         ui_url += f"?token={token}"
+
+    # -- Latch mode --
+    if with_latch:
+        _run_start_with_latch(
+            framework=framework,
+            host=host,
+            port=port,
+            hub_port=hub_port,
+            token=token,
+            gateway_url=gateway_url,
+            ui_url=ui_url,
+            log_path=log_path,
+            did_init=did_init,
+            no_watch=no_watch,
+            interactive=interactive,
+            open_browser=open_browser,
+        )
+        return
 
     # 4. Print banner
     print(f"\nClawSentry starting...")
@@ -306,3 +326,86 @@ def run_start(
         shutdown_gateway(proc)
         _remove_pid_file(_PID_FILE)
         print(f"Gateway stopped. Log: {log_path}")
+
+
+def _run_start_with_latch(
+    *,
+    framework: str,
+    host: str,
+    port: int,
+    hub_port: int,
+    token: str,
+    gateway_url: str,
+    ui_url: str,
+    log_path: Path,
+    did_init: bool,
+    no_watch: bool,
+    interactive: bool,
+    open_browser: bool,
+) -> None:
+    """Start gateway + Latch Hub via ProcessManager."""
+    from ..latch.binary_manager import BinaryManager
+    from ..latch.process_manager import ProcessManager
+
+    bm = BinaryManager()
+    if not bm.is_installed:
+        print(
+            "Latch binary not found. Run: clawsentry latch install",
+            file=sys.stderr,
+        )
+        return
+
+    pm = ProcessManager()
+    hub_url = f"http://127.0.0.1:{hub_port}"
+
+    # Banner
+    print(f"\nClawSentry starting (Latch mode)...")
+    print(f"  Framework:  {framework}{' (auto-detected)' if not did_init else ''}")
+    print(f"  Gateway:    {gateway_url}")
+    print(f"  Latch Hub:  {hub_url}")
+    print(f"  Web UI:     {ui_url}")
+    print(f"  Log file:   {log_path}")
+    print()
+
+    try:
+        # Start Gateway via ProcessManager
+        pm.start_gateway(host=host, port=port, log_path=log_path)
+
+        # Health check Gateway
+        if not pm.wait_for_health(gateway_url):
+            print("Gateway failed to start. Check log:", log_path, file=sys.stderr)
+            pm.stop_all()
+            return
+
+        # Start Hub
+        pm.start_hub(bm.binary_path, port=hub_port, token=token)
+
+        # Health check Hub
+        if not pm.wait_for_health(hub_url):
+            print("Latch Hub failed to start.", file=sys.stderr)
+            pm.stop_all()
+            return
+
+        print("Gateway + Latch Hub ready.")
+
+        if open_browser:
+            import webbrowser
+            webbrowser.open(ui_url)
+
+        if no_watch:
+            print("Use Ctrl+C or 'clawsentry latch stop' to shut down.")
+            return
+
+        # Watch loop
+        print("Streaming events...")
+        print("─" * 50)
+        run_watch_loop(
+            gateway_url=gateway_url,
+            token=token,
+            interactive=interactive,
+        )
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        pm.stop_all()
+        print("Gateway + Latch Hub stopped.")

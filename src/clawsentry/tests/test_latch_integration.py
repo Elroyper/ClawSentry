@@ -148,6 +148,32 @@ def test_main_latch_status_dispatch():
     assert exc_info.value.code == 0
 
 
+def test_main_latch_uninstall_dispatch():
+    """clawsentry latch uninstall dispatches to run_latch_uninstall."""
+    from clawsentry.cli.main import main
+
+    with mock.patch(
+        "clawsentry.cli.latch_command.run_latch_uninstall", return_value=0,
+    ) as mock_fn, pytest.raises(SystemExit) as exc_info:
+        main(["latch", "uninstall"])
+
+    mock_fn.assert_called_once_with(keep_data=False)
+    assert exc_info.value.code == 0
+
+
+def test_main_latch_uninstall_keep_data():
+    """clawsentry latch uninstall --keep-data passes keep_data=True."""
+    from clawsentry.cli.main import main
+
+    with mock.patch(
+        "clawsentry.cli.latch_command.run_latch_uninstall", return_value=0,
+    ) as mock_fn, pytest.raises(SystemExit) as exc_info:
+        main(["latch", "uninstall", "--keep-data"])
+
+    mock_fn.assert_called_once_with(keep_data=True)
+    assert exc_info.value.code == 0
+
+
 def test_main_latch_no_subcommand(capsys):
     """clawsentry latch with no subcommand prints usage."""
     from clawsentry.cli.main import main
@@ -239,3 +265,48 @@ def test_cli_install_then_status(capsys):
 
     out = capsys.readouterr().out
     assert "installed" in out.lower()
+
+
+def test_cli_install_then_uninstall(capsys, tmp_path):
+    """Full flow: install → uninstall → verify data cleaned."""
+    from clawsentry.cli.latch_command import run_latch_install, run_latch_uninstall
+
+    data_dir = tmp_path / "data"
+    run_dir = tmp_path / "run"
+    data_dir.mkdir()
+    run_dir.mkdir()
+    (data_dir / "sessions.db").write_text("fake")
+
+    # 1. Install
+    with mock.patch(
+        "clawsentry.latch.binary_manager.BinaryManager.is_installed",
+        new_callable=mock.PropertyMock,
+        return_value=False,
+    ), mock.patch(
+        "clawsentry.latch.binary_manager.BinaryManager.install",
+        return_value=Path("/fake/latch"),
+    ):
+        code = run_latch_install()
+    assert code == 0
+
+    # 2. Uninstall
+    with mock.patch(
+        "clawsentry.latch.process_manager.ProcessManager.stop_all",
+    ), mock.patch(
+        "clawsentry.latch.desktop.remove_desktop_shortcut",
+        return_value=False,
+    ), mock.patch(
+        "clawsentry.latch.binary_manager.BinaryManager.uninstall",
+    ), mock.patch(
+        "clawsentry.latch.LATCH_DATA_DIR", data_dir,
+    ), mock.patch(
+        "clawsentry.latch.LATCH_RUN_DIR", run_dir,
+    ):
+        code = run_latch_uninstall()
+    assert code == 0
+
+    # 3. Verify data cleaned
+    assert not data_dir.exists()
+    assert not run_dir.exists()
+    out = capsys.readouterr().out
+    assert "uninstalled" in out.lower()

@@ -1,14 +1,15 @@
-"""``clawsentry latch`` — install / start / stop / status for Latch integration."""
+"""``clawsentry latch`` — install / start / stop / status / uninstall for Latch integration."""
 
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import webbrowser
 from pathlib import Path
 
 
-def run_latch_install() -> int:
+def run_latch_install(*, no_shortcut: bool = False) -> int:
     """Download and install the Latch binary."""
     from clawsentry.latch.binary_manager import (
         BinaryManager,
@@ -37,6 +38,22 @@ def run_latch_install() -> int:
         return 1
 
     print(f"Latch installed: {path}")
+
+    # Create desktop shortcut (non-fatal)
+    if not no_shortcut:
+        try:
+            from clawsentry.latch.desktop import create_desktop_shortcut
+
+            shortcut_path = create_desktop_shortcut(
+                exec_cmd="clawsentry latch start",
+            )
+            print(f"Desktop shortcut created: {shortcut_path}")
+        except Exception as exc:
+            print(
+                f"Warning: failed to create desktop shortcut: {exc}",
+                file=sys.stderr,
+            )
+
     return 0
 
 
@@ -151,4 +168,46 @@ def run_latch_status() -> int:
         print(f" (PID {hub_pid})", end="")
     print()
 
+    return 0
+
+
+def run_latch_uninstall(*, keep_data: bool = False) -> int:
+    """Uninstall Latch: stop services, remove shortcut, binary, and data."""
+    from clawsentry.latch import LATCH_DATA_DIR, LATCH_RUN_DIR
+    from clawsentry.latch.binary_manager import BinaryManager
+    from clawsentry.latch.desktop import remove_desktop_shortcut
+    from clawsentry.latch.process_manager import ProcessManager
+
+    pm = ProcessManager()
+    mgr = BinaryManager()
+
+    # 1. Stop running services (non-fatal)
+    try:
+        pm.stop_all()
+        print("Services stopped.")
+    except Exception as exc:
+        print(f"Warning: failed to stop services: {exc}", file=sys.stderr)
+
+    # 2. Remove desktop shortcut (non-fatal)
+    try:
+        removed = remove_desktop_shortcut()
+        if removed:
+            print("Desktop shortcut removed.")
+    except Exception as exc:
+        print(f"Warning: failed to remove desktop shortcut: {exc}", file=sys.stderr)
+
+    # 3. Uninstall binary
+    mgr.uninstall()
+    print("Latch binary removed.")
+
+    # 4. Remove data directories (unless --keep-data)
+    if not keep_data:
+        for d in (LATCH_DATA_DIR, LATCH_RUN_DIR):
+            if d.exists():
+                shutil.rmtree(d)
+        print("Data directories removed.")
+    else:
+        print("Data directories kept (--keep-data).")
+
+    print("Latch uninstalled.")
     return 0

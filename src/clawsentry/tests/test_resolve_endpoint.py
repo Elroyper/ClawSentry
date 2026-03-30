@@ -1,12 +1,14 @@
 """Tests for POST /ahp/resolve endpoint."""
 from __future__ import annotations
 
+import asyncio
 import os
 from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from clawsentry.gateway.defer_manager import DeferManager
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
 from clawsentry.gateway.stack import add_resolve_endpoint, _build_openclaw_runtime
 
@@ -142,6 +144,137 @@ class TestResolveEndpoint:
                 os.environ.pop("CS_AUTH_TOKEN", None)
             else:
                 os.environ["CS_AUTH_TOKEN"] = original
+
+
+class TestResolveDeferManager:
+    """POST /ahp/resolve with DeferManager integration."""
+
+    @pytest.fixture
+    def gateway(self, tmp_path):
+        return SupervisionGateway(trajectory_db_path=str(tmp_path / "traj.db"))
+
+    @pytest.fixture
+    def defer_manager(self):
+        return DeferManager(timeout_action="block", timeout_s=5.0)
+
+    @pytest.fixture
+    def mock_approval_client(self):
+        client = AsyncMock()
+        client.resolve = AsyncMock(return_value=True)
+        return client
+
+    @pytest.mark.asyncio
+    async def test_resolve_defer_manager_pending(self, gateway, defer_manager):
+        """When DeferManager has a pending request, resolving it returns ok."""
+        defer_manager.register_defer("cs-defer-001")
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, None, defer_manager=defer_manager)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "cs-defer-001",
+                "decision": "allow-once",
+                "reason": "operator approved",
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert body["approval_id"] == "cs-defer-001"
+        # Should no longer be pending
+        assert not defer_manager.is_pending("cs-defer-001")
+
+    @pytest.mark.asyncio
+    async def test_resolve_defer_manager_not_pending_fallback(
+        self, gateway, defer_manager, mock_approval_client,
+    ):
+        """When DeferManager has no pending request, falls back to approval_client."""
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, mock_approval_client, defer_manager=defer_manager)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "ap-openclaw-123",
+                "decision": "deny",
+                "reason": "not in defer manager",
+            })
+        assert resp.status_code == 200
+        mock_approval_client.resolve.assert_awaited_once_with(
+            "ap-openclaw-123", "deny", reason="not in defer manager",
+        )
+
+    @pytest.mark.asyncio
+    async def test_resolve_defer_manager_no_approval_client(self, gateway, defer_manager):
+        """When approval_client is None but DeferManager resolves, returns ok."""
+        defer_manager.register_defer("cs-defer-002")
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, None, defer_manager=defer_manager)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "cs-defer-002",
+                "decision": "deny",
+            })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_resolve_defer_manager_none(self, gateway, mock_approval_client):
+        """When defer_manager is None, behaves like before (fallback to approval_client)."""
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, mock_approval_client, defer_manager=None)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "ap-legacy-1",
+                "decision": "allow-once",
+            })
+        assert resp.status_code == 200
+        mock_approval_client.resolve.assert_awaited_once_with(
+            "ap-legacy-1", "allow-once", reason="",
+        )
+
+    @pytest.mark.asyncio
+    async def test_resolve_defer_manager_resolves_correctly(self, gateway, defer_manager):
+        """The resolution actually unblocks the waiting coroutine with correct decision/reason."""
+        defer_manager.register_defer("cs-defer-003")
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, None, defer_manager=defer_manager)
+
+        # Start waiting for resolution in background
+        wait_task = asyncio.create_task(
+            defer_manager.wait_for_resolution("cs-defer-003"),
+        )
+        # Yield control so wait_for_resolution grabs its _pending reference
+        await asyncio.sleep(0)
+
+        # Resolve via HTTP endpoint
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "cs-defer-003",
+                "decision": "deny",
+                "reason": "unsafe operation",
+            })
+        assert resp.status_code == 200
+
+        # The waiting coroutine should now be resolved
+        decision, reason = await asyncio.wait_for(wait_task, timeout=2.0)
+        assert decision == "deny"
+        assert reason == "unsafe operation"
 
 
 class TestBuildOpenclawRuntimeEnforcement:

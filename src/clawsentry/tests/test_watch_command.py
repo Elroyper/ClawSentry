@@ -10,6 +10,8 @@ import pytest
 
 from clawsentry.cli.watch_command import (
     SessionTracker,
+    _format_defer_pending,
+    _format_defer_resolved,
     format_alert,
     format_decision,
     format_event,
@@ -409,6 +411,88 @@ class TestFormatEvent:
         }
         result = format_event(event, color=False, no_emoji=True)
         assert "🚫" not in result
+
+
+# ---------------------------------------------------------------------------
+# TestFormatDeferEvents
+# ---------------------------------------------------------------------------
+
+
+class TestFormatDeferEvents:
+    """Tests for _format_defer_pending and _format_defer_resolved formatters."""
+
+    def _make_defer_pending(self, **overrides) -> dict:
+        base = {
+            "type": "defer_pending",
+            "approval_id": "appr-abc-123",
+            "tool_name": "bash",
+            "command": "rm -rf /tmp/data",
+            "reason": "D1: destructive pattern",
+            "timeout_s": 300,
+            "timestamp": "2026-03-22T10:30:45Z",
+        }
+        base.update(overrides)
+        return base
+
+    def _make_defer_resolved(self, **overrides) -> dict:
+        base = {
+            "type": "defer_resolved",
+            "approval_id": "appr-abc-123",
+            "resolved_decision": "allow-once",
+            "resolved_reason": "operator approved",
+            "timestamp": "2026-03-22T10:31:10Z",
+        }
+        base.update(overrides)
+        return base
+
+    def test_format_defer_pending_basic(self):
+        """Output contains DEFER PENDING, tool name, and approval_id."""
+        event = self._make_defer_pending()
+        result = _format_defer_pending(event, color=False)
+        assert "DEFER PENDING" in result
+        assert "bash" in result
+        assert "rm -rf /tmp/data" in result
+        assert "appr-abc-123" in result
+        assert "300s" in result
+        assert "D1: destructive pattern" in result
+
+    def test_format_defer_pending_no_color(self):
+        """No ANSI escape codes when color=False."""
+        event = self._make_defer_pending()
+        result = _format_defer_pending(event, color=False)
+        assert "\033[" not in result
+        assert "DEFER PENDING" in result
+
+    def test_format_defer_resolved_allow(self):
+        """DEFER RESOLVED: ALLOW with allow emoji."""
+        event = self._make_defer_resolved(resolved_decision="allow-once")
+        result = _format_defer_resolved(event, color=False, no_emoji=False)
+        assert "DEFER RESOLVED: ALLOW" in result
+        assert "✅" in result
+        assert "appr-abc-123" in result
+        assert "operator approved" in result
+
+    def test_format_defer_resolved_block(self):
+        """DEFER RESOLVED: BLOCK with block emoji."""
+        event = self._make_defer_resolved(
+            resolved_decision="deny",
+            resolved_reason="operator denied via watch CLI",
+        )
+        result = _format_defer_resolved(event, color=False, no_emoji=False)
+        assert "DEFER RESOLVED: BLOCK" in result
+        assert "🚫" in result
+        assert "appr-abc-123" in result
+        assert "operator denied" in result
+
+    def test_format_event_dispatches_defer(self):
+        """format_event routes defer_pending and defer_resolved correctly."""
+        pending = self._make_defer_pending()
+        result_pending = format_event(pending, color=False)
+        assert "DEFER PENDING" in result_pending
+
+        resolved = self._make_defer_resolved()
+        result_resolved = format_event(resolved, color=False)
+        assert "DEFER RESOLVED: ALLOW" in result_resolved
 
 
 # ---------------------------------------------------------------------------

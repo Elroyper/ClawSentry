@@ -48,3 +48,16 @@ def test_assets_exist():
     assets_dir = Path(__file__).resolve().parent.parent / "latch" / "assets"
     assert (assets_dir / "icon-512.png").is_file()
     assert (assets_dir / "icon.ico").is_file()
+
+
+def test_latch_assets_dir_constant():
+    """LATCH_ASSETS_DIR points to the assets directory."""
+    from clawsentry.latch import LATCH_ASSETS_DIR
+    assert LATCH_ASSETS_DIR.name == "assets"
+    assert LATCH_ASSETS_DIR.is_dir()
+
+
+def test_latch_assets_dir_contains_icon():
+    """LATCH_ASSETS_DIR contains the icon file."""
+    from clawsentry.latch import LATCH_ASSETS_DIR
+    assert (LATCH_ASSETS_DIR / "icon-512.png").is_file()

@@ -68,6 +68,7 @@ class DetectionConfig:
     # --- E-9: DEFER timeout ---
     defer_timeout_action: str = "block"   # "block" or "allow"
     defer_timeout_s: float = 300.0        # 5 minutes default
+    defer_bridge_enabled: bool = True     # Enable DEFER→operator bridge
 
     # --- E-5: Self-evolving pattern repository ---
     evolving_enabled: bool = False
@@ -194,6 +195,7 @@ def build_detection_config_from_env() -> DetectionConfig:
 
     _parse_bool_env("CS_EVOLVING_ENABLED", "evolving_enabled")
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
+    _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
 
     try:
         return DetectionConfig(**overrides)
@@ -217,6 +219,7 @@ PRESETS: dict[str, dict[str, object]] = {
         "post_action_escalate": 0.7,
         "post_action_monitor": 0.4,
         "defer_timeout_action": "allow",
+        "defer_bridge_enabled": False,
     },
     "medium": {},  # all defaults
     "high": {
@@ -308,6 +311,7 @@ def build_detection_config_with_preset(
 
     _parse_bool_env("CS_EVOLVING_ENABLED", "evolving_enabled")
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
+    _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
 
     try:
         return DetectionConfig(**params)

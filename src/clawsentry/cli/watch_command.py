@@ -437,6 +437,99 @@ def _format_enforcement_change(
     return "\n".join(lines)
 
 
+def _format_defer_pending(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+) -> str:
+    """Format a *defer_pending* SSE event for terminal output.
+
+    Example (colour stripped)::
+
+        [10:30:45] ⏸️ DEFER PENDING  rm -rf /data(rm -rf /...)
+                      Reason: D1: destructive pattern
+                      Approval ID: appr-abc-123  Timeout: 300s
+    """
+    hms = _timestamp_hms(event.get("timestamp"))
+    approval_id = str(event.get("approval_id") or "unknown")
+    tool = str(event.get("tool_name") or "")
+    command = str(event.get("command") or "")
+    reason = str(event.get("reason") or "")
+    timeout_s = event.get("timeout_s", 300)
+
+    e = _emoji("defer", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+
+    # Tool/command display
+    cmd_display = tool
+    if command:
+        cmd_short = _truncate(command)
+        cmd_display = f"{tool}({cmd_short})" if tool else cmd_short
+
+    ts_str = _c("grey", f"[{hms}]", color=color)
+    label = _c("yellow", f"{_COLORS['bold']}DEFER PENDING{_COLORS['reset']}", color=color) if color else "DEFER PENDING"
+
+    line1 = f"{ts_str} {e_str}{label}  {cmd_display}"
+
+    lines = [line1]
+    if reason:
+        lines.append(f"{_TREE_INDENT}  Reason: {reason}")
+    lines.append(
+        f"{_TREE_INDENT}  Approval ID: {approval_id}  Timeout: {int(timeout_s)}s"
+    )
+
+    return "\n".join(lines)
+
+
+def _format_defer_resolved(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+) -> str:
+    """Format a *defer_resolved* SSE event for terminal output.
+
+    Example (colour stripped)::
+
+        [10:31:10] ✅ DEFER RESOLVED: ALLOW
+                      Approval ID: appr-abc-123
+                      Reason: operator approved
+
+    Or for a block/deny:
+
+        [10:31:10] 🚫 DEFER RESOLVED: BLOCK
+                      Approval ID: appr-abc-123
+                      Reason: operator denied via watch CLI
+    """
+    hms = _timestamp_hms(event.get("timestamp"))
+    approval_id = str(event.get("approval_id") or "unknown")
+    resolved_decision = str(event.get("resolved_decision") or "unknown")
+    resolved_reason = str(event.get("resolved_reason") or "")
+
+    is_allow = resolved_decision in ("allow", "allow-once")
+
+    if is_allow:
+        e = _emoji("allow", no_emoji=no_emoji)
+        status_color = "green"
+        decision_label = "DEFER RESOLVED: ALLOW"
+    else:
+        e = _emoji("block", no_emoji=no_emoji)
+        status_color = "red"
+        decision_label = "DEFER RESOLVED: BLOCK"
+
+    e_str = f"{e} " if e else ""
+    ts_str = _c("grey", f"[{hms}]", color=color)
+    label = _c(status_color, decision_label, color=color)
+
+    lines = [f"{ts_str} {e_str}{label}"]
+    lines.append(f"{_TREE_INDENT}  Approval ID: {approval_id}")
+    if resolved_reason:
+        lines.append(f"{_TREE_INDENT}  Reason: {resolved_reason}")
+
+    return "\n".join(lines)
+
+
 def format_event(
     event: dict,
     *,
@@ -468,6 +561,10 @@ def format_event(
         return _format_risk_change(event, color=color, no_emoji=no_emoji)
     if event_type == "session_enforcement_change":
         return _format_enforcement_change(event, color=color, no_emoji=no_emoji)
+    if event_type == "defer_pending":
+        return _format_defer_pending(event, color=color, no_emoji=no_emoji)
+    if event_type == "defer_resolved":
+        return _format_defer_resolved(event, color=color, no_emoji=no_emoji)
 
     # Fallback: compact JSON
     return json.dumps(event)

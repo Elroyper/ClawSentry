@@ -881,7 +881,7 @@ class EventBus:
             "queue": queue,
             "session_id": session_id,
             "min_risk": min_risk,
-            "event_types": event_types or {"decision", "session_risk_change", "session_start", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved"},
+            "event_types": event_types or {"decision", "session_risk_change", "session_start", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved", "defer_pending", "defer_resolved"},
         }
         self._subscribers[subscriber_id] = subscriber
 
@@ -1436,6 +1436,66 @@ class SupervisionGateway:
             except Exception:
                 logger.warning("evolved pattern extraction failed", exc_info=True)
 
+        # --- P1: DEFER bridge — wait for operator approval ---
+        if (
+            self._detection_config.defer_bridge_enabled
+            and (project_config is None or project_config.defer_bridge_enabled)
+            and decision.decision == DecisionVerdict.DEFER
+            and req.event.event_type == EventType.PRE_ACTION
+            and not enforcement_applied
+        ):
+            defer_id = f"cs-defer-{uuid.uuid4().hex[:12]}"
+            self.defer_manager.register_defer(defer_id)
+
+            # Broadcast defer_pending event
+            _defer_timeout = (project_config or self._detection_config).defer_timeout_s
+            self.event_bus.broadcast({
+                "type": "defer_pending",
+                "session_id": session_id,
+                "approval_id": defer_id,
+                "tool_name": req.event.tool_name or "",
+                "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
+                "reason": str(decision_dict.get("reason") or ""),
+                "timeout_s": _defer_timeout,
+                "timestamp": occurred_at,
+            })
+
+            # Wait for operator resolution
+            _resolved_decision, _resolved_reason = await self.defer_manager.wait_for_resolution(defer_id)
+
+            # Convert to final CanonicalDecision
+            if _resolved_decision in ("allow", "allow-once"):
+                decision = CanonicalDecision(
+                    decision=DecisionVerdict.ALLOW,
+                    reason=f"Operator approved: {_resolved_reason}" if _resolved_reason else "Operator approved",
+                    policy_id="defer-bridge",
+                    risk_level=decision.risk_level,
+                    decision_source=DecisionSource.OPERATOR,
+                    final=True,
+                )
+            else:
+                decision = CanonicalDecision(
+                    decision=DecisionVerdict.BLOCK,
+                    reason=f"Operator denied: {_resolved_reason}" if _resolved_reason else "Operator denied",
+                    policy_id="defer-bridge",
+                    risk_level=decision.risk_level,
+                    decision_source=DecisionSource.OPERATOR,
+                    final=True,
+                )
+
+            # Update dict for response
+            decision_dict = decision.model_dump(mode="json")
+
+            # Broadcast defer_resolved event
+            self.event_bus.broadcast({
+                "type": "defer_resolved",
+                "session_id": session_id,
+                "approval_id": defer_id,
+                "resolved_decision": decision_dict["decision"],
+                "resolved_reason": decision_dict["reason"],
+                "timestamp": utc_now_iso(),
+            })
+
         # Check if we exceeded deadline (after recording + broadcasts, so
         # audit trail and SSE events are intact)
         if time.monotonic() > deadline_at:
@@ -1856,12 +1916,12 @@ def create_http_app(
                 media_type="application/json",
             )
 
-        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved"}
+        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved", "defer_pending", "defer_resolved"}
         if types:
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_evolved"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_evolved, defer_pending, defer_resolved"}),
                     status_code=400,
                     media_type="application/json",
                 )
