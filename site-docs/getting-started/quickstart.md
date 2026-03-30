@@ -26,7 +26,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
 ## 接入步骤
 
-=== "Claude Code" { #claude-code }
+=== "Claude Code"
 
     Claude Code 通过原生 Hook 系统接入，**自动拦截**高危操作。
 
@@ -112,7 +112,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
     :material-arrow-right: 完整配置和高级用法：[Claude Code 集成指南](../integration/claude-code.md)
 
-=== "a3s-code" { #a3s-code }
+=== "a3s-code"
 
     a3s-code 通过 stdio harness 或 HTTP Transport 接入，**自动拦截**高危操作。
 
@@ -185,7 +185,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
     :material-arrow-right: 完整配置和高级用法：[a3s-code 集成指南](../integration/a3s-code.md)
 
-=== "OpenClaw" { #openclaw }
+=== "OpenClaw"
 
     OpenClaw 通过 WebSocket 实时事件流接入，**自动拦截**高危操作。
 
@@ -256,7 +256,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
     :material-arrow-right: 完整配置和高级用法：[OpenClaw 集成指南](../integration/openclaw.md)
 
-=== "Codex" { #codex }
+=== "Codex"
 
     !!! warning "监控模式"
         Codex 没有原生 Hook 系统。ClawSentry 通过监控 session 日志实现**实时风险评估和推荐**，但**无法自动阻止**操作。建议配合 `--approval-policy untrusted` 使用。
@@ -314,22 +314,40 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
 ---
 
-## 项目级配置
+## 项目级安全配置
 
-不同项目可以设置不同的安全审核强度：
+ClawSentry 提供 4 个内置安全预设，通过一行命令切换，无需手动配置环境变量。
+
+**快速切换预设：**
 
 ```bash
-clawsentry config init --preset high    # 创建配置文件
-clawsentry config show                  # 查看当前配置
+clawsentry config init --preset high    # 在当前项目创建 .clawsentry.toml
 clawsentry config set strict            # 切换预设
+clawsentry config show                  # 查看当前配置及生效参数
+clawsentry config disable               # 临时禁用项目配置（恢复全局默认）
 ```
 
-| 预设 | 适用场景 | 审核强度 |
-|------|---------|---------|
-| `low` | 个人项目、学习 | 宽松，仅拦截最危险操作 |
-| `medium` (默认) | 日常开发 | 平衡安全与效率 |
-| `high` | 团队项目、敏感数据 | 严格，更多操作需审批 |
-| `strict` | CI/CD、安全审计 | 最严格，几乎所有高危操作被拦截 |
+| 预设 | 适用场景 | 拦截力度 | DEFER 超时行为 |
+|------|---------|---------|--------------|
+| `low` | 个人项目、学习 | 宽松，仅拦截最危险操作 | 自动放行 |
+| `medium` **(默认)** | 日常开发 | 平衡安全与效率 | 超时拒绝 |
+| `high` | 团队项目、敏感数据 | 严格，更多操作触发拦截 | 超时拒绝 |
+| `strict` | CI/CD、安全审计 | 最严格，D6 注入检测全力放大 | 超时拒绝 |
+
+!!! info "项目配置文件"
+    `clawsentry config init` 在项目根目录生成 `.clawsentry.toml`，Harness 在每次 hook 调用时自动读取（60s TTL 缓存）。不同项目可以有不同预设，互不干扰。
+
+    ```toml title=".clawsentry.toml"
+    [project]
+    enabled = true
+    preset = "high"
+
+    [overrides]
+    # 可选：在预设基础上精细覆盖单个参数
+    # threshold_critical = 2.0
+    ```
+
+    :material-arrow-right: 预设参数全表 + 高级调优：[检测管线配置文档](../configuration/detection-config.md#presets)
 
 ---
 
