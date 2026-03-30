@@ -35,8 +35,27 @@ clawsentry-stack     # 等价于 clawsentry stack
     OPENCLAW_OPERATOR_TOKEN="quoted-value"
     ```
 
+## 命令速查表
+
+| 命令 | 用途 | 典型用法 |
+|------|------|---------|
+| [`start`](#clawsentry-start) | **一键启动**（推荐） | `clawsentry start --framework claude-code` |
+| [`stop`](#clawsentry-stop) | 停止 Gateway | `clawsentry stop` |
+| [`status`](#clawsentry-status) | 查看运行状态 | `clawsentry status` |
+| [`init`](#clawsentry-init) | 初始化框架配置 | `clawsentry init claude-code` |
+| [`gateway`](#clawsentry-gateway) | 直接启动 Gateway（高级） | `clawsentry gateway` |
+| [`stack`](#clawsentry-stack) | 直接启动完整栈（高级） | `clawsentry stack` |
+| [`harness`](#clawsentry-harness) | stdio hook 处理器 | 由框架自动调用，通常无需手动使用 |
+| [`watch`](#clawsentry-watch) | 实时监控事件流 | `clawsentry watch --interactive` |
+| [`audit`](#clawsentry-audit) | 离线查询审计日志 | `clawsentry audit --risk high --since 1h` |
+| [`doctor`](#clawsentry-doctor) | 诊断配置和连接（17 项检查） | `clawsentry doctor` |
+| [`config`](#clawsentry-config) | 管理项目安全预设 | `clawsentry config init --preset high` |
+| [`latch`](#clawsentry-latch) | 管理 Latch 移动监控 | `clawsentry latch install` |
+
+> **新用户推荐路径：** `clawsentry init` → `clawsentry start` → `clawsentry doctor` → `clawsentry watch`
+
 !!! abstract "本页快速导航"
-    [clawsentry start](#clawsentry-start) · [clawsentry stop](#clawsentry-stop) · [clawsentry status](#clawsentry-status) · [clawsentry init](#clawsentry-init) · [clawsentry gateway](#clawsentry-gateway) · [clawsentry stack](#clawsentry-stack) · [clawsentry harness](#clawsentry-harness) · [clawsentry watch](#clawsentry-watch) · [clawsentry audit](#clawsentry-audit) · [clawsentry doctor](#clawsentry-doctor) · [clawsentry config](#clawsentry-config) · [clawsentry latch](#clawsentry-latch)
+    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [config](#clawsentry-config) · [latch](#clawsentry-latch)
 
 ---
 

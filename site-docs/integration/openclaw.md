@@ -588,3 +588,13 @@ docker run -d \
     1. 确认 OpenClaw 侧配置了正确的 Webhook URL：`http://127.0.0.1:8081/webhook/openclaw`
     2. 检查 IP 白名单：`AHP_WEBHOOK_IP_WHITELIST`
     3. 检查 Token：`OPENCLAW_WEBHOOK_TOKEN`
+
+---
+
+## 下一步
+
+- [核心概念](../getting-started/concepts.md) — 深入理解 AHP 协议和三层决策模型
+- [检测管线配置](../configuration/detection-config.md) — 调整安全预设和检测阈值
+- [DEFER 交互式审批](../cli/index.md#clawsentry-watch) — 使用 watch --interactive 处理待审批操作
+- [Web 仪表板](../dashboard/index.md) — 实时 DEFER 审批面板
+- [Latch 集成](latch.md) — 移动端远程审批（可选增强）

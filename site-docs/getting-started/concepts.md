@@ -462,7 +462,237 @@ stateDiagram-v2
 
 ---
 
-## 10. Fail-safe 原则 {#fail-safe}
+## 10. Post-action 围栏 {#post-action-fence}
+
+**Post-action 围栏** 是 ClawSentry 的异步后置检测层。与 `pre_action` 同步拦截不同，它在工具调用**执行后**对输出和副作用进行扫描，不阻塞 Agent，但会生成告警事件供运维人员审查。
+
+### 工作时机
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Gateway
+    participant PostAction as PostActionAnalyzer（异步）
+
+    Agent->>Gateway: post_action 事件（含工具输出）
+    Gateway-->>Agent: 立即返回 ALLOW（不阻塞）
+    Gateway->>PostAction: 异步扫描
+    PostAction->>Gateway: 输出告警（若检测到威胁）
+```
+
+### 检测分层
+
+`PostActionAnalyzer` 分三档响应：
+
+| 告警级别 | 默认阈值 | 行为 |
+|---------|---------|------|
+| **Monitor** | ≥ 0.3 | 记录日志，SSE 广播告警 |
+| **Escalate** | ≥ 0.6 | 升级告警，通知 watch / Web UI |
+| **Emergency** | ≥ 0.9 | 最高级告警，触发 Latch 推送通知 |
+
+### 检测类别
+
+| 类别 | 描述 |
+|------|------|
+| **提示词注入回显** | 检测 LLM 输出中是否含有注入指令被执行后的痕迹 |
+| **数据外泄** | 含外部 URL 的 curl/wget/ftp/nc 命令、异常网络请求 |
+| **凭证泄露** | API Key、密码、证书在输出中明文出现 |
+| **混淆内容** | base64 解码后执行、eval(hex)、复杂字符串拼接执行链 |
+| **外部内容放大** | 来自网络或用户输入的内容：D6 额外 +0.3，post-action 分数 ×1.3 |
+
+### 配置
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `CS_POST_ACTION_EMERGENCY` | `0.9` | Emergency 告警阈值 |
+| `CS_POST_ACTION_ESCALATE` | `0.6` | Escalate 告警阈值 |
+| `CS_POST_ACTION_MONITOR` | `0.3` | Monitor 告警阈值 |
+| `CS_POST_ACTION_WHITELIST` | 无 | 逗号分隔的白名单域名，排除误报 |
+| `CS_EXTERNAL_CONTENT_D6_BOOST` | `0.3` | 外部内容来源时 D6 额外加分 |
+| `CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER` | `1.3` | 外部内容来源时 post-action 分数乘数 |
+
+!!! info "不阻塞但持续审计"
+    Post-action 围栏永远不会阻止 Agent 已完成的操作，但其告警会在 Web 仪表板和 `clawsentry watch` 中实时显示，并通过 Latch 推送到手机。
+
+---
+
+## 11. TrajectoryAnalyzer — 多阶段攻击检测 {#trajectory-analyzer}
+
+**TrajectoryAnalyzer** 分析跨多个工具调用步骤的行为序列，检测单个事件无法识别的**多阶段攻击模式**（如 APT 侦察→外泄链路）。
+
+### 工作原理
+
+每个会话保留最近 N 步工具调用记录（默认 50 步）。TrajectoryAnalyzer 在每次 `post_action` 事件后异步扫描该会话的事件轨迹，对以下模式评分：
+
+| 模式 ID | 名称 | 典型特征序列 |
+|--------|------|------------|
+| **RECON_THEN_EXFIL** | 侦察后外泄 | `ls/find/cat` 读取文件 → 随后 `curl/nc` 外发 |
+| **PRIVILEGE_ESCALATION** | 权限提升 | `id/whoami` 探测权限 → `sudo/chmod` 提升权限 |
+| **LATERAL_MOVEMENT** | 横向移动 | 读取 SSH 密钥/凭证 → 建立外部连接 |
+| **PERSISTENCE** | 持久化 | 修改 `.bashrc`/crontab/systemd → 写入后门 |
+| **DATA_STAGING** | 数据预备外泄 | 大量文件聚合压缩 → 准备传输 |
+
+当模式分达到阈值时触发告警，通过 EventBus 推送到 watch CLI / Web UI / Latch。
+
+### 配置
+
+| 环境变量 | 默认值 | 说明 |
+|---------|--------|------|
+| `CS_TRAJECTORY_MAX_EVENTS` | `50` | 每个会话保留的最大事件步数 |
+| `CS_TRAJECTORY_MAX_SESSIONS` | `10000` | 内存中保留的最大会话数 |
+
+---
+
+## 12. EventBus 与 SSE 实时推送 {#eventbus-sse}
+
+ClawSentry 内部使用 **EventBus** 作为事件总线，将决策、告警、会话、DEFER 等事件广播给所有订阅者。外部消费者通过 **SSE（Server-Sent Events）** 接收实时事件流。
+
+### 推送架构
+
+```mermaid
+graph LR
+    subgraph "Gateway 内部"
+        LE["L1/L2/L3 决策引擎"] -->|决策事件| EB[EventBus]
+        PA[PostActionAnalyzer] -->|告警事件| EB
+        DM[DeferManager] -->|defer_pending / defer_resolved| EB
+        SR[SessionRegistry] -->|会话事件| EB
+    end
+
+    subgraph "外部消费者"
+        EB -->|"SSE  GET /events"| W[clawsentry watch]
+        EB -->|"SSE  GET /events"| UI[Web UI]
+        EB -->|HTTP 转发| LH[Latch Hub]
+    end
+```
+
+### SSE 事件类型
+
+| 事件类型 | 触发时机 | 主要字段 |
+|---------|---------|---------|
+| `decision` | 每次产生 allow/block/defer 判决 | `session_id`, `verdict`, `risk_level`, `tool_name`, `reason` |
+| `alert` | PostActionAnalyzer / TrajectoryAnalyzer 检测到威胁 | `session_id`, `alert_type`, `severity`, `detail` |
+| `defer_pending` | 产生 DEFER 判决，等待人工审批 | `session_id`, `approval_id`, `expires_at`, `command` |
+| `defer_resolved` | DEFER 被 Allow/Deny 或超时 | `approval_id`, `resolved_by`, `resolution` |
+| `session` | 会话生命周期（start/end） | `session_id`, `agent_id`, `framework` |
+
+### 接入方式
+
+```bash
+# clawsentry watch 自动订阅（推荐）
+clawsentry watch
+
+# 手动 curl 调试
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+     http://127.0.0.1:8080/events
+```
+
+!!! tip "DEFER 交互式审批依赖 SSE"
+    `clawsentry watch --interactive` 监听 `defer_pending` 事件，在终端提示 `[A]llow / [D]eny / [S]kip`。SSE 连接中断时 Web UI 和 Latch 仍可审批。
+
+---
+
+## 13. 安全预设与项目级配置 {#security-presets}
+
+ClawSentry 提供四个内置安全预设，通过 `.clawsentry.toml` 文件按项目独立配置——不同项目可以有不同的安全强度，互不干扰。
+
+### 四个预设级别
+
+| 预设 | 适用场景 | medium 阈值 | high 阈值 | critical 阈值 | DEFER 超时行为 | D6 放大系数 |
+|------|---------|:-----------:|:---------:|:-------------:|:-------------:|:-----------:|
+| `low` | 个人项目、本地探索 | 1.2 | 2.0 | 2.8 | **超时放行** | 0.3 |
+| `medium` **(默认)** | 日常开发 | 0.8 | 1.5 | 2.2 | 超时拒绝 | 0.5 |
+| `high` | 团队项目、敏感代码库 | 0.5 | 1.2 | 1.8 | 超时拒绝 | 0.7 |
+| `strict` | CI/CD、安全审计 | 0.3 | 0.9 | 1.3 | 超时拒绝 | 1.0 |
+
+预设值越高，检测敏感度越强（阈值越低 → 更多操作被视为高风险），D6 注入放大系数越大。
+
+### .clawsentry.toml — 项目级配置
+
+在项目根目录创建 `.clawsentry.toml`，Harness 在每次 hook 调用时自动读取（60s TTL 缓存，热更新无需重启）：
+
+```toml
+[project]
+enabled = true
+preset = "high"         # low / medium / high / strict
+
+[overrides]
+# 可选：在预设基础上精细覆盖单个参数
+# threshold_critical = 2.0
+# defer_timeout_action = "allow"
+# post_action_emergency = 0.85
+```
+
+### 配置优先级链
+
+```
+CS_ 环境变量  >  .clawsentry.toml [overrides]  >  预设值  >  DetectionConfig 默认值
+```
+
+### 常用命令
+
+```bash
+clawsentry config init --preset high   # 在当前目录生成 .clawsentry.toml
+clawsentry config set strict           # 切换预设
+clawsentry config show                 # 查看当前生效配置和来源
+clawsentry config disable              # 临时禁用项目配置
+```
+
+!!! info "不同项目，不同预设"
+    `.clawsentry.toml` 只影响从该目录（或其子目录）启动的会话。项目 A（preset=high）和项目 B（preset=low）各自独立，互不干扰。
+
+---
+
+## 14. 自进化模式库 {#pattern-evolution}
+
+**自进化模式库**（PatternEvolution）是 ClawSentry 的可选增强功能。它从实际观察到的攻击尝试中自动提炼新的检测模式，经信心评分和状态机晋升后成为 L1 规则库的补充。
+
+!!! warning "默认关闭"
+    自进化模式库默认未启用（`CS_EVOLVING_ENABLED=false`）。需明确设置 `CS_EVOLVING_ENABLED=true` 并配置持久化路径后才生效。
+
+### 模式生命周期
+
+```mermaid
+stateDiagram-v2
+    [*] --> candidate: 从高可信 D6 事件提炼
+    candidate --> testing: 累积足够样本
+    testing --> active: 信心分 >= 0.8
+    active --> retired: 误报率上升 / 长期未命中
+    testing --> retired: 样本不足 / 信心过低
+```
+
+| 状态 | 说明 |
+|------|------|
+| **candidate** | 初始提炼阶段，尚未进入规则引擎 |
+| **testing** | 影子模式运行，收集命中/误报数据 |
+| **active** | 已激活，参与 L1 评分（作为额外 D3 模式） |
+| **retired** | 已退休，不再使用 |
+
+### 信心评分（0.0–1.0）
+
+信心分由以下因素加权计算：命中频率、精确率（L2/L3 确认为真实威胁的比例）、新鲜度（近期观察权重更高）、覆盖度（跨会话命中更可信）。
+
+### 启用方法
+
+```bash
+# .env.clawsentry 或环境变量
+CS_EVOLVING_ENABLED=true
+CS_EVOLVED_PATTERNS_PATH=/path/to/evolved_patterns.yaml
+```
+
+### REST API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/evolution/patterns` | 列出所有进化模式（含状态和信心分） |
+| `POST` | `/evolution/patterns/{id}/retire` | 手动将某个模式退休 |
+| `POST` | `/evolution/patterns/{id}/activate` | 手动激活候选模式 |
+
+!!! tip "何时开启？"
+    建议系统运行至少 2 周、积累充足事件后再启用，以保证提炼质量。
+
+---
+
+## 15. Fail-safe 原则 {#fail-safe}
 
 ClawSentry 遵循分级别的 fail-safe 策略，确保在系统异常时仍能维持安全基线：
 
@@ -505,12 +735,15 @@ graph TB
         SE[SessionEnforcementPolicy]
         SR[SessionRegistry]
         SSE[SSE EventBus]
+        PA[PostActionAnalyzer]
+        TA[TrajectoryAnalyzer]
     end
 
     subgraph "外部接口"
         W[clawsentry watch]
         UI[Web 仪表板]
         API[REST API]
+        LH[Latch Hub]
     end
 
     A1 -->|归一化| CE
@@ -523,8 +756,12 @@ graph TB
     L1 --> SR
     SR --> SE
     CD --> SSE
+    CD --> PA
+    PA --> SSE
+    TA --> SSE
     SSE --> W
     SSE --> UI
+    SSE --> LH
     CD --> API
 ```
 
@@ -532,6 +769,10 @@ graph TB
 
 ## 下一步
 
-- 阅读 [常见问题](faq.md) 获取常见疑问的解答
-- 前往 [a3s-code 集成指南](../integration/a3s-code.md) 了解完整的集成细节
-- 查看 [L1 规则引擎](../decision-layers/l1-rules.md) 深入理解三层决策的策略配置
+- [常见问题](faq.md) — 常见疑问解答
+- [检测管线配置](../configuration/detection-config.md) — 调整 D1-D6 阈值和安全预设参数
+- [策略调优](../configuration/policy-tuning.md) — 精细控制各层判决行为
+- [a3s-code 集成指南](../integration/a3s-code.md) — 完整的集成细节
+- [L1 规则引擎](../decision-layers/l1-rules.md) — 深入理解三层决策策略配置
+- [自定义 L2 分析器](../advanced/custom-analyzer.md) — 扩展语义分析能力
+- [自进化模式库](../advanced/pattern-evolution.md) — 自动提炼项目特定检测规则

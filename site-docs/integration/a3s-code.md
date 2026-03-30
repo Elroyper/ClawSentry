@@ -574,3 +574,13 @@ curl -X POST http://127.0.0.1:8080/report/session/{session_id}/enforcement \
 
     1. 等待 Gateway 完全启动后再发送请求
     2. 检查速率限制配置：`echo $AHP_RATE_LIMIT_PER_MINUTE`（默认 300/分钟）
+
+---
+
+## 下一步
+
+- [核心概念](../getting-started/concepts.md) — 深入理解 AHP 协议和三层决策模型
+- [检测管线配置](../configuration/detection-config.md) — 调整 D1-D6 阈值和安全预设
+- [L1 规则引擎](../decision-layers/l1-rules.md) — 了解规则策略详情
+- [Web 仪表板](../dashboard/index.md) — 实时可视化监控
+- [Latch 集成](latch.md) — 移动端远程审批（可选）

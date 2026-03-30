@@ -436,3 +436,13 @@ clawsentry doctor
     2. harness 在 Gateway 不可达时会降级为本地决策：
         - 含 `destructive_pattern` 或 `shell_execution` 风险 → **block**
         - 其他 → **allow**（fail-open 策略）
+
+---
+
+## 下一步
+
+- [核心概念](../getting-started/concepts.md) — 深入理解 AHP 协议和三层决策模型
+- [检测管线配置](../configuration/detection-config.md) — 调整安全预设和检测阈值
+- [策略调优](../configuration/policy-tuning.md) — 精细控制判决行为
+- [Latch 集成](latch.md) — 手机端实时审批（可选增强）
+- [a3s-code 集成](a3s-code.md) — 了解其他框架接入方式

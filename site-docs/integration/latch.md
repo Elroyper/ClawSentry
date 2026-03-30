@@ -38,6 +38,24 @@ LatchHubBridge          process_manager
 
 ---
 
+## 前置条件
+
+!!! info "环境要求"
+    - Python 3.11+
+    - ClawSentry >= 0.2.8（含 Latch 支持）
+    - 可访问 GitHub Release（用于下载 Latch 二进制）
+    - ClawSentry Gateway 已正常运行
+
+```bash
+# 安装含 Latch 支持的 ClawSentry
+pip install "clawsentry[latch]"
+
+# 验证安装
+clawsentry latch --help
+```
+
+---
+
 ## 快速开始
 
 ### 安装
@@ -289,3 +307,13 @@ clawsentry latch uninstall
     1. 确认 `CS_DEFER_BRIDGE_ENABLED=true`
     2. 确认 Hub Bridge 正常转发 `defer_pending` 事件
     3. 使用 `clawsentry watch --filter defer_pending,defer_resolved` 验证事件流
+
+---
+
+## 下一步
+
+- [核心概念 — EventBus/SSE](../getting-started/concepts.md#eventbus-sse) — 理解 Latch 如何订阅事件流
+- [clawsentry latch 命令详解](../cli/index.md#clawsentry-latch) — 完整 CLI 参考
+- [Claude Code 集成](claude-code.md) — 配合 Claude Code 使用 Latch
+- [OpenClaw 集成](openclaw.md) — 配合 OpenClaw 使用 Latch
+- [检测管线配置](../configuration/detection-config.md) — 调整 Emergency 告警阈值（触发 Latch 推送）

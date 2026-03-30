@@ -572,3 +572,13 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
     1. 检查是否启用了 L2/L3（LLM 调用会增加延迟）
     2. L1 纯规则引擎延迟 <1ms
     3. 优先确认 Gateway 与 Codex 在同一网络/机器上
+
+---
+
+## 下一步
+
+- [核心概念](../getting-started/concepts.md) — 理解为什么 Codex 只能监控而不能拦截
+- [检测管线配置](../configuration/detection-config.md) — 调整安全预设和检测阈值
+- [clawsentry watch 使用指南](../cli/index.md#clawsentry-watch) — 实时监控和安全建议
+- [Latch 集成](latch.md) — 手机端接收 Codex 安全告警（可选增强）
+- [Claude Code 集成](claude-code.md) — 了解支持自动拦截的框架
