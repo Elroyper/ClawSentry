@@ -93,6 +93,11 @@ class L1PolicyEngine:
                 evolved_patterns_path=_evolved,
             )
         )
+        self._l2_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+
+    def shutdown(self) -> None:
+        """Shutdown the shared L2 thread pool."""
+        self._l2_pool.shutdown(wait=False, cancel_futures=True)
 
     @property
     def analyzer(self):
@@ -308,18 +313,13 @@ class L1PolicyEngine:
         inner_budget = max(budget - _INNER_BUDGET_MARGIN_MS, 0.0)
 
         if loop and loop.is_running():
-            pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-            try:
-                result = pool.submit(
-                    asyncio.run,
-                    asyncio.wait_for(
-                        self._analyzer.analyze(event, context, l1_snapshot, inner_budget),
-                        timeout=timeout_sec,
-                    ),
-                ).result(timeout=timeout_sec + 0.5)  # outer timeout as safety net
-            finally:
-                # cancel_futures=True (Python 3.9+) avoids blocking on timed-out threads
-                pool.shutdown(wait=False, cancel_futures=True)
+            result = self._l2_pool.submit(
+                asyncio.run,
+                asyncio.wait_for(
+                    self._analyzer.analyze(event, context, l1_snapshot, inner_budget),
+                    timeout=timeout_sec,
+                ),
+            ).result(timeout=timeout_sec + 0.5)  # outer timeout as safety net
         else:
             async def _run_with_timeout() -> L2Result:
                 return await asyncio.wait_for(

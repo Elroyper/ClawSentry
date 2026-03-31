@@ -76,3 +76,38 @@ class TestDeferManager:
         decision, reason = await dm.wait_for_resolution("missing")
         assert decision == "block"
         assert "not found" in reason
+
+
+class TestDeferMaxPending:
+    """P1-5: DEFER must have a max pending limit."""
+
+    def test_register_respects_max_pending(self):
+        dm = DeferManager(max_pending=3)
+        assert dm.register_defer("r1") is True
+        assert dm.register_defer("r2") is True
+        assert dm.register_defer("r3") is True
+        assert dm.pending_count == 3
+        # 4th should be rejected
+        assert dm.register_defer("r4") is False
+        assert dm.pending_count == 3
+
+    def test_register_returns_true_when_space(self):
+        dm = DeferManager(max_pending=10)
+        assert dm.register_defer("r1") is True
+
+    def test_default_max_pending(self):
+        dm = DeferManager()
+        assert dm.max_pending == 100
+
+    def test_max_pending_zero_means_unlimited(self):
+        dm = DeferManager(max_pending=0)
+        for i in range(200):
+            assert dm.register_defer(f"r{i}") is True
+
+    def test_space_freed_after_resolve(self):
+        dm = DeferManager(max_pending=2)
+        dm.register_defer("r1")
+        dm.register_defer("r2")
+        assert dm.register_defer("r3") is False
+        dm.resolve_defer("r1", "allow", "ok")
+        assert dm.register_defer("r3") is True

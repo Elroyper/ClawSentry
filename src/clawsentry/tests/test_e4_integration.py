@@ -410,6 +410,9 @@ class TestPostActionViaGateway:
             "post_action events should always be ALLOW"
         )
 
+        # Post-action now runs as background task — give it time to complete
+        await asyncio.sleep(0.1)
+
         # Verify post_action_finding was broadcast via event_bus
         pa_events = [
             b for b in broadcasts if b.get("type") == "post_action_finding"

@@ -27,9 +27,11 @@ class DeferManager:
         self,
         timeout_action: str = "block",
         timeout_s: float = 300.0,
+        max_pending: int = 100,
     ) -> None:
         self.timeout_action = timeout_action
         self.timeout_s = timeout_s
+        self.max_pending = max_pending
         self._pending: dict[str, _PendingDefer] = {}
 
     @property
@@ -39,9 +41,16 @@ class DeferManager:
     def is_pending(self, request_id: str) -> bool:
         return request_id in self._pending
 
-    def register_defer(self, request_id: str) -> None:
-        """Register a new DEFER request for tracking."""
+    def register_defer(self, request_id: str) -> bool:
+        """Register a new DEFER request. Returns False if queue is full."""
+        if self.max_pending > 0 and len(self._pending) >= self.max_pending:
+            logger.warning(
+                "DEFER queue full (%d/%d), rejecting %s",
+                len(self._pending), self.max_pending, request_id,
+            )
+            return False
         self._pending[request_id] = _PendingDefer()
+        return True
 
     def resolve_defer(self, request_id: str, decision: str, reason: str) -> None:
         """Resolve a pending DEFER with an explicit decision."""

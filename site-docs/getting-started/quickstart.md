@@ -143,7 +143,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
         ```bash
         clawsentry init a3s-code
-        source .env
+        source .env.clawsentry
         ```
 
         **步骤 2：配置 a3s-code Hook**
@@ -224,7 +224,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
         ```bash
         clawsentry init openclaw --auto-detect --setup
-        source .env
+        source .env.clawsentry
         ```
 
         `--auto-detect` 从 `~/.openclaw/openclaw.json` 读取 Token。

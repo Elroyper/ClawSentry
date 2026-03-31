@@ -238,9 +238,9 @@ clawsentry gateway
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `AHP_LLM_PROVIDER` | *(空)* | LLM 提供商：`anthropic` / `openai` |
-| `AHP_LLM_BASE_URL` | *(提供商默认)* | 自定义 API 地址 |
-| `AHP_LLM_MODEL` | *(提供商默认)* | 模型标识符 |
+| `CS_LLM_PROVIDER` | *(空)* | LLM 提供商：`anthropic` / `openai` |
+| `CS_LLM_BASE_URL` | *(提供商默认)* | 自定义 API 地址 |
+| `CS_LLM_MODEL` | *(提供商默认)* | 模型标识符 |
 
 ---
 

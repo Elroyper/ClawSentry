@@ -13,14 +13,12 @@ Transports:
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict, deque
 from datetime import datetime, timezone
 import hmac
 import json
 import argparse
 import logging
 import os
-import sqlite3
 import struct
 import time
 from typing import Any, Callable, Optional
@@ -33,7 +31,18 @@ from fastapi.responses import StreamingResponse
 from starlette.responses import FileResponse, HTMLResponse
 from pydantic import ValidationError
 
+from .alert_registry import AlertRegistry
+from .event_bus import EventBus
 from .idempotency import IdempotencyCache, periodic_cleanup
+from .session_registry import SessionRegistry
+from .trajectory_store import (
+    TrajectoryStore,
+    _parse_iso_timestamp,
+    DEFAULT_TRAJECTORY_DB_PATH,
+    DEFAULT_TRAJECTORY_RETENTION_SECONDS,
+    HIGH_RISK_LEVELS,
+    MAX_WINDOW_SECONDS,
+)
 from .models import (
     CanonicalDecision,
     CanonicalEvent,
@@ -88,18 +97,9 @@ def _risk_rank(risk_level: Optional[str]) -> int:
 DEFAULT_UDS_PATH = "/tmp/clawsentry.sock"
 DEFAULT_HTTP_HOST = "127.0.0.1"
 DEFAULT_HTTP_PORT = 8080
-DEFAULT_TRAJECTORY_DB_PATH = "/tmp/clawsentry-trajectory.db"
-DEFAULT_TRAJECTORY_RETENTION_SECONDS = 30 * 24 * 3600
-HIGH_RISK_LEVELS = {"high", "critical"}
-
-INVALID_EVENT_COUNT_THRESHOLD_1M = 20
-INVALID_EVENT_RATE_CRITICAL_5M = 0.01
-INVALID_EVENT_RATE_WARNING_15M_MIN = 0.001
-INVALID_EVENT_RATE_WARNING_15M_MAX = 0.01
 
 JSONRPC_METHOD = "ahp/sync_decision"
 JSONRPC_VERSION = "2.0"
-MAX_WINDOW_SECONDS = 604800  # 1 week = 7 * 24 * 3600
 
 
 def _extract_project_config(
@@ -164,854 +164,8 @@ def _make_auth_dependency(auth_token: str):
     return _require_bearer
 
 
-# ---------------------------------------------------------------------------
-# Trajectory Store (SQLite persistence, Phase 3 minimal)
-# ---------------------------------------------------------------------------
-
-class TrajectoryStore:
-    """SQLite-backed trajectory store with retention + query window support."""
-
-    def __init__(
-        self,
-        db_path: str = ":memory:",
-        retention_seconds: int = DEFAULT_TRAJECTORY_RETENTION_SECONDS,
-    ) -> None:
-        self.db_path = db_path
-        self.retention_seconds = retention_seconds
-        if db_path != ":memory:":
-            db_dir = os.path.dirname(db_path)
-            if db_dir:
-                os.makedirs(db_dir, exist_ok=True)
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._init_schema()
-        self._prune_expired()
-
-    def _init_schema(self) -> None:
-        cur = self._conn.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS trajectory_records (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                recorded_at_ts REAL NOT NULL,
-                recorded_at TEXT NOT NULL,
-                session_id TEXT,
-                source_framework TEXT,
-                event_type TEXT,
-                decision TEXT,
-                risk_level TEXT,
-                event_json TEXT NOT NULL,
-                decision_json TEXT NOT NULL,
-                snapshot_json TEXT NOT NULL,
-                meta_json TEXT NOT NULL
-            )
-            """
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_traj_recorded_at ON trajectory_records(recorded_at_ts)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_traj_session_id ON trajectory_records(session_id)"
-        )
-        cur.execute(
-            "CREATE INDEX IF NOT EXISTS idx_traj_source_framework ON trajectory_records(source_framework)"
-        )
-        # Migrate: add l3_trace_json column if missing
-        try:
-            cur.execute("ALTER TABLE trajectory_records ADD COLUMN l3_trace_json TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        self._conn.commit()
-
-    @staticmethod
-    def _iso_from_ts(ts: float) -> str:
-        return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
-
-    def _prune_expired(self, now_ts: Optional[float] = None) -> None:
-        if self.retention_seconds <= 0:
-            return
-        cutoff = (now_ts or time.time()) - self.retention_seconds
-        cur = self._conn.cursor()
-        cur.execute("DELETE FROM trajectory_records WHERE recorded_at_ts < ?", (cutoff,))
-        self._conn.commit()
-
-    def record(
-        self,
-        event: dict,
-        decision: dict,
-        snapshot: dict,
-        meta: dict,
-        recorded_at_ts: Optional[float] = None,
-        l3_trace: Optional[dict] = None,
-    ) -> None:
-        ts = recorded_at_ts if recorded_at_ts is not None else time.time()
-        recorded_at = self._iso_from_ts(ts)
-        cur = self._conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO trajectory_records (
-                recorded_at_ts,
-                recorded_at,
-                session_id,
-                source_framework,
-                event_type,
-                decision,
-                risk_level,
-                event_json,
-                decision_json,
-                snapshot_json,
-                meta_json,
-                l3_trace_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                ts,
-                recorded_at,
-                event.get("session_id"),
-                event.get("source_framework"),
-                event.get("event_type"),
-                decision.get("decision"),
-                decision.get("risk_level"),
-                json.dumps(event),
-                json.dumps(decision),
-                json.dumps(snapshot),
-                json.dumps(meta),
-                json.dumps(l3_trace) if l3_trace else None,
-            ),
-        )
-        self._conn.commit()
-        self._prune_expired(now_ts=ts)
-
-    def _query_records(
-        self,
-        *,
-        session_id: Optional[str] = None,
-        since_seconds: Optional[int] = None,
-        limit: Optional[int] = None,
-    ) -> list[dict[str, Any]]:
-        self._prune_expired()
-        clauses: list[str] = []
-        params: list[Any] = []
-        if session_id is not None:
-            clauses.append("session_id = ?")
-            params.append(session_id)
-        if since_seconds is not None and since_seconds > 0:
-            clauses.append("recorded_at_ts >= ?")
-            params.append(time.time() - since_seconds)
-
-        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        if limit is not None and limit > 0:
-            sql = (
-                "SELECT recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
-                "FROM trajectory_records "
-                f"{where_sql} "
-                "ORDER BY id DESC LIMIT ?"
-            )
-            rows = self._conn.execute(sql, (*params, limit)).fetchall()
-            rows = list(reversed(rows))
-        else:
-            sql = (
-                "SELECT recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
-                "FROM trajectory_records "
-                f"{where_sql} "
-                "ORDER BY id ASC"
-            )
-            rows = self._conn.execute(sql, params).fetchall()
-
-        records: list[dict[str, Any]] = []
-        for row in rows:
-            l3_raw = row["l3_trace_json"]
-            records.append(
-                {
-                    "event": json.loads(row["event_json"]),
-                    "decision": json.loads(row["decision_json"]),
-                    "risk_snapshot": json.loads(row["snapshot_json"]),
-                    "meta": json.loads(row["meta_json"]),
-                    "recorded_at": row["recorded_at"],
-                    "recorded_at_ts": float(row["recorded_at_ts"]),
-                    "l3_trace": json.loads(l3_raw) if l3_raw else None,
-                }
-            )
-        return records
-
-    @property
-    def records(self) -> list[dict[str, Any]]:
-        return self._query_records()
-
-    def count(self, since_seconds: Optional[int] = None) -> int:
-        self._prune_expired()
-        clauses: list[str] = []
-        params: list[Any] = []
-        if since_seconds is not None and since_seconds > 0:
-            clauses.append("recorded_at_ts >= ?")
-            params.append(time.time() - since_seconds)
-        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        sql = f"SELECT COUNT(*) AS c FROM trajectory_records {where_sql}"
-        row = self._conn.execute(sql, params).fetchone()
-        return int(row["c"]) if row else 0
-
-    def summary(self, since_seconds: Optional[int] = None) -> dict[str, Any]:
-        records = self._query_records(since_seconds=since_seconds)
-        by_source_framework: dict[str, int] = defaultdict(int)
-        by_event_type: dict[str, int] = defaultdict(int)
-        by_decision: dict[str, int] = defaultdict(int)
-        by_risk_level: dict[str, int] = defaultdict(int)
-        by_actual_tier: dict[str, int] = defaultdict(int)
-        by_caller_adapter: dict[str, int] = defaultdict(int)
-        now_ts = time.time()
-
-        for rec in records:
-            event = rec.get("event", {})
-            decision = rec.get("decision", {})
-            meta = rec.get("meta", {})
-            source_framework = str(event.get("source_framework", "unknown"))
-            event_type = str(event.get("event_type", "unknown"))
-            decision_verdict = str(decision.get("decision", "unknown"))
-            risk_level = str(decision.get("risk_level", "unknown"))
-            actual_tier = str(meta.get("actual_tier", "L1"))
-            caller_adapter = str(meta.get("caller_adapter", "unknown"))
-
-            by_source_framework[source_framework] += 1
-            by_event_type[event_type] += 1
-            by_decision[decision_verdict] += 1
-            by_risk_level[risk_level] += 1
-            by_actual_tier[actual_tier] += 1
-            by_caller_adapter[caller_adapter] += 1
-
-        return {
-            "total_records": len(records),
-            "by_source_framework": dict(by_source_framework),
-            "by_event_type": dict(by_event_type),
-            "by_decision": dict(by_decision),
-            "by_risk_level": dict(by_risk_level),
-            "by_actual_tier": dict(by_actual_tier),
-            "by_caller_adapter": dict(by_caller_adapter),
-            "invalid_event": self._build_invalid_event_metrics(records, now_ts),
-            "high_risk_trend": self._build_high_risk_trend(records, now_ts),
-        }
-
-    @staticmethod
-    def _is_invalid_event_record(record: dict[str, Any]) -> bool:
-        event = record.get("event", {})
-        decision = record.get("decision", {})
-        event_type = str(event.get("event_type", "")).lower()
-        event_subtype = str(event.get("event_subtype", "")).lower()
-        failure_class = str(decision.get("failure_class", "")).lower()
-        return (
-            event_type == "invalid_event"
-            or event_subtype == "invalid_event"
-            or failure_class == "input_invalid"
-        )
-
-    @staticmethod
-    def _is_high_risk_record(record: dict[str, Any]) -> bool:
-        decision = record.get("decision", {})
-        risk_level = str(decision.get("risk_level", "")).lower()
-        return risk_level in HIGH_RISK_LEVELS
-
-    @staticmethod
-    def _count_in_window(
-        records: list[dict[str, Any]],
-        *,
-        now_ts: float,
-        window_seconds: int,
-        predicate: Optional[Callable[[dict[str, Any]], bool]] = None,
-    ) -> int:
-        cutoff = now_ts - window_seconds
-        count = 0
-        for rec in records:
-            recorded_at_ts = float(rec.get("recorded_at_ts", 0.0))
-            if recorded_at_ts < cutoff:
-                continue
-            if predicate is not None and not predicate(rec):
-                continue
-            count += 1
-        return count
-
-    @staticmethod
-    def _count_in_range(
-        records: list[dict[str, Any]],
-        *,
-        start_ts: float,
-        end_ts: float,
-        predicate: Optional[Callable[[dict[str, Any]], bool]] = None,
-    ) -> int:
-        count = 0
-        for rec in records:
-            recorded_at_ts = float(rec.get("recorded_at_ts", 0.0))
-            if recorded_at_ts < start_ts or recorded_at_ts >= end_ts:
-                continue
-            if predicate is not None and not predicate(rec):
-                continue
-            count += 1
-        return count
-
-    def _build_invalid_event_metrics(
-        self,
-        records: list[dict[str, Any]],
-        now_ts: float,
-    ) -> dict[str, Any]:
-        total_5m = self._count_in_window(records, now_ts=now_ts, window_seconds=300)
-        total_15m = self._count_in_window(records, now_ts=now_ts, window_seconds=900)
-        invalid_1m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=60,
-            predicate=self._is_invalid_event_record,
-        )
-        invalid_5m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=300,
-            predicate=self._is_invalid_event_record,
-        )
-        invalid_15m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=900,
-            predicate=self._is_invalid_event_record,
-        )
-
-        rate_5m = (invalid_5m / total_5m) if total_5m > 0 else 0.0
-        rate_15m = (invalid_15m / total_15m) if total_15m > 0 else 0.0
-
-        alerts: list[dict[str, Any]] = []
-        if invalid_1m > INVALID_EVENT_COUNT_THRESHOLD_1M:
-            alerts.append(
-                {
-                    "metric": "invalid_event_count_1m",
-                    "severity": "critical",
-                    "value": invalid_1m,
-                    "threshold": ">20/min",
-                }
-            )
-        if rate_5m > INVALID_EVENT_RATE_CRITICAL_5M:
-            alerts.append(
-                {
-                    "metric": "invalid_event_rate_5m",
-                    "severity": "critical",
-                    "value": rate_5m,
-                    "threshold": ">1%/5m",
-                }
-            )
-        if (
-            total_15m > 0
-            and INVALID_EVENT_RATE_WARNING_15M_MIN <= rate_15m <= INVALID_EVENT_RATE_WARNING_15M_MAX
-        ):
-            alerts.append(
-                {
-                    "metric": "invalid_event_rate_15m",
-                    "severity": "warning",
-                    "value": rate_15m,
-                    "threshold": "0.1%-1%/15m",
-                }
-            )
-
-        return {
-            "count_1m": invalid_1m,
-            "count_5m": invalid_5m,
-            "count_15m": invalid_15m,
-            "rate_5m": rate_5m,
-            "rate_15m": rate_15m,
-            "alerts": alerts,
-        }
-
-    def _build_high_risk_trend(
-        self,
-        records: list[dict[str, Any]],
-        now_ts: float,
-    ) -> dict[str, Any]:
-        def ratio(high_count: int, total_count: int) -> float:
-            return (high_count / total_count) if total_count > 0 else 0.0
-
-        total_5m = self._count_in_window(records, now_ts=now_ts, window_seconds=300)
-        total_15m = self._count_in_window(records, now_ts=now_ts, window_seconds=900)
-        total_60m = self._count_in_window(records, now_ts=now_ts, window_seconds=3600)
-
-        high_5m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=300,
-            predicate=self._is_high_risk_record,
-        )
-        high_15m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=900,
-            predicate=self._is_high_risk_record,
-        )
-        high_60m = self._count_in_window(
-            records,
-            now_ts=now_ts,
-            window_seconds=3600,
-            predicate=self._is_high_risk_record,
-        )
-
-        prev_5m_high = self._count_in_range(
-            records,
-            start_ts=now_ts - 600,
-            end_ts=now_ts - 300,
-            predicate=self._is_high_risk_record,
-        )
-        if high_5m > prev_5m_high:
-            direction_5m = "up"
-        elif high_5m < prev_5m_high:
-            direction_5m = "down"
-        else:
-            direction_5m = "flat"
-
-        series_5m: list[dict[str, Any]] = []
-        for idx in range(12):
-            bucket_start_ts = now_ts - (12 - idx) * 300
-            bucket_end_ts = bucket_start_ts + 300
-            total_bucket = self._count_in_range(
-                records,
-                start_ts=bucket_start_ts,
-                end_ts=bucket_end_ts,
-            )
-            high_bucket = self._count_in_range(
-                records,
-                start_ts=bucket_start_ts,
-                end_ts=bucket_end_ts,
-                predicate=self._is_high_risk_record,
-            )
-            series_5m.append(
-                {
-                    "bucket_start": self._iso_from_ts(bucket_start_ts),
-                    "bucket_end": self._iso_from_ts(bucket_end_ts),
-                    "total_count": total_bucket,
-                    "high_or_critical_count": high_bucket,
-                    "ratio": ratio(high_bucket, total_bucket),
-                }
-            )
-
-        return {
-            "windows": {
-                "5m": {"count": high_5m, "total": total_5m, "ratio": ratio(high_5m, total_5m)},
-                "15m": {"count": high_15m, "total": total_15m, "ratio": ratio(high_15m, total_15m)},
-                "60m": {"count": high_60m, "total": total_60m, "ratio": ratio(high_60m, total_60m)},
-            },
-            "direction_5m": direction_5m,
-            "series_5m": series_5m,
-        }
-
-    def replay_session(
-        self,
-        session_id: str,
-        limit: int = 100,
-        since_seconds: Optional[int] = None,
-    ) -> list[dict[str, Any]]:
-        return self._query_records(
-            session_id=session_id,
-            limit=limit,
-            since_seconds=since_seconds,
-        )
-
-    def clear(self) -> None:
-        self._conn.execute("DELETE FROM trajectory_records")
-        self._conn.commit()
-
-
-def _parse_iso_timestamp(value: Optional[str]) -> float:
-    """Parse an ISO-8601 timestamp string to a Unix timestamp float.
-
-    Returns 0.0 for missing or malformed values.
-    """
-    if not value:
-        return 0.0
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
-    except (ValueError, TypeError):
-        return 0.0
-
-
-class SessionRegistry:
-    """In-memory live session view for current-process metrics endpoints."""
-
-    DEFAULT_MAX_SESSIONS = 10_000
-    DEFAULT_MAX_TIMELINE_PER_SESSION = 1000
-
-    def __init__(
-        self,
-        max_sessions: int = DEFAULT_MAX_SESSIONS,
-        max_timeline_per_session: int = DEFAULT_MAX_TIMELINE_PER_SESSION,
-    ) -> None:
-        self.max_sessions = max(max_sessions, 1)
-        self.max_timeline_per_session = max(max_timeline_per_session, 1)
-        self._sessions: dict[str, dict[str, Any]] = {}
-
-    def _evict_if_needed(self) -> None:
-        while len(self._sessions) > self.max_sessions:
-            oldest_session_id = next(iter(self._sessions))
-            del self._sessions[oldest_session_id]
-
-    def get_current_risk(self, session_id: str) -> Optional[str]:
-        """Return current risk level for session_id, or None if not tracked yet."""
-        session = self._sessions.get(session_id)
-        return str(session["current_risk_level"]) if session is not None else None
-
-    def get_session_stats(self, session_id: str) -> dict[str, Any]:
-        """Return a copy of session stats for alert generation."""
-        return dict(self._sessions.get(session_id, {}))
-
-    def record(
-        self,
-        *,
-        event: dict[str, Any],
-        decision: dict[str, Any],
-        snapshot: dict[str, Any],
-        meta: dict[str, Any],
-    ) -> None:
-        session_id = str(event.get("session_id") or "")
-        if not session_id:
-            return
-
-        occurred_at = str(event.get("occurred_at") or utc_now_iso())
-        occurred_at_ts = _parse_iso_timestamp(occurred_at)
-        risk_level = str(snapshot.get("risk_level") or decision.get("risk_level") or "low")
-        dimensions = snapshot.get("dimensions") or {}
-        tool_name = event.get("tool_name")
-        decision_verdict = str(decision.get("decision") or "unknown")
-        actual_tier = str(meta.get("actual_tier") or "unknown")
-
-        session = self._sessions.pop(session_id, None)
-        if session is None:
-            session = {
-                "session_id": session_id,
-                "agent_id": str(event.get("agent_id") or "unknown"),
-                "source_framework": str(event.get("source_framework") or "unknown"),
-                "caller_adapter": str(meta.get("caller_adapter") or "unknown"),
-                "current_risk_level": "low",
-                "cumulative_score": 0,
-                "event_count": 0,
-                "high_risk_event_count": 0,
-                "decision_distribution": defaultdict(int),
-                "actual_tier_distribution": defaultdict(int),
-                "first_event_at": occurred_at,
-                "last_event_at": occurred_at,
-                "last_event_ts": occurred_at_ts,
-                "d4_accumulation": 0,
-                "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
-                "risk_hints_seen": set(),
-                "tools_used": set(),
-                "risk_timeline": deque(maxlen=self.max_timeline_per_session),
-            }
-
-        session["agent_id"] = str(event.get("agent_id") or session["agent_id"])
-        session["source_framework"] = str(event.get("source_framework") or session["source_framework"])
-        session["caller_adapter"] = str(meta.get("caller_adapter") or session["caller_adapter"])
-        session["event_count"] += 1
-        session["decision_distribution"][decision_verdict] += 1
-        session["actual_tier_distribution"][actual_tier] += 1
-        session["current_risk_level"] = risk_level
-        session["cumulative_score"] = int(snapshot.get("composite_score") or 0)
-        session["dimensions_latest"] = {
-            "d1": int(dimensions.get("d1") or 0),
-            "d2": int(dimensions.get("d2") or 0),
-            "d3": int(dimensions.get("d3") or 0),
-            "d4": int(dimensions.get("d4") or 0),
-            "d5": int(dimensions.get("d5") or 0),
-        }
-        session["d4_accumulation"] = session["d4_accumulation"] + int(dimensions.get("d4") or 0)
-        if _risk_rank(risk_level) >= _risk_rank("high"):
-            session["high_risk_event_count"] += 1
-        if occurred_at_ts and occurred_at_ts < _parse_iso_timestamp(session["first_event_at"]):
-            session["first_event_at"] = occurred_at
-        if occurred_at_ts >= float(session.get("last_event_ts", 0.0)):
-            session["last_event_at"] = occurred_at
-            session["last_event_ts"] = occurred_at_ts
-        if tool_name:
-            session["tools_used"].add(str(tool_name))
-        for hint in event.get("risk_hints", []) or []:
-            session["risk_hints_seen"].add(str(hint))
-
-        timeline = session["risk_timeline"]
-        timeline.append(
-            {
-                "event_id": str(event.get("event_id") or "unknown"),
-                "occurred_at": occurred_at,
-                "occurred_at_ts": occurred_at_ts,
-                "risk_level": risk_level,
-                "composite_score": int(snapshot.get("composite_score") or 0),
-                "tool_name": tool_name,
-                "decision": decision_verdict,
-            }
-        )
-        self._sessions[session_id] = session
-        self._evict_if_needed()
-
-    def list_sessions(
-        self,
-        *,
-        status: str = "active",
-        sort: str = "risk_level",
-        min_risk: Optional[str] = None,
-        limit: int = 50,
-        since_seconds: Optional[int] = None,
-    ) -> dict[str, Any]:
-        # NOTE: session lifecycle tracking is not yet implemented;
-        # both status="active" and status="all" return all in-memory sessions.
-        _ = status
-        sessions = list(self._sessions.values())
-        if since_seconds is not None and since_seconds > 0:
-            cutoff = time.time() - since_seconds
-            sessions = [s for s in sessions if float(s.get("last_event_ts", 0.0)) >= cutoff]
-        if min_risk:
-            min_rank = _risk_rank(min_risk)
-            sessions = [
-                s for s in sessions
-                if _risk_rank(s.get("current_risk_level")) >= min_rank
-            ]
-
-        if sort == "last_event":
-            sessions.sort(
-                key=lambda s: (
-                    float(s.get("last_event_ts", 0.0)),
-                    _risk_rank(s.get("current_risk_level")),
-                ),
-                reverse=True,
-            )
-        else:
-            sessions.sort(
-                key=lambda s: (
-                    _risk_rank(s.get("current_risk_level")),
-                    float(s.get("last_event_ts", 0.0)),
-                ),
-                reverse=True,
-            )
-
-        effective_limit = min(max(limit, 1), 200)
-        serialized_sessions: list[dict[str, Any]] = []
-        for session in sessions[:effective_limit]:
-            serialized_sessions.append(
-                {
-                    "session_id": session["session_id"],
-                    "agent_id": session["agent_id"],
-                    "source_framework": session["source_framework"],
-                    "caller_adapter": session["caller_adapter"],
-                    "current_risk_level": session["current_risk_level"],
-                    "cumulative_score": session["cumulative_score"],
-                    "event_count": session["event_count"],
-                    "high_risk_event_count": session["high_risk_event_count"],
-                    "decision_distribution": dict(session["decision_distribution"]),
-                    "first_event_at": session["first_event_at"],
-                    "last_event_at": session["last_event_at"],
-                    "d4_accumulation": session["d4_accumulation"],
-                }
-            )
-
-        return {
-            "sessions": serialized_sessions,
-            "total_active": len(sessions),
-        }
-
-    def get_session_risk(
-        self,
-        session_id: str,
-        *,
-        limit: int = 100,
-        since_seconds: Optional[int] = None,
-    ) -> dict[str, Any]:
-        session = self._sessions.get(session_id)
-        if session is None:
-            return {
-                "session_id": session_id,
-                "current_risk_level": "low",
-                "cumulative_score": 0,
-                "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
-                "risk_timeline": [],
-                "risk_hints_seen": [],
-                "tools_used": [],
-                "actual_tier_distribution": {},
-            }
-
-        timeline = list(session["risk_timeline"])
-        if since_seconds is not None and since_seconds > 0:
-            cutoff = time.time() - since_seconds
-            timeline = [item for item in timeline if float(item.get("occurred_at_ts", 0.0)) >= cutoff]
-        effective_limit = min(max(limit, 1), 1000)
-        timeline = timeline[-effective_limit:]
-
-        return {
-            "session_id": session_id,
-            "current_risk_level": session["current_risk_level"],
-            "cumulative_score": session["cumulative_score"],
-            "dimensions_latest": dict(session["dimensions_latest"]),
-            "risk_timeline": [
-                {
-                    "event_id": item["event_id"],
-                    "occurred_at": item["occurred_at"],
-                    "risk_level": item["risk_level"],
-                    "composite_score": item["composite_score"],
-                    "tool_name": item["tool_name"],
-                    "decision": item["decision"],
-                }
-                for item in timeline
-            ],
-            "risk_hints_seen": sorted(session["risk_hints_seen"]),
-            "tools_used": sorted(session["tools_used"]),
-            "actual_tier_distribution": dict(session["actual_tier_distribution"]),
-        }
-
-
-class EventBus:
-    """In-process event bus for SSE stream subscribers."""
-
-    MAX_SUBSCRIBERS = 100
-    MAX_QUEUE_SIZE = 500
-    REPLAY_BUFFER_SIZE = 50
-
-    def __init__(self) -> None:
-        self._subscribers: dict[str, dict[str, Any]] = {}
-        self._replay_buffer: deque = deque(maxlen=self.REPLAY_BUFFER_SIZE)
-
-    def subscribe(
-        self,
-        *,
-        session_id: Optional[str] = None,
-        min_risk: Optional[str] = None,
-        event_types: Optional[set[str]] = None,
-    ) -> tuple[Optional[str], Optional[asyncio.Queue]]:
-        if len(self._subscribers) >= self.MAX_SUBSCRIBERS:
-            return None, None
-
-        subscriber_id = f"sub-{uuid.uuid4().hex}"
-        queue: asyncio.Queue = asyncio.Queue(maxsize=self.MAX_QUEUE_SIZE)
-        subscriber = {
-            "queue": queue,
-            "session_id": session_id,
-            "min_risk": min_risk,
-            "event_types": event_types or {"decision", "session_risk_change", "session_start", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_evolved", "defer_pending", "defer_resolved"},
-        }
-        self._subscribers[subscriber_id] = subscriber
-
-        # Replay recent events to new subscriber
-        for event in self._replay_buffer:
-            if self._matches(subscriber, event):
-                try:
-                    queue.put_nowait(event)
-                except asyncio.QueueFull:
-                    break
-
-        return subscriber_id, queue
-
-    def unsubscribe(self, subscriber_id: str) -> None:
-        self._subscribers.pop(subscriber_id, None)
-
-    def _matches(self, subscriber: dict[str, Any], event: dict[str, Any]) -> bool:
-        event_type = str(event.get("type") or "")
-        if event_type not in subscriber["event_types"]:
-            return False
-        if subscriber.get("session_id") and event.get("session_id") != subscriber["session_id"]:
-            return False
-        if subscriber.get("min_risk"):
-            event_risk = str(event.get("risk_level") or event.get("current_risk") or "low")
-            if _risk_rank(event_risk) < _risk_rank(subscriber["min_risk"]):
-                return False
-        return True
-
-    def broadcast(self, event: dict[str, Any]) -> None:
-        self._replay_buffer.append(event)
-        for sub_id, subscriber in list(self._subscribers.items()):
-            if not self._matches(subscriber, event):
-                continue
-            queue = subscriber["queue"]
-            if queue.full():
-                try:
-                    queue.get_nowait()
-                    subscriber["dropped_count"] = subscriber.get("dropped_count", 0) + 1
-                    logger.warning(
-                        "EventBus: dropped oldest event for subscriber %s (total dropped: %d)",
-                        sub_id,
-                        subscriber["dropped_count"],
-                    )
-                except asyncio.QueueEmpty:
-                    pass
-            try:
-                queue.put_nowait(event)
-            except asyncio.QueueFull:
-                pass
-
-
-# ---------------------------------------------------------------------------
-# Alert Registry
-# ---------------------------------------------------------------------------
-
-class AlertRegistry:
-    """In-memory store for triggered alerts with acknowledgement support."""
-
-    MAX_ALERTS = 5_000
-    VALID_SEVERITIES = {"low", "medium", "high", "critical"}
-
-    def __init__(self) -> None:
-        self._alerts: dict[str, dict[str, Any]] = {}  # alert_id -> alert record
-
-    def add(self, alert: dict[str, Any]) -> None:
-        """Insert a new alert, evicting the oldest entry when the cap is reached."""
-        if len(self._alerts) >= self.MAX_ALERTS:
-            oldest = next(iter(self._alerts))
-            del self._alerts[oldest]
-        alert_id = str(alert.get("alert_id") or "")
-        if alert_id:
-            self._alerts[alert_id] = alert
-
-    def list_alerts(
-        self,
-        *,
-        severity: Optional[str] = None,
-        acknowledged: Optional[bool] = None,
-        since_seconds: Optional[int] = None,
-        limit: int = 100,
-    ) -> dict[str, Any]:
-        alerts = list(self._alerts.values())
-        if since_seconds is not None and since_seconds > 0:
-            cutoff = time.time() - since_seconds
-            alerts = [a for a in alerts if float(a.get("triggered_at_ts", 0.0)) >= cutoff]
-        if severity is not None:
-            alerts = [a for a in alerts if a.get("severity") == severity]
-        if acknowledged is not None:
-            alerts = [a for a in alerts if a.get("acknowledged", False) == acknowledged]
-        alerts.sort(key=lambda a: float(a.get("triggered_at_ts", 0.0)), reverse=True)
-        effective_limit = min(max(limit, 1), 1000)
-        serialized = [
-            {
-                "alert_id": a["alert_id"],
-                "severity": a["severity"],
-                "metric": a["metric"],
-                "session_id": a.get("session_id"),
-                "message": a["message"],
-                "details": a.get("details", {}),
-                "triggered_at": a["triggered_at"],
-                "acknowledged": a.get("acknowledged", False),
-                "acknowledged_by": a.get("acknowledged_by"),
-                "acknowledged_at": a.get("acknowledged_at"),
-            }
-            for a in alerts[:effective_limit]
-        ]
-        total_unacknowledged = sum(
-            1 for a in self._alerts.values() if not a.get("acknowledged", False)
-        )
-        return {
-            "alerts": serialized,
-            "total_unacknowledged": total_unacknowledged,
-        }
-
-    def acknowledge(self, alert_id: str, acknowledged_by: str) -> Optional[dict[str, Any]]:
-        """Mark an alert as acknowledged. Returns updated alert or None if not found."""
-        alert = self._alerts.get(alert_id)
-        if alert is None:
-            return None
-        alert["acknowledged"] = True
-        alert["acknowledged_by"] = acknowledged_by
-        alert["acknowledged_at"] = utc_now_iso()
-        return {
-            "alert_id": alert["alert_id"],
-            "acknowledged": True,
-            "acknowledged_by": alert["acknowledged_by"],
-            "acknowledged_at": alert["acknowledged_at"],
-        }
-
+# TrajectoryStore, SessionRegistry, EventBus, AlertRegistry are in separate modules.
+# Imported above from .trajectory_store, .session_registry, .event_bus, .alert_registry
 
 # ---------------------------------------------------------------------------
 # Gateway Core
@@ -1061,6 +215,7 @@ class SupervisionGateway:
         self.defer_manager = DeferManager(
             timeout_action=self._detection_config.defer_timeout_action,
             timeout_s=self._detection_config.defer_timeout_s,
+            max_pending=self._detection_config.defer_max_pending,
         )
         # E-5: Self-evolving pattern repository
         self.evolution_manager = PatternEvolutionManager(
@@ -1108,6 +263,44 @@ class SupervisionGateway:
             )
 
         return await self._handle_sync_decision(rpc_id, params)
+
+    async def _run_post_action_async(
+        self,
+        output_text: str,
+        tool_name: str,
+        event_id: str,
+        session_id: str,
+        source_framework: str | None,
+        content_origin: str | None,
+        external_multiplier: float,
+        occurred_at: str,
+    ) -> None:
+        """Run post-action analysis in background, broadcast finding if needed."""
+        try:
+            loop = asyncio.get_running_loop()
+            finding = await loop.run_in_executor(
+                None,
+                lambda: self.post_action_analyzer.analyze(
+                    tool_output=output_text,
+                    tool_name=tool_name,
+                    event_id=event_id,
+                    content_origin=content_origin,
+                    external_multiplier=external_multiplier,
+                ),
+            )
+            if finding.tier.value != "log_only":
+                self.event_bus.broadcast({
+                    "type": "post_action_finding",
+                    "event_id": event_id,
+                    "session_id": session_id,
+                    "source_framework": source_framework,
+                    "tier": finding.tier.value,
+                    "patterns_matched": finding.patterns_matched,
+                    "score": finding.score,
+                    "timestamp": occurred_at,
+                })
+        except Exception:
+            logger.exception("post-action analysis failed for event %s", event_id)
 
     async def _handle_sync_decision(
         self, rpc_id: Any, params: dict[str, Any]
@@ -1418,38 +611,26 @@ class SupervisionGateway:
                 }
             )
 
-        # --- E-4: Post-action security analysis ---
+        # --- E-4: Post-action security analysis (fire-and-forget) ---
         if req.event.event_type == EventType.POST_ACTION:
-            try:
-                output_text = str(
-                    req.event.payload.get("output", "")
-                    or req.event.payload.get("result", "")
-                    or ""
-                )
-                if output_text:
-                    # E-8: Extract content origin for post-action multiplier
-                    _pa_meta = (req.event.payload or {}).get("_clawsentry_meta") or {}
-                    _pa_origin = _pa_meta.get("content_origin") if isinstance(_pa_meta, dict) else None
-                    finding = self.post_action_analyzer.analyze(
-                        tool_output=output_text,
-                        tool_name=req.event.tool_name or "unknown",
-                        event_id=req.event.event_id,
-                        content_origin=_pa_origin,
-                        external_multiplier=(project_config or self._detection_config).external_content_post_action_multiplier,
-                    )
-                    if finding.tier.value != "log_only":
-                        self.event_bus.broadcast({
-                            "type": "post_action_finding",
-                            "event_id": req.event.event_id,
-                            "session_id": session_id,
-                            "source_framework": req.event.source_framework,
-                            "tier": finding.tier.value,
-                            "patterns_matched": finding.patterns_matched,
-                            "score": finding.score,
-                            "timestamp": occurred_at,
-                        })
-            except Exception:
-                logger.exception("post-action analysis failed for event %s", req.event.event_id)
+            output_text = str(
+                req.event.payload.get("output", "")
+                or req.event.payload.get("result", "")
+                or ""
+            )
+            if output_text:
+                _pa_meta = (req.event.payload or {}).get("_clawsentry_meta") or {}
+                _pa_origin = _pa_meta.get("content_origin") if isinstance(_pa_meta, dict) else None
+                asyncio.create_task(self._run_post_action_async(
+                    output_text=output_text,
+                    tool_name=req.event.tool_name or "unknown",
+                    event_id=req.event.event_id,
+                    session_id=session_id,
+                    source_framework=req.event.source_framework,
+                    content_origin=_pa_origin,
+                    external_multiplier=(project_config or self._detection_config).external_content_post_action_multiplier,
+                    occurred_at=occurred_at,
+                ))
 
         # --- E-5: Extract candidate pattern from confirmed high-risk events ---
         if (
@@ -1479,59 +660,70 @@ class SupervisionGateway:
             and not enforcement_applied
         ):
             defer_id = f"cs-defer-{uuid.uuid4().hex[:12]}"
-            self.defer_manager.register_defer(defer_id)
-            self.metrics.defer_registered()
-
-            # Broadcast defer_pending event
-            _defer_timeout = (project_config or self._detection_config).defer_timeout_s
-            self.event_bus.broadcast({
-                "type": "defer_pending",
-                "session_id": session_id,
-                "approval_id": defer_id,
-                "tool_name": req.event.tool_name or "",
-                "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
-                "reason": str(decision_dict.get("reason") or ""),
-                "timeout_s": _defer_timeout,
-                "timestamp": occurred_at,
-            })
-
-            # Wait for operator resolution
-            _resolved_decision, _resolved_reason = await self.defer_manager.wait_for_resolution(defer_id)
-
-            # Convert to final CanonicalDecision
-            if _resolved_decision in ("allow", "allow-once"):
-                decision = CanonicalDecision(
-                    decision=DecisionVerdict.ALLOW,
-                    reason=f"Operator approved: {_resolved_reason}" if _resolved_reason else "Operator approved",
-                    policy_id="defer-bridge",
-                    risk_level=decision.risk_level,
-                    decision_source=DecisionSource.OPERATOR,
-                    final=True,
-                )
-            else:
+            if not self.defer_manager.register_defer(defer_id):
+                # Queue full — fall back to block
                 decision = CanonicalDecision(
                     decision=DecisionVerdict.BLOCK,
-                    reason=f"Operator denied: {_resolved_reason}" if _resolved_reason else "Operator denied",
+                    reason=f"DEFER queue full ({self.defer_manager.max_pending}), blocking",
                     policy_id="defer-bridge",
                     risk_level=decision.risk_level,
-                    decision_source=DecisionSource.OPERATOR,
+                    decision_source=DecisionSource.POLICY,
                     final=True,
                 )
+                decision_dict = decision.model_dump(mode="json")
+            else:
+                self.metrics.defer_registered()
 
-            # Update dict for response
-            decision_dict = decision.model_dump(mode="json")
+                # Broadcast defer_pending event
+                _defer_timeout = (project_config or self._detection_config).defer_timeout_s
+                self.event_bus.broadcast({
+                    "type": "defer_pending",
+                    "session_id": session_id,
+                    "approval_id": defer_id,
+                    "tool_name": req.event.tool_name or "",
+                    "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
+                    "reason": str(decision_dict.get("reason") or ""),
+                    "timeout_s": _defer_timeout,
+                    "timestamp": occurred_at,
+                })
 
-            self.metrics.defer_resolved()
+                # Wait for operator resolution
+                _resolved_decision, _resolved_reason = await self.defer_manager.wait_for_resolution(defer_id)
 
-            # Broadcast defer_resolved event
-            self.event_bus.broadcast({
-                "type": "defer_resolved",
-                "session_id": session_id,
-                "approval_id": defer_id,
-                "resolved_decision": decision_dict["decision"],
-                "resolved_reason": decision_dict["reason"],
-                "timestamp": utc_now_iso(),
-            })
+                # Convert to final CanonicalDecision
+                if _resolved_decision in ("allow", "allow-once"):
+                    decision = CanonicalDecision(
+                        decision=DecisionVerdict.ALLOW,
+                        reason=f"Operator approved: {_resolved_reason}" if _resolved_reason else "Operator approved",
+                        policy_id="defer-bridge",
+                        risk_level=decision.risk_level,
+                        decision_source=DecisionSource.OPERATOR,
+                        final=True,
+                    )
+                else:
+                    decision = CanonicalDecision(
+                        decision=DecisionVerdict.BLOCK,
+                        reason=f"Operator denied: {_resolved_reason}" if _resolved_reason else "Operator denied",
+                        policy_id="defer-bridge",
+                        risk_level=decision.risk_level,
+                        decision_source=DecisionSource.OPERATOR,
+                        final=True,
+                    )
+
+                # Update dict for response
+                decision_dict = decision.model_dump(mode="json")
+
+                self.metrics.defer_resolved()
+
+                # Broadcast defer_resolved event
+                self.event_bus.broadcast({
+                    "type": "defer_resolved",
+                    "session_id": session_id,
+                    "approval_id": defer_id,
+                    "resolved_decision": decision_dict["decision"],
+                    "resolved_reason": decision_dict["reason"],
+                    "timestamp": utc_now_iso(),
+                })
 
         # Check if we exceeded deadline (after recording + broadcasts, so
         # audit trail and SSE events are intact)

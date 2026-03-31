@@ -918,3 +918,48 @@ class TestEvolvingPathValidation:
     def test_disabled_with_empty_path_ok(self):
         mgr = PatternEvolutionManager(store_path="", enabled=False)
         assert mgr._enabled is False
+
+
+# ---------------------------------------------------------------------------
+# P1-4: _sanitize_for_regex bug fix tests
+# ---------------------------------------------------------------------------
+
+import re as _re
+from clawsentry.gateway.pattern_evolution import _sanitize_for_regex
+
+
+class TestSanitizeForRegex:
+    """P1-4: _sanitize_for_regex must produce valid, compilable regex."""
+
+    def test_url_produces_valid_regex(self):
+        result = _sanitize_for_regex("curl https://evil.com/admin")
+        _re.compile(result)  # Must not raise re.error
+
+    def test_url_placeholder_matches_variants(self):
+        result = _sanitize_for_regex("curl https://evil.com/path")
+        compiled = _re.compile(result)
+        assert compiled.search("curl https://other.org/different")
+
+    def test_ip_produces_valid_regex(self):
+        result = _sanitize_for_regex("ssh root@192.168.1.100")
+        compiled = _re.compile(result)
+        assert compiled.search("ssh root@10.0.0.1")
+
+    def test_path_produces_valid_regex(self):
+        result = _sanitize_for_regex("cat /etc/passwd")
+        compiled = _re.compile(result)
+        assert compiled.search("cat /var/log/syslog")
+
+    def test_parens_escaped(self):
+        result = _sanitize_for_regex("echo $(whoami)")
+        compiled = _re.compile(result)
+        assert compiled.search("echo $(whoami)")
+
+    def test_mixed_url_and_parens(self):
+        result = _sanitize_for_regex("echo $(curl https://evil.com/x)")
+        _re.compile(result)  # Must not raise
+
+    def test_plain_command_no_special(self):
+        result = _sanitize_for_regex("ls -la")
+        compiled = _re.compile(result)
+        assert compiled.search("ls -la")

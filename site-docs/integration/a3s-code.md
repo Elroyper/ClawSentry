@@ -351,9 +351,9 @@ AHP_SESSION_ENFORCEMENT_THRESHOLD=3 \
   clawsentry gateway
 
 # 启用 LLM 语义分析（L2）
-AHP_LLM_PROVIDER=openai \
-AHP_LLM_BASE_URL=https://api.openai.com/v1 \
-AHP_LLM_MODEL=gpt-4o \
+CS_LLM_PROVIDER=openai \
+CS_LLM_BASE_URL=https://api.openai.com/v1 \
+CS_LLM_MODEL=gpt-4o \
   clawsentry gateway
 
 # 启用 SSL/TLS

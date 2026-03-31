@@ -357,6 +357,10 @@ class CompositeAnalyzer:
         ids = ",".join(a.analyzer_id for a in self._analyzers)
         return f"composite({ids})"
 
+    # L2 result is "decisive" if HIGH+ risk with >= this confidence threshold.
+    # When decisive, subsequent analyzers (L3) are skipped to save LLM budget.
+    L2_DECISIVE_CONFIDENCE = 0.8
+
     async def analyze(
         self,
         event: CanonicalEvent,
@@ -365,22 +369,61 @@ class CompositeAnalyzer:
         budget_ms: float,
     ) -> L2Result:
         start = time.monotonic()
-        tasks = [
-            a.analyze(event, context, l1_snapshot, budget_ms)
-            for a in self._analyzers
-        ]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        if not self._analyzers:
+            elapsed_ms = (time.monotonic() - start) * 1000
+            return L2Result(
+                target_level=l1_snapshot.risk_level,
+                reasons=["No analyzers configured"],
+                confidence=0.0,
+                analyzer_id=self.analyzer_id,
+                latency_ms=round(elapsed_ms, 3),
+            )
+
+        # --- Phase 1: Run first analyzer (L2 — fast) ---
+        first = self._analyzers[0]
+        l3_trace: Optional[dict] = None
+
+        try:
+            first_result = await first.analyze(event, context, l1_snapshot, budget_ms)
+        except Exception:
+            first_result = L2Result(
+                target_level=l1_snapshot.risk_level,
+                reasons=[f"{first.analyzer_id} failed"],
+                confidence=0.0,
+                analyzer_id=first.analyzer_id,
+                latency_ms=0.0,
+            )
+
+        if first_result.trace is not None:
+            l3_trace = first_result.trace
 
         valid: list[L2Result] = []
-        l3_trace: Optional[dict] = None  # CS-015: collect L3 trace separately
+        if first_result.confidence > 0.0:
+            valid.append(first_result)
 
-        for r in raw_results:
-            if isinstance(r, L2Result):
-                # Preserve L3 trace from any analyzer, even degraded ones
-                if r.trace is not None and l3_trace is None:
-                    l3_trace = r.trace
-                if r.confidence > 0.0:
-                    valid.append(r)
+        # --- Phase 2: Run subsequent analyzers only if L2 was NOT decisive ---
+        l2_decisive = (
+            first_result.confidence >= self.L2_DECISIVE_CONFIDENCE
+            and RISK_LEVEL_ORDER.get(first_result.target_level, 0)
+            >= RISK_LEVEL_ORDER[RiskLevel.HIGH]
+        )
+
+        if not l2_decisive and len(self._analyzers) > 1:
+            elapsed_so_far = (time.monotonic() - start) * 1000
+            remaining_budget = max(0, budget_ms - elapsed_so_far)
+
+            follow_up_tasks = [
+                a.analyze(event, context, l1_snapshot, remaining_budget)
+                for a in self._analyzers[1:]
+            ]
+            raw = await asyncio.gather(*follow_up_tasks, return_exceptions=True)
+            for r in raw:
+                if isinstance(r, L2Result):
+                    if r.trace is not None and l3_trace is None:
+                        l3_trace = r.trace
+                    if r.confidence > 0.0:
+                        valid.append(r)
 
         elapsed_ms = (time.monotonic() - start) * 1000
 

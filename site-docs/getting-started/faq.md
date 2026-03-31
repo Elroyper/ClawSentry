@@ -83,9 +83,9 @@ ClawSentry 通过环境变量配置 LLM Provider，支持以下选项：
 === "OpenAI / 兼容 API"
 
     ```bash
-    AHP_LLM_PROVIDER=openai
-    AHP_LLM_BASE_URL=https://api.openai.com/v1
-    AHP_LLM_MODEL=gpt-4
+    CS_LLM_PROVIDER=openai
+    CS_LLM_BASE_URL=https://api.openai.com/v1
+    CS_LLM_MODEL=gpt-4
     OPENAI_API_KEY=sk-your-key-here
     ```
 
@@ -93,14 +93,14 @@ ClawSentry 通过环境变量配置 LLM Provider，支持以下选项：
 
     - OpenAI GPT-4 / GPT-4o
     - Azure OpenAI Service
-    - 本地部署的 vLLM / Ollama（设置 `AHP_LLM_BASE_URL` 即可）
+    - 本地部署的 vLLM / Ollama（设置 `CS_LLM_BASE_URL` 即可）
     - 其他 OpenAI 兼容代理
 
 === "Anthropic Claude"
 
     ```bash
-    AHP_LLM_PROVIDER=anthropic
-    AHP_LLM_MODEL=claude-sonnet-4-20250514
+    CS_LLM_PROVIDER=anthropic
+    CS_LLM_MODEL=claude-sonnet-4-20250514
     ANTHROPIC_API_KEY=sk-ant-your-key-here
     ```
 
@@ -146,7 +146,7 @@ export CS_TRAJECTORY_DB_PATH=/path/to/custom.db
 | L3 推理过程 | 审查 Agent 的多轮对话和工具调用记录 |
 | 告警记录 | 触发的安全告警及确认状态 |
 
-数据会根据 `CS_TRAJECTORY_RETENTION_SECONDS` 配置进行自动清理（默认保留 7 天）。
+数据会根据 `CS_TRAJECTORY_RETENTION_SECONDS` 配置进行自动清理（默认保留 30 天）。
 
 ---
 

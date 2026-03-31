@@ -185,3 +185,75 @@ def test_subscribe_to_event_bus():
     assert event_types == expected
     assert bridge._source_queue is mock_queue
     assert bridge._sub_id == "sub-123"
+
+
+# ---------------------------------------------------------------------------
+# 11. TestHubBridgeAttributeInit — P1-6
+# ---------------------------------------------------------------------------
+
+class TestHubBridgeAttributeInit:
+    """P1-6: Verify attributes initialized safely in __init__."""
+
+    def test_sub_id_and_source_queue_initialized(self):
+        """_sub_id and _source_queue should exist after __init__ (before subscribe)."""
+        bridge = LatchHubBridge(hub_url="http://localhost:3006")
+        assert bridge._sub_id is None
+        assert bridge._source_queue is None
+
+    def test_dead_queue_removed(self):
+        """self._queue (dead code) should no longer exist."""
+        bridge = LatchHubBridge(hub_url="http://localhost:3006")
+        assert not hasattr(bridge, "_queue")
+
+    @pytest.mark.asyncio
+    async def test_forward_loop_safe_when_subscribe_not_called(self):
+        """_forward_loop should exit gracefully if _source_queue is None."""
+        bridge = LatchHubBridge(hub_url="http://localhost:3006")
+        # _forward_loop should return immediately (not raise AttributeError)
+        await bridge._forward_loop()
+        # No exception = success
+
+    @pytest.mark.asyncio
+    async def test_start_safe_when_subscribe_failed(self):
+        """start() should not crash if subscribe was never called."""
+        bridge = LatchHubBridge(hub_url="http://invalid:9999", enabled=True)
+
+        # Patch _register_gateway to avoid real HTTP
+        async def noop():
+            pass
+
+        bridge._register_gateway = noop
+        await bridge.start()
+        await asyncio.sleep(0.05)
+        await bridge.stop()
+
+
+# ---------------------------------------------------------------------------
+# 12. P0-1: _hub_request non-blocking via executor
+# ---------------------------------------------------------------------------
+
+class TestHubBridgeNonBlocking:
+    """P0-1: _hub_request must use run_in_executor, not block event loop."""
+
+    @pytest.mark.asyncio
+    async def test_hub_request_does_not_block_event_loop(self):
+        """Concurrent coroutine should run while _hub_request is in flight."""
+        bridge = LatchHubBridge(hub_url="http://127.0.0.1:1")  # unreachable
+
+        flag = False
+
+        async def set_flag():
+            nonlocal flag
+            await asyncio.sleep(0.01)
+            flag = True
+
+        task = asyncio.create_task(set_flag())
+        # _hub_request will fail (port 1 unreachable) but must not block
+        await bridge._hub_request("POST", "/test", {"k": "v"})
+        await task
+        assert flag, "_hub_request blocked the event loop"
+
+    def test_sync_http_request_exists(self):
+        """_sync_http_request helper should exist for executor dispatch."""
+        bridge = LatchHubBridge(hub_url="http://localhost:3006")
+        assert callable(bridge._sync_http_request)

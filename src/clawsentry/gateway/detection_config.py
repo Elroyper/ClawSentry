@@ -69,6 +69,7 @@ class DetectionConfig:
     defer_timeout_action: str = "block"   # "block" or "allow"
     defer_timeout_s: float = 300.0        # 5 minutes default
     defer_bridge_enabled: bool = True     # Enable DEFER→operator bridge
+    defer_max_pending: int = 100          # Max concurrent pending DEFERs (0 = unlimited)
 
     # --- P3: LLM daily budget ---
     llm_daily_budget_usd: float = 0.0    # 0 = unlimited
@@ -154,6 +155,7 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_D4_FREQ_RATE_LIMIT_PER_MIN", "d4_freq_rate_limit_per_min", int),
     ("CS_DEFER_TIMEOUT_ACTION", "defer_timeout_action", str),
     ("CS_DEFER_TIMEOUT_S", "defer_timeout_s", float),
+    ("CS_DEFER_MAX_PENDING", "defer_max_pending", int),
     ("CS_LLM_DAILY_BUDGET_USD", "llm_daily_budget_usd", float),
 ]
 

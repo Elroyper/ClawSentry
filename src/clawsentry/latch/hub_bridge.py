@@ -44,7 +44,8 @@ class LatchHubBridge:
         )
         self._gateway_token = gateway_token or os.environ.get("CS_AUTH_TOKEN", "")
         self._session_map: dict[str, str] = {}  # cs session_id -> hub session id
-        self._queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=1000)
+        self._sub_id: str | None = None
+        self._source_queue: asyncio.Queue | None = None
         self._task: Optional[asyncio.Task] = None
 
     def subscribe(self, event_bus) -> None:
@@ -93,6 +94,9 @@ class LatchHubBridge:
 
     async def _forward_loop(self) -> None:
         """Read events from source queue and forward to Hub."""
+        if self._source_queue is None:
+            logger.warning("Hub bridge: no source queue (subscribe not called?)")
+            return
         while True:
             try:
                 event = await self._source_queue.get()
@@ -206,7 +210,30 @@ class LatchHubBridge:
         path: str,
         body: dict[str, Any],
     ) -> Optional[dict[str, Any]]:
-        """Make an HTTP request to Hub with retry."""
+        """Make an HTTP request to Hub (non-blocking via executor)."""
+        loop = asyncio.get_running_loop()
+        for attempt in range(2):
+            try:
+                result = await loop.run_in_executor(
+                    None, self._sync_http_request, method, path, body,
+                )
+                return result
+            except Exception as exc:
+                if attempt == 0:
+                    logger.debug("Hub request failed (attempt 1): %s", exc)
+                    await asyncio.sleep(0.5)
+                else:
+                    logger.debug("Hub request failed (attempt 2): %s", exc)
+                    return None
+        return None
+
+    def _sync_http_request(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any],
+    ) -> Optional[dict[str, Any]]:
+        """Synchronous HTTP helper — runs in thread pool via executor."""
         import urllib.request
         import urllib.error
 
@@ -216,22 +243,12 @@ class LatchHubBridge:
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
 
-        for attempt in range(2):
+        req = urllib.request.Request(
+            url, data=data, headers=headers, method=method,
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            resp_data = resp.read().decode("utf-8")
             try:
-                req = urllib.request.Request(
-                    url, data=data, headers=headers, method=method,
-                )
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    resp_data = resp.read().decode("utf-8")
-                    try:
-                        return json.loads(resp_data)
-                    except json.JSONDecodeError:
-                        return {}
-            except (OSError, urllib.error.URLError) as exc:
-                if attempt == 0:
-                    logger.debug("Hub request failed (attempt 1): %s", exc)
-                    await asyncio.sleep(0.5)
-                else:
-                    logger.debug("Hub request failed (attempt 2): %s", exc)
-                    return None
-        return None
+                return json.loads(resp_data)
+            except json.JSONDecodeError:
+                return {}

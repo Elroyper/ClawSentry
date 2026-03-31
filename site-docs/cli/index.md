@@ -177,7 +177,7 @@ Gateway 的 stdout/stderr 输出会写入临时日志文件：
 
 ## clawsentry init
 
-初始化框架集成配置。根据目标框架生成 `.env` 配置文件和所需的设置文件。
+初始化框架集成配置。根据目标框架生成 `.env.clawsentry` 配置文件和所需的设置文件。
 
 ### 语法
 
@@ -216,14 +216,14 @@ clawsentry init a3s-code
     [clawsentry] a3s-code integration initialized
 
       Files created:
-        .env
+        .env.clawsentry
 
       Environment variables:
         CS_UDS_PATH=/tmp/clawsentry.sock
         CS_AUTH_TOKEN=xK7m9p2QaB3...（自动生成 32 字符令牌）
 
       Next steps:
-        1. source .env
+        1. source .env.clawsentry
         2. clawsentry gateway    # starts on UDS + HTTP port 8080
         3. Configure a3s-code AHP transport:
           program: "clawsentry-harness"
@@ -236,7 +236,7 @@ clawsentry init a3s-code
 clawsentry init openclaw --auto-detect
 ```
 
-此命令会从 `~/.openclaw/openclaw.json` 中读取 `gateway.auth.token`，并自动填入 `.env` 文件。
+此命令会从 `~/.openclaw/openclaw.json` 中读取 `gateway.auth.token`，并自动填入 `.env.clawsentry` 文件。
 
 #### 自动配置 OpenClaw + 预览变更
 
@@ -249,7 +249,7 @@ clawsentry init openclaw --setup --dry-run
     [clawsentry] openclaw integration initialized
 
       Files created:
-        .env
+        .env.clawsentry
 
       Environment variables:
         OPENCLAW_WS_URL=ws://127.0.0.1:18789
@@ -257,7 +257,7 @@ clawsentry init openclaw --setup --dry-run
         CS_AUTH_TOKEN=xK7m9p2QaB3...
 
       Next steps:
-        1. source .env
+        1. source .env.clawsentry
         2. clawsentry gateway
         3. clawsentry watch
 

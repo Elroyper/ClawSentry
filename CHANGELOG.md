@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 修复
+
+#### P0+P1 审查修复（9 commits, +25 tests）
+
+- **Hub Bridge 异步化 (P0-1)**：`LatchHubBridge._hub_request` 从同步 `urllib.request` 改为 `run_in_executor`，不再阻塞 Gateway 事件循环
+- **server.py 拆分 (P0-2)**：提取 `TrajectoryStore` / `SessionRegistry` / `EventBus` / `AlertRegistry` 为独立模块，server.py 从 2580→1734 行
+- **文档修正 (P0-3)**：修复 `site-docs/` 中 6 项文档-代码不一致 — `AHP_LLM_*` → `CS_LLM_*`、`settings.local.json` → `settings.json`、`watch --port` → `--gateway-url`、`gateway --setup` → `init openclaw --setup`、`.env` → `.env.clawsentry`、FAQ 保留期 7→30 天
+- **L2→L3 递进分析 (P1-1)**：`CompositeAnalyzer` 改为顺序执行 — L2 先行，仅当 L2 信心 < 0.8 或风险 < HIGH 时触发 L3，节省不必要的 LLM 调用
+- **Post-action 异步 (P1-2)**：后置分析改为 `asyncio.create_task` fire-and-forget，不阻塞请求返回
+- **L2 线程池共享 (P1-3)**：`L1PolicyEngine` 共享 `ThreadPoolExecutor(max_workers=2)`，不再每次 L2 分析创建新线程池
+- **Regex 转义重写 (P1-4)**：`_sanitize_for_regex` 改用 marker-based 方法，先替换为占位符→ re.escape 全文→恢复 regex 片段，修复原逻辑 regex 损坏问题
+- **DEFER 队列上限 (P1-5)**：`DeferManager` 新增 `max_pending` 参数（默认 100），队列满时拒绝新 DEFER 并回退为 BLOCK，防止无限堆积
+- **Hub Bridge 初始化修复 (P1-6)**：`LatchHubBridge.__init__` 正确初始化 `_sub_id` / `_source_queue`，移除未使用的 `_queue` 属性
+
+### 测试覆盖
+
+- 测试总量：2144 → 2169（+25 tests, 0 regressions）
+
 ---
 
 ## [0.3.0] — 2026-03-31

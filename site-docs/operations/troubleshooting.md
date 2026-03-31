@@ -243,10 +243,10 @@ description: ClawSentry 常见问题诊断与解决方案
     }
     ```
 
-    可以使用 `clawsentry gateway --setup` 自动配置：
+    可以使用 `clawsentry init openclaw --setup` 自动配置：
     ```bash
-    clawsentry gateway --setup --dry-run  # 预览变更
-    clawsentry gateway --setup            # 应用配置
+    clawsentry init openclaw --setup --dry-run  # 预览变更
+    clawsentry init openclaw --setup            # 应用配置
     ```
 
 ---
@@ -360,7 +360,7 @@ description: ClawSentry 常见问题诊断与解决方案
 
     1. **端口不匹配**：`clawsentry watch` 默认连接 `localhost:8080`。如果 Gateway 使用了自定义端口：
        ```bash
-       clawsentry watch --port 9090
+       clawsentry watch --gateway-url http://127.0.0.1:9090
        ```
 
     2. **Gateway 未启动**：先启动 Gateway

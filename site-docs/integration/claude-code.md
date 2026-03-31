@@ -26,7 +26,7 @@ sequenceDiagram
 
 ### 关键架构特征
 
-- **零侵入** — 通过 `~/.claude/settings.local.json` 注入 hooks，不修改 Claude Code 自身
+- **零侵入** — 通过 `~/.claude/settings.json` 注入 hooks，不修改 Claude Code 自身
 - **阻塞 + 异步混合** — `PreToolUse` 阻塞等待决策，`PostToolUse` / `SessionStart` / `SessionEnd` 异步审计
 - **双格式自动检测** — harness 自动识别 Claude Code 原生 hook JSON 与 JSON-RPC 2.0 格式
 - **DEFER 超时策略** — 可配置超时后自动 block 或 allow，避免无人审批时无限阻塞
@@ -65,7 +65,7 @@ clawsentry init claude-code
 此命令会自动：
 
 - 生成 **`.env.clawsentry`** — 包含 UDS 路径、认证 Token 和框架标识（权限 `600`）
-- 注入 hooks 到 **`~/.claude/settings.local.json`** — 智能合并，不覆盖已有 hooks
+- 注入 hooks 到 **`~/.claude/settings.json`** — 智能合并，不覆盖已有 hooks
 
 生成的 `.env.clawsentry` 内容示例：
 
@@ -113,7 +113,7 @@ claude   # hooks 自动加载，所有工具调用经过 ClawSentry 评估
 
 ### Hook 注入机制
 
-ClawSentry 在 `~/.claude/settings.local.json` 中注入以下 hook 配置：
+ClawSentry 在 `~/.claude/settings.json` 中注入以下 hook 配置：
 
 ```json
 {
@@ -167,7 +167,7 @@ ClawSentry 在 `~/.claude/settings.local.json` 中注入以下 hook 配置：
 ```
 
 !!! note "智能合并"
-    如果 `settings.local.json` 中已有其他 hooks（如其他工具的 hooks），ClawSentry 会**追加**而非覆盖，确保不影响已有配置。若检测到 ClawSentry hooks 已存在，则跳过该 hook 类型。
+    如果 `settings.json` 中已有其他 hooks（如其他工具的 hooks），ClawSentry 会**追加**而非覆盖，确保不影响已有配置。若检测到 ClawSentry hooks 已存在，则跳过该 hook 类型。
 
 ### Hook 事件类型
 
@@ -333,7 +333,7 @@ clawsentry start --framework claude-code --no-watch
 !!! note "自动检测"
     如果省略 `--framework`，ClawSentry 会自动检测：
 
-    1. 检查 `~/.claude/settings.local.json` 中是否包含 ClawSentry hooks
+    1. 检查 `~/.claude/settings.json` 中是否包含 ClawSentry hooks
     2. 检查当前目录 `.env.clawsentry` 中的 `CS_FRAMEWORK` 字段
     3. 检测到 `claude-code` 后自动使用对应配置
 
@@ -357,7 +357,7 @@ clawsentry init claude-code --uninstall
 
 此命令会：
 
-- 从 `~/.claude/settings.local.json` 中**精确移除** ClawSentry hooks
+- 从 `~/.claude/settings.json`（及旧版 `settings.local.json`）中**精确移除** ClawSentry hooks
 - 保留其他工具的 hooks 不受影响
 - 如果移除后 `hooks` 字段为空，自动清理该字段
 
@@ -385,8 +385,8 @@ curl http://127.0.0.1:8080/health
 ### 步骤 2: 确认 hooks 已注入
 
 ```bash
-# 检查 settings.local.json 中是否包含 ClawSentry hooks
-cat ~/.claude/settings.local.json | python -m json.tool
+# 检查 settings.json 中是否包含 ClawSentry hooks
+cat ~/.claude/settings.json | python -m json.tool
 ```
 
 预期输出中应包含 `clawsentry-harness` 相关的 hook 条目。
@@ -404,9 +404,9 @@ clawsentry doctor
 ## 故障排查
 
 ??? question "Claude Code 启动后 hooks 未生效"
-    1. 确认 `~/.claude/settings.local.json` 中包含 ClawSentry hooks：
+    1. 确认 `~/.claude/settings.json` 中包含 ClawSentry hooks：
        ```bash
-       cat ~/.claude/settings.local.json
+       cat ~/.claude/settings.json
        ```
     2. 确认 `clawsentry-harness` 在 PATH 中：
        ```bash

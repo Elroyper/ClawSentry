@@ -1164,3 +1164,29 @@ class TestReviewD3FalsePositives:
     def test_iptables_delete_chains_still_detects(self):
         from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("iptables -X")
+
+
+# ---------------------------------------------------------------------------
+# P1-3: Shared ThreadPoolExecutor tests
+# ---------------------------------------------------------------------------
+
+import concurrent.futures
+
+
+class TestL2SharedThreadPool:
+    """P1-3: L2 analysis must reuse a shared ThreadPoolExecutor."""
+
+    def test_engine_has_shared_pool(self):
+        engine = L1PolicyEngine()
+        assert hasattr(engine, "_l2_pool")
+        assert isinstance(engine._l2_pool, concurrent.futures.ThreadPoolExecutor)
+
+    def test_pool_reused_across_accesses(self):
+        engine = L1PolicyEngine()
+        pool = engine._l2_pool
+        assert engine._l2_pool is pool
+
+    def test_shutdown(self):
+        engine = L1PolicyEngine()
+        engine.shutdown()
+        assert engine._l2_pool._shutdown

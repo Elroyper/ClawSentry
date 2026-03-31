@@ -306,18 +306,45 @@ def _sanitize_for_regex(command: str) -> str:
     """Extract a sanitized regex pattern from a command string.
 
     Replaces specific values (URLs, IPs, paths) with generic placeholders
-    to produce a reusable pattern.
+    to produce a reusable pattern.  Uses a marker-based approach to avoid
+    corrupting regex metacharacters inside replacement fragments.
     """
-    pattern = _re.sub(r'https?://[^\s"\'|&;]+', r"https?://[^\\s]+", command)
-    pattern = _re.sub(
-        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',
-        r"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
-        pattern,
+    # Phase 1: Replace concrete values with unique markers
+    _placeholders: dict[str, str] = {}
+    _counter = 0
+
+    def _mark(match: _re.Match, replacement: str) -> str:
+        nonlocal _counter
+        key = f"__PH{_counter}__"
+        _counter += 1
+        _placeholders[key] = replacement
+        return key
+
+    tmp = command
+    tmp = _re.sub(
+        r'https?://[^\s"\'|&;]+',
+        lambda m: _mark(m, r"https?://\S+"),
+        tmp,
     )
-    pattern = _re.sub(r'/[\w./-]+', r"[\\w./-]+", pattern)
-    for ch in r"()[]{}*+?^$":
-        pattern = pattern.replace(ch, "\\" + ch)
-    return pattern
+    tmp = _re.sub(
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',
+        lambda m: _mark(m, r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"),
+        tmp,
+    )
+    tmp = _re.sub(
+        r'/[\w./-]+',
+        lambda m: _mark(m, r"[\w./-]+"),
+        tmp,
+    )
+
+    # Phase 2: Escape everything (markers become literal __PHN__)
+    escaped = _re.escape(tmp)
+
+    # Phase 3: Restore markers with actual regex fragments
+    for key, regex_frag in _placeholders.items():
+        escaped = escaped.replace(_re.escape(key), regex_frag)
+
+    return escaped
 
 
 def _infer_category(tool_name: str, command: str, reasons: list[str]) -> str:

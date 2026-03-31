@@ -757,3 +757,132 @@ async def test_composite_preserves_l3_trace_when_all_degraded():
     assert result.confidence == 0.0
     # But L3 trace should still be present
     assert result.trace is not None, "CS-015: L3 trace must survive even when all analyzers degrade"
+
+
+# ---------------------------------------------------------------------------
+# P1-1: CompositeAnalyzer sequential L2→L3 dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestCompositeAnalyzerSequential:
+    """P1-1: L3 should only run when L2 result is uncertain."""
+
+    @pytest.mark.asyncio
+    async def test_l3_skipped_when_l2_decisive(self):
+        """If L2 returns HIGH+ with high confidence, L3 should not run."""
+        l2_called = False
+        l3_called = False
+
+        class MockL2:
+            analyzer_id = "mock-l2"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l2_called
+                l2_called = True
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["L2 detected critical threat"],
+                    confidence=0.95,
+                    analyzer_id="mock-l2",
+                    latency_ms=10.0,
+                )
+
+        class MockL3:
+            analyzer_id = "mock-l3"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["L3 confirmed"],
+                    confidence=0.99,
+                    analyzer_id="mock-l3",
+                    latency_ms=5000.0,
+                )
+
+        composite = CompositeAnalyzer([MockL2(), MockL3()])
+        event = _evt("bash", {"command": "rm -rf /"})
+        snapshot = _snap(risk_level=RiskLevel.LOW, score=0.5)
+
+        result = await composite.analyze(event, None, snapshot, 10000)
+        assert l2_called
+        assert not l3_called, "L3 should be skipped when L2 is decisive"
+        assert result.target_level == RiskLevel.CRITICAL
+
+    @pytest.mark.asyncio
+    async def test_l3_runs_when_l2_uncertain(self):
+        """If L2 has low confidence, L3 should run."""
+        l3_called = False
+
+        class MockL2:
+            analyzer_id = "mock-l2"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.MEDIUM,
+                    reasons=["Possibly suspicious"],
+                    confidence=0.4,
+                    analyzer_id="mock-l2",
+                    latency_ms=10.0,
+                )
+
+        class MockL3:
+            analyzer_id = "mock-l3"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["L3 escalated"],
+                    confidence=0.9,
+                    analyzer_id="mock-l3",
+                    latency_ms=2000.0,
+                )
+
+        composite = CompositeAnalyzer([MockL2(), MockL3()])
+        event = _evt("bash", {"command": "suspicious"})
+        snapshot = _snap(risk_level=RiskLevel.LOW, score=0.3)
+
+        result = await composite.analyze(event, None, snapshot, 10000)
+        assert l3_called, "L3 should run when L2 has low confidence"
+        assert result.target_level == RiskLevel.HIGH
+
+    @pytest.mark.asyncio
+    async def test_l3_runs_when_l2_high_but_low_confidence(self):
+        """HIGH risk but low confidence should still trigger L3."""
+        l3_called = False
+
+        class MockL2:
+            analyzer_id = "mock-l2"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["Uncertain high"],
+                    confidence=0.5,
+                    analyzer_id="mock-l2",
+                    latency_ms=10.0,
+                )
+
+        class MockL3:
+            analyzer_id = "mock-l3"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["L3 confirmed"],
+                    confidence=0.95,
+                    analyzer_id="mock-l3",
+                    latency_ms=1000.0,
+                )
+
+        composite = CompositeAnalyzer([MockL2(), MockL3()])
+        result = await composite.analyze(_evt("bash"), None, _snap(), 10000)
+        assert l3_called, "L3 should run when L2 confidence < threshold"
+
+    @pytest.mark.asyncio
+    async def test_empty_analyzers(self):
+        """CompositeAnalyzer with no analyzers should fall back gracefully."""
+        composite = CompositeAnalyzer([])
+        snapshot = _snap(risk_level=RiskLevel.LOW)
+        result = await composite.analyze(_evt("bash"), None, snapshot, 5000)
+        assert result.confidence == 0.0
+        assert result.target_level == RiskLevel.LOW
