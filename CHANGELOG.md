@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.3.1] — 2026-03-31
+
 ### 修复
 
 #### P0+P1 审查修复（9 commits, +25 tests）
@@ -516,6 +520,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.3.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.1
 [0.3.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.0
 [0.2.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.9
 [0.2.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.8
