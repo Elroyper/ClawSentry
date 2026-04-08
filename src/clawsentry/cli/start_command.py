@@ -10,10 +10,11 @@ import urllib.request
 from pathlib import Path
 
 from .init_command import run_init
-from .initializers.base import ENV_FILE_NAME
+from .initializers.base import ENV_FILE_NAME, read_env_file
 
 
 _PID_FILE = Path("/tmp/clawsentry-gateway.pid")
+_SUPPORTED_FRAMEWORKS = frozenset({"openclaw", "a3s-code", "codex", "claude-code"})
 
 
 def _write_pid_file(path: Path, pid: int) -> None:
@@ -34,23 +35,31 @@ def _remove_pid_file(path: Path) -> None:
         pass
 
 
+def read_enabled_frameworks_from_env_file(env_file: Path) -> list[str]:
+    """Read CS_ENABLED_FRAMEWORKS/CS_FRAMEWORK from .env.clawsentry."""
+    values = read_env_file(env_file)
+    enabled: list[str] = []
+    raw_enabled = values.get("CS_ENABLED_FRAMEWORKS", "")
+    for item in raw_enabled.split(","):
+        item = item.strip()
+        if item and item not in enabled:
+            enabled.append(item)
+    legacy_framework = values.get("CS_FRAMEWORK", "").strip()
+    if legacy_framework and legacy_framework not in enabled:
+        enabled.append(legacy_framework)
+    return enabled
+
+
 def _read_framework_from_env_file(env_file: Path) -> str | None:
-    """Read CS_FRAMEWORK from .env.clawsentry, if present."""
-    if not env_file.is_file():
-        return None
-    try:
-        for raw_line in env_file.read_text().splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            if key.strip() != "CS_FRAMEWORK":
-                continue
-            fw = value.strip().strip("'\"")
-            if fw in {"openclaw", "a3s-code", "codex", "claude-code"}:
-                return fw
-    except OSError:
-        return None
+    """Read the default framework from .env.clawsentry, if present."""
+    values = read_env_file(env_file)
+    fw = values.get("CS_FRAMEWORK", "").strip()
+    if fw in _SUPPORTED_FRAMEWORKS:
+        return fw
+    enabled = read_enabled_frameworks_from_env_file(env_file)
+    for item in enabled:
+        if item in _SUPPORTED_FRAMEWORKS:
+            return item
     return None
 
 
@@ -110,6 +119,7 @@ def ensure_init(
     framework: str,
     target_dir: Path,
     openclaw_home: Path | None = None,
+    setup_openclaw: bool = False,
 ) -> bool:
     """Run init if .env.clawsentry does not exist. Returns True if init was run.
 
@@ -125,7 +135,7 @@ def ensure_init(
         target_dir=target_dir,
         force=False,
         auto_detect=(framework == "openclaw"),
-        setup=(framework == "openclaw"),
+        setup=(framework == "openclaw" and setup_openclaw),
         dry_run=False,
         openclaw_home=openclaw_home,
         quiet=True,
@@ -133,6 +143,50 @@ def ensure_init(
     if exit_code != 0:
         raise RuntimeError(f"Failed to initialize {framework} configuration")
     return True
+
+
+def ensure_integrations(
+    *,
+    frameworks: list[str],
+    target_dir: Path,
+    openclaw_home: Path | None = None,
+    setup_openclaw: bool = False,
+) -> list[str]:
+    """Ensure requested frameworks are present in project env config."""
+    env_file = target_dir / ENV_FILE_NAME
+    existing = read_enabled_frameworks_from_env_file(env_file)
+    initialized: list[str] = []
+
+    for framework in frameworks:
+        if framework in existing:
+            continue
+        exit_code = run_init(
+            framework=framework,
+            target_dir=target_dir,
+            force=False,
+            auto_detect=(framework == "openclaw"),
+            setup=(framework == "openclaw" and setup_openclaw),
+            dry_run=False,
+            openclaw_home=openclaw_home,
+            quiet=True,
+        )
+        if exit_code != 0:
+            raise RuntimeError(f"Failed to initialize {framework} configuration")
+        initialized.append(framework)
+        existing = read_enabled_frameworks_from_env_file(env_file)
+
+    return initialized
+
+
+def ensure_openclaw_setup(
+    *,
+    openclaw_home: Path | None = None,
+):
+    """Apply explicit OpenClaw setup when requested at start time."""
+    from .initializers.openclaw import OpenClawInitializer
+
+    initializer = OpenClawInitializer()
+    return initializer.setup_openclaw_config(openclaw_home=openclaw_home)
 
 
 def launch_gateway(
@@ -258,12 +312,14 @@ def run_status() -> None:
 def run_start(
     *,
     framework: str,
+    enabled_frameworks: list[str] | None = None,
     host: str = "127.0.0.1",
     port: int = 8080,
     target_dir: Path = Path("."),
     no_watch: bool = False,
     interactive: bool = False,
     openclaw_home: Path | None = None,
+    setup_openclaw: bool = False,
     open_browser: bool = False,
     with_latch: bool = False,
     hub_port: int = 3006,
@@ -273,14 +329,23 @@ def run_start(
     from .dotenv_loader import load_dotenv
 
     # 1. Auto-init if needed
-    did_init = ensure_init(
-        framework=framework,
+    requested_frameworks = enabled_frameworks or [framework]
+    initialized = ensure_integrations(
+        frameworks=requested_frameworks,
         target_dir=target_dir,
         openclaw_home=openclaw_home,
+        setup_openclaw=setup_openclaw,
     )
+    did_init = bool(initialized)
 
     # 2. Load env vars (picks up newly created .env.clawsentry)
     load_dotenv(search_dir=target_dir)
+    active_frameworks = enabled_frameworks or read_enabled_frameworks_from_env_file(
+        target_dir / ENV_FILE_NAME
+    ) or [framework]
+    openclaw_setup_result = None
+    if setup_openclaw and "openclaw" in active_frameworks:
+        openclaw_setup_result = ensure_openclaw_setup(openclaw_home=openclaw_home)
 
     # 3. Read token
     token = _read_token_from_env(target_dir)
@@ -294,6 +359,7 @@ def run_start(
     if with_latch:
         _run_start_with_latch(
             framework=framework,
+            active_frameworks=active_frameworks,
             host=host,
             port=port,
             hub_port=hub_port,
@@ -306,15 +372,38 @@ def run_start(
             interactive=interactive,
             open_browser=open_browser,
             auto_detected=auto_detected,
+            setup_openclaw=setup_openclaw,
         )
         return
 
     # 4. Print banner
     print(f"\nClawSentry starting...")
     print(f"  Framework:  {framework}{' (auto-detected)' if auto_detected else ''}")
+    if len(active_frameworks) > 1:
+        print(f"  Enabled:    {', '.join(active_frameworks)}")
+    if "openclaw" in active_frameworks:
+        if setup_openclaw:
+            print("  OpenClaw:   setup requested (~/.openclaw/ may be updated)")
+        else:
+            print(
+                "  OpenClaw:   project env only "
+                "(use --setup-openclaw to modify ~/.openclaw/)"
+            )
     print(f"  Gateway:    {gateway_url} (background)")
     print(f"  Web UI:     {ui_url}")
     print(f"  Log file:   {log_path}")
+    if openclaw_setup_result is not None:
+        if openclaw_setup_result.files_modified:
+            print(
+                "  OpenClaw setup: "
+                f"updated {len(openclaw_setup_result.files_modified)} file(s)"
+            )
+        elif openclaw_setup_result.warnings:
+            print("  OpenClaw setup: no files updated")
+        else:
+            print("  OpenClaw setup: already configured")
+        for warning in openclaw_setup_result.warnings:
+            print(f"  WARNING:    {warning}")
     print()
 
     # 5. Launch gateway
@@ -358,6 +447,7 @@ def run_start(
 def _run_start_with_latch(
     *,
     framework: str,
+    active_frameworks: list[str],
     host: str,
     port: int,
     hub_port: int,
@@ -370,6 +460,7 @@ def _run_start_with_latch(
     interactive: bool,
     open_browser: bool,
     auto_detected: bool,
+    setup_openclaw: bool,
 ) -> None:
     """Start gateway + Latch Hub via ProcessManager."""
     from ..latch.binary_manager import BinaryManager
@@ -389,6 +480,16 @@ def _run_start_with_latch(
     # Banner
     print(f"\nClawSentry starting (Latch mode)...")
     print(f"  Framework:  {framework}{' (auto-detected)' if auto_detected else ''}")
+    if len(active_frameworks) > 1:
+        print(f"  Enabled:    {', '.join(active_frameworks)}")
+    if "openclaw" in active_frameworks:
+        if setup_openclaw:
+            print("  OpenClaw:   setup requested (~/.openclaw/ may be updated)")
+        else:
+            print(
+                "  OpenClaw:   project env only "
+                "(use --setup-openclaw to modify ~/.openclaw/)"
+            )
     print(f"  Gateway:    {gateway_url}")
     print(f"  Latch Hub:  {hub_url}")
     print(f"  Web UI:     {ui_url}")

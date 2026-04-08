@@ -3,9 +3,23 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 from clawsentry.cli.start_command import detect_framework
+
+
+@pytest.fixture(autouse=True)
+def _isolate_start_command_tests(tmp_path, monkeypatch):
+    """Avoid repo-level .env.clawsentry and shell env leaking into detection tests."""
+    with patch.dict(os.environ, {}, clear=False):
+        monkeypatch.chdir(tmp_path)
+        for key in ("CS_AUTH_TOKEN", "CS_FRAMEWORK", "CS_ENABLED_FRAMEWORKS"):
+            monkeypatch.delenv(key, raising=False)
+        yield
 
 
 class TestDetectFramework:
@@ -75,6 +89,19 @@ class TestDetectFramework:
         )
         assert result == "codex"
 
+    def test_env_enabled_frameworks_ignores_unknown_entries(self, tmp_path):
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text("CS_ENABLED_FRAMEWORKS=unknown,codex\n")
+
+        result = detect_framework(
+            openclaw_home=tmp_path / "nope",
+            a3s_dir=tmp_path / "nope2",
+            codex_home=tmp_path / "nope4",
+            claude_home=tmp_path / "nope3",
+        )
+
+        assert result == "codex"
+
 
 class TestEnsureInit:
     def test_skips_init_when_env_exists(self, tmp_path):
@@ -112,6 +139,54 @@ class TestEnsureInit:
         assert result is True
         env_content = (tmp_path / ".env.clawsentry").read_text()
         assert "OPENCLAW_OPERATOR_TOKEN=test-tok" in env_content
+
+    def test_openclaw_init_does_not_setup_external_config_by_default(self, tmp_path):
+        from unittest.mock import patch
+        from clawsentry.cli.start_command import ensure_init
+
+        with patch("clawsentry.cli.start_command.run_init", return_value=0) as mock_run_init:
+            result = ensure_init(framework="openclaw", target_dir=tmp_path)
+
+        assert result is True
+        assert mock_run_init.call_args.kwargs["setup"] is False
+
+    def test_ensure_integrations_adds_missing_framework_only(self, tmp_path):
+        from unittest.mock import patch
+        from clawsentry.cli.start_command import ensure_integrations
+
+        (tmp_path / ".env.clawsentry").write_text(
+            "CS_FRAMEWORK=a3s-code\nCS_ENABLED_FRAMEWORKS=a3s-code\n"
+        )
+
+        with patch("clawsentry.cli.start_command.run_init", return_value=0) as mock_run_init:
+            initialized = ensure_integrations(
+                frameworks=["a3s-code", "codex"],
+                target_dir=tmp_path,
+            )
+
+        assert initialized == ["codex"]
+        mock_run_init.assert_called_once()
+        assert mock_run_init.call_args.kwargs["framework"] == "codex"
+        assert mock_run_init.call_args.kwargs["setup"] is False
+
+    def test_ensure_integrations_forwards_setup_only_to_openclaw(self, tmp_path):
+        from unittest.mock import patch
+        from clawsentry.cli.start_command import ensure_integrations
+
+        with patch("clawsentry.cli.start_command.run_init", return_value=0) as mock_run_init:
+            ensure_integrations(
+                frameworks=["codex", "openclaw"],
+                target_dir=tmp_path,
+                setup_openclaw=True,
+            )
+
+        assert mock_run_init.call_count == 2
+        first_call = mock_run_init.call_args_list[0]
+        second_call = mock_run_init.call_args_list[1]
+        assert first_call.kwargs["framework"] == "codex"
+        assert first_call.kwargs["setup"] is False
+        assert second_call.kwargs["framework"] == "openclaw"
+        assert second_call.kwargs["setup"] is True
 
     def test_raises_runtime_error_on_init_failure(self, tmp_path):
         from unittest.mock import patch
@@ -248,6 +323,141 @@ class TestRunStart:
             assert "127.0.0.1:8080" in captured.out
             assert "test-token-123" in captured.out
             assert "(auto-detected)" not in captured.out
+
+    def test_run_start_banner_prints_enabled_frameworks(self, tmp_path, capsys):
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text(
+            "CS_AUTH_TOKEN=test-token-123\n"
+            "CS_FRAMEWORK=a3s-code\n"
+            "CS_ENABLED_FRAMEWORKS=a3s-code,codex\n"
+            "CS_CODEX_WATCH_ENABLED=true\n"
+        )
+
+        with (
+            patch("clawsentry.cli.start_command.launch_gateway") as mock_launch,
+            patch("clawsentry.cli.start_command.wait_for_health", return_value=True),
+            patch("clawsentry.cli.start_command.run_watch_loop") as mock_watch,
+            patch("clawsentry.cli.start_command.shutdown_gateway"),
+        ):
+            mock_launch.return_value = MagicMock(pid=99999)
+            mock_watch.side_effect = KeyboardInterrupt
+
+            run_start(
+                framework="a3s-code",
+                enabled_frameworks=["a3s-code", "codex"],
+                host="127.0.0.1",
+                port=8080,
+                target_dir=tmp_path,
+                no_watch=False,
+                interactive=False,
+            )
+
+        out = capsys.readouterr().out
+        assert "Enabled:    a3s-code, codex" in out
+
+    def test_run_start_banner_mentions_openclaw_setup_hint(self, tmp_path, capsys):
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text(
+            "CS_AUTH_TOKEN=test-token-123\n"
+            "CS_FRAMEWORK=openclaw\n"
+            "CS_ENABLED_FRAMEWORKS=openclaw\n"
+        )
+
+        with (
+            patch("clawsentry.cli.start_command.launch_gateway") as mock_launch,
+            patch("clawsentry.cli.start_command.wait_for_health", return_value=True),
+            patch("clawsentry.cli.start_command.shutdown_gateway"),
+        ):
+            mock_launch.return_value = MagicMock(pid=99999)
+
+            run_start(
+                framework="openclaw",
+                host="127.0.0.1",
+                port=8080,
+                target_dir=tmp_path,
+                no_watch=True,
+                interactive=False,
+            )
+
+        out = capsys.readouterr().out
+        assert "--setup-openclaw" in out
+
+    def test_run_start_setup_openclaw_applies_setup_for_existing_openclaw_env(
+        self,
+        tmp_path,
+    ):
+        from clawsentry.cli.initializers.base import SetupResult
+
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text(
+            "CS_AUTH_TOKEN=test-token-123\n"
+            "CS_FRAMEWORK=openclaw\n"
+            "CS_ENABLED_FRAMEWORKS=openclaw\n"
+        )
+
+        with (
+            patch("clawsentry.cli.start_command.launch_gateway") as mock_launch,
+            patch("clawsentry.cli.start_command.wait_for_health", return_value=True),
+            patch("clawsentry.cli.start_command.shutdown_gateway"),
+            patch(
+                "clawsentry.cli.initializers.openclaw.OpenClawInitializer.setup_openclaw_config",
+                return_value=SetupResult(
+                    changes_applied=["updated openclaw.json"],
+                    files_modified=[],
+                    files_backed_up=[],
+                    warnings=[],
+                    dry_run=False,
+                ),
+            ) as mock_setup,
+        ):
+            mock_launch.return_value = MagicMock(pid=99999)
+
+            run_start(
+                framework="openclaw",
+                host="127.0.0.1",
+                port=8080,
+                target_dir=tmp_path,
+                no_watch=True,
+                interactive=False,
+                setup_openclaw=True,
+                openclaw_home=tmp_path / ".openclaw",
+            )
+
+        mock_setup.assert_called_once_with(openclaw_home=tmp_path / ".openclaw")
+
+    def test_run_start_latch_banner_prints_enabled_frameworks(self, tmp_path, capsys):
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text(
+            "CS_AUTH_TOKEN=test-token-123\n"
+            "CS_FRAMEWORK=a3s-code\n"
+            "CS_ENABLED_FRAMEWORKS=a3s-code,codex\n"
+        )
+
+        with (
+            patch("clawsentry.latch.binary_manager.BinaryManager") as mock_bm_cls,
+            patch("clawsentry.latch.process_manager.ProcessManager") as mock_pm_cls,
+        ):
+            mock_bm = MagicMock()
+            mock_bm.is_installed = True
+            mock_bm.binary_path = tmp_path / "latch"
+            mock_bm_cls.return_value = mock_bm
+            mock_pm = MagicMock()
+            mock_pm.wait_for_health.return_value = True
+            mock_pm_cls.return_value = mock_pm
+
+            run_start(
+                framework="a3s-code",
+                enabled_frameworks=["a3s-code", "codex"],
+                host="127.0.0.1",
+                port=8080,
+                target_dir=tmp_path,
+                no_watch=True,
+                interactive=False,
+                with_latch=True,
+            )
+
+        out = capsys.readouterr().out
+        assert "Enabled:    a3s-code, codex" in out
 
     def test_run_start_no_watch_mode(self, tmp_path, capsys):
         env_file = tmp_path / ".env.clawsentry"
@@ -396,6 +606,29 @@ class TestPidFileManagement:
         from clawsentry.cli.start_command import _remove_pid_file
 
         _remove_pid_file(tmp_path / "nope.pid")  # should not raise
+
+
+def test_main_start_passes_setup_openclaw_flag(tmp_path, monkeypatch):
+    from clawsentry.cli.main import main
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env.clawsentry").write_text("CS_AUTH_TOKEN=test-token-123\n")
+
+    with (
+        patch("clawsentry.cli.start_command.run_start") as mock_run_start,
+        patch("clawsentry.cli.dotenv_loader.load_dotenv"),
+    ):
+        main(
+            [
+                "start",
+                "--framework",
+                "openclaw",
+                "--setup-openclaw",
+                "--no-watch",
+            ]
+        )
+
+    assert mock_run_start.call_args.kwargs["setup_openclaw"] is True
 
 
 class TestStopStatus:
@@ -612,3 +845,22 @@ class TestRunStartPidAndBrowser:
 
         out = capsys.readouterr().out
         assert "Framework:  codex (auto-detected)" in out
+
+
+class TestStartMainFrameworks:
+    def test_main_start_frameworks_dispatches_enabled_list(self):
+        from clawsentry.cli.main import main
+
+        with patch("clawsentry.cli.start_command.run_start") as mock_run_start:
+            main([
+                "start",
+                "--frameworks",
+                "a3s-code,codex",
+                "--no-watch",
+            ])
+
+        assert mock_run_start.call_args.kwargs["framework"] == "a3s-code"
+        assert mock_run_start.call_args.kwargs["enabled_frameworks"] == [
+            "a3s-code",
+            "codex",
+        ]

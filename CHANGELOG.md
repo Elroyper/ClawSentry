@@ -6,6 +6,22 @@
 
 ---
 
+## [0.3.7] — 2026-04-08
+
+### 改进
+
+- **OpenClaw setup 改为显式 opt-in** — `clawsentry init openclaw` 和 `clawsentry start --framework openclaw` 默认只写项目 `.env.clawsentry`，不再修改 `~/.openclaw/`；需要修改 OpenClaw 侧配置时可显式使用 `clawsentry init openclaw --setup`，或在一键启动路径中传入 `clawsentry start --setup-openclaw`。
+- **多框架启动入口** — 新增 `clawsentry start --frameworks a3s-code,codex,openclaw`，按列表增量初始化 `.env.clawsentry` 并在启动 banner 中展示启用框架。
+- **集成状态检查** — 新增 `clawsentry integrations status [--json]`，用于查看当前项目启用框架、Codex watcher、OpenClaw env、OpenClaw `.bak` 恢复可用性、Claude hooks 来源文件、Codex session dir 可达性和 a3s transport env 状态。
+
+### 测试
+
+- 新增 OpenClaw setup 默认无副作用、多框架 start、integrations status 回归覆盖。
+- 代码审查后补充 integrations status 误报、无效 `CS_ENABLED_FRAMEWORKS`、Latch 多框架 banner 回归覆盖。
+- 测试套件：2263 passed, 3 skipped (~34s)
+
+---
+
 ## [0.3.6] — 2026-04-08
 
 ### 改进

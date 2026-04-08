@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,21 @@ class StubTrajectoryStore:
         rec = {**self._template}
         rec.setdefault("event", {})["session_id"] = session_id
         return [rec for _ in range(limit)]
+
+
+@pytest.fixture(autouse=True)
+def isolated_clawsentry_env():
+    """Keep repo-local .env loads and auth mutations from leaking across tests."""
+    keys = ("CS_AUTH_TOKEN", "CS_FRAMEWORK", "CS_ENABLED_FRAMEWORKS")
+    previous = {key: os.environ.get(key) for key in keys}
+    for key in keys:
+        os.environ.pop(key, None)
+    yield
+    for key, value in previous.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
 
 
 @pytest.fixture()

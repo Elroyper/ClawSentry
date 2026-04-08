@@ -6,7 +6,7 @@ import json
 import secrets
 from pathlib import Path
 
-from .base import ENV_FILE_NAME, InitResult, SetupResult
+from .base import ENV_FILE_NAME, InitResult, SetupResult, merge_env_file
 
 _DEFAULT_WS_PORT = 18789
 
@@ -91,12 +91,10 @@ class OpenClawInitializer:
         env_path = target_dir / ENV_FILE_NAME
         warnings: list[str] = []
 
-        if env_path.exists() and not force:
-            raise FileExistsError(
-                f"{env_path} already exists. Use --force to overwrite."
-            )
         if env_path.exists() and force:
             warnings.append(f"Overwriting existing {env_path}")
+        elif env_path.exists():
+            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
 
         # --- defaults ---
         token = ""
@@ -116,6 +114,7 @@ class OpenClawInitializer:
                     enforcement_enabled = "true"
 
         env_vars = {
+            "CS_FRAMEWORK": self.framework_name,
             "OPENCLAW_WEBHOOK_TOKEN": secrets.token_urlsafe(32),
             "CS_AUTH_TOKEN": secrets.token_urlsafe(32),
             "CS_HTTP_PORT": "8080",
@@ -126,12 +125,13 @@ class OpenClawInitializer:
             "OPENCLAW_OPERATOR_TOKEN": token,
         }
 
-        lines = ["# ClawSentry — OpenClaw integration config"]
-        for key, val in env_vars.items():
-            lines.append(f"{key}={val}")
-        lines.append("")
-        env_path.write_text("\n".join(lines))
-        env_path.chmod(0o600)  # tokens are sensitive
+        env_vars = merge_env_file(
+            env_path,
+            header="# ClawSentry — OpenClaw integration config",
+            new_values=env_vars,
+            framework=self.framework_name,
+            force=force,
+        )
 
         next_steps = [
             f"source {ENV_FILE_NAME}",
@@ -221,6 +221,60 @@ class OpenClawInitializer:
         # If nothing was modified, inform the user
         if not files_modified and not dry_run:
             changes.append("All OpenClaw settings already configured correctly.")
+
+        return SetupResult(
+            changes_applied=changes,
+            files_modified=files_modified,
+            files_backed_up=files_backed_up,
+            warnings=warnings,
+            dry_run=dry_run,
+        )
+
+    def restore_openclaw_config(
+        self,
+        *,
+        openclaw_home: Path | None = None,
+        dry_run: bool = False,
+    ) -> SetupResult:
+        """Restore OpenClaw config files from the .bak files created by setup."""
+        home = openclaw_home or Path.home() / ".openclaw"
+        changes: list[str] = []
+        files_modified: list[Path] = []
+        files_backed_up: list[Path] = []
+        warnings: list[str] = []
+
+        if not home.exists():
+            warnings.append(
+                f"OpenClaw directory not found at {home}. Nothing to restore."
+            )
+            return SetupResult(
+                changes_applied=changes,
+                files_modified=files_modified,
+                files_backed_up=files_backed_up,
+                warnings=warnings,
+                dry_run=dry_run,
+            )
+
+        restore_pairs = (
+            (home / "openclaw.json.bak", home / "openclaw.json"),
+            (home / "exec-approvals.json.bak", home / "exec-approvals.json"),
+        )
+        for backup_path, target_path in restore_pairs:
+            if not backup_path.exists():
+                warnings.append(f"Backup not found: {backup_path}")
+                continue
+
+            if dry_run:
+                changes.append(f"Would restore {target_path.name} from {backup_path.name}.")
+                continue
+
+            target_path.write_text(backup_path.read_text())
+            files_modified.append(target_path)
+            files_backed_up.append(backup_path)
+            changes.append(f"Restored {target_path.name} from {backup_path.name}.")
+
+        if not files_modified and not dry_run and not changes:
+            changes.append("No OpenClaw backup files were restored.")
 
         return SetupResult(
             changes_applied=changes,

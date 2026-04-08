@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -187,6 +189,52 @@ class TestSetupOpenClawConfig:
                     for w in result.warnings)
         assert len(result.files_modified) == 0
 
+    def test_restore_reverts_files_from_backups(self, tmp_path: Path):
+        """restore should copy .bak files back over OpenClaw config files."""
+        oc_dir = _make_openclaw_dir(tmp_path)
+        original_oc = {"tools": {"exec": {"host": "sandbox"}}, "keep": True}
+        original_ea = {"security": "deny", "ask": "never"}
+        _write_json(oc_dir / "openclaw.json", original_oc)
+        _write_json(oc_dir / "exec-approvals.json", original_ea)
+
+        init = OpenClawInitializer()
+        init.setup_openclaw_config(openclaw_home=oc_dir)
+        result = init.restore_openclaw_config(openclaw_home=oc_dir)
+
+        assert json.loads((oc_dir / "openclaw.json").read_text()) == original_oc
+        assert json.loads((oc_dir / "exec-approvals.json").read_text()) == original_ea
+        assert oc_dir / "openclaw.json" in result.files_modified
+        assert oc_dir / "exec-approvals.json" in result.files_modified
+        assert any("restored" in change.lower() for change in result.changes_applied)
+
+    def test_restore_dry_run_does_not_write_files(self, tmp_path: Path):
+        """restore dry-run should describe backup restoration without writing."""
+        oc_dir = _make_openclaw_dir(tmp_path)
+        _write_json(oc_dir / "openclaw.json", {"tools": {"exec": {"host": "sandbox"}}})
+        _write_json(oc_dir / "openclaw.json.bak", {"original": True})
+
+        init = OpenClawInitializer()
+        result = init.restore_openclaw_config(openclaw_home=oc_dir, dry_run=True)
+
+        assert result.dry_run is True
+        assert json.loads((oc_dir / "openclaw.json").read_text()) == {
+            "tools": {"exec": {"host": "sandbox"}}
+        }
+        assert result.files_modified == []
+        assert any("would restore" in change.lower() for change in result.changes_applied)
+
+    def test_restore_missing_backups_warns_without_writing(self, tmp_path: Path):
+        """restore should be safe when no backup files exist."""
+        oc_dir = _make_openclaw_dir(tmp_path)
+        _write_json(oc_dir / "openclaw.json", {"tools": {"exec": {"host": "gateway"}}})
+
+        init = OpenClawInitializer()
+        result = init.restore_openclaw_config(openclaw_home=oc_dir)
+
+        assert result.files_modified == []
+        assert result.warnings
+        assert "backup" in " ".join(result.warnings).lower()
+
     # 8. test_setup_implies_auto_detect
     def test_setup_implies_auto_detect(self, tmp_path: Path):
         """--setup should imply --auto-detect in run_init()."""
@@ -240,6 +288,27 @@ class TestSetupExecApprovalsCreation:
 class TestSetupCLIIntegration:
     """Test that --setup and --dry-run flags work through CLI main."""
 
+    def test_cli_main_openclaw_init_does_not_setup_by_default(self, tmp_path: Path):
+        from clawsentry.cli.main import main
+
+        oc_dir = _make_openclaw_dir(tmp_path)
+        _write_json(oc_dir / "openclaw.json", {})
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(SystemExit) as exc:
+                main([
+                    "init",
+                    "openclaw",
+                    "--dir",
+                    str(tmp_path),
+                    "--openclaw-home",
+                    str(oc_dir),
+                ])
+
+        assert exc.value.code == 0
+        openclaw_config = json.loads((oc_dir / "openclaw.json").read_text())
+        assert openclaw_config == {}
+
     def test_run_init_setup_prints_changes(self, tmp_path: Path, capsys):
         oc_dir = _make_openclaw_dir(tmp_path)
         _write_json(oc_dir / "openclaw.json", {})
@@ -286,6 +355,30 @@ class TestSetupCLIIntegration:
         captured = capsys.readouterr()
         # No setup output for a3s-code
         assert "OpenClaw configuration updated" not in captured.out
+
+    def test_cli_main_restore_openclaw_dispatch(self, tmp_path: Path, capsys):
+        """CLI --restore should restore OpenClaw files from backups."""
+        from clawsentry.cli.main import main
+
+        oc_dir = _make_openclaw_dir(tmp_path)
+        _write_json(oc_dir / "openclaw.json", {"tools": {"exec": {"host": "gateway"}}})
+        _write_json(oc_dir / "openclaw.json.bak", {"tools": {"exec": {"host": "sandbox"}}})
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(SystemExit) as exc:
+                main([
+                    "init",
+                    "openclaw",
+                    "--restore",
+                    "--openclaw-home",
+                    str(oc_dir),
+                ])
+
+        assert exc.value.code == 0
+        assert json.loads((oc_dir / "openclaw.json").read_text()) == {
+            "tools": {"exec": {"host": "sandbox"}}
+        }
+        assert "restore" in capsys.readouterr().out.lower()
 
 
 class TestSetupPartiallyConfigured:

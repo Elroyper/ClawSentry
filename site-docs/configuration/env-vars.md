@@ -41,6 +41,11 @@ CS_LLM_MODEL=gpt-4o
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | Unix Domain Socket 路径。主传输通道，延迟最低 |
 | `CS_RATE_LIMIT_PER_MINUTE` | `300` | 每分钟最大请求数。设为 `0` 禁用速率限制。超限时返回 HTTP 429 |
 | `AHP_TRAJECTORY_RETENTION_SECONDS` | `2592000` (30 天) | 轨迹数据保留时间（秒）。过期记录自动清理 |
+| `CS_FRAMEWORK` | (自动检测) | 兼容字段：单框架默认标识，或 harness 默认 source framework |
+| `CS_ENABLED_FRAMEWORKS` | (空) | 逗号分隔的已启用框架列表，由 `clawsentry init <framework>` 增量维护 |
+
+!!! note "多框架配置"
+    `CS_FRAMEWORK` 是旧版单值字段，ClawSentry 会保留它以兼容旧脚本。多框架并存时以 `CS_ENABLED_FRAMEWORKS` 表达启用列表，例如 `a3s-code,codex,openclaw`。重新运行 `clawsentry init <framework>` 默认会合并缺失变量，不会轮换已有 `CS_AUTH_TOKEN`；使用 `--force` 才会覆盖 `.env.clawsentry`。
 
 !!! tip "生产环境建议"
     - 必须设置 `CS_AUTH_TOKEN` 以启用认证

@@ -334,6 +334,55 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
 ---
 
+## 多框架并存
+
+同一个项目可以逐个初始化多个框架，ClawSentry 会增量合并 `.env.clawsentry`：
+
+```bash
+clawsentry init a3s-code
+clawsentry init codex
+clawsentry init openclaw --auto-detect --setup --dry-run
+clawsentry init openclaw --auto-detect --setup
+```
+
+也可以在启动时一次声明要启用的框架：
+
+```bash
+clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
+```
+
+合并时不会轮换已有 `CS_AUTH_TOKEN`，也不会改写已有 `CS_FRAMEWORK`；新增框架会记录到 `CS_ENABLED_FRAMEWORKS`：
+
+```ini
+CS_FRAMEWORK=a3s-code
+CS_ENABLED_FRAMEWORKS=a3s-code,codex,openclaw
+CS_CODEX_WATCH_ENABLED=true
+OPENCLAW_ENFORCEMENT_ENABLED=true
+```
+
+!!! tip "OpenClaw 可恢复"
+    OpenClaw 外部配置修改是显式 opt-in：`clawsentry init openclaw` 和 `clawsentry start --frameworks ...` 默认不会改 `~/.openclaw/`。`clawsentry init openclaw --setup` 修改 OpenClaw 配置前会创建 `.bak` 备份。需要回退时运行：
+    ```bash
+    clawsentry init openclaw --restore --dry-run
+    clawsentry init openclaw --restore
+    ```
+
+如需只禁用其中一个框架，使用同一个 `init` 入口的 `--uninstall`，不会删除整个 `.env.clawsentry` 或影响其他已启用框架：
+
+```bash
+clawsentry init codex --uninstall
+clawsentry init claude-code --uninstall
+clawsentry init openclaw --uninstall
+```
+
+查看当前项目集成状态：
+
+```bash
+clawsentry integrations status
+```
+
+---
+
 ## 项目级安全配置
 
 ClawSentry 提供 4 个内置安全预设，通过一行命令切换，无需手动配置环境变量。

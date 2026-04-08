@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from unittest.mock import patch
 
-from clawsentry.cli.initializers.base import InitResult
+from clawsentry.cli.initializers.base import InitResult, disable_framework_env
 
 
 class TestInitResult:
@@ -29,6 +31,52 @@ class TestInitResult:
             warnings=[],
         )
         assert result.warnings == []
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip("'\"")
+    return values
+
+
+def test_disable_framework_env_removes_only_target_framework_keys(tmp_path):
+    env_path = tmp_path / ".env.clawsentry"
+    env_path.write_text(
+        "\n".join(
+            [
+                "# ClawSentry test config",
+                "CS_FRAMEWORK=a3s-code",
+                "CS_ENABLED_FRAMEWORKS=a3s-code,codex,openclaw",
+                "CS_AUTH_TOKEN=keep-token",
+                "CS_UDS_PATH=/tmp/clawsentry.sock",
+                "CS_CODEX_WATCH_ENABLED=true",
+                "CS_CODEX_SESSION_DIR=/tmp/codex-sessions",
+                "OPENCLAW_WEBHOOK_TOKEN=keep-openclaw-token",
+                "",
+            ]
+        )
+    )
+
+    result = disable_framework_env(
+        env_path,
+        framework="codex",
+        framework_keys={"CS_CODEX_WATCH_ENABLED", "CS_CODEX_SESSION_DIR"},
+    )
+
+    env = _read_env_file(env_path)
+    assert result.changed is True
+    assert result.enabled_frameworks == ["a3s-code", "openclaw"]
+    assert env["CS_ENABLED_FRAMEWORKS"] == "a3s-code,openclaw"
+    assert env["CS_FRAMEWORK"] == "a3s-code"
+    assert env["CS_AUTH_TOKEN"] == "keep-token"
+    assert env["OPENCLAW_WEBHOOK_TOKEN"] == "keep-openclaw-token"
+    assert "CS_CODEX_WATCH_ENABLED" not in env
+    assert "CS_CODEX_SESSION_DIR" not in env
 
 
 import pytest
@@ -80,10 +128,13 @@ class TestOpenClawInitializer:
 
     def test_generate_config_file_exists_no_force(self, tmp_path):
         env_file = tmp_path / ".env.clawsentry"
-        env_file.write_text("existing")
+        env_file.write_text("CS_AUTH_TOKEN=keep-token\n")
         init = OpenClawInitializer()
-        with pytest.raises(FileExistsError):
-            init.generate_config(tmp_path, force=False)
+        result = init.generate_config(tmp_path, force=False)
+        env = _read_env_file(env_file)
+        assert env["CS_AUTH_TOKEN"] == "keep-token"
+        assert env["CS_ENABLED_FRAMEWORKS"] == "openclaw"
+        assert result.warnings
 
     def test_generate_config_file_exists_force(self, tmp_path):
         env_file = tmp_path / ".env.clawsentry"
@@ -146,10 +197,14 @@ class TestA3SCodeInitializer:
         assert "httptransport" in all_steps
 
     def test_generate_config_file_exists_no_force(self, tmp_path):
-        (tmp_path / ".env.clawsentry").write_text("existing")
+        env_file = tmp_path / ".env.clawsentry"
+        env_file.write_text("CS_AUTH_TOKEN=keep-token\n")
         init = A3SCodeInitializer()
-        with pytest.raises(FileExistsError):
-            init.generate_config(tmp_path, force=False)
+        result = init.generate_config(tmp_path, force=False)
+        env = _read_env_file(env_file)
+        assert env["CS_AUTH_TOKEN"] == "keep-token"
+        assert env["CS_ENABLED_FRAMEWORKS"] == "a3s-code"
+        assert result.warnings
 
     def test_generate_config_file_exists_force(self, tmp_path):
         (tmp_path / ".env.clawsentry").write_text("existing")
@@ -214,7 +269,7 @@ class TestRegistry:
         assert names == ["a3s-code", "claude-code", "codex", "openclaw"]
 
 
-from clawsentry.cli.init_command import run_init
+from clawsentry.cli.init_command import run_init, run_uninstall
 
 
 class TestRunInit:
@@ -241,9 +296,9 @@ class TestRunInit:
     def test_run_init_file_exists_returns_error(self, tmp_path, capsys):
         (tmp_path / ".env.clawsentry").write_text("existing")
         exit_code = run_init(framework="openclaw", target_dir=tmp_path, force=False)
-        assert exit_code == 1
-        captured = capsys.readouterr()
-        assert "exists" in captured.err.lower()
+        assert exit_code == 0
+        env = _read_env_file(tmp_path / ".env.clawsentry")
+        assert env["CS_ENABLED_FRAMEWORKS"] == "openclaw"
 
     def test_run_init_file_exists_force_succeeds(self, tmp_path, capsys):
         (tmp_path / ".env.clawsentry").write_text("existing")
@@ -255,6 +310,74 @@ class TestRunInit:
         exit_code = run_init(framework="openclaw", target_dir=new_dir, force=False)
         assert exit_code == 0
         assert (new_dir / ".env.clawsentry").exists()
+
+    def test_run_init_merges_multiple_frameworks_without_rotating_token(self, tmp_path, capsys):
+        first_exit = run_init(framework="a3s-code", target_dir=tmp_path, force=False)
+        assert first_exit == 0
+        first_env = _read_env_file(tmp_path / ".env.clawsentry")
+
+        second_exit = run_init(framework="codex", target_dir=tmp_path, force=False)
+        assert second_exit == 0
+        merged = _read_env_file(tmp_path / ".env.clawsentry")
+
+        assert merged["CS_AUTH_TOKEN"] == first_env["CS_AUTH_TOKEN"]
+        assert merged["CS_FRAMEWORK"] == "a3s-code"
+        assert merged["CS_CODEX_WATCH_ENABLED"] == "true"
+        assert merged["CS_ENABLED_FRAMEWORKS"] == "a3s-code,codex"
+
+    def test_run_init_merges_openclaw_without_replacing_existing_framework(self, tmp_path):
+        assert run_init(framework="codex", target_dir=tmp_path, force=False) == 0
+        before = _read_env_file(tmp_path / ".env.clawsentry")
+
+        assert run_init(framework="openclaw", target_dir=tmp_path, force=False) == 0
+        merged = _read_env_file(tmp_path / ".env.clawsentry")
+
+        assert merged["CS_AUTH_TOKEN"] == before["CS_AUTH_TOKEN"]
+        assert merged["CS_FRAMEWORK"] == "codex"
+        assert merged["OPENCLAW_WEBHOOK_PORT"] == "8081"
+        assert merged["CS_ENABLED_FRAMEWORKS"] == "codex,openclaw"
+
+    def test_run_uninstall_removes_codex_without_rotating_shared_token(self, tmp_path):
+        assert run_init(framework="a3s-code", target_dir=tmp_path, force=False) == 0
+        before = _read_env_file(tmp_path / ".env.clawsentry")
+        assert run_init(framework="codex", target_dir=tmp_path, force=False) == 0
+
+        exit_code = run_uninstall(framework="codex", target_dir=tmp_path)
+
+        env = _read_env_file(tmp_path / ".env.clawsentry")
+        assert exit_code == 0
+        assert env["CS_AUTH_TOKEN"] == before["CS_AUTH_TOKEN"]
+        assert env["CS_ENABLED_FRAMEWORKS"] == "a3s-code"
+        assert env["CS_FRAMEWORK"] == "a3s-code"
+        assert "CS_CODEX_WATCH_ENABLED" not in env
+
+    def test_run_uninstall_removes_openclaw_without_touching_codex(self, tmp_path):
+        assert run_init(framework="codex", target_dir=tmp_path, force=False) == 0
+        assert run_init(framework="openclaw", target_dir=tmp_path, force=False) == 0
+
+        exit_code = run_uninstall(framework="openclaw", target_dir=tmp_path)
+
+        env = _read_env_file(tmp_path / ".env.clawsentry")
+        assert exit_code == 0
+        assert env["CS_ENABLED_FRAMEWORKS"] == "codex"
+        assert env["CS_FRAMEWORK"] == "codex"
+        assert env["CS_CODEX_WATCH_ENABLED"] == "true"
+        assert not any(key.startswith("OPENCLAW_") for key in env)
+
+    def test_cli_main_uninstall_codex_dispatch(self, tmp_path):
+        from clawsentry.cli.main import main
+
+        assert run_init(framework="a3s-code", target_dir=tmp_path, force=False) == 0
+        assert run_init(framework="codex", target_dir=tmp_path, force=False) == 0
+
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(SystemExit) as exc:
+                main(["init", "codex", "--dir", str(tmp_path), "--uninstall"])
+
+        assert exc.value.code == 0
+        env = _read_env_file(tmp_path / ".env.clawsentry")
+        assert env["CS_ENABLED_FRAMEWORKS"] == "a3s-code"
+        assert "CS_CODEX_WATCH_ENABLED" not in env
 
 
 class TestInitOutputImprovement:

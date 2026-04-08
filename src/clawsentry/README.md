@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.12+** | **2234 tests** | Protocol `ahp.1.0`
+> **Python 3.12+** | **2263 tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -169,6 +169,8 @@ pip install -e ".[dev]"
 ```bash
 clawsentry init openclaw --auto-detect   # Auto-detect ~/.openclaw config
 clawsentry init openclaw --setup         # Configure OpenClaw settings
+clawsentry start --framework openclaw    # Project env only (no ~/.openclaw edits)
+clawsentry start --framework openclaw --setup-openclaw
 clawsentry gateway                        # Start (auto-detects OpenClaw)
 clawsentry watch                          # Real-time monitoring
 # Browser: http://127.0.0.1:8080/ui      # Web dashboard
@@ -189,8 +191,10 @@ clawsentry watch
 | Command | Description |
 |---------|-------------|
 | `clawsentry gateway` | Start Gateway (auto-detects framework, starts WS/Webhook as needed) |
+| `clawsentry start` | Auto-init + Gateway + watch; supports `--frameworks` and explicit `--setup-openclaw` |
+| `clawsentry integrations status` | Inspect enabled frameworks, OpenClaw restore backups, Claude hooks, and Codex session dir reachability |
 | `clawsentry watch` | SSE real-time display (`--filter`/`--json`/`--no-color`/`--interactive`) |
-| `clawsentry init <framework>` | Initialize config (`openclaw`/`a3s-code`) |
+| `clawsentry init <framework>` | Initialize config (`a3s-code`/`claude-code`/`codex`/`openclaw`) |
 | `clawsentry harness` | a3s-code stdio bridge subprocess |
 
 ---
@@ -278,7 +282,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (2234 tests)
++-- tests/                             # Test suite (2263 tests)
 ```
 
 ---
@@ -350,7 +354,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 2234 passed, 3 skipped
+# Expected: 2263 passed, 3 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

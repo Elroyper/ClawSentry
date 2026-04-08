@@ -55,7 +55,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 > **新用户推荐路径：** `clawsentry init` → `clawsentry start` → `clawsentry doctor` → `clawsentry watch`
 
 !!! abstract "本页快速导航"
-    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [config](#clawsentry-config) · [latch](#clawsentry-latch)
+    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [config](#clawsentry-config) · [integrations](#clawsentry-integrations) · [latch](#clawsentry-latch)
 
 ---
 
@@ -67,6 +67,8 @@ clawsentry-stack     # 等价于 clawsentry stack
 
 ```bash
 clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
+                 [--frameworks a3s-code,codex,openclaw]
+                 [--setup-openclaw | --no-setup-openclaw]
                  [--host HOST] [--port PORT]
                  [--no-watch] [--interactive | -i]
                  [--open-browser] [--with-latch] [--hub-port PORT]
@@ -77,6 +79,8 @@ clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--framework` | 自动检测 | 目标框架：`a3s-code`、`claude-code`、`codex`、`openclaw` |
+| `--frameworks` | 空 | 逗号分隔的多框架启用列表，如 `a3s-code,codex,openclaw` |
+| `--setup-openclaw` | `false` | 当本次启动涉及 `openclaw` 时，同时显式修改 `~/.openclaw/` 中的审批配置 |
 | `--host` | `127.0.0.1` | Gateway HTTP 监听地址 |
 | `--port` | `8080` 或 `CS_HTTP_PORT` | Gateway HTTP 监听端口 |
 | `--no-watch` | `false` | 仅启动 Gateway，不显示实时监控 |
@@ -90,7 +94,7 @@ clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
 `clawsentry start` 会自动执行以下步骤：
 
 1. **框架检测**：优先读取 `.env.clawsentry` 中的 `CS_FRAMEWORK`，再扫描 OpenClaw / Claude Code 等已知配置，自动识别框架类型
-2. **配置初始化**：如果 `.env.clawsentry` 不存在，自动运行 `clawsentry init <framework>`
+2. **配置初始化**：如果 `.env.clawsentry` 缺失或 `--frameworks` 中有未启用框架，自动运行 `clawsentry init <framework>` 增量合并
 3. **环境加载**：读取 `.env.clawsentry` 并注入环境变量
 4. **Gateway 启动**：后台启动 Gateway 进程，等待健康检查通过
 5. **实时监控**：前台显示 `clawsentry watch` 输出（除非使用 `--no-watch`）
@@ -127,6 +131,22 @@ clawsentry start
 ```bash
 clawsentry start --framework a3s-code --port 9100
 ```
+
+#### 多框架一起启用
+
+```bash
+clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
+```
+
+此命令会按列表增量合并 `.env.clawsentry`，启动 banner 会显示 `Enabled: a3s-code, codex, openclaw`。默认不会修改 `~/.openclaw/`；如需在启动时一并配置 OpenClaw 侧审批文件，显式添加 `--setup-openclaw`。
+
+#### 启动时同时设置 OpenClaw
+
+```bash
+clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
+```
+
+当启用了 `openclaw` 且显式传入 `--setup-openclaw` 时，`start` 会在项目 `.env.clawsentry` 合并完成后继续尝试更新 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。如果当前项目已经启用了 OpenClaw，这个参数仍会生效，不需要先删除 `.env.clawsentry` 重新初始化。
 
 #### 仅启动 Gateway（不显示监控）
 
@@ -182,7 +202,7 @@ Gateway 的 stdout/stderr 输出会写入临时日志文件：
 
 ```bash
 clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--dry-run]
-                             [--uninstall]
+                             [--uninstall] [--restore]
 ```
 
 ### 参数
@@ -196,11 +216,23 @@ clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--dir PATH` | `.`（当前目录） | 配置文件写入目录 |
-| `--force` | `false` | 覆盖已存在的配置文件 |
+| `--force` | `false` | 覆盖已存在的配置文件；默认会增量合并 `.env.clawsentry` |
 | `--auto-detect` | `true` | 自动检测已有的框架配置（如 `~/.openclaw/` 中的 Gateway Token） |
-| `--setup` | `true` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`） |
+| `--setup` | `false` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`；目前主要用于 OpenClaw） |
 | `--dry-run` | `false` | 预览 `--setup` 将要执行的配置变更，但不实际应用 |
-| `--uninstall` | `false` | 移除 ClawSentry hooks（仅 `claude-code` 支持） |
+| `--uninstall` | `false` | 从项目 `.env.clawsentry` 中禁用该框架；`claude-code` 会同时移除 hooks |
+| `--restore` | `false` | 从 ClawSentry 备份恢复框架设置（目前支持 `openclaw`） |
+
+!!! info "多框架增量合并"
+    如果 `.env.clawsentry` 已存在，`clawsentry init <framework>` 默认不会轮换已有 `CS_AUTH_TOKEN`，也不会改写已有 `CS_FRAMEWORK`。命令会追加缺失的框架专属变量，并维护 `CS_ENABLED_FRAMEWORKS`（如 `a3s-code,codex,openclaw`）。
+
+    只有显式使用 `--force` 时才会覆盖 `.env.clawsentry`。
+
+!!! info "按框架安全卸载"
+    `clawsentry init <framework> --uninstall` 不会删除整个 `.env.clawsentry`，也不会轮换共享 `CS_AUTH_TOKEN`。命令只会从 `CS_ENABLED_FRAMEWORKS` 移除目标框架，并删除该框架专属变量（如 `CS_CODEX_*` 或 `OPENCLAW_*`）；如果还有其他框架启用，`CS_FRAMEWORK` 会指向剩余框架之一。
+
+!!! warning "OpenClaw setup 是显式 opt-in"
+    `clawsentry init openclaw` 默认只生成或合并 `.env.clawsentry`，不会修改 `~/.openclaw/openclaw.json` 或 `exec-approvals.json`。需要自动修改 OpenClaw 侧配置时，显式加上 `--setup`；建议先运行 `--setup --dry-run`。
 
 ### 示例
 
@@ -238,6 +270,8 @@ clawsentry init openclaw --auto-detect
 
 此命令会从 `~/.openclaw/openclaw.json` 中读取 `gateway.auth.token`，并自动填入 `.env.clawsentry` 文件。
 
+它不会修改 OpenClaw 侧配置文件；需要自动设置 `tools.exec.host` 和审批策略时使用下一节的 `--setup`。
+
 #### 自动配置 OpenClaw + 预览变更
 
 ```bash
@@ -273,6 +307,33 @@ clawsentry init openclaw --setup --dry-run
 
 !!! warning "备份机制"
     `--setup`（不带 `--dry-run`）会在修改前自动创建 `.bak` 备份文件。
+
+#### 恢复 OpenClaw 配置
+
+```bash
+# 预览恢复操作
+clawsentry init openclaw --restore --dry-run
+
+# 从 openclaw.json.bak / exec-approvals.json.bak 恢复
+clawsentry init openclaw --restore
+```
+
+`--restore` 只读取 ClawSentry `--setup` 创建的 `.bak` 文件；找不到备份时只输出 warning，不会写入新文件。
+
+#### 卸载某个框架
+
+```bash
+# 只从当前项目 env 中禁用 Codex watcher；保留其他框架和共享 token
+clawsentry init codex --uninstall
+
+# 移除 Claude Code hooks，并从当前项目 env 中移除 claude-code 启用标记
+clawsentry init claude-code --uninstall
+
+# 禁用 OpenClaw env 变量；如需恢复 OpenClaw 侧文件，另用 --restore
+clawsentry init openclaw --uninstall
+```
+
+`--uninstall` 的默认作用域是当前目录的 `.env.clawsentry`。如配置文件位于其他项目目录，使用 `--dir PATH` 指定。
 
 ---
 
@@ -939,6 +1000,56 @@ preset = "high"
 
 ---
 
+## clawsentry integrations
+
+查看当前项目中已启用的框架集成状态。
+
+### 语法
+
+```bash
+clawsentry integrations status [--dir PATH] [--json]
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--dir PATH` | `.`（当前目录） | 包含 `.env.clawsentry` 的项目目录 |
+| `--json` | `false` | 输出 JSON，便于脚本或 CI 检查 |
+
+### 示例
+
+```bash
+clawsentry integrations status
+```
+
+??? example "终端输出"
+    ```
+    ClawSentry Integrations
+    ============================================================
+    Env file: .env.clawsentry
+    Env exists: yes
+    Enabled frameworks: openclaw, codex, claude-code
+    Legacy default: openclaw
+    Codex watcher: enabled
+    OpenClaw env: configured
+    OpenClaw restore: available
+    OpenClaw restore files: /home/user/.openclaw/openclaw.json.bak
+    a3s transport env: not configured
+    Claude hooks: present
+    Claude hooks files: /home/user/.claude/settings.json
+    Codex session dir: /home/user/.codex/sessions (reachable)
+    ============================================================
+    ```
+
+`--json` 输出包含适合脚本消费的诊断字段，例如：
+
+- `openclaw_restore_available` / `openclaw_restore_files`
+- `claude_code_hook_files`
+- `codex_session_dir` / `codex_session_dir_reachable`
+
+---
+
 ## clawsentry latch
 
 管理 Latch 集成（下载安装、启停、状态查看）。Latch 提供跨设备手机监控、推送审批等增强功能。
@@ -1097,3 +1208,4 @@ clawsentry latch uninstall --keep-data
 | `CS_LLM_DAILY_BUDGET_USD` | gateway | LLM 每日预算（美元），超出后降级为纯规则引擎 |
 | `CS_METRICS_ENABLED` | gateway | 启用 Prometheus `/metrics` 端点 |
 | `CS_LATCH_HUB_URL` | gateway, doctor | Latch Hub 地址（如 `http://127.0.0.1:3006`） |
+| `CS_ENABLED_FRAMEWORKS` | init, docs | 多框架启用列表（如 `a3s-code,codex,openclaw`） |

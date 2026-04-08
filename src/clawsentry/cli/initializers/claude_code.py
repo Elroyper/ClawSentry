@@ -7,7 +7,7 @@ import secrets
 from pathlib import Path
 from typing import Any
 
-from .base import ENV_FILE_NAME, InitResult
+from .base import ENV_FILE_NAME, InitResult, merge_env_file
 
 
 _CLAWSENTRY_HOOK_MARKER = "clawsentry-harness"
@@ -71,12 +71,10 @@ class ClaudeCodeInitializer:
         files_created: list[Path] = []
 
         # --- .env.clawsentry ---
-        if env_path.exists() and not force:
-            raise FileExistsError(
-                f"{env_path} already exists. Use --force to overwrite."
-            )
         if env_path.exists() and force:
             warnings.append(f"Overwriting existing {env_path}")
+        elif env_path.exists():
+            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
 
         token = secrets.token_urlsafe(32)
         env_vars = {
@@ -85,12 +83,13 @@ class ClaudeCodeInitializer:
             "CS_FRAMEWORK": "claude-code",
         }
 
-        lines = ["# ClawSentry — Claude Code integration config"]
-        for key, val in env_vars.items():
-            lines.append(f"{key}={val}")
-        lines.append("")
-        env_path.write_text("\n".join(lines))
-        env_path.chmod(0o600)
+        env_vars = merge_env_file(
+            env_path,
+            header="# ClawSentry — Claude Code integration config",
+            new_values=env_vars,
+            framework=self.framework_name,
+            force=force,
+        )
         files_created.append(env_path)
 
         # --- ~/.claude/settings.json (hooks) ---

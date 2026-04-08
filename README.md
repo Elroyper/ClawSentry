@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2234+ tests**, ~33s full suite
+- **2263+ tests**, ~34s full suite
 
 ## Installation
 
@@ -54,6 +54,38 @@ The `start` command will:
 
 Press Ctrl+C to gracefully shutdown.
 
+`clawsentry init <framework>` merges into an existing `.env.clawsentry` by
+default: existing `CS_AUTH_TOKEN` and `CS_FRAMEWORK` values are preserved, and
+additional frameworks are recorded in `CS_ENABLED_FRAMEWORKS` (for example
+`a3s-code,codex,openclaw`). Use `--force` only when you want to replace the
+existing env file.
+
+Start multiple integrations together:
+
+```bash
+clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
+clawsentry integrations status
+```
+
+If you want `start` to also patch OpenClaw-side approval config, opt in explicitly:
+
+```bash
+clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
+clawsentry integrations status --json
+```
+
+`integrations status` now reports more than enabled frameworks: it also shows
+OpenClaw backup restore availability, Claude hook source files, and Codex
+session directory reachability.
+
+Disable one framework without disturbing the others:
+
+```bash
+clawsentry init codex --uninstall
+clawsentry init claude-code --uninstall  # also removes Claude Code hooks
+clawsentry init openclaw --uninstall     # env only; use --restore for OpenClaw-side backups
+```
+
 ### Manual Step-by-Step
 
 #### a3s-code
@@ -72,9 +104,19 @@ does not auto-load it.
 #### OpenClaw
 
 ```bash
-clawsentry init openclaw --setup   # generate config + patch OpenClaw settings
+clawsentry init openclaw           # generate project env only
+clawsentry init openclaw --setup   # opt-in: patch OpenClaw settings
 clawsentry gateway                 # start gateway (default :8080)
 open http://localhost:8080/ui      # open web dashboard
+```
+
+OpenClaw setup is explicit opt-in. Plain `init openclaw` and `start --frameworks`
+do not modify `~/.openclaw/`. Setup writes `.bak` backups before changing
+OpenClaw-side config. To preview or restore those backups:
+
+```bash
+clawsentry init openclaw --restore --dry-run
+clawsentry init openclaw --restore
 ```
 
 ## Architecture

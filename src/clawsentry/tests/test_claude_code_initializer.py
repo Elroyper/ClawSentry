@@ -87,8 +87,14 @@ class TestClaudeCodeInitializer:
     def test_no_overwrite_without_force(self, tmp_path):
         init = ClaudeCodeInitializer()
         init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        with pytest.raises(FileExistsError):
-            init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
+        first = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+
+        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
+
+        merged = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+        assert merged == first
+        assert "CS_ENABLED_FRAMEWORKS=claude-code" in (tmp_path / ".env.clawsentry").read_text()
+        assert result.warnings
 
     def test_overwrite_with_force(self, tmp_path):
         init = ClaudeCodeInitializer()
@@ -180,3 +186,38 @@ class TestClaudeCodeUninstall:
         init = ClaudeCodeInitializer()
         result = init.uninstall(claude_home=tmp_path / ".claude-nonexist")
         assert len(result.warnings) > 0
+
+    def test_run_uninstall_removes_hooks_and_env_entry(self, tmp_path):
+        """CLI uninstall helper should remove Claude hooks and keep other frameworks."""
+        from clawsentry.cli.init_command import run_uninstall
+
+        claude_home = tmp_path / ".claude"
+        init = ClaudeCodeInitializer()
+        init.generate_config(tmp_path, claude_home=claude_home)
+        env_path = tmp_path / ".env.clawsentry"
+        env_path.write_text(
+            "\n".join(
+                [
+                    "# ClawSentry test config",
+                    "CS_FRAMEWORK=claude-code",
+                    "CS_ENABLED_FRAMEWORKS=claude-code,codex",
+                    "CS_AUTH_TOKEN=keep-token",
+                    "CS_CODEX_WATCH_ENABLED=true",
+                    "",
+                ]
+            )
+        )
+
+        exit_code = run_uninstall(
+            framework="claude-code",
+            target_dir=tmp_path,
+            claude_home=claude_home,
+        )
+
+        assert exit_code == 0
+        settings = json.loads((claude_home / "settings.json").read_text())
+        assert "clawsentry-harness" not in str(settings)
+        env_content = env_path.read_text()
+        assert "CS_ENABLED_FRAMEWORKS=codex" in env_content
+        assert "CS_FRAMEWORK=codex" in env_content
+        assert "CS_CODEX_WATCH_ENABLED=true" in env_content

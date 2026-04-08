@@ -47,8 +47,8 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument(
         "--setup",
         action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Auto-configure framework settings for ClawSentry integration (default: on).",
+        default=False,
+        help="Auto-configure framework settings for ClawSentry integration (default: off).",
     )
     init_parser.add_argument(
         "--dry-run",
@@ -66,7 +66,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--uninstall",
         action="store_true",
         default=False,
-        help="Remove ClawSentry hooks from framework settings.",
+        help=(
+            "Disable one framework integration in project env and remove "
+            "supported framework hooks."
+        ),
+    )
+    init_parser.add_argument(
+        "--restore",
+        action="store_true",
+        default=False,
+        help="Restore framework settings from ClawSentry backups (currently OpenClaw).",
     )
 
     # --- gateway ---
@@ -338,6 +347,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Keep data directories (only remove binary and shortcut).",
     )
 
+    # --- integrations ---
+    integrations_parser = sub.add_parser(
+        "integrations",
+        help="Inspect configured framework integrations.",
+    )
+    integrations_sub = integrations_parser.add_subparsers(dest="integrations_command")
+    integrations_status = integrations_sub.add_parser(
+        "status",
+        help="Show enabled framework integrations.",
+    )
+    integrations_status.add_argument(
+        "--dir",
+        type=Path,
+        default=Path("."),
+        help="Directory containing .env.clawsentry (default: current dir).",
+    )
+    integrations_status.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Output status as JSON.",
+    )
+
     # --- start ---
     start_parser = sub.add_parser(
         "start",
@@ -348,6 +380,23 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=sorted(FRAMEWORK_INITIALIZERS.keys()),
         default=None,
         help="Target framework (auto-detected if omitted).",
+    )
+    start_parser.add_argument(
+        "--frameworks",
+        default=None,
+        help=(
+            "Comma-separated frameworks to enable together "
+            "(for example: a3s-code,codex,openclaw)."
+        ),
+    )
+    start_parser.add_argument(
+        "--setup-openclaw",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "When OpenClaw is enabled, also update ~/.openclaw/ for "
+            "gateway exec approvals (default: off)."
+        ),
     )
     start_parser.add_argument(
         "--host",
@@ -412,20 +461,36 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "init":
-        # Handle --uninstall for claude-code
-        if getattr(args, "uninstall", False):
-            if args.framework == "claude-code":
-                from .initializers.claude_code import ClaudeCodeInitializer
-                init = ClaudeCodeInitializer()
-                result = init.uninstall()
+        # Handle --restore for openclaw
+        if getattr(args, "restore", False):
+            if args.framework == "openclaw":
+                from .initializers.openclaw import OpenClawInitializer
+                init = OpenClawInitializer()
+                result = init.restore_openclaw_config(
+                    openclaw_home=getattr(args, "openclaw_home", None),
+                    dry_run=getattr(args, "dry_run", False),
+                )
+                if result.dry_run:
+                    print("  [DRY RUN] The following restore changes would be applied:")
+                else:
+                    print("  OpenClaw configuration restore:")
+                for change in result.changes_applied:
+                    print(f"    - {change}")
                 for w in result.warnings:
-                    print(f"  Warning: {w}", file=sys.stderr)
-                for step in result.next_steps:
-                    print(f"  {step}")
+                    print(f"  WARNING: {w}")
                 sys.exit(0)
             else:
-                print(f"--uninstall is only supported for claude-code, got: {args.framework}", file=sys.stderr)
+                print(f"--restore is only supported for openclaw, got: {args.framework}", file=sys.stderr)
                 sys.exit(1)
+
+        # Handle --uninstall for framework env/hooks
+        if getattr(args, "uninstall", False):
+            from .init_command import run_uninstall
+            code = run_uninstall(
+                framework=args.framework,
+                target_dir=args.dir,
+            )
+            sys.exit(code)
 
         from .init_command import run_init
 
@@ -561,10 +626,41 @@ def main(argv: list[str] | None = None) -> None:
         else:
             print("Usage: clawsentry latch {install,uninstall,start,stop,status}")
 
+    elif args.command == "integrations":
+        from .integrations_command import run_integrations_status
+
+        if args.integrations_command == "status":
+            sys.exit(run_integrations_status(
+                target_dir=args.dir,
+                json_mode=args.json,
+            ))
+        print("Usage: clawsentry integrations {status}")
+
     elif args.command == "start":
         from .start_command import detect_framework, run_start
 
         framework = args.framework
+        enabled_frameworks = None
+        if args.frameworks:
+            enabled_frameworks = [
+                item.strip() for item in args.frameworks.split(",") if item.strip()
+            ]
+            unknown = [
+                item for item in enabled_frameworks
+                if item not in FRAMEWORK_INITIALIZERS
+            ]
+            if unknown:
+                print(
+                    f"Unknown framework(s): {', '.join(unknown)}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            if not enabled_frameworks:
+                print("--frameworks requires at least one framework.", file=sys.stderr)
+                sys.exit(1)
+            if framework is None:
+                framework = enabled_frameworks[0]
+
         auto_detected = False
         if framework is None:
             framework = detect_framework()
@@ -583,10 +679,12 @@ def main(argv: list[str] | None = None) -> None:
             port=args.port,
             no_watch=args.no_watch,
             interactive=args.interactive,
+            setup_openclaw=args.setup_openclaw,
             open_browser=args.open_browser,
             with_latch=args.with_latch,
             hub_port=args.hub_port,
             auto_detected=auto_detected,
+            enabled_frameworks=enabled_frameworks,
         )
 
     elif args.command == "stop":

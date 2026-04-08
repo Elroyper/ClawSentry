@@ -143,6 +143,14 @@ clawsentry start --framework codex
     clawsentry start --framework codex --no-watch
     ```
 
+### 禁用 Codex 监控
+
+```bash
+clawsentry init codex --uninstall
+```
+
+此命令只会从当前项目 `.env.clawsentry` 中移除 `codex` 启用标记和 `CS_CODEX_*` 专属变量，不会删除其他框架配置或轮换共享 `CS_AUTH_TOKEN`。
+
 ---
 
 ## Hook 事件映射

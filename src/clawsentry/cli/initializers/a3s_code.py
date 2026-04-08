@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-from .base import ENV_FILE_NAME, InitResult
+from .base import ENV_FILE_NAME, InitResult, merge_env_file
 
 
 class A3SCodeInitializer:
@@ -21,12 +21,10 @@ class A3SCodeInitializer:
         warnings: list[str] = []
         files_created: list[Path] = []
 
-        if env_path.exists() and not force:
-            raise FileExistsError(
-                f"{env_path} already exists. Use --force to overwrite."
-            )
         if env_path.exists() and force:
             warnings.append(f"Overwriting existing {env_path}")
+        elif env_path.exists():
+            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
 
         if legacy_settings_path.exists():
             warnings.append(
@@ -41,12 +39,13 @@ class A3SCodeInitializer:
             "CS_AUTH_TOKEN": secrets.token_urlsafe(32),
         }
 
-        lines = ["# ClawSentry — a3s-code integration config"]
-        for key, val in env_vars.items():
-            lines.append(f"{key}={val}")
-        lines.append("")
-        env_path.write_text("\n".join(lines))
-        env_path.chmod(0o600)  # tokens are sensitive
+        env_vars = merge_env_file(
+            env_path,
+            header="# ClawSentry — a3s-code integration config",
+            new_values=env_vars,
+            framework=self.framework_name,
+            force=force,
+        )
         files_created.append(env_path)
 
         next_steps = [

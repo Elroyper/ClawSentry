@@ -34,8 +34,19 @@ class TestCodexInitializer:
     def test_no_overwrite_without_force(self, tmp_path):
         init = CodexInitializer()
         init.generate_config(tmp_path)
-        with pytest.raises(FileExistsError):
-            init.generate_config(tmp_path)
+        before = (tmp_path / ".env.clawsentry").read_text()
+        before_token = next(
+            line.split("=", 1)[1]
+            for line in before.splitlines()
+            if line.startswith("CS_AUTH_TOKEN=")
+        )
+
+        result = init.generate_config(tmp_path)
+        after = (tmp_path / ".env.clawsentry").read_text()
+
+        assert f"CS_AUTH_TOKEN={before_token}" in after
+        assert "CS_ENABLED_FRAMEWORKS=codex" in after
+        assert result.warnings
 
     def test_overwrite_with_force(self, tmp_path):
         init = CodexInitializer()

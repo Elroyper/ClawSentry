@@ -52,9 +52,15 @@ clawsentry --help
 
 ## 快速开始
 
-### 一键初始化 + 自动配置
+### 一键初始化
 
-ClawSentry 提供 `--setup` 选项，可自动检测并配置 OpenClaw：
+默认初始化只生成或合并项目 `.env.clawsentry`，不会修改 `~/.openclaw/`：
+
+```bash
+clawsentry init openclaw --auto-detect
+```
+
+如需自动配置 OpenClaw 侧文件，显式使用 `--setup`。建议先 dry-run：
 
 ```bash
 # 预览将要执行的配置变更（不修改任何文件）
@@ -72,10 +78,33 @@ clawsentry init openclaw --auto-detect --setup
 | 设置审批策略 | `~/.openclaw/exec-approvals.json` | `security` → `"allowlist"`, `ask` → `"always"` |
 | 自动备份 | `*.bak` | 修改前自动创建 `.bak` 备份文件 |
 
+如需回退 OpenClaw 侧配置，可先预览再恢复：
+
+```bash
+# 预览将从哪些 .bak 文件恢复
+clawsentry init openclaw --restore --dry-run
+
+# 从 openclaw.json.bak / exec-approvals.json.bak 恢复
+clawsentry init openclaw --restore
+```
+
+!!! note "恢复范围"
+    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.env.clawsentry`。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
+
+如只想从当前项目配置中禁用 OpenClaw，而保留其他框架和共享 token：
+
+```bash
+clawsentry init openclaw --uninstall
+```
+
+`--uninstall` 会移除 `CS_ENABLED_FRAMEWORKS` 中的 `openclaw` 以及 `OPENCLAW_*` 专属变量；它不会恢复 OpenClaw 侧配置文件。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
+
 同时生成 `.env.clawsentry`，内容包括：
 
 ```ini
 # ClawSentry — OpenClaw integration config
+CS_FRAMEWORK=openclaw
+CS_ENABLED_FRAMEWORKS=openclaw
 OPENCLAW_WEBHOOK_TOKEN=<自动生成>
 CS_AUTH_TOKEN=<自动生成>
 CS_HTTP_PORT=8080
@@ -101,6 +130,17 @@ source .env.clawsentry
 # 启动 Gateway（自动检测 OpenClaw 配置，启用 WS + Webhook）
 clawsentry gateway
 ```
+
+如果你更习惯一键启动，也可以直接在 `start` 中显式要求配置 OpenClaw 侧文件：
+
+```bash
+clawsentry start --framework openclaw --setup-openclaw
+
+# 或和其他框架一起启用
+clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
+```
+
+默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.env.clawsentry`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
 
 当检测到 OpenClaw 配置时，日志输出：
 
@@ -241,6 +281,25 @@ clawsentry gateway
 | `CS_LLM_PROVIDER` | *(空)* | LLM 提供商：`anthropic` / `openai` |
 | `CS_LLM_BASE_URL` | *(提供商默认)* | 自定义 API 地址 |
 | `CS_LLM_MODEL` | *(提供商默认)* | 模型标识符 |
+
+---
+
+## 状态自检
+
+完成初始化后，可以用 `integrations status` 检查当前项目和 OpenClaw 侧状态：
+
+```bash
+clawsentry integrations status
+clawsentry integrations status --json
+```
+
+其中与 OpenClaw 直接相关的诊断包括：
+
+- `OpenClaw env`：当前项目 `.env.clawsentry` 是否存在 `OPENCLAW_*` 配置
+- `OpenClaw restore`：`~/.openclaw/` 下是否存在可供 `--restore` 使用的 `.bak` 文件
+- `OpenClaw restore files`：检测到的备份文件路径
+
+如果项目同时启用了 Claude Code 或 Codex，状态命令还会一并显示 Claude hooks 来源文件和 Codex session 目录可达性，便于排查多框架共存场景。
 
 ---
 

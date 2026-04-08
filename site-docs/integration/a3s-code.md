@@ -67,7 +67,7 @@ CS_AUTH_TOKEN=<自动生成的安全 token>
 ```
 
 !!! tip "已有配置？"
-    如果 `.env.clawsentry` 已存在，使用 `--force` 覆盖：
+    如果 `.env.clawsentry` 已存在，`clawsentry init a3s-code` 默认会增量合并，不会轮换已有 `CS_AUTH_TOKEN`。只有明确要替换整个文件时才使用 `--force`：
     ```bash
     clawsentry init a3s-code --auto-detect --force
     ```
@@ -142,6 +142,16 @@ clawsentry watch
 ```
 
 然后正常使用 a3s-code，你将在 `watch` 终端看到每个工具调用的实时决策输出。
+
+---
+
+## 禁用集成
+
+```bash
+clawsentry init a3s-code --uninstall
+```
+
+此命令会从当前项目 `.env.clawsentry` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `a3s-code`。它不会删除共享 `CS_AUTH_TOKEN` 或整个 env 文件，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
 
 ---
 

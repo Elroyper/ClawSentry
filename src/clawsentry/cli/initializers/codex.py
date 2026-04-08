@@ -6,7 +6,7 @@ import os
 import secrets
 from pathlib import Path
 
-from .base import ENV_FILE_NAME, InitResult
+from .base import ENV_FILE_NAME, InitResult, merge_env_file
 
 
 class CodexInitializer:
@@ -26,12 +26,10 @@ class CodexInitializer:
         files_created: list[Path] = []
 
         # --- .env.clawsentry ---
-        if env_path.exists() and not force:
-            raise FileExistsError(
-                f"{env_path} already exists. Use --force to overwrite."
-            )
         if env_path.exists() and force:
             warnings.append(f"Overwriting existing {env_path}")
+        elif env_path.exists():
+            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
 
         token = secrets.token_urlsafe(32)
         port = "8080"
@@ -48,12 +46,13 @@ class CodexInitializer:
         if sessions_dir.is_dir():
             env_vars["CS_CODEX_SESSION_DIR"] = str(sessions_dir)
 
-        lines = ["# ClawSentry — Codex integration config"]
-        for key, val in env_vars.items():
-            lines.append(f"{key}={val}")
-        lines.append("")
-        env_path.write_text("\n".join(lines))
-        env_path.chmod(0o600)
+        env_vars = merge_env_file(
+            env_path,
+            header="# ClawSentry — Codex integration config",
+            new_values=env_vars,
+            framework=self.framework_name,
+            force=force,
+        )
         files_created.append(env_path)
 
         next_steps = [

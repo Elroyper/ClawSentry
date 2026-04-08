@@ -6,6 +6,21 @@ import sys
 from pathlib import Path
 
 from .initializers import get_initializer
+from .initializers.base import ENV_FILE_NAME, disable_framework_env
+
+
+_FRAMEWORK_ENV_KEYS: dict[str, set[str]] = {
+    "a3s-code": set(),
+    "claude-code": set(),
+    "codex": {"CS_CODEX_SESSION_DIR", "CS_CODEX_WATCH_ENABLED"},
+    "openclaw": {
+        "OPENCLAW_ENFORCEMENT_ENABLED",
+        "OPENCLAW_OPERATOR_TOKEN",
+        "OPENCLAW_WEBHOOK_PORT",
+        "OPENCLAW_WEBHOOK_TOKEN",
+        "OPENCLAW_WS_URL",
+    },
+}
 
 
 def run_init(
@@ -94,5 +109,69 @@ def run_init(
             for w in setup_result.warnings:
                 print(f"  WARNING: {w}")
         print()
+
+    return 0
+
+
+def run_uninstall(
+    *,
+    framework: str,
+    target_dir: Path,
+    claude_home: Path | None = None,
+    quiet: bool = False,
+) -> int:
+    """Disable one framework integration without disturbing other frameworks."""
+    try:
+        initializer = get_initializer(framework)
+    except KeyError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    warnings: list[str] = []
+    next_steps: list[str] = []
+
+    if framework == "claude-code" and hasattr(initializer, "uninstall"):
+        uninstall_kwargs: dict[str, object] = {}
+        if claude_home is not None:
+            uninstall_kwargs["claude_home"] = claude_home
+        result = initializer.uninstall(**uninstall_kwargs)
+        warnings.extend(result.warnings)
+        next_steps.extend(result.next_steps)
+
+    env_result = disable_framework_env(
+        target_dir / ENV_FILE_NAME,
+        framework=framework,
+        framework_keys=_FRAMEWORK_ENV_KEYS.get(framework, set()),
+    )
+    warnings.extend(env_result.warnings)
+    if env_result.changed:
+        if env_result.enabled_frameworks:
+            next_steps.append(
+                "Project env updated; still enabled: "
+                f"{', '.join(env_result.enabled_frameworks)}."
+            )
+        else:
+            next_steps.append("Project env updated; no frameworks remain enabled.")
+    else:
+        next_steps.append("Project env unchanged.")
+
+    if framework != "claude-code":
+        next_steps.append(f"{framework} disabled in .env.clawsentry.")
+
+    if quiet:
+        print(f"[clawsentry] {framework} integration uninstalled.")
+        return 0
+
+    print(f"[clawsentry] {framework} integration uninstalled\n")
+
+    if warnings:
+        for warning in warnings:
+            print(f"  WARNING: {warning}")
+        print()
+
+    print("  Next steps:")
+    for i, step in enumerate(next_steps, 1):
+        print(f"    {i}. {step}")
+    print()
 
     return 0

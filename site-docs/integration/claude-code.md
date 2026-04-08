@@ -358,17 +358,13 @@ clawsentry init claude-code --uninstall
 此命令会：
 
 - 从 `~/.claude/settings.json`（及旧版 `settings.local.json`）中**精确移除** ClawSentry hooks
+- 从当前目录 `.env.clawsentry` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `claude-code`
 - 保留其他工具的 hooks 不受影响
+- 保留其他框架配置和共享 `CS_AUTH_TOKEN` 不受影响
 - 如果移除后 `hooks` 字段为空，自动清理该字段
 
 !!! warning "重启生效"
     卸载后需要重启 Claude Code 才能生效。
-
-如需同时清理环境配置文件：
-
-```bash
-rm .env.clawsentry  # 手动删除
-```
 
 ---
 
