@@ -6,6 +6,26 @@
 
 ---
 
+## [0.3.9] — 2026-04-09
+
+### 修复
+
+- **`clawsentry test-llm` 兼容当前 L2/L3 结果结构** — `_format_analysis_detail()` 统一兼容 `target_level` / `reasons` / `reason` 字段，L2/L3 探针不再依赖旧结果形状，输出细节与当前分析器实现一致。
+- **L3 手动升级在无 trajectory store 时仍可执行** — `ReadOnlyToolkit.read_trajectory()` 在未注入 trajectory store 时返回空列表；手动触发的 L3 探针现在会真正执行，而不是因工具集缺少轨迹存储提前降级。
+
+### 测试
+
+- **补充回归覆盖** — 新增 `test_l3_manual_trigger_works_without_toolkit_trajectory_store`，以及 `test-llm` 的 L2/L3 probe 结果格式与触发失败回归测试。
+- **公开文档测试数字对齐** — README、包内 README、安装页与首页测试数字更新到当前完整套件结果。
+
+### 验证
+
+- Python 回归：完整测试 `2298 passed, 3 skipped`
+- `mkdocs build --strict`：PASS
+- Web UI 生产构建：PASS
+
+---
+
 ## [0.3.8] — 2026-04-09
 
 ### 改进
@@ -673,6 +693,7 @@
 - 测试通过时间 ~6.5s
 
 [0.3.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.6
+[0.3.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.9
 [0.3.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.8
 [0.3.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.5
 [0.3.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.4

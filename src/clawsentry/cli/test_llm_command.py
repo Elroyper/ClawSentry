@@ -90,6 +90,23 @@ def _build_provider():
     return provider, info
 
 
+def _format_analysis_detail(result: object) -> str:
+    """Format L2/L3 analyzer results across old and current result shapes."""
+    level = getattr(result, "target_level", None) or getattr(result, "risk_level", None)
+    level_value = getattr(level, "value", str(level or "unknown"))
+
+    reasons = getattr(result, "reasons", None)
+    if isinstance(reasons, list):
+        first_reason = next((str(item) for item in reasons if item), "")
+    else:
+        first_reason = ""
+    if not first_reason:
+        first_reason = str(getattr(result, "reason", ""))
+
+    confidence = float(getattr(result, "confidence", 0.0))
+    return f"risk={level_value}, confidence={confidence:.2f}, reason={first_reason[:60]}"
+
+
 async def _test_reachability(provider, timeout_ms: float = 10000) -> tuple[bool, float, str]:
     """Test basic API reachability. Returns (ok, latency_ms, detail)."""
     start = time.monotonic()
@@ -145,7 +162,7 @@ async def _test_l2(provider, timeout_ms: float = 15000) -> tuple[bool, float, st
     try:
         result = await analyzer.analyze(event, None, l1_snapshot, budget_ms=timeout_ms)
         latency = (time.monotonic() - start) * 1000
-        detail = f"risk={result.risk_level.value}, confidence={result.confidence:.2f}, reason={result.reason[:60]}"
+        detail = _format_analysis_detail(result)
         return True, latency, detail
     except asyncio.TimeoutError:
         latency = (time.monotonic() - start) * 1000
@@ -166,7 +183,7 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
 
     from pathlib import Path
     from ..gateway.models import (
-        CanonicalEvent, EventType, RiskSnapshot, RiskDimensions, RiskLevel,
+        CanonicalEvent, DecisionContext, EventType, RiskSnapshot, RiskDimensions, RiskLevel,
     )
 
     skills_dir = Path(__file__).parent.parent / "gateway" / "skills"
@@ -202,9 +219,14 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
 
     start = time.monotonic()
     try:
-        result = await agent.analyze(event, None, l1_snapshot, budget_ms=timeout_ms)
+        context = DecisionContext(session_risk_summary={"l3_escalate": True})
+        result = await agent.analyze(event, context, l1_snapshot, budget_ms=timeout_ms)
         latency = (time.monotonic() - start) * 1000
-        detail = f"risk={result.risk_level.value}, confidence={result.confidence:.2f}, reason={result.reason[:60]}"
+        trace = getattr(result, "trace", None) or {}
+        if trace.get("degraded") or trace.get("trigger_reason") == "trigger_not_matched":
+            reason = trace.get("degradation_reason") or "L3 did not execute"
+            return False, latency, reason
+        detail = _format_analysis_detail(result)
         return True, latency, detail
     except asyncio.TimeoutError:
         latency = (time.monotonic() - start) * 1000

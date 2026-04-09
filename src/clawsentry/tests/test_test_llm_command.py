@@ -11,9 +11,13 @@ import pytest
 
 from clawsentry.cli.test_llm_command import (
     _build_provider,
+    _test_l2,
+    _test_l3,
     _test_reachability,
     run_test_llm,
 )
+from clawsentry.gateway.models import RiskLevel
+from clawsentry.gateway.semantic_analyzer import L2Result
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +152,57 @@ class TestReachability:
         ok, latency, detail = asyncio.run(_test_reachability(provider))
         assert ok is False
         assert "Connection refused" in detail
+
+
+class TestL2Probe:
+    def test_success_formats_current_l2_result_shape(self, monkeypatch):
+        async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
+            return L2Result(
+                target_level=RiskLevel.HIGH,
+                reasons=["credential access detected"],
+                confidence=0.95,
+            )
+
+        monkeypatch.setattr(
+            "clawsentry.gateway.semantic_analyzer.LLMAnalyzer.analyze",
+            fake_analyze,
+        )
+
+        provider = MagicMock()
+        ok, latency, detail = asyncio.run(_test_l2(provider))
+
+        assert ok is True
+        assert latency > 0
+        assert "risk=high" in detail
+        assert "confidence=0.95" in detail
+        assert "credential access detected" in detail
+
+
+class TestL3Probe:
+    def test_fails_when_l3_trigger_not_matched(self, monkeypatch):
+        async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
+            return L2Result(
+                target_level=RiskLevel.HIGH,
+                reasons=["L3 trigger not matched"],
+                confidence=0.0,
+                trace={
+                    "degraded": True,
+                    "trigger_reason": "trigger_not_matched",
+                    "degradation_reason": "L3 trigger not matched",
+                },
+            )
+
+        monkeypatch.setattr(
+            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            fake_analyze,
+        )
+
+        provider = MagicMock()
+        ok, latency, detail = asyncio.run(_test_l3(provider))
+
+        assert ok is False
+        assert latency > 0
+        assert "trigger not matched" in detail.lower()
 
 
 # ---------------------------------------------------------------------------

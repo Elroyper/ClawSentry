@@ -70,6 +70,8 @@ class ReadOnlyToolkit:
 
     async def read_trajectory(self, session_id: str, limit: int = 100) -> list[dict[str, Any]]:
         self._consume_call()
+        if self._trajectory_store is None:
+            return []
         capped_limit = min(limit, self.MAX_TRAJECTORY_EVENTS)
         records = self._trajectory_store.replay_session(session_id, limit=capped_limit)
         return [

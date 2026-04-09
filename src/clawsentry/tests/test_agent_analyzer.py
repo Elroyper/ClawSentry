@@ -596,6 +596,38 @@ def test_l3_degrades_without_trajectory_store(tmp_path: Path):
     assert result.trace["degraded"] is True
 
 
+def test_l3_manual_trigger_works_without_toolkit_trajectory_store(tmp_path: Path):
+    """Manual L3 trigger should still execute when toolkit has no trajectory store."""
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(
+        return_value='{"risk_level": "high", "findings": ["manual trigger path"], "confidence": 0.81}'
+    )
+    toolkit = ReadOnlyToolkit(tmp_path, None)
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "cat ~/.ssh/id_rsa"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.HIGH),
+            3000,
+        )
+    )
+
+    assert result.confidence > 0.0
+    assert result.trace is not None
+    assert result.trace["degraded"] is False
+
+
 # ---------------------------------------------------------------------------
 # Robust parsing + format-correction retry tests
 # ---------------------------------------------------------------------------
