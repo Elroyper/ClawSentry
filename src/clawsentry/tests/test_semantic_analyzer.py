@@ -5,6 +5,7 @@ import pytest
 from clawsentry.gateway.models import (
     CanonicalEvent,
     DecisionContext,
+    DecisionTier,
     EventType,
     RiskLevel,
     RiskSnapshot,
@@ -766,6 +767,112 @@ async def test_composite_preserves_l3_trace_when_all_degraded():
 
 class TestCompositeAnalyzerSequential:
     """P1-1: L3 should only run when L2 result is uncertain."""
+
+    @pytest.mark.asyncio
+    async def test_outer_l3_skipped_when_inner_l2_aggregate_is_decisive(self):
+        """Nested L2 aggregate should be able to skip outer L3 on its own."""
+        l3_called = False
+
+        class WeakRule:
+            analyzer_id = "weak-rule"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.MEDIUM,
+                    reasons=["rule suspicion"],
+                    confidence=0.6,
+                    analyzer_id="weak-rule",
+                    latency_ms=5.0,
+                )
+
+        class StrongLLM:
+            analyzer_id = "strong-llm"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["llm confirmed critical threat"],
+                    confidence=0.92,
+                    analyzer_id="strong-llm",
+                    latency_ms=15.0,
+                    trace=None,
+                    decision_tier=DecisionTier.L2,
+                )
+
+        class OuterL3:
+            analyzer_id = "outer-l3"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["outer l3 confirmed"],
+                    confidence=0.99,
+                    analyzer_id="outer-l3",
+                    latency_ms=500.0,
+                    trace=None,
+                    decision_tier=DecisionTier.L3,
+                )
+
+        inner_l2 = CompositeAnalyzer([WeakRule(), StrongLLM()])
+        outer = CompositeAnalyzer([inner_l2, OuterL3()])
+
+        result = await outer.analyze(_evt("bash"), None, _snap(), 10000)
+
+        assert not l3_called, "Outer L3 should be skipped when inner L2 aggregate is decisive"
+        assert result.target_level == RiskLevel.CRITICAL
+        assert result.decision_tier == DecisionTier.L2
+
+    @pytest.mark.asyncio
+    async def test_outer_l3_runs_when_inner_l2_aggregate_remains_uncertain(self):
+        """Nested L2 aggregate should still allow L3 when combined L2 is uncertain."""
+        l3_called = False
+
+        class RuleSignal:
+            analyzer_id = "rule-signal"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.MEDIUM,
+                    reasons=["rule signal"],
+                    confidence=0.5,
+                    analyzer_id="rule-signal",
+                    latency_ms=5.0,
+                )
+
+        class UncertainLLM:
+            analyzer_id = "uncertain-llm"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["llm not fully sure"],
+                    confidence=0.7,
+                    analyzer_id="uncertain-llm",
+                    latency_ms=15.0,
+                    trace=None,
+                    decision_tier=DecisionTier.L2,
+                )
+
+        class OuterL3:
+            analyzer_id = "outer-l3"
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["outer l3 escalated"],
+                    confidence=0.95,
+                    analyzer_id="outer-l3",
+                    latency_ms=500.0,
+                    trace=None,
+                    decision_tier=DecisionTier.L3,
+                )
+
+        inner_l2 = CompositeAnalyzer([RuleSignal(), UncertainLLM()])
+        outer = CompositeAnalyzer([inner_l2, OuterL3()])
+
+        result = await outer.analyze(_evt("bash"), None, _snap(), 10000)
+
+        assert l3_called, "Outer L3 should run when inner L2 aggregate is still uncertain"
+        assert result.target_level == RiskLevel.CRITICAL
+        assert result.decision_tier == DecisionTier.L3
 
     @pytest.mark.asyncio
     async def test_l3_skipped_when_l2_decisive(self):

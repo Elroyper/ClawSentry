@@ -647,6 +647,7 @@ class SupervisionGateway:
                     event_dict.get("payload", {}).get("command", "")
                     or event_dict.get("tool_name", "")
                 ),
+                "trigger_detail": (l3_trace or {}).get("trigger_detail"),
                 "approval_id": event_dict.get("approval_id"),
                 "expires_at": event_dict.get("payload", {}).get("expiresAtMs"),
             }

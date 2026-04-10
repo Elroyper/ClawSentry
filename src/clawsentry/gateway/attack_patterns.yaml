@@ -1,7 +1,7 @@
 # ==========================================================================
 # ClawSentry Attack Pattern Library v1.0
 #
-# Design basis: docs/plans/2026-03-23-e4-phase1-design-v1.2.md section 4
+# Design basis: docs/plans/archive/2026-03/2026-03-23-e4-phase1-design-v1.2.md section 4
 # Coverage: OWASP Agentic AI Top 5 (ASI01, ASI02, ASI03, ASI04, ASI05)
 #
 # Each pattern has:

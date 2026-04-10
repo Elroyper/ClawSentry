@@ -83,6 +83,10 @@ export interface TrajectoryRecord {
     dimensions: { d1: number; d2: number; d3: number; d4: number; d5: number }
   }
   meta: { actual_tier: DecisionTier; caller_adapter: string }
+  l3_trace?: {
+    trigger_reason?: string
+    trigger_detail?: string
+  } | null
   recorded_at: string
 }
 
@@ -109,6 +113,7 @@ export interface SSEDecisionEvent {
   timestamp: string
   reason: string
   command: string
+  trigger_detail?: string
   approval_id?: string
   expires_at?: number
 }

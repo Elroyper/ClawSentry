@@ -212,6 +212,17 @@ class TestDecisionFormatterMixedFormat:
         assert "Tier:" in result
         assert "L1" in result
 
+    def test_verbose_decision_shows_trigger_detail(self):
+        event = self._make(
+            decision="block",
+            risk_level="high",
+            actual_tier="L3",
+            trigger_detail="secret_plus_network",
+        )
+        result = format_decision(event, color=False, verbose=True)
+        assert "Trigger:" in result
+        assert "secret_plus_network" in result
+
     # --- no_emoji mode ---
 
     def test_no_emoji_removes_decision_emoji(self):

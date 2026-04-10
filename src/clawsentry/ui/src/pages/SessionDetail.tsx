@@ -304,6 +304,11 @@ export default function SessionDetail() {
                   {record.decision.reason && (
                     <p className="priority-session-meta">{String(record.decision.reason)}</p>
                   )}
+                  {record.l3_trace?.trigger_detail && (
+                    <p className="priority-session-meta">
+                      Trigger detail: <span className="mono">{record.l3_trace?.trigger_detail}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             )

@@ -13,6 +13,37 @@ from clawsentry.gateway.review_toolkit import (
 from .conftest import StubTrajectoryStore
 
 
+class StubSessionRegistry:
+    def get_session_risk(self, session_id: str, *, limit: int = 100, since_seconds=None) -> dict:
+        return {
+            "session_id": session_id,
+            "current_risk_level": "high",
+            "cumulative_score": 7,
+            "risk_timeline": [
+                {
+                    "event_id": "evt-1",
+                    "occurred_at": "2026-04-10T09:00:00+00:00",
+                    "risk_level": "medium",
+                    "composite_score": 3,
+                    "tool_name": "read_file",
+                    "decision": "allow",
+                    "actual_tier": "L1",
+                    "classified_by": "rule_based",
+                },
+                {
+                    "event_id": "evt-2",
+                    "occurred_at": "2026-04-10T09:01:00+00:00",
+                    "risk_level": "high",
+                    "composite_score": 7,
+                    "tool_name": "bash",
+                    "decision": "defer",
+                    "actual_tier": "L3",
+                    "classified_by": "agent_reviewer",
+                },
+            ][:limit],
+        }
+
+
 # ---------------------------------------------------------------------------
 # Budget management
 # ---------------------------------------------------------------------------
@@ -195,6 +226,56 @@ class TestReadTrajectory:
         before = tk.calls_remaining
         await tk.read_trajectory("sess-1", limit=1)
         assert tk.calls_remaining == before - 1
+
+
+# ---------------------------------------------------------------------------
+# transcript + session risk
+# ---------------------------------------------------------------------------
+
+
+class TestTranscriptAndSessionRisk:
+    @pytest.mark.asyncio
+    async def test_read_transcript_reads_bound_session_transcript(self, tmp_path: Path) -> None:
+        transcript = tmp_path / ".codex" / "transcript.jsonl"
+        transcript.parent.mkdir()
+        transcript.write_text('{"role":"user","content":"cat secrets.env"}\n', encoding="utf-8")
+
+        tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore(), session_registry=StubSessionRegistry())
+        tk = tk.fork(
+            workspace_root=tmp_path,
+            transcript_path=str(transcript),
+            session_id="sess-1",
+        )
+
+        result = await tk.read_transcript()
+        assert "cat secrets.env" in result
+
+    @pytest.mark.asyncio
+    async def test_read_transcript_rejects_outside_workspace(self, tmp_path: Path) -> None:
+        outside = tmp_path.parent / "session.jsonl"
+        outside.write_text("outside", encoding="utf-8")
+
+        tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore(), session_registry=StubSessionRegistry())
+        tk = tk.fork(
+            workspace_root=tmp_path,
+            transcript_path=str(outside),
+            session_id="sess-1",
+        )
+
+        result = await tk.read_transcript()
+        assert "[error:" in result
+        assert "escapes workspace_root" in result
+
+    @pytest.mark.asyncio
+    async def test_read_session_risk_returns_session_history(self, tmp_path: Path) -> None:
+        tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore(), session_registry=StubSessionRegistry())
+        tk = tk.fork(workspace_root=tmp_path, session_id="sess-risk")
+
+        result = await tk.read_session_risk(limit=1)
+        assert result["session_id"] == "sess-risk"
+        assert result["current_risk_level"] == "high"
+        assert len(result["risk_timeline"]) == 1
+        assert result["risk_timeline"][0]["event_id"] == "evt-1"
 
 
 # ---------------------------------------------------------------------------

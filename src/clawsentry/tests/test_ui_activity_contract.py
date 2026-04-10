@@ -60,6 +60,21 @@ def test_ui_types_expose_l3_as_a_first_class_decision_tier() -> None:
 
     assert "export type DecisionTier = 'L1' | 'L2' | 'L3'" in source
     assert "actual_tier: DecisionTier" in source
+    assert "trigger_detail?: string" in source
+
+
+def test_runtime_feed_surfaces_trigger_detail_for_decision_events() -> None:
+    source = _read_ui_file("components/RuntimeFeed.tsx")
+
+    assert "event.trigger_detail" in source
+    assert "Trigger pattern" in source
+
+
+def test_session_detail_replay_surfaces_l3_trigger_detail() -> None:
+    source = _read_ui_file("pages/SessionDetail.tsx")
+
+    assert "record.l3_trace?.trigger_detail" in source
+    assert "Trigger detail" in source
 
 
 def test_session_risk_timeline_exposes_tier_fields_without_trace_parsing() -> None:

@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-04-11
+
+### 改进
+
+- **L3 slice 1~32 正式收口** — `CS_L3_ENABLED=true` 时的默认 `multi_turn` 语义、显式 `trigger_reason`、基于聚合 L2 结果的 L3 装配、session transcript / risk 证据读取、`suspicious_pattern` 与 `trigger_detail` 观察链路现在已全部进入正式版本。
+- **archive/export 边界继续收紧** — `secret_harvest_archive` 现在明确排除普通本地打包、`base64 -d`、extract/restore、archive inspection、zip/gzip validation、以及只是在 shell 文本中提到 archive 命令的负例，同时继续保留真实 shell wrapper 与 bounded `python -c` launcher 下的 archive/export 识别能力。
+- **Python launcher helper 覆盖补全** — bounded `python -c` 匹配路径现已覆盖 `subprocess.run/call/Popen/check_call/check_output/getoutput/getstatusoutput`、`os.system/popen`、`os.execl/execlp/execv/execve/execvp/execvpe`、`os.spawnl/spawnlp/spawnv/spawnve/spawnvp/spawnvpe` 等常见执行 helper，同时保持纯 `print('...')` 文本负例不触发。
+
+### 文档
+
+- **发布口径与状态页同步** — 包内 README、开发仓库导航、在线安装页、首页、状态页、动态日志与 CHANGELOG 已统一更新到 `v0.4.1` 和当前完整回归基线。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2464 passed, 3 skipped`
+- `mkdocs build --strict`：PASS
+- L3 focused 回归：`249 passed`
+- L3 trigger 单测：`113 passed`
+
 ---
 
 ## [0.4.0] — 2026-04-10
@@ -58,7 +77,7 @@
 - **在线文档重写 Web UI 说明** — `site-docs/dashboard/index.md` 现在先解释 Web UI 的使用模型，再解释页面职责，明确 Dashboard / Sessions / Session Detail / Alerts / DEFER Panel 各自回答什么问题。
 - **快速开始补充 Web UI 导读** — `site-docs/getting-started/quickstart.md` 新增“第一次打开 Web UI 先看什么”的说明，帮助用户用正确的视角理解监控台。
 - **报表 API 文档对齐新字段** — `site-docs/api/reporting.md` 更新会话列表与会话风险详情的响应示例，补充 `workspace_root` / `transcript_path` 等字段说明。
-- **进度文档同步收口** — `docs/plans/2026-04-09-issue-followups-ux-risk-l3-evolution.md` 已更新为包含本轮 Web UI 重构、浏览器验收与后续发布建议。
+- **进度文档同步收口** — `docs/plans/archive/2026-04/2026-04-09-issue-followups-ux-risk-l3-evolution.md` 已更新为包含本轮 Web UI 重构、浏览器验收与后续发布建议。
 
 ### 验证
 
@@ -711,6 +730,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.0
 [0.3.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.6
 [0.3.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.9

@@ -215,6 +215,33 @@ class TestGatewayCore:
         assert result["result"]["decision"]["decision"] == "allow"
 
     @pytest.mark.asyncio
+    async def test_safe_l1_path_returns_actual_tier_l1_and_no_l3_trace(self, gw):
+        params = _sync_decision_params(
+            request_id="req-l1-safe",
+            decision_tier="L1",
+            deadline_ms=1000,
+            event={
+                "event_id": "evt-l1-safe",
+                "trace_id": "trace-l1-safe",
+                "event_type": "pre_action",
+                "session_id": "sess-l1-safe",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+        result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        assert result["result"]["actual_tier"] == "L1"
+        assert result["result"]["decision"]["decision"] == "allow"
+
+        record = gw.trajectory_store.records[-1]
+        assert record["meta"]["actual_tier"] == "L1"
+        assert record["l3_trace"] is None
+
+    @pytest.mark.asyncio
     async def test_medium_pre_action_auto_escalates_to_l2(self, gw):
         params = _sync_decision_params(
             request_id="req-l2-auto",
@@ -253,7 +280,12 @@ class TestGatewayCore:
                     confidence=0.91,
                     analyzer_id=self.analyzer_id,
                     latency_ms=42.0,
-                    trace={"trigger_reason": "manual_l3_escalate", "mode": "single_turn", "turns": []},
+                    trace={
+                        "trigger_reason": "suspicious_pattern",
+                        "trigger_detail": "secret_plus_network",
+                        "mode": "single_turn",
+                        "turns": [],
+                    },
                     decision_tier=DecisionTier.L3,
                 )
 
@@ -286,7 +318,8 @@ class TestGatewayCore:
             record = gw.trajectory_store.records[-1]
             assert record["meta"]["actual_tier"] == "L3"
             assert record["risk_snapshot"]["classified_by"] == "L3"
-            assert record["l3_trace"]["trigger_reason"] == "manual_l3_escalate"
+            assert record["l3_trace"]["trigger_reason"] == "suspicious_pattern"
+            assert record["l3_trace"]["trigger_detail"] == "secret_plus_network"
 
             session_risk = gw.report_session_risk("sess-l3-explicit")
             assert session_risk["actual_tier_distribution"]["L3"] == 1
@@ -300,7 +333,9 @@ class TestGatewayCore:
             while not queue.empty():
                 decision_events.append(queue.get_nowait())
             assert any(
-                event.get("type") == "decision" and event.get("actual_tier") == "L3"
+                event.get("type") == "decision"
+                and event.get("actual_tier") == "L3"
+                and event.get("trigger_detail") == "secret_plus_network"
                 for event in decision_events
             )
         finally:
@@ -346,6 +381,55 @@ class TestGatewayCore:
         record = gw.trajectory_store.records[-1]
         assert record["meta"]["actual_tier"] == "L2"
         assert record["risk_snapshot"]["classified_by"] == "L2"
+
+    @pytest.mark.asyncio
+    async def test_requested_l3_degraded_path_keeps_actual_tier_l1_and_trigger_reason(self):
+        class DegradedL3Analyzer:
+            analyzer_id = "test-l3-degraded"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.LOW,
+                    reasons=["L3 hard cap exceeded"],
+                    confidence=0.0,
+                    analyzer_id=self.analyzer_id,
+                    latency_ms=80.0,
+                    trace={
+                        "trigger_reason": "cumulative_risk",
+                        "mode": "multi_turn",
+                        "turns": [],
+                        "degraded": True,
+                        "degradation_reason": "L3 hard cap exceeded",
+                    },
+                    decision_tier=DecisionTier.L1,
+                )
+
+        gw = SupervisionGateway(analyzer=DegradedL3Analyzer())
+        params = _sync_decision_params(
+            request_id="req-l3-degraded",
+            decision_tier="L3",
+            deadline_ms=1500,
+            event={
+                "event_id": "evt-l3-degraded",
+                "trace_id": "trace-l3-degraded",
+                "event_type": "pre_action",
+                "session_id": "sess-l3-degraded",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"command": "cat prod-token.txt"},
+                "tool_name": "bash",
+                "risk_hints": ["credential_exfiltration"],
+            },
+        )
+
+        result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        assert result["result"]["actual_tier"] == "L1"
+        record = gw.trajectory_store.records[-1]
+        assert record["meta"]["actual_tier"] == "L1"
+        assert record["l3_trace"]["trigger_reason"] == "cumulative_risk"
+        assert record["l3_trace"]["degraded"] is True
 
     @pytest.mark.asyncio
     async def test_report_summary_counts(self, gw):

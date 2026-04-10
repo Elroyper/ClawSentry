@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **2331 tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **2464 tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -53,6 +53,96 @@
 | **L1** Rules | D1-D6 six-dimensional scoring + short-circuit rules | < 0.3ms | Always on |
 | **L2** Semantic | RuleBased / LLM / Composite + 25 attack patterns | < 3s | `CS_LLM_PROVIDER` |
 | **L3** Agent | AgentAnalyzer + ReadOnlyToolkit + SkillRegistry | < 30s | `CS_L3_ENABLED=true` |
+
+When L3 is enabled, the env-driven factory now assembles a nested chain:
+`CompositeAnalyzer([CompositeAnalyzer([RuleBasedAnalyzer, LLMAnalyzer]), AgentAnalyzer])`.
+That keeps the three-layer contract honest: L3 is only considered after the
+combined L2 result is known.
+
+Current deterministic L3 trigger reasons are:
+`manual_l3_escalate`, `suspicious_pattern`, `cumulative_risk`, and
+`high_risk_complex_payload`. The new `suspicious_pattern` path currently
+covers five bounded sequence families:
+- secret-access-plus-network sequences
+- progressive `read -> write -> exec -> sudo` escalation chains
+- temporary-file staging followed by outbound exfiltration
+- reconnaissance commands followed by `sudo`-backed privileged execution
+- repeated secret harvest followed by archive/packaging preparation
+
+For operator-facing telemetry, the top-level `trigger_reason` remains stable,
+while suspicious-pattern traces now also expose a finer `trigger_detail`
+family such as `secret_plus_network` or `secret_harvest_archive`.
+That detail is now visible in `clawsentry watch`, the dashboard runtime feed,
+and the session replay timeline without changing the alert taxonomy.
+
+The archive/packaging branch is intentionally narrow: ordinary local
+`tar`/`zip` packaging of build artifacts does not trigger by itself, even if
+the session previously read secrets. The packaging step must visibly involve
+sensitive material before it upgrades into `suspicious_pattern`. Decode-style
+restore flows such as `base64 -d` are also excluded from the archive signal;
+the heuristic is intentionally biased toward export/packaging behavior.
+Extract-style local restore flows such as `tar -x*` / `tar x*`, `unzip`,
+`gunzip`, and `gzip -dc` are also excluded, so unpacking a local archive does
+not get conflated with secret export.
+Archive inspection flows such as `tar tf` and `tar --list` are excluded as
+well, so listing local archive contents does not get conflated with export.
+Local `gzip`/`zip` inspection and validation flows such as `gzip -l`, `zip -T`,
+and `zip -sf` are also excluded, so checking an archive does not get conflated
+with packaging or export.
+Their long-option equivalents such as `gzip --list`, `zip --test`, and
+`zip --show-files` are excluded as well.
+The inspection matcher is now command-token-aware rather than raw-substring
+based, so `zip -t` no longer accidentally aliases `gzip -tv`. `gzip -t*`
+validation flows such as `gzip -tv` and `gzip --test` are excluded explicitly.
+Archive-family detection now also keys off actual shell command heads, so
+printed examples such as `echo "zip ..."` or heredoc bodies that merely
+contain archive commands do not get conflated with real export behavior.
+Wrapped shell execution such as `bash -lc "zip ..."` and `sh -c 'tar ...'`
+is now unwrapped before matching, so real nested archive/export commands are
+still detected while quoted `echo` text remains excluded.
+Bounded `python -c` launchers such as `os.system("zip ...")` and
+`subprocess.run(['tar', ...])` are also unwrapped now, while pure debug
+printing such as `python -c "print('zip ...')"` remains excluded.
+That bounded launcher path now treats `subprocess.Popen(...)` consistently as
+well, even after command normalization lowercases the outer `python -c`
+payload.
+That same bounded launcher path now also recognizes
+`subprocess.check_call(...)` and `subprocess.check_output(...)` when their
+first argument is a constant command string or argv list, while quoted debug
+text remains excluded.
+It now also recognizes `subprocess.getoutput(...)` and
+`subprocess.getstatusoutput(...)` for bounded constant-string command flows,
+while quoted debug text remains excluded.
+The same bounded launcher path now also recognizes `os.popen(...)` for
+constant-string command flows, while quoted debug text remains excluded.
+It now also recognizes bounded `os.execlp(...)` argv flows, while quoted debug
+text remains excluded.
+It now also recognizes bounded `os.spawnlp(...)` argv flows after skipping the
+leading mode argument, while quoted debug text remains excluded.
+It now also recognizes bounded `os.execvp(...)` argv-list flows, while quoted
+debug text remains excluded.
+It now also recognizes bounded `os.spawnvp(...)` argv-list flows after skipping
+the leading mode argument, while quoted debug text remains excluded.
+It now also recognizes bounded `os.execv(...)` argv-list flows while ignoring
+the leading executable path argument, and quoted debug text remains excluded.
+It now also recognizes bounded `os.spawnv(...)` argv-list flows while skipping
+the leading mode and executable path arguments, and quoted debug text remains
+excluded.
+It now also recognizes bounded `os.execve(...)` argv-list flows while ignoring
+the leading executable path argument and trailing env mapping, and quoted debug
+text remains excluded.
+It now also recognizes bounded `os.spawnve(...)` argv-list flows while
+skipping the leading mode and executable path arguments plus the trailing env
+mapping, and quoted debug text remains excluded.
+It now also recognizes bounded `os.execvpe(...)` argv-list flows while
+ignoring the leading executable name argument and trailing env mapping, and
+quoted debug text remains excluded.
+It now also recognizes bounded `os.spawnvpe(...)` argv-list flows while
+skipping the leading mode and executable name arguments plus the trailing env
+mapping, and quoted debug text remains excluded.
+It now also recognizes bounded vararg `os.execl(...)` and `os.spawnl(...)`
+flows, plus bounded `os.execle(...)` and `os.spawnle(...)` flows that carry a
+trailing env mapping, while quoted debug text remains excluded.
 
 ### D1-D6 Risk Dimensions
 
@@ -278,10 +368,10 @@ src/clawsentry/
 |   |-- semantic_analyzer.py           # L2 pluggable semantic (Protocol + 3 implementations)
 |   |-- llm_provider.py                # LLM Provider base (Anthropic/OpenAI)
 |   |-- llm_factory.py                 # Environment-driven analyzer builder
-|   |-- agent_analyzer.py              # L3 review Agent (MVP single + standard multi-turn)
-|   |-- review_toolkit.py              # L3 ReadOnlyToolkit (5 read-only tools)
+|   |-- agent_analyzer.py              # L3 review Agent (single-turn MVP + multi-turn runtime)
+|   |-- review_toolkit.py              # L3 ReadOnlyToolkit (7 read-only tools incl. transcript/session risk)
 |   |-- review_skills.py               # L3 SkillRegistry (YAML load/select)
-|   |-- l3_trigger.py                  # L3 trigger policy (4 trigger types)
+|   |-- l3_trigger.py                  # L3 trigger policy (explicit trigger reasons)
 |   |-- idempotency.py                 # Request idempotency cache
 |   +-- skills/                        # 6 built-in review domain skills (YAML)
 |-- adapters/                          # Framework adapters
@@ -305,7 +395,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (2331 tests)
++-- tests/                             # Test suite (2464 tests)
 ```
 
 ---
@@ -349,6 +439,12 @@ src/clawsentry/
 | `CS_LLM_BASE_URL` | Custom API endpoint |
 | `CS_LLM_MODEL` | Model name |
 | `CS_L3_ENABLED` | Enable L3 review Agent |
+| `CS_L3_MULTI_TURN` | Force L3 `multi_turn`/single-turn runtime mode (`false` keeps MVP single-turn) |
+
+When `CS_L3_ENABLED=true`, the env-driven factory now defaults L3 to `multi_turn`.
+Set `CS_L3_MULTI_TURN=false` to force the older single-turn MVP behavior. The
+`clawsentry test-llm` probe surfaces the active L3 mode and trigger reason in
+its detail output so operators can verify the runtime path.
 
 ### OpenClaw
 
@@ -377,7 +473,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 2331 passed, 3 skipped
+# Expected: 2464 passed, 3 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

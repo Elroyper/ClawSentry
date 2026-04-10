@@ -195,21 +195,28 @@ ClawSentry 的 L2 层支持三种分析器实现，由 `build_analyzer_from_env(
 
 ### CompositeAnalyzer（组合分析器）
 
-链式组合多个分析器，并发执行，取最高风险结果。
+链式组合多个分析器，按层级递进执行，取最高风险结果。
 
 ```
 CompositeAnalyzer
-  ├── RuleBasedAnalyzer  (规则引擎, < 0.1ms)
-  ├── LLMAnalyzer        (LLM 语义分析, < 3s)
-  └── AgentAnalyzer      (L3 审查 Agent, < 30s, 可选)
+  ├── CompositeAnalyzer  (L2 聚合层)
+  │   ├── RuleBasedAnalyzer  (规则引擎, < 0.1ms)
+  │   └── LLMAnalyzer        (LLM 语义分析, < 3s)
+  └── AgentAnalyzer          (L3 审查 Agent, < 30s, 可选)
 ```
 
 **合并策略**：
 
-1. 并发执行所有分析器（`asyncio.gather`）
-2. 过滤掉 `confidence=0.0` 的降级结果
-3. 按 `(risk_level, confidence)` 取最大值
-4. 如果所有分析器都降级 → 回退到 L1 结果
+1. 先执行第一个 analyzer，并检查结果是否已对 HIGH+ 风险给出足够确定的结论
+2. 若第一个 analyzer 不够确定，再执行后续 analyzer
+3. 过滤掉 `confidence=0.0` 的降级结果
+4. 按 `(risk_level, confidence)` 取最大值
+5. 如果所有分析器都降级 → 回退到 L1 结果
+
+!!! note "L3 启用时的工厂装配"
+    `build_analyzer_from_env()` 在 `CS_L3_ENABLED=true` 时会返回嵌套结构：
+    `CompositeAnalyzer([CompositeAnalyzer([RuleBasedAnalyzer, LLMAnalyzer]), AgentAnalyzer])`。
+    这意味着外层是否进入 L3，取决于**聚合后的 L2 结果**，而不是单个 `RuleBasedAnalyzer` 或 `LLMAnalyzer`。
 
 ---
 
@@ -301,7 +308,7 @@ graph TD
     L --> M{CS_L3_ENABLED=true?}
     M -->|否| N["返回 CompositeAnalyzer(L1+L2)"]
     M -->|是| O["初始化 AgentAnalyzer"]
-    O -->|成功| P["返回 CompositeAnalyzer(L1+L2+L3)"]
+    O -->|成功| P["返回 CompositeAnalyzer([L2 aggregate, L3])"]
     O -->|失败| Q["日志警告, 返回 CompositeAnalyzer(L1+L2)"]
 ```
 

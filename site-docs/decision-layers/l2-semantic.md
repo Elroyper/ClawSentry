@@ -272,11 +272,11 @@ LLM 必须返回严格的 JSON 格式：
 
 ### CompositeAnalyzer — 组合分析 {#composite}
 
-`CompositeAnalyzer` 是实际部署中最常使用的分析器。它并行运行多个子分析器，然后合并结果。
+`CompositeAnalyzer` 是实际部署中最常使用的分析器。它按层级递进运行子分析器，然后合并结果。
 
 ```python
 class CompositeAnalyzer:
-    """并行运行多个分析器，取最高风险结果。"""
+    """递进运行多个分析器，取最高风险结果。"""
 
     def __init__(self, analyzers: list):
         self._analyzers = analyzers
@@ -291,23 +291,22 @@ class CompositeAnalyzer:
 
 ```mermaid
 graph TD
-    subgraph "并行执行"
-        R[RuleBasedAnalyzer] -->|L2Result| M[合并器]
-        L[LLMAnalyzer] -->|L2Result| M
-        A[AgentAnalyzer<br/>L3 可选] -->|L2Result| M
-    end
-
-    M --> F{过滤 confidence > 0}
+    L2A[第一个 analyzer] --> D{HIGH+ 且 confidence >= 0.8?}
+    D -->|是| OUT[直接返回聚合后的 L2 结果]
+    D -->|否| NEXT[执行后续 analyzers]
+    NEXT --> F{过滤 confidence > 0}
     F -->|有效结果| MAX[取最高风险等级<br/>同级取最高置信度]
     F -->|全部降级| FB[回退到 L1]
-    MAX --> OUT[最终 L2Result]
+    MAX --> OUT
     FB --> OUT
 ```
 
-1. 所有子分析器通过 `asyncio.gather()` **并行执行**
-2. 过滤掉异常和 confidence=0.0 的降级结果
-3. 取风险等级最高的结果；同等风险等级时取置信度最高者
-4. 若所有分析器均降级 → 回退为 L1 原始结果
+1. 先运行第一个 analyzer
+2. 若结果已对 HIGH+ 风险给出高置信度结论，则跳过后续 analyzers
+3. 否则再运行后续 analyzers
+4. 过滤掉异常和 confidence=0.0 的降级结果
+5. 取风险等级最高的结果；同等风险等级时取置信度最高者
+6. 若所有 analyzers 均降级 → 回退为 L1 原始结果
 
 ---
 
@@ -518,13 +517,14 @@ L2 分析完成后，如果满足 L3 触发条件且 L3 已启用，事件会继
 
 L3 的触发由 `L3TriggerPolicy` 独立判断（详见 [L3 审查 Agent](l3-agent.md)），主要条件包括：
 
-- 风险等级 >= HIGH 且 L3 已启用 (`CS_L3_ENABLED=true`)
-- 会话累积风险分 >= 阈值
-- 高危工具 + 复杂 payload
-- 显式手动标志 (`l3_escalate`/`force_l3`)
+- 显式手动标志（`manual_l3_escalate`）
+- 会话累积风险分 >= 阈值（`cumulative_risk`）
+- 高危工具 + 复杂 payload（`high_risk_complex_payload`）
 
-!!! note "L3 在 CompositeAnalyzer 中是可选的"
-    当通过 `build_analyzer_from_env()` 构建分析器时，如果 `CS_L3_ENABLED=true`，`AgentAnalyzer` 会作为 `CompositeAnalyzer` 的第三个子分析器参与并行执行。L3 的触发判断在 `AgentAnalyzer.analyze()` 内部进行。
+!!! note "当前是 slice 2 编排"
+    当通过 `build_analyzer_from_env()` 构建分析器且 `CS_L3_ENABLED=true` 时，工厂会返回嵌套结构：
+    `CompositeAnalyzer([CompositeAnalyzer([RuleBasedAnalyzer, LLMAnalyzer]), AgentAnalyzer])`。
+    这意味着外层是否进入 L3，取决于内层**已经聚合好的 L2 结果**；L3 的触发判断仍然发生在 `AgentAnalyzer.analyze()` 内部。
 
 ---
 
@@ -547,7 +547,7 @@ pie title 事件到达各层的比例（典型场景）
 | 快速模型 | 默认使用 Haiku/gpt-4o-mini | 单次调用成本极低 |
 | Token 限制 | `max_tokens=256` | 限制输出长度 |
 | 超时控制 | `provider_timeout_ms=3000` | 避免长时间阻塞 |
-| 并行执行 | CompositeAnalyzer 并行运行 | 延迟取决于最慢分析器，而非累加 |
+| 递进执行 | 先聚合 L2，再按需进入 L3 | 避免在 L2 已足够确定时浪费 L3 预算 |
 
 !!! example "成本估算"
     假设每天处理 10,000 个事件：
@@ -570,7 +570,7 @@ flowchart TD
     ENV -->|未设置| RB["🔧 RuleBasedAnalyzer\n纯正则+PatternMatcher\n延迟 <1ms，无 LLM 费用"]
     ENV -->|anthropic / openai\n/ compatible| HAS{CS_L2_USE_COMPOSITE\n是否为 true?}
     HAS -->|false / 未设置| LLM["🤖 LLMAnalyzer\nLLM 语义分析\n延迟 <3s"]
-    HAS -->|true| COMP["⚡ CompositeAnalyzer\nRuleBased + LLM 并行\n延迟 = max(Rule, LLM)"]
+    HAS -->|true| COMP["⚡ CompositeAnalyzer\nRuleBased + LLM 聚合\n再按需进入 L3"]
 
     RB -->|命中攻击模式| R1["风险等级提升"]
     RB -->|无命中| R2["原始 L1 风险等级"]
@@ -586,6 +586,7 @@ flowchart TD
 | `CS_LLM_MODEL` | 覆盖默认模型名称 | 任意模型 ID | 按 Provider 默认 |
 | `CS_LLM_BASE_URL` | OpenAI 兼容端点 URL | URL | Provider 默认 |
 | `CS_L3_ENABLED` | 启用 L3 审查 Agent | `true` / `false` | `false` |
+| `CS_L3_MULTI_TURN` | L3 运行模式；`false` 强制单轮 | `true` / `false` | `true`（L3 启用时） |
 
 ### 配置示例
 

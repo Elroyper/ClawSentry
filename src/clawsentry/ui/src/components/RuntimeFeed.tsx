@@ -215,6 +215,11 @@ function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {
               {event.reason}
             </div>
           )}
+          {event.trigger_detail && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              Trigger pattern: <span className="mono">{event.trigger_detail}</span>
+            </div>
+          )}
         </>
       )
     case 'alert':

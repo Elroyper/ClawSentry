@@ -11,6 +11,7 @@ import pytest
 
 from clawsentry.cli.test_llm_command import (
     _build_provider,
+    _format_l3_detail,
     _test_l2,
     _test_l3,
     _test_reachability,
@@ -32,6 +33,7 @@ _LLM_ENV_KEYS = [
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
     "CS_L3_ENABLED",
+    "CS_L3_MULTI_TURN",
 ]
 
 
@@ -179,6 +181,82 @@ class TestL2Probe:
 
 
 class TestL3Probe:
+    def test_format_l3_detail_includes_trigger_detail(self):
+        result = L2Result(
+            target_level=RiskLevel.HIGH,
+            reasons=["operator review confirmed"],
+            confidence=0.91,
+        )
+
+        detail = _format_l3_detail(
+            result,
+            {
+                "mode": "multi_turn",
+                "trigger_reason": "suspicious_pattern",
+                "trigger_detail": "secret_plus_network",
+                "turns": [],
+            },
+        )
+
+        assert "mode=multi_turn" in detail
+        assert "trigger=suspicious_pattern" in detail
+        assert "detail=secret_plus_network" in detail
+
+    def test_uses_runtime_multi_turn_default_when_enabled(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        class FakeAgent:
+            def __init__(self, provider, toolkit, skill_registry, config, **kwargs):
+                captured["enable_multi_turn"] = config.enable_multi_turn
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["operator review confirmed"],
+                    confidence=0.91,
+                    trace={
+                        "mode": "multi_turn",
+                        "trigger_reason": "manual_l3_escalate",
+                        "turns": [],
+                    },
+                )
+
+        monkeypatch.setenv("CS_L3_ENABLED", "true")
+        monkeypatch.setattr("clawsentry.gateway.agent_analyzer.AgentAnalyzer", FakeAgent)
+
+        provider = MagicMock()
+        ok, _, detail = asyncio.run(_test_l3(provider))
+
+        assert ok is True
+        assert captured["enable_multi_turn"] is True
+        assert "mode=multi_turn" in detail
+
+    def test_success_detail_includes_runtime_mode_and_trigger_reason(self, monkeypatch):
+        async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
+            return L2Result(
+                target_level=RiskLevel.HIGH,
+                reasons=["operator review confirmed"],
+                confidence=0.91,
+                trace={
+                    "mode": "multi_turn",
+                    "trigger_reason": "manual_l3_escalate",
+                    "turns": [],
+                },
+            )
+
+        monkeypatch.setattr(
+            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            fake_analyze,
+        )
+
+        provider = MagicMock()
+        ok, latency, detail = asyncio.run(_test_l3(provider))
+
+        assert ok is True
+        assert latency > 0
+        assert "mode=multi_turn" in detail
+        assert "trigger=manual_l3_escalate" in detail
+
     def test_fails_when_l3_trigger_not_matched(self, monkeypatch):
         async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
             return L2Result(
@@ -203,6 +281,33 @@ class TestL3Probe:
         assert ok is False
         assert latency > 0
         assert "trigger not matched" in detail.lower()
+
+    def test_degraded_detail_preserves_trigger_reason_and_mode(self, monkeypatch):
+        async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
+            return L2Result(
+                target_level=RiskLevel.HIGH,
+                reasons=["L3 hard cap exceeded"],
+                confidence=0.0,
+                trace={
+                    "degraded": True,
+                    "mode": "multi_turn",
+                    "trigger_reason": "cumulative_risk",
+                    "degradation_reason": "L3 hard cap exceeded",
+                },
+            )
+
+        monkeypatch.setattr(
+            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            fake_analyze,
+        )
+
+        provider = MagicMock()
+        ok, latency, detail = asyncio.run(_test_l3(provider))
+
+        assert ok is False
+        assert latency > 0
+        assert "mode=multi_turn" in detail
+        assert "trigger=cumulative_risk" in detail
 
 
 # ---------------------------------------------------------------------------
@@ -272,3 +377,64 @@ class TestRunTestLlm:
         data = json.loads(output)
         assert data["all_pass"] is True
         assert len(data["results"]) >= 3
+
+    @patch("clawsentry.cli.test_llm_command._build_provider")
+    @patch("clawsentry.cli.test_llm_command._test_reachability")
+    @patch("clawsentry.cli.test_llm_command._test_l2")
+    @patch("clawsentry.cli.test_llm_command._test_l3")
+    def test_json_output_surfaces_l3_mode_and_trigger_detail(
+        self, mock_l3, mock_l2, mock_reach, mock_build, capsys, monkeypatch
+    ):
+        monkeypatch.setenv("CS_L3_ENABLED", "true")
+        mock_build.return_value = (MagicMock(), {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "base_url": "(default)",
+            "key_preview": "sk-...test",
+        })
+        mock_reach.side_effect = [
+            (True, 200.0, "PONG"),
+            (True, 220.0, "PONG"),
+        ]
+        mock_l2.return_value = (True, 600.0, "risk=medium")
+        mock_l3.return_value = (
+            True,
+            900.0,
+            "mode=multi_turn, trigger=manual_l3_escalate, risk=high, confidence=0.91, reason=test",
+        )
+
+        code = run_test_llm(color=False, json_mode=True)
+
+        assert code == 0
+        data = json.loads(capsys.readouterr().out)
+        l3_result = next(item for item in data["results"] if item["test"] == "l3_review")
+        assert "mode=multi_turn" in l3_result["detail"]
+        assert "trigger=manual_l3_escalate" in l3_result["detail"]
+
+    @patch("clawsentry.cli.test_llm_command._build_provider")
+    @patch("clawsentry.cli.test_llm_command._test_reachability")
+    @patch("clawsentry.cli.test_llm_command._test_l2")
+    @patch("clawsentry.cli.test_llm_command._test_l3")
+    def test_json_output_includes_l3_mode_detail(self, mock_l3, mock_l2, mock_reach, mock_build, capsys, monkeypatch):
+        monkeypatch.setenv("CS_L3_ENABLED", "true")
+        mock_build.return_value = (MagicMock(), {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "base_url": "(default)",
+            "key_preview": "sk-...test",
+        })
+        mock_reach.return_value = (True, 200.0, "PONG")
+        mock_l2.return_value = (True, 600.0, "risk=medium")
+        mock_l3.return_value = (
+            True,
+            900.0,
+            "mode=multi_turn, trigger=manual_l3_escalate, risk=high, confidence=0.91, reason=test",
+        )
+
+        code = run_test_llm(color=False, json_mode=True)
+
+        assert code == 0
+        output = capsys.readouterr().out
+        data = json.loads(output)
+        l3_result = next(item for item in data["results"] if item["test"] == "l3_review")
+        assert "mode=multi_turn" in l3_result["detail"]

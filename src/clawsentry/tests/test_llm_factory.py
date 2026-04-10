@@ -23,6 +23,7 @@ def _clean_env():
         "CS_LLM_MODEL",
         "CS_LLM_BASE_URL",
         "CS_L3_ENABLED",
+        "CS_L3_MULTI_TURN",
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
     ]
@@ -126,9 +127,10 @@ class TestBuildAnalyzerFromEnv:
         assert provider._model == "kimi-k2.5"
 
     def test_l3_enabled(self):
-        """CS_L3_ENABLED=true adds AgentAnalyzer to composite."""
+        """CS_L3_ENABLED=true nests L2 aggregate under an outer L2->L3 composite."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
+        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -143,10 +145,65 @@ class TestBuildAnalyzerFromEnv:
                 workspace_root=Path("/tmp"),
             )
         assert isinstance(result, CompositeAnalyzer)
-        # Should contain RuleBasedAnalyzer + LLMAnalyzer + AgentAnalyzer
-        assert len(result._analyzers) == 3
+        assert len(result._analyzers) == 2
+        inner_l2 = result._analyzers[0]
+        assert isinstance(inner_l2, CompositeAnalyzer)
+        assert len(inner_l2._analyzers) == 2
+        assert isinstance(inner_l2._analyzers[0], RuleBasedAnalyzer)
+        assert isinstance(inner_l2._analyzers[1], LLMAnalyzer)
+        assert isinstance(result._analyzers[1], AgentAnalyzer)
+        assert result._analyzers[1]._config.enable_multi_turn is True
+
+    def test_l3_multi_turn_can_be_disabled_explicitly(self):
+        """CS_L3_MULTI_TURN=false keeps factory-built L3 in MVP mode."""
+        from pathlib import Path
+        from clawsentry.gateway.server import TrajectoryStore
         from clawsentry.gateway.agent_analyzer import AgentAnalyzer
-        assert isinstance(result._analyzers[2], AgentAnalyzer)
+
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "OPENAI_API_KEY": "sk-test-key-123",
+            "CS_L3_ENABLED": "true",
+            "CS_L3_MULTI_TURN": "false",
+        }
+        store = TrajectoryStore(db_path=":memory:")
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env(
+                trajectory_store=store,
+                workspace_root=Path("/tmp"),
+            )
+
+        assert isinstance(result, CompositeAnalyzer)
+        assert len(result._analyzers) == 2
+        assert isinstance(result._analyzers[0], CompositeAnalyzer)
+        assert isinstance(result._analyzers[1], AgentAnalyzer)
+        assert result._analyzers[1]._config.enable_multi_turn is False
+
+    def test_l3_toolkit_receives_session_registry(self):
+        """Factory-built L3 should pass SessionRegistry into ReadOnlyToolkit."""
+        from pathlib import Path
+        from clawsentry.gateway.server import TrajectoryStore
+        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "OPENAI_API_KEY": "sk-test-key-123",
+            "CS_L3_ENABLED": "true",
+        }
+        store = TrajectoryStore(db_path=":memory:")
+        session_registry = object()
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env(
+                trajectory_store=store,
+                session_registry=session_registry,
+                workspace_root=Path("/tmp"),
+            )
+
+        assert isinstance(result, CompositeAnalyzer)
+        assert isinstance(result._analyzers[1], AgentAnalyzer)
+        assert result._analyzers[1]._toolkit._session_registry is session_registry
 
     def test_l3_disabled_by_default(self):
         """Without CS_L3_ENABLED, no AgentAnalyzer."""

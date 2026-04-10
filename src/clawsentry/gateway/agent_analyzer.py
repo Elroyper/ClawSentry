@@ -35,6 +35,8 @@ from .semantic_analyzer import L2Result, _max_risk_level
 _ALLOWED_TOOL_CALLS: dict[str, str] = {
     "read_trajectory": "read_trajectory",
     "read_file": "read_file",
+    "read_transcript": "read_transcript",
+    "read_session_risk": "read_session_risk",
     "search_codebase": "search_codebase",
     "query_git_diff": "query_git_diff",
     "list_directory": "list_directory",
@@ -81,6 +83,7 @@ class AgentAnalyzer:
         self,
         *,
         trigger_reason: str,
+        trigger_detail: Optional[str],
         skill_selected: Optional[str],
         mode: Optional[str],
         turns: list[dict],
@@ -93,6 +96,7 @@ class AgentAnalyzer:
         tool_calls_used = sum(1 for t in turns if t.get("type") == "tool_call")
         return {
             "trigger_reason": trigger_reason,
+            "trigger_detail": trigger_detail,
             "skill_selected": skill_selected,
             "mode": mode,
             "turns": turns,
@@ -122,10 +126,16 @@ class AgentAnalyzer:
             except Exception:
                 pass  # Degrade gracefully; empty history = stricter trigger threshold
 
-        if not self._trigger_policy.should_trigger(event, context, l1_snapshot, session_risk_history):
+        trigger_metadata = self._trigger_policy.trigger_metadata(
+            event, context, l1_snapshot, session_risk_history,
+        )
+        trigger_reason = None if trigger_metadata is None else trigger_metadata["trigger_reason"]
+        trigger_detail = None if trigger_metadata is None else trigger_metadata.get("trigger_detail")
+        if trigger_reason is None:
             result = self._degraded(l1_snapshot, start, "L3 trigger not matched")
             trace = self._build_trace(
                 trigger_reason="trigger_not_matched",
+                trigger_detail=None,
                 skill_selected=None, mode=None, turns=[],
                 final_verdict=None, start=start,
                 degraded=True, degradation_reason="L3 trigger not matched",
@@ -140,8 +150,11 @@ class AgentAnalyzer:
         try:
             workspace_context = self._workspace_context(event)
             workspace_root = workspace_context.get("workspace_root")
+            transcript_path = workspace_context.get("transcript_path")
             analysis_toolkit = self._toolkit.fork(
-                Path(workspace_root) if workspace_root else None
+                workspace_root=Path(workspace_root) if workspace_root else None,
+                transcript_path=transcript_path,
+                session_id=event.session_id,
             )
             analysis_toolkit.reset_budget()
             skill = self._skill_registry.select_skill(event, event.risk_hints or [])
@@ -165,6 +178,8 @@ class AgentAnalyzer:
                     workspace_context,
                     effective_budget,
                     start,
+                    trigger_reason,
+                    trigger_detail,
                 )
             else:
                 return await self._run_single_turn(
@@ -175,6 +190,8 @@ class AgentAnalyzer:
                     workspace_context,
                     effective_budget,
                     start,
+                    trigger_reason,
+                    trigger_detail,
                 )
         except (Exception, asyncio.CancelledError):
             result = self._degraded(
@@ -182,7 +199,8 @@ class AgentAnalyzer:
                 "L3 analysis degraded; falling back to prior risk assessment",
             )
             trace = self._build_trace(
-                trigger_reason="triggered",
+                trigger_reason=trigger_reason or "triggered",
+                trigger_detail=trigger_detail,
                 skill_selected=None, mode=None, turns=[],
                 final_verdict=None, start=start,
                 degraded=True,
@@ -217,6 +235,8 @@ class AgentAnalyzer:
         workspace_context: dict[str, Any],
         effective_budget: float,
         start: float,
+        trigger_reason: str,
+        trigger_detail: Optional[str],
     ) -> L2Result:
         prompt = self._build_initial_prompt(
             event, l1_snapshot, skill, trajectory, workspace_context
@@ -282,7 +302,8 @@ class AgentAnalyzer:
             }
 
         trace = self._build_trace(
-            trigger_reason="triggered",
+            trigger_reason=trigger_reason,
+            trigger_detail=trigger_detail,
             skill_selected=skill.name,
             mode="single_turn",
             turns=turns,
@@ -316,6 +337,8 @@ class AgentAnalyzer:
         workspace_context: dict[str, Any],
         effective_budget: float,
         start: float,
+        trigger_reason: str,
+        trigger_detail: Optional[str],
     ) -> L2Result:
         system_prompt = self._build_multi_turn_system_prompt(skill)
         messages: list[dict[str, str]] = [
@@ -341,7 +364,8 @@ class AgentAnalyzer:
             degradation_reason: Optional[str] = None,
         ) -> L2Result:
             trace = self._build_trace(
-                trigger_reason="triggered",
+                trigger_reason=trigger_reason,
+                trigger_detail=trigger_detail,
                 skill_selected=skill.name,
                 mode="multi_turn",
                 turns=turns,
@@ -556,7 +580,7 @@ class AgentAnalyzer:
             + "You may call read-only tools to gather more evidence. "
             + "Each intermediate response must be JSON: "
             + '{"thought": "...", "tool_call": {"name": "<tool>", "arguments": {...}}, "done": false}. '
-            + "Available tools: read_trajectory, read_file, search_codebase, query_git_diff, list_directory. "
+            + "Available tools: read_trajectory, read_file, read_transcript, read_session_risk, search_codebase, query_git_diff, list_directory. "
             + "When you have enough information, respond with the final JSON ONLY: "
             + '{"risk_level": "low|medium|high|critical", "findings": ["..."], "confidence": 0.0}.'
         )

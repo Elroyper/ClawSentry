@@ -167,7 +167,7 @@ class LLMAnalyzer:
 
 ### CompositeAnalyzer
 
-组合分析器，并行运行多个分析器并取最高风险结果：
+组合分析器，递进运行多个分析器并取最高风险结果：
 
 ```python
 class CompositeAnalyzer:
@@ -179,10 +179,12 @@ class CompositeAnalyzer:
 
 **行为**：
 
-1. 使用 `asyncio.gather()` **并行**运行所有子分析器
-2. 过滤掉 confidence=0.0 的结果（视为降级/失败）
-3. 从有效结果中选择风险等级最高的；风险等级相同时选择 confidence 最高的
-4. 如果所有分析器都降级（无有效结果），返回 L1 等级，confidence=0.0
+1. 先运行第一个子分析器
+2. 若第一个结果已对 HIGH+ 风险给出高置信度结论，则跳过后续分析器
+3. 否则再运行后续子分析器
+4. 过滤掉 confidence=0.0 的结果（视为降级/失败）
+5. 从有效结果中选择风险等级最高的；风险等级相同时选择 confidence 最高的
+6. 如果所有分析器都降级（无有效结果），返回 L1 等级，confidence=0.0
 
 ---
 
@@ -354,7 +356,7 @@ analyzers = [
 composite = CompositeAnalyzer(analyzers)
 ```
 
-CompositeAnalyzer 会**并行**运行所有分析器，然后取风险等级最高的有效结果。
+CompositeAnalyzer 会递进运行这些分析器，并最终取风险等级最高的有效结果。
 
 ---
 

@@ -394,11 +394,12 @@ class TestBuildAnalyzerMetricsParam:
         assert not isinstance(llm_analyzer._provider, InstrumentedProvider)
 
     def test_factory_l3_gets_separate_instrumented_provider(self):
-        """When L3 is enabled and metrics given, L3 gets a separate InstrumentedProvider with tier=L3."""
+        """When L3 is enabled, inner L2 and outer L3 each keep their own instrumented provider."""
         import os
         from pathlib import Path
         from unittest.mock import patch as _patch
         from clawsentry.gateway.llm_factory import build_analyzer_from_env
+        from clawsentry.gateway.semantic_analyzer import CompositeAnalyzer
         from clawsentry.gateway.server import TrajectoryStore
         from clawsentry.gateway.agent_analyzer import AgentAnalyzer
 
@@ -419,14 +420,18 @@ class TestBuildAnalyzerMetricsParam:
                 workspace_root=Path("/tmp"),
             )
 
-        assert len(result._analyzers) == 3
+        assert len(result._analyzers) == 2
+        inner_l2 = result._analyzers[0]
+        assert isinstance(inner_l2, CompositeAnalyzer)
+        assert len(inner_l2._analyzers) == 2
+
         # L2 provider
-        l2_provider = result._analyzers[1]._provider
+        l2_provider = inner_l2._analyzers[1]._provider
         assert isinstance(l2_provider, InstrumentedProvider)
         assert l2_provider._tier == "L2"
 
         # L3 provider
-        l3_agent = result._analyzers[2]
+        l3_agent = result._analyzers[1]
         assert isinstance(l3_agent, AgentAnalyzer)
         assert isinstance(l3_agent._provider, InstrumentedProvider)
         assert l3_agent._provider._tier == "L3"

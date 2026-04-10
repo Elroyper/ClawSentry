@@ -8,6 +8,7 @@ Environment variables:
   CS_LLM_MODEL        = override default model name
   CS_LLM_BASE_URL     = OpenAI-compatible base URL (e.g. kimi-k2.5 endpoint)
   CS_L3_ENABLED       = "true" to enable AgentAnalyzer (L3 review agent)
+  CS_L3_MULTI_TURN    = "false" to force MVP single-turn mode when L3 is enabled
 """
 
 from __future__ import annotations
@@ -21,6 +22,13 @@ from .llm_provider import AnthropicProvider, InstrumentedProvider, LLMProviderCo
 from .semantic_analyzer import CompositeAnalyzer, LLMAnalyzer, RuleBasedAnalyzer
 
 logger = logging.getLogger("ahp.llm-factory")
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not str(raw).strip():
+        return default
+    return str(raw).strip().lower() in ("true", "1", "yes", "on")
 
 
 def build_analyzer_from_env(
@@ -81,9 +89,13 @@ def build_analyzer_from_env(
     # Wrap L2 provider with instrumentation when metrics collector is provided.
     l2_provider = InstrumentedProvider(provider, metrics, tier="L2") if metrics is not None else provider
 
-    analyzers: list = [RuleBasedAnalyzer(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path), LLMAnalyzer(l2_provider)]
+    l2_analyzers: list = [
+        RuleBasedAnalyzer(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path),
+        LLMAnalyzer(l2_provider),
+    ]
+    l2_composite = CompositeAnalyzer(l2_analyzers)
 
-    l3_enabled = os.getenv("CS_L3_ENABLED", "").strip().lower() in ("true", "1", "yes")
+    l3_enabled = _env_bool("CS_L3_ENABLED", False)
     if l3_enabled:
         try:
             from .agent_analyzer import AgentAnalyzer
@@ -91,7 +103,7 @@ def build_analyzer_from_env(
             from .review_skills import SkillRegistry
 
             ws_root = workspace_root or Path.cwd()
-            toolkit = ReadOnlyToolkit(ws_root, trajectory_store)
+            toolkit = ReadOnlyToolkit(ws_root, trajectory_store, session_registry=session_registry)
             skills_dir = Path(__file__).parent / "skills"
             skill_registry = SkillRegistry(skills_dir)
             custom_skills_dir = os.getenv("AHP_SKILLS_DIR", "").strip()
@@ -101,9 +113,11 @@ def build_analyzer_from_env(
                     loaded = skill_registry.load_additional(custom_path)
                     logger.info("Custom skills loaded from %s (%d skills)", custom_path, loaded)
             from .agent_analyzer import AgentAnalyzerConfig
-            agent_config = AgentAnalyzerConfig()
-            if l3_budget_ms is not None:
-                agent_config = AgentAnalyzerConfig(l3_budget_ms=l3_budget_ms)
+            enable_multi_turn = _env_bool("CS_L3_MULTI_TURN", True)
+            agent_config = AgentAnalyzerConfig(
+                l3_budget_ms=l3_budget_ms,
+                enable_multi_turn=enable_multi_turn,
+            )
             # Wrap L3 provider separately so L2 and L3 calls are tracked independently.
             l3_provider = InstrumentedProvider(provider, metrics, tier="L3") if metrics is not None else provider
             agent = AgentAnalyzer(
@@ -114,9 +128,9 @@ def build_analyzer_from_env(
                 trajectory_store=trajectory_store,
                 session_registry=session_registry,
             )
-            analyzers.append(agent)
             logger.info("L3 AgentAnalyzer enabled")
+            return CompositeAnalyzer([l2_composite, agent])
         except Exception:
             logger.warning("Failed to initialize L3 AgentAnalyzer; continuing with L1+L2 only", exc_info=True)
 
-    return CompositeAnalyzer(analyzers)
+    return l2_composite

@@ -31,6 +31,7 @@ from clawsentry.gateway.risk_snapshot import (
     _score_d5,
 )
 from clawsentry.gateway.policy_engine import L1PolicyEngine, make_fallback_decision
+from clawsentry.gateway.semantic_analyzer import L2Result
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +374,73 @@ class TestL1PolicyEngine:
         assert tier == DecisionTier.L2
         assert snapshot.classified_by == "L2"
         assert snapshot.risk_level == RiskLevel.LOW
+        assert decision.decision == DecisionVerdict.ALLOW
+
+    def test_requested_l3_tier_returns_l3_actual_tier(self):
+        class L3Analyzer:
+            analyzer_id = "test-l3"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["manual operator review"],
+                    confidence=0.94,
+                    analyzer_id=self.analyzer_id,
+                    trace={
+                        "trigger_reason": "manual_l3_escalate",
+                        "mode": "multi_turn",
+                        "turns": [],
+                        "degraded": False,
+                    },
+                    decision_tier=DecisionTier.L3,
+                )
+
+        engine = L1PolicyEngine(analyzer=L3Analyzer())
+        evt = _evt(tool_name="bash", payload={"command": "cat prod-token.txt"})
+
+        decision, snapshot, tier = engine.evaluate(
+            evt,
+            _ctx(AgentTrustLevel.STANDARD),
+            requested_tier=DecisionTier.L3,
+        )
+
+        assert tier == DecisionTier.L3
+        assert snapshot.classified_by == "L3"
+        assert snapshot.l3_trace["trigger_reason"] == "manual_l3_escalate"
+        assert decision.decision == DecisionVerdict.BLOCK
+
+    def test_requested_l3_tier_can_fall_back_to_l1_and_preserve_trace(self):
+        class DegradedL3Analyzer:
+            analyzer_id = "test-l3-degraded"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=l1_snapshot.risk_level,
+                    reasons=["L3 trigger not matched"],
+                    confidence=0.0,
+                    analyzer_id=self.analyzer_id,
+                    trace={
+                        "trigger_reason": "trigger_not_matched",
+                        "mode": None,
+                        "turns": [],
+                        "degraded": True,
+                        "degradation_reason": "L3 trigger not matched",
+                    },
+                    decision_tier=DecisionTier.L1,
+                )
+
+        engine = L1PolicyEngine(analyzer=DegradedL3Analyzer())
+        evt = _evt(tool_name="read_file", payload={"path": "/tmp/readme.md"})
+
+        decision, snapshot, tier = engine.evaluate(
+            evt,
+            _ctx(AgentTrustLevel.STANDARD),
+            requested_tier=DecisionTier.L3,
+        )
+
+        assert tier == DecisionTier.L1
+        assert snapshot.classified_by == "L1"
+        assert snapshot.l3_trace["trigger_reason"] == "trigger_not_matched"
         assert decision.decision == DecisionVerdict.ALLOW
 
     def test_medium_pre_action_auto_escalates_to_l2_and_can_upgrade(self):

@@ -107,6 +107,34 @@ def _format_analysis_detail(result: object) -> str:
     return f"risk={level_value}, confidence={confidence:.2f}, reason={first_reason[:60]}"
 
 
+def _format_l3_detail(result: object, trace: dict | None) -> str:
+    """Format L3 probe detail with runtime mode and trigger metadata."""
+    trace = trace or {}
+    parts: list[str] = []
+
+    mode = trace.get("mode")
+    if mode:
+        parts.append(f"mode={mode}")
+
+    trigger_reason = trace.get("trigger_reason")
+    if trigger_reason:
+        parts.append(f"trigger={trigger_reason}")
+
+    trigger_detail = trace.get("trigger_detail")
+    if trigger_detail:
+        parts.append(f"detail={trigger_detail}")
+
+    if trace.get("degraded"):
+        parts.append("degraded=true")
+        degradation_reason = str(trace.get("degradation_reason") or "").strip()
+        if degradation_reason:
+            parts.append(degradation_reason)
+    else:
+        parts.append(_format_analysis_detail(result))
+
+    return ", ".join(parts) if parts else _format_analysis_detail(result)
+
+
 async def _test_reachability(provider, timeout_ms: float = 10000) -> tuple[bool, float, str]:
     """Test basic API reachability. Returns (ok, latency_ms, detail)."""
     start = time.monotonic()
@@ -176,6 +204,7 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
     """Run a sample through L3 agent review. Returns (ok, latency_ms, detail)."""
     try:
         from ..gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
+        from ..gateway.llm_factory import _env_bool
         from ..gateway.review_toolkit import ReadOnlyToolkit
         from ..gateway.review_skills import SkillRegistry
     except ImportError as e:
@@ -189,7 +218,10 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
     skills_dir = Path(__file__).parent.parent / "gateway" / "skills"
     toolkit = ReadOnlyToolkit(Path.cwd(), None)
     skill_registry = SkillRegistry(skills_dir)
-    config = AgentAnalyzerConfig(l3_budget_ms=timeout_ms)
+    config = AgentAnalyzerConfig(
+        l3_budget_ms=timeout_ms,
+        enable_multi_turn=_env_bool("CS_L3_MULTI_TURN", True),
+    )
     agent = AgentAnalyzer(
         provider=provider,
         toolkit=toolkit,
@@ -223,10 +255,11 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
         result = await agent.analyze(event, context, l1_snapshot, budget_ms=timeout_ms)
         latency = (time.monotonic() - start) * 1000
         trace = getattr(result, "trace", None) or {}
+        detail = _format_l3_detail(result, trace)
         if trace.get("degraded") or trace.get("trigger_reason") == "trigger_not_matched":
-            reason = trace.get("degradation_reason") or "L3 did not execute"
-            return False, latency, reason
-        detail = _format_analysis_detail(result)
+            if not detail:
+                detail = str(trace.get("degradation_reason") or "L3 did not execute")
+            return False, latency, detail
         return True, latency, detail
     except asyncio.TimeoutError:
         latency = (time.monotonic() - start) * 1000

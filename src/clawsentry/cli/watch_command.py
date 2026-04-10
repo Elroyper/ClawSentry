@@ -304,6 +304,10 @@ def format_decision(
     if reason:
         detail_items.append(f"Reason: {_c('grey', reason, color=color)}")
 
+    trigger_detail = str(event.get("trigger_detail") or "")
+    if trigger_detail:
+        detail_items.append(f"Trigger: {_c('grey', trigger_detail, color=color)}")
+
     # DEFER: optional expiry countdown
     if decision == "defer" and expires_at_ms is not None:
         remaining_s = int(expires_at_ms / 1000 - time.time())

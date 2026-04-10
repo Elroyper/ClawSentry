@@ -1,7 +1,7 @@
 """
 D6 Injection Detection — Layer 1 (heuristic regex) + Layer 2 (canary token) + Layer 3 (vector similarity).
 
-Design basis: docs/plans/2026-03-23-e4-phase1-design-v1.2.md section 2.2
+Design basis: docs/plans/archive/2026-03/2026-03-23-e4-phase1-design-v1.2.md section 2.2
 """
 
 from __future__ import annotations
