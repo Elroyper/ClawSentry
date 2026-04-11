@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2464+ tests**, ~35s full suite
+- **2691+ tests**, ~35s full suite
 
 ## Installation
 
@@ -33,6 +33,11 @@ pip install clawsentry[all]      # everything
 ```
 
 Requires Python >= 3.11.
+
+## What's New in v0.4.2
+
+- **L3 Python launcher hardening**: ClawSentry now better detects secret-harvest archive/export commands that are built inside bounded `python -c` helpers instead of being written as plain shell strings.
+- **Covered command builders**: `format_map(...)`, named / expanded-keyword `str.format(...)`, `string.Template(...).substitute(...)`, `string.Template(...).safe_substitute(...)`, and literal `dict(...)` mapping constructors are now reconstructed while ordinary `print(...)`, restore, inspection, and normal local packaging negatives stay excluded.
 
 ## Quick Start
 

@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **2464 tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **2691 tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -143,6 +143,46 @@ mapping, and quoted debug text remains excluded.
 It now also recognizes bounded vararg `os.execl(...)` and `os.spawnl(...)`
 flows, plus bounded `os.execle(...)` and `os.spawnle(...)` flows that carry a
 trailing env mapping, while quoted debug text remains excluded.
+The same bounded launcher path now also reconstructs literal argv-list
+concatenation such as `['tar'] + ['-czf', ...]`, so constant split-sequence
+helpers still map back to archive/export behavior without evaluating dynamic
+expressions.
+It also reconstructs literal command-string concatenation such as
+`'zip /tmp/secrets.zip ' + '/app/.env ...'`, so bounded `os.system(...)` and
+`subprocess.*(..., shell=True)` constant helpers still map back to
+archive/export behavior without evaluating dynamic expressions.
+It also reconstructs literal separator joins such as
+`' '.join(['zip', ...])`, plus direct `shlex.join(['zip', ...])`, so bounded
+command-string helpers still map back to archive/export behavior when the
+entire sequence is statically literal.
+It also reconstructs bounded f-strings and positional `str.format(...)`
+helpers when every fragment still reduces to a supported constant command
+string, so helper-composed archive/export commands remain visible without
+falling through to variable evaluation.
+It also reconstructs bounded `%` formatting and direct
+`subprocess.list2cmdline(...)` helpers when their inputs remain fully literal,
+so more shell-oriented command builders still map back to archive/export
+behavior without widening into dynamic expression evaluation.
+It also reconstructs bounded `string.Template(...).substitute(...)` and
+`literal_template.format_map(literal_dict)` helpers when every template input
+remains fully literal, so named-template command builders remain visible
+without falling through into general expression evaluation.
+It now also reconstructs bounded named `str.format(...)` helpers when every
+keyword value remains fully literal, so named-placeholder command builders
+remain visible without widening into dynamic expression evaluation.
+It now also reconstructs bounded expanded-keyword `str.format(**{...})`
+helpers when every mapping entry remains fully literal, so literal expanded
+placeholder mappings remain visible without widening into variable evaluation.
+It now also reconstructs bounded `string.Template(...).substitute(literal_dict)`
+helpers when every mapping entry remains fully literal, so positional template
+mapping helpers remain visible without widening into variable evaluation.
+It now also reconstructs bounded `string.Template(...).safe_substitute(...)`
+helpers, including literal positional mappings, when every mapping entry
+remains fully literal, so safe-substitution command builders remain visible
+without widening into variable evaluation.
+It now also reconstructs bounded literal `dict(...)` mapping constructors when
+every keyword value remains fully literal, so constructor-based mapping helpers
+remain visible without widening into dynamic mapping evaluation.
 
 ### D1-D6 Risk Dimensions
 
@@ -395,7 +435,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (2464 tests)
++-- tests/                             # Test suite (2691 tests)
 ```
 
 ---
@@ -473,7 +513,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 2464 passed, 3 skipped
+# Expected: 2691 passed, 3 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

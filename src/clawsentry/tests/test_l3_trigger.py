@@ -1534,6 +1534,292 @@ def test_secret_harvest_followed_by_python_dash_c_print_getoutput_text_does_not_
     assert reason is None
 
 
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_run_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.run(args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_popen_keyword_args_shell_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.Popen(args=\'tar -czf /tmp/secrets.tgz /app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+        "tar ",
+    ) is True
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_call_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_call(args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_args_shell_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip /tmp/secrets.zip /app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_cmd_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf /tmp/secrets.tgz /app/.env /home/user/.ssh/id_rsa\')"',
+        "tar ",
+    ) is True
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getstatusoutput_keyword_cmd_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getstatusoutput(cmd=\'zip /tmp/secrets.zip /app/.env /home/user/.ssh/id_rsa\')"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_run_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.run(args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_popen_keyword_args_shell_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.Popen(args=\'tar -czf /tmp/secrets.tgz /app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_call_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_call(args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_args_shell_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip /tmp/secrets.zip /app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_cmd_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf /tmp/secrets.tgz /app/.env /home/user/.ssh/id_rsa\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getstatusoutput_keyword_cmd_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getstatusoutput(cmd=\'zip /tmp/secrets.zip /app/.env /home/user/.ssh/id_rsa\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_run_keyword_args_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "print(\'subprocess.run(args=[\\\\\\\'tar\\\\\\\', \\\\\\\'-czf\\\\\\\', \\\\\\\'/tmp/secrets.tgz\\\\\\\', \\\\\\\'/app/.env\\\\\\\', \\\\\\\'/home/user/.ssh/id_rsa\\\\\\\'])\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_cmd_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "print(\'subprocess.getoutput(cmd=\\\\\\\'tar -czf /tmp/secrets.tgz /app/.env /home/user/.ssh/id_rsa\\\\\\\')\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
 def test_shell_command_token_matcher_unwraps_python_dash_c_os_popen_tar_command():
     policy = L3TriggerPolicy()
 
@@ -2533,6 +2819,3723 @@ def test_secret_harvest_followed_by_python_dash_c_print_os_spawnle_text_does_not
                 payload={"path": "/home/user/.ssh/id_rsa"},
                 risk_hints=["credential_access"],
             ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawn_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawn(\'/bin/tar\', [\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawn_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawn(\'/bin/tar\', [\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawn_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawn(\\'/bin/tar\\', [\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawnp_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawnp(\'tar\', [\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawnp_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawnp(\'tar\', [\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawnp_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawnp(\\'tar\\', [\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execlpe_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execlpe(\'tar\', \'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\', {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execlpe_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execlpe(\'tar\', \'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\', {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execlpe_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execlpe(\\'tar\\', \\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\', {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnlpe_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnlpe(os.P_WAIT, \'tar\', \'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\', {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnlpe_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnlpe(os.P_WAIT, \'tar\', \'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\', {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnlpe_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnlpe(os.P_WAIT, \\'tar\\', \\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\', {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawn_keyword_argv_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawn_keyword_argv_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawn_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawn(path=\\'/bin/tar\\', argv=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawnp_keyword_argv_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawnp(path=\'tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawnp_keyword_argv_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawnp(path=\'tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawnp_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawnp(path=\\'tar\\', argv=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(
+                tool_name="read_file",
+                payload={"path": "/app/.env"},
+                risk_hints=["credential_access"],
+            ),
+            _history(
+                tool_name="read_file",
+                payload={"path": "/home/user/.ssh/id_rsa"},
+                risk_hints=["credential_access"],
+            ),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execv_keyword_argv_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execv_keyword_argv_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execv_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execv(path=\\'/bin/tar\\', argv=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execvp_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execvp(file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execvp_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execvp(file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execvp_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execvp(file=\\'tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execve_keyword_argv_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execve(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execve_keyword_argv_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execve(path=\'/bin/tar\', argv=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execve_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execve(path=\\'/bin/tar\\', argv=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execvpe_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execvpe(file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execvpe_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execvpe(file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execvpe_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execvpe(file=\\'tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnv_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnv(mode=os.P_WAIT, file=\'/bin/tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnv_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnv(mode=os.P_WAIT, file=\'/bin/tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnv_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnv(mode=os.P_WAIT, file=\\'/bin/tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnvp_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnvp(mode=os.P_WAIT, file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnvp_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnvp(mode=os.P_WAIT, file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnvp_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnvp(mode=os.P_WAIT, file=\\'tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnve_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnve(mode=os.P_WAIT, file=\'/bin/tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnve_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnve(mode=os.P_WAIT, file=\'/bin/tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnve_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnve(mode=os.P_WAIT, file=\\'/bin/tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnvpe_keyword_args_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnvpe(mode=os.P_WAIT, file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnvpe_keyword_args_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnvpe(mode=os.P_WAIT, file=\'tar\', args=[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnvpe_keyword_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnvpe(mode=os.P_WAIT, file=\\'tar\\', args=[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execl_starred_vararg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execl(\'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execl_starred_vararg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execl(\'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execl_starred_vararg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execl(\\'/bin/tar\\', *[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execle_starred_vararg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execle(\'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execle_starred_vararg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execle(\'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execle_starred_vararg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execle(\\'/bin/tar\\', *[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnl_starred_vararg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnl(os.P_WAIT, \'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnl_starred_vararg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnl(os.P_WAIT, \'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnl_starred_vararg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnl(os.P_WAIT, \\'/bin/tar\\', *[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_spawnle_starred_vararg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.spawnle(os.P_WAIT, \'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_spawnle_starred_vararg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.spawnle(os.P_WAIT, \'/bin/tar\', *[\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], {\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_spawnle_starred_vararg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.spawnle(os.P_WAIT, \\'/bin/tar\\', *[\\'tar\\', \\'-czf\\', \\'/tmp/secrets.tgz\\'], {\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_run_starred_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.run([\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_run_starred_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.run([\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_run_starred_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.run([\\'tar\\', *[\\'-czf\\', \\'/tmp/secrets.tgz\\']])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_starred_argv_list_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=[\'zip\', *[\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_starred_argv_list_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=[\'zip\', *[\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_starred_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=[\\'zip\\', *[\\'/tmp/secrets.zip\\', \\'/app/.env\\']])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execv_keyword_starred_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execv_keyword_starred_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execv_keyword_starred_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execv(path=\\'/bin/tar\\', argv=[\\'tar\\', *[\\'-czf\\', \\'/tmp/secrets.tgz\\']])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawn_keyword_starred_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawn_keyword_starred_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\', *[\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawn_keyword_starred_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawn(path=\\'/bin/tar\\', argv=[\\'tar\\', *[\\'-czf\\', \\'/tmp/secrets.tgz\\']], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_run_concat_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.run([\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_run_concat_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.run([\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_run_concat_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.run([\\'tar\\'] + [\\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_execv_keyword_concat_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_execv_keyword_concat_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.execv(path=\'/bin/tar\', argv=[\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'])"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_execv_keyword_concat_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.execv(path=\\'/bin/tar\\', argv=[\\'tar\\'] + [\\'-czf\\', \\'/tmp/secrets.tgz\\'])')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_posix_spawn_keyword_concat_argv_list_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_posix_spawn_keyword_concat_argv_list_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.posix_spawn(path=\'/bin/tar\', argv=[\'tar\'] + [\'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'], env={\'PATH\': \'/usr/bin\'})"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_posix_spawn_keyword_concat_argv_list_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.posix_spawn(path=\\'/bin/tar\\', argv=[\\'tar\\'] + [\\'-czf\\', \\'/tmp/secrets.tgz\\'], env={\\'PATH\\': \\'/usr/bin\\'})')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_concat_string_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip /tmp/secrets.zip \' + \'/app/.env /home/user/.ssh/id_rsa\')"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_concat_string_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip /tmp/secrets.zip \' + \'/app/.env /home/user/.ssh/id_rsa\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_concat_string_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip /tmp/secrets.zip \\' + \\'/app/.env /home/user/.ssh/id_rsa\\')')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_concat_string_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf /tmp/secrets.tgz \' + \'/app/.env /home/user/.ssh/id_rsa\')"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_concat_string_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf /tmp/secrets.tgz \' + \'/app/.env /home/user/.ssh/id_rsa\')"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_concat_string_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf /tmp/secrets.tgz \\' + \\'/app/.env /home/user/.ssh/id_rsa\\')')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_concat_string_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip /tmp/secrets.zip \' + \'/app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_concat_string_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip /tmp/secrets.zip \' + \'/app/.env /home/user/.ssh/id_rsa\', shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_concat_string_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip /tmp/secrets.zip \\' + \\'/app/.env /home/user/.ssh/id_rsa\\', shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_literal_join_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\' \'.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_literal_join_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\' \'.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_literal_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\' \\' .join([\\'zip\\', \\'/tmp/secrets.zip\\']))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_literal_join_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\' \'.join([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_literal_join_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\' \'.join([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_literal_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\' \\' .join([\\'tar\\', \\'-czf\\']))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_literal_join_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\' \'.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_literal_join_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\' \'.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_literal_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\' \\' .join([\\'zip\\', \\'/tmp/secrets.zip\\']), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_shlex_join_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import shlex, os; os.system(shlex.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_shlex_join_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import shlex, os; os.system(shlex.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_shlex_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(shlex.join([\\'zip\\', \\'/tmp/secrets.zip\\']))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_shlex_join_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import shlex, subprocess; subprocess.getoutput(cmd=shlex.join([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_shlex_join_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import shlex, subprocess; subprocess.getoutput(cmd=shlex.join([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_shlex_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=shlex.join([\\'tar\\', \\'-czf\\']))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_shlex_join_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import shlex, subprocess; subprocess.check_output(args=shlex.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_shlex_join_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import shlex, subprocess; subprocess.check_output(args=shlex.join([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_shlex_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=shlex.join([\\'zip\\', \\'/tmp/secrets.zip\\']), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_f_string_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c \'import os; os.system(f"""zip {"/tmp/secrets.zip"} {"/app/.env"} {"/home/user/.ssh/id_rsa"}""")\'',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_f_string_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c \'import os; os.system(f"""zip {"/tmp/secrets.zip"} {"/app/.env"} {"/home/user/.ssh/id_rsa"}""")\'',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_f_string_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(f\\\"\\\"\\\"zip {\\\"/tmp/secrets.zip\\\"}\\\"\\\"\\\")')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_f_string_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c \'import subprocess; subprocess.getoutput(cmd=f"""tar -czf {"/tmp/secrets.tgz"} {"/app/.env"} {"/home/user/.ssh/id_rsa"}""")\'',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_f_string_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c \'import subprocess; subprocess.getoutput(cmd=f"""tar -czf {"/tmp/secrets.tgz"} {"/app/.env"} {"/home/user/.ssh/id_rsa"}""")\'',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_f_string_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=f\\\"\\\"\\\"tar -czf {\\\"/tmp/secrets.tgz\\\"}\\\"\\\"\\\")')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_f_string_shlex_join_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c \'import shlex, subprocess; subprocess.check_output(args=f"""{shlex.join(["zip", "/tmp/secrets.zip", "/app/.env", "/home/user/.ssh/id_rsa"])}""", shell=True)\'',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_f_string_shlex_join_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c \'import shlex, subprocess; subprocess.check_output(args=f"""{shlex.join(["zip", "/tmp/secrets.zip", "/app/.env", "/home/user/.ssh/id_rsa"])}""", shell=True)\'',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_f_string_shlex_join_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=f\\\"\\\"\\\"{shlex.join([\\\"zip\\\", \\\"/tmp/secrets.zip\\\"])}\\\"\\\"\\\", shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {} {} {}\'.format(\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {} {} {}\'.format(\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {}\\'.format(\\'/tmp/secrets.zip\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_format_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {} {} {}\'.format(\'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_format_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {} {} {}\'.format(\'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf {}\\'.format(\\'/tmp/secrets.tgz\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip {} {} {}\'.format(\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip {} {} {}\'.format(\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip {}\\'.format(\\'/tmp/secrets.zip\\'), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_named_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_named_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_named_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {out}\\'.format(out=\\'/tmp/secrets.zip\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_named_format_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_named_format_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_named_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf {out}\\'.format(out=\\'/tmp/secrets.tgz\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_named_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_named_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_named_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip {out}\\'.format(out=\\'/tmp/secrets.zip\\'), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_starstar_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_starstar_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_starstar_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {out}\\'.format(**{\\'out\\': \\'/tmp/secrets.zip\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_starstar_format_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_starstar_format_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_starstar_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf {out}\\'.format(**{\\'out\\': \\'/tmp/secrets.tgz\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_starstar_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_starstar_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_starstar_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip {out}\\'.format(**{\\'out\\': \\'/tmp/secrets.zip\\'}), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_percent_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip %s %s %s\' % (\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_percent_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip %s %s %s\' % (\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_percent_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip %s\\' % (\\'/tmp/secrets.zip\\',))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_percent_format_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf %s %s %s\' % (\'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_percent_format_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf %s %s %s\' % (\'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_percent_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf %s\\' % (\\'/tmp/secrets.tgz\\',))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_percent_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip %s %s %s\' % (\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_percent_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip %s %s %s\' % (\'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\'), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_percent_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip %s\\' % (\\'/tmp/secrets.zip\\',), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_list2cmdline_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=subprocess.list2cmdline([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_list2cmdline_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=subprocess.list2cmdline([\'tar\', \'-czf\', \'/tmp/secrets.tgz\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_list2cmdline_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=subprocess.list2cmdline([\\'tar\\', \\'-czf\\']))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_list2cmdline_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=subprocess.list2cmdline([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_list2cmdline_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=subprocess.list2cmdline([\'zip\', \'/tmp/secrets.zip\', \'/app/.env\', \'/home/user/.ssh/id_rsa\']), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_list2cmdline_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=subprocess.list2cmdline([\\'zip\\', \\'/tmp/secrets.zip\\']), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_template_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_template_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_template_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').substitute(out=\\'/tmp/secrets.zip\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_template_substitute_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').substitute(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_template_substitute_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').substitute(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_template_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=string.Template(\\'tar -czf $out\\').substitute(out=\\'/tmp/secrets.tgz\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_template_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_template_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_template_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=string.Template(\\'zip $out\\').substitute(out=\\'/tmp/secrets.zip\\'), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_template_mapping_arg_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_template_mapping_arg_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_template_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').substitute({\\'out\\': \\'/tmp/secrets.zip\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_template_mapping_arg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').substitute({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_template_mapping_arg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').substitute({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_template_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=string.Template(\\'tar -czf $out\\').substitute({\\'out\\': \\'/tmp/secrets.tgz\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_template_mapping_arg_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_template_mapping_arg_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_template_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=string.Template(\\'zip $out\\').substitute({\\'out\\': \\'/tmp/secrets.zip\\'}), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_safe_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_safe_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_safe_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').safe_substitute(out=\\'/tmp/secrets.zip\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_safe_substitute_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').safe_substitute(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_safe_substitute_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').safe_substitute(out=\'/tmp/secrets.tgz\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_safe_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=string.Template(\\'tar -czf $out\\').safe_substitute(out=\\'/tmp/secrets.tgz\\'))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_safe_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').safe_substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_safe_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').safe_substitute(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\'), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_safe_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=string.Template(\\'zip $out\\').safe_substitute(out=\\'/tmp/secrets.zip\\'), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_safe_substitute_starstar_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_safe_substitute_starstar_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(**{\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_safe_substitute_starstar_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').safe_substitute(**{\\'out\\': \\'/tmp/secrets.zip\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_safe_substitute_mapping_arg_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_safe_substitute_mapping_arg_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_safe_substitute_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').safe_substitute({\\'out\\': \\'/tmp/secrets.zip\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_safe_substitute_mapping_arg_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_safe_substitute_mapping_arg_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.getoutput(cmd=string.Template(\'tar -czf $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_safe_substitute_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=string.Template(\\'tar -czf $out\\').safe_substitute({\\'out\\': \\'/tmp/secrets.tgz\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_safe_substitute_mapping_arg_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_safe_substitute_mapping_arg_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess, string; subprocess.check_output(args=string.Template(\'zip $out $a $b\').safe_substitute({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_safe_substitute_mapping_arg_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=string.Template(\\'zip $out\\').safe_substitute({\\'out\\': \\'/tmp/secrets.zip\\'}), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_dict_ctor_mapping_format_map_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {out} {a} {b}\'.format_map(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_dict_ctor_mapping_format_map_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {out} {a} {b}\'.format_map(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_dict_ctor_mapping_format_map_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {out}\\'.format_map(dict(out=\\'/tmp/secrets.zip\\')))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_dict_ctor_mapping_starstar_format_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(**dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_dict_ctor_mapping_starstar_format_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {out} {a} {b}\'.format(**dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_dict_ctor_mapping_starstar_format_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {out}\\'.format(**dict(out=\\'/tmp/secrets.zip\\')))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_dict_ctor_mapping_template_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_dict_ctor_mapping_template_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').substitute(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_dict_ctor_mapping_template_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').substitute(dict(out=\\'/tmp/secrets.zip\\')))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_dict_ctor_mapping_safe_substitute_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_dict_ctor_mapping_safe_substitute_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os, string; os.system(string.Template(\'zip $out $a $b\').safe_substitute(dict(out=\'/tmp/secrets.zip\', a=\'/app/.env\', b=\'/home/user/.ssh/id_rsa\')))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_dict_ctor_mapping_safe_substitute_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(string.Template(\\'zip $out\\').safe_substitute(dict(out=\\'/tmp/secrets.zip\\')))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_os_system_format_map_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import os; os.system(\'zip {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_os_system_format_map_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import os; os.system(\'zip {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_os_system_format_map_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('os.system(\\'zip {out}\\'.format_map({\\'out\\': \\'/tmp/secrets.zip\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_getoutput_keyword_format_map_tar_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+        "tar ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_getoutput_keyword_format_map_tar_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.getoutput(cmd=\'tar -czf {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.tgz\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}))"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_getoutput_keyword_format_map_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.getoutput(cmd=\\'tar -czf {out}\\'.format_map({\\'out\\': \\'/tmp/secrets.tgz\\'}))')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason is None
+
+
+def test_shell_command_token_matcher_unwraps_python_dash_c_subprocess_check_output_keyword_format_map_zip_command():
+    policy = L3TriggerPolicy()
+
+    assert policy._matches_shell_command_token(
+        'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+        "zip ",
+    ) is True
+
+
+def test_secret_harvest_followed_by_python_dash_c_subprocess_check_output_keyword_format_map_zip_triggers_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": 'python -c "import subprocess; subprocess.check_output(args=\'zip {out} {a} {b}\'.format_map({\'out\': \'/tmp/secrets.zip\', \'a\': \'/app/.env\', \'b\': \'/home/user/.ssh/id_rsa\'}), shell=True)"',
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
+        ],
+    )
+
+    assert reason == "suspicious_pattern"
+
+
+def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_keyword_format_map_text_does_not_trigger_suspicious_pattern():
+    policy = L3TriggerPolicy()
+
+    reason = policy.trigger_reason(
+        _evt(
+            tool_name="bash",
+            payload={
+                "command": "python -c \"print('subprocess.check_output(args=\\'zip {out}\\'.format_map({\\'out\\': \\'/tmp/secrets.zip\\'}), shell=True)')\"",
+            },
+        ),
+        DecisionContext(),
+        _snap(RiskLevel.LOW),
+        [
+            _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
+            _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
         ],
     )
 

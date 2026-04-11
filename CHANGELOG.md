@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-04-11
+
+### 改进
+
+- **L3 Python launcher hardening 收口** — `secret_harvest_archive` 对 bounded `python -c` 命令构造继续收紧并补全，当前已覆盖 `format_map(...)`、named / expanded-keyword `str.format(...)`、`string.Template(...).substitute(...)`、`string.Template(...).safe_substitute(...)` 与 literal `dict(...)` mapping constructor，同时继续保持纯 `print('...')`、本地 restore/inspection 与普通开发打包流负例不触发。
+- **从执行 helper 扩展到命令构造 helper** — L3 现在能更稳定识别“先读 secret，再通过 Python 字符串 helper 拼出 zip/tar/export 命令”的路径，而不依赖原始 shell 文本里直接出现完整命令串。
+
+### 文档
+
+- **公开文档统一解释本轮开发主线** — GitHub README、PyPI README、在线首页、安装页、状态页、动态日志与 CHANGELOG 已同步到 `v0.4.2`，并把 slice 33~55 收敛成同一条用户可理解的能力线：L3 bounded Python launcher hardening。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2691 passed, 3 skipped`
+- `mkdocs build --strict`：PASS
+- L3 focused 回归：`416 passed`
+- L3 trigger 单测：`340 passed`
+
+---
+
 ## [0.4.1] — 2026-04-11
 
 ### 改进
@@ -731,6 +751,7 @@
 - 测试通过时间 ~6.5s
 
 [0.4.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.1
+[0.4.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.2
 [0.4.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.0
 [0.3.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.6
 [0.3.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.3.9
