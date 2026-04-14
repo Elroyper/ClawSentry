@@ -16,6 +16,9 @@ from clawsentry.gateway.session_enforcement import (
     SessionEnforcement,
     SessionEnforcementPolicy,
 )
+from clawsentry.gateway.models import DecisionTier, RiskLevel
+from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.semantic_analyzer import L2Result
 from clawsentry.gateway.server import SupervisionGateway
 
 
@@ -328,3 +331,105 @@ class TestSessionEnforcementIntegration:
             decision = result["decision"]
             # L1 blocks these, but no enforcement override
             assert "session-enforcement" not in decision.get("policy_id", "")
+
+    async def test_l3_require_forces_local_l3_when_available(self):
+        class ForcedL3Analyzer:
+            analyzer_id = "test-forced-l3"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                assert context is not None
+                assert context.session_risk_summary["force_l3"] is True
+                return L2Result(
+                    target_level=RiskLevel.HIGH,
+                    reasons=["forced local L3 review"],
+                    confidence=0.93,
+                    analyzer_id=self.analyzer_id,
+                    latency_ms=25.0,
+                    trace={
+                        "trigger_reason": "manual_l3_escalate",
+                        "mode": "single_turn",
+                        "turns": [],
+                    },
+                    decision_tier=DecisionTier.L3,
+                )
+
+        gw = SupervisionGateway(
+            trajectory_db_path=":memory:",
+            session_enforcement=SessionEnforcementPolicy(enabled=True, threshold=1, action=EnforcementAction.L3_REQUIRE),
+            analyzer=ForcedL3Analyzer(),
+        )
+        gw.session_enforcement.force("s1", action=EnforcementAction.L3_REQUIRE)
+
+        resp = await gw.handle_jsonrpc(_build_jsonrpc("s1", "Bash", "cat prod-token.txt", req_id=1))
+        result = resp["result"]
+
+        assert result["actual_tier"] == "L3"
+        assert result["decision"]["decision"] == "block"
+        assert result["l3_state"] == "completed"
+
+    async def test_l3_require_without_local_l3_returns_defer_with_skipped_state(self):
+        gw = SupervisionGateway(
+            trajectory_db_path=":memory:",
+            session_enforcement=SessionEnforcementPolicy(enabled=True, threshold=1, action=EnforcementAction.L3_REQUIRE),
+        )
+        gw.session_enforcement.force("s1", action=EnforcementAction.L3_REQUIRE)
+
+        resp = await gw.handle_jsonrpc(_build_jsonrpc("s1", "Read", "cat /tmp/readme.txt", req_id=1))
+        result = resp["result"]
+
+        assert result["actual_tier"] in ("L1", "L2")
+        assert result["decision"]["decision"] == "defer"
+        assert result["l3_state"] == "skipped"
+        assert result["l3_reason_code"] == "local_l3_not_completed"
+
+    async def test_l3_require_budget_exhausted_keeps_reporting_consistent_budget_state(self):
+        gw = SupervisionGateway(
+            trajectory_db_path=":memory:",
+            detection_config=DetectionConfig(llm_daily_budget_usd=1.0),
+            session_enforcement=SessionEnforcementPolicy(
+                enabled=True,
+                threshold=1,
+                action=EnforcementAction.L3_REQUIRE,
+            ),
+        )
+        gw.session_enforcement.force("s1", action=EnforcementAction.L3_REQUIRE)
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=400_000,
+                output_tokens=0,
+            )
+
+            resp = await gw.handle_jsonrpc(_build_jsonrpc("s1", "Read", "cat /tmp/readme.txt", req_id=2))
+            result = resp["result"]
+
+            assert result["actual_tier"] == "L1"
+            assert result["decision"]["decision"] == "defer"
+            assert result["l3_state"] == "skipped"
+            assert result["l3_reason_code"] == "budget_exhausted"
+
+            decision_events = []
+            while not queue.empty():
+                decision_events.append(queue.get_nowait())
+            assert len(decision_events) == 1
+            event = decision_events[0]
+            assert event["budget"]["exhausted"] is True
+            assert event["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+            assert event["budget"]["remaining_usd"] == pytest.approx(0.0)
+            assert event["l3_reason_code"] == "budget_exhausted"
+
+            for payload in (
+                gw.health(),
+                gw.report_summary(),
+                gw.report_sessions(),
+                gw.report_session_risk("s1"),
+                gw.replay_session("s1"),
+            ):
+                assert payload["budget"]["exhausted"] is True
+                assert payload["budget_exhaustion_event"]["budget"]["exhausted"] is True
+                assert payload["budget_exhaustion_event"]["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+        finally:
+            gw.event_bus.unsubscribe(sub_id)

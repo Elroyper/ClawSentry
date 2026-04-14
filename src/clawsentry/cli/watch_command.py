@@ -47,6 +47,7 @@ _EMOJIS: dict[str, str] = {
     "defer": "⏸️",
     "modify": "✏️",
     "alert": "⚠️",
+    "budget_exhausted": "⚠️",
     "session": "📍",
     "risk_change": "📊",
     "enforcement": "🔒",
@@ -108,6 +109,29 @@ def _risk_display(level: str, *, color: bool = True, no_emoji: bool = False) -> 
     e = _emoji(f"risk_{level.lower()}", no_emoji=no_emoji)
     prefix = f"{e} " if e else ""
     return _c(color_name, f"{prefix}{level}", color=color)
+
+
+def _format_evidence_summary(summary: dict[str, Any] | None) -> str | None:
+    if not isinstance(summary, dict):
+        return None
+
+    parts: list[str] = []
+
+    retained_sources = summary.get("retained_sources")
+    if isinstance(retained_sources, list):
+        sources = [
+            str(source).strip()
+            for source in retained_sources
+            if str(source).strip()
+        ]
+        if sources:
+            parts.append(", ".join(sources))
+
+    tool_calls_count = summary.get("tool_calls_count")
+    if isinstance(tool_calls_count, int):
+        parts.append(f"{tool_calls_count} tool call(s)")
+
+    return " · ".join(parts) if parts else None
 
 
 # ── SSE line parser ──────────────────────────────────────────────────────────
@@ -308,6 +332,18 @@ def format_decision(
     if trigger_detail:
         detail_items.append(f"Trigger: {_c('grey', trigger_detail, color=color)}")
 
+    l3_reason_code = str(event.get("l3_reason_code") or "")
+    if l3_reason_code:
+        detail_items.append(f"L3 reason code: {_c('grey', l3_reason_code, color=color)}")
+
+    l3_state = str(event.get("l3_state") or "")
+    if l3_state and l3_state != "completed":
+        detail_items.append(f"L3 state: {_c('grey', l3_state, color=color)}")
+
+    l3_reason = str(event.get("l3_reason") or "")
+    if l3_reason and l3_state != "completed":
+        detail_items.append(f"L3 reason: {_c('grey', l3_reason, color=color)}")
+
     # DEFER: optional expiry countdown
     if decision == "defer" and expires_at_ms is not None:
         remaining_s = int(expires_at_ms / 1000 - time.time())
@@ -329,6 +365,15 @@ def format_decision(
         actual_tier = str(event.get("actual_tier") or "")
         if actual_tier:
             detail_items.append(f"Tier: {_c('grey', actual_tier, color=color)}")
+
+        raw_evidence_summary = event.get("evidence_summary")
+        evidence_summary = _format_evidence_summary(
+            raw_evidence_summary if isinstance(raw_evidence_summary, dict) else None
+        )
+        if evidence_summary:
+            detail_items.append(
+                f"Evidence: {_c('grey', evidence_summary, color=color)}"
+            )
 
     for i, item in enumerate(detail_items):
         connector = "└─" if i == len(detail_items) - 1 else "├─"
@@ -693,6 +738,46 @@ def _format_pattern_candidate(
     return "\n".join(lines)
 
 
+def _format_budget_exhausted(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    """Format a budget exhaustion event for terminal output."""
+    hms = _timestamp_hms(event.get("timestamp"))
+    provider = str(event.get("provider") or "unknown")
+    tier = str(event.get("tier") or "unknown")
+    status = str(event.get("status") or "unknown")
+    cost = event.get("cost_usd")
+    budget = event.get("budget") or {}
+
+    def _format_usd(value: Any) -> str:
+        try:
+            return f"${float(value):.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    spent = budget.get("daily_spend_usd")
+    limit = budget.get("daily_budget_usd")
+    remaining = budget.get("remaining_usd")
+
+    e = _emoji("budget_exhausted", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+    label = _c("red", f"{e_str}BUDGET EXHAUSTED", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+
+    line = (
+        f"{ts_str} {label}  "
+        f"provider={provider} tier={tier} status={status} "
+        f"cost={_format_usd(cost)} "
+        f"budget={_format_usd(spent)}/{_format_usd(limit)} "
+        f"remaining={_format_usd(remaining)}"
+    )
+    return line
+
+
 def format_event(
     event: dict,
     *,
@@ -742,6 +827,10 @@ def format_event(
         )
     if event_type == "pattern_candidate":
         return _format_pattern_candidate(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "budget_exhausted":
+        return _format_budget_exhausted(
             event, color=color, no_emoji=no_emoji, compact=compact
         )
 

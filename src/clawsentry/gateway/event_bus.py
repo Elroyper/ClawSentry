@@ -45,7 +45,7 @@ class EventBus:
             "queue": queue,
             "session_id": session_id,
             "min_risk": min_risk,
-            "event_types": event_types or {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_candidate", "pattern_evolved", "defer_pending", "defer_resolved"},
+            "event_types": event_types or {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_candidate", "pattern_evolved", "defer_pending", "defer_resolved", "budget_exhausted"},
         }
         self._subscribers[subscriber_id] = subscriber
 

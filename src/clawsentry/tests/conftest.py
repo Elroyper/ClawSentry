@@ -24,6 +24,31 @@ class StubTrajectoryStore:
         rec.setdefault("event", {})["session_id"] = session_id
         return [rec for _ in range(limit)]
 
+    def replay_session_page(
+        self,
+        session_id: str,
+        *,
+        limit: int = 50,
+        cursor: int | None = None,
+    ) -> dict[str, Any]:
+        records: list[dict[str, Any]] = []
+        for idx in range(3):
+            rec = {
+                **self._template,
+                "record_id": idx + 1,
+                "event": {
+                    **dict(self._template.get("event", {})),
+                    "session_id": session_id,
+                    "event_id": f"evt-{idx}",
+                },
+            }
+            records.append(rec)
+        if cursor is not None:
+            records = [rec for rec in records if rec["record_id"] < cursor]
+        page = records[-limit:]
+        next_cursor = page[0]["record_id"] if len(records) > limit and page else None
+        return {"records": page, "next_cursor": next_cursor}
+
 
 @pytest.fixture(autouse=True)
 def isolated_clawsentry_env():

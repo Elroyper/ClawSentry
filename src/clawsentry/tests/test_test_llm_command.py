@@ -281,6 +281,7 @@ class TestL3Probe:
         assert ok is False
         assert latency > 0
         assert "trigger not matched" in detail.lower()
+        assert "reason_code=trigger_not_matched" in detail
 
     def test_degraded_detail_preserves_trigger_reason_and_mode(self, monkeypatch):
         async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
@@ -308,6 +309,7 @@ class TestL3Probe:
         assert latency > 0
         assert "mode=multi_turn" in detail
         assert "trigger=cumulative_risk" in detail
+        assert "reason_code=hard_cap_exceeded" in detail
 
 
 # ---------------------------------------------------------------------------

@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
-import ast
 import re
-import shlex
-import subprocess
-import string
 from typing import Any
 
+from .command_normalization import matches_shell_command_token
 from .models import CanonicalEvent, DecisionContext, RiskLevel, RiskSnapshot
+from .risk_signals import (
+    NETWORK_TOOLS,
+    READ_TOOLS,
+    WRITE_TOOLS,
+    build_archive_command_signals,
+    build_base_event_signals,
+)
 
 
 _RISK_LEVEL_SCORE = {
@@ -34,31 +38,16 @@ _CUMULATIVE_THRESHOLD = 5
 _COMPLEX_PAYLOAD_LENGTH = 512
 _COMPLEX_PAYLOAD_DEPTH = 3
 _COMPLEX_PAYLOAD_KEYS = 6
-_READ_TOOLS = frozenset({"read_file", "read", "cat", "head", "tail"})
-_WRITE_TOOLS = frozenset({
-    "write_file", "edit_file", "create_file", "write", "edit", "chmod", "chown",
-})
-_EXEC_TOOLS = frozenset({"bash", "shell", "exec", "sudo"})
-_NETWORK_TOOLS = frozenset({"http_request", "fetch", "web_fetch"})
-_CREDENTIAL_HINTS = frozenset({
-    "credential_access",
-    "credential_exfiltration",
-    "credential_exfiltration_confirmed",
-    "secret_access",
-    "key_access",
-    "env_access",
-    "config_access",
-})
-_NETWORK_HINTS = frozenset({
-    "data_exfiltration",
-    "network_exfiltration",
-    "suspicious_network",
-})
 _SENSITIVE_TOKENS = (
     ".env",
     ".pem",
     ".key",
+    ".p12",
+    ".pfx",
+    ".jks",
+    ".keystore",
     ".ssh",
+    ".aws",
     "id_rsa",
     "credentials",
     "secret",
@@ -93,46 +82,6 @@ _STAGING_TOKENS = (
     "base64 ",
     ">",
 )
-_ARCHIVE_TOKENS = (
-    "tar ",
-    "zip ",
-    "gzip ",
-    "base64 ",
-)
-_BASE64_DECODE_TOKENS = (
-    "base64 -d",
-    "base64 --decode",
-    "base64 -d ",
-    "base64 --decode ",
-)
-_ARCHIVE_RESTORE_TOKENS = (
-    "tar -x",
-    "tar x",
-    "tar --extract",
-    "unzip ",
-    "gunzip ",
-    "gzip -d",
-    "gzip --decompress",
-)
-_ARCHIVE_INSPECTION_TOKENS = (
-    "tar -t",
-    "tar t",
-    "tar --list",
-    "gzip -l",
-    "gzip -t",
-    "gzip --list",
-    "gzip --test",
-    "zip -t",
-    "zip --test",
-    "zip -sf",
-    "zip --show-files",
-)
-_SHELL_PREFIX_TOKENS = frozenset({"sudo", "command", "builtin", "env", "nohup", "time", "stdbuf"})
-_SHELL_WRAPPER_TOKENS = frozenset({"bash", "sh", "zsh", "dash"})
-_PYTHON_SUBPROCESS_CALLS = frozenset({
-    "run", "call", "popen", "check_call", "check_output", "getoutput", "getstatusoutput",
-})
-_ENV_ASSIGNMENT_PATTERN = re.compile(r"^[a-z_][a-z0-9_]*=.*$", re.IGNORECASE)
 _RECON_TOKENS = (
     "whoami",
     "id",
@@ -284,58 +233,61 @@ class L3TriggerPolicy:
         tool_name = str(event.tool_name or "").lower()
         payload_text = self._payload_text(event.payload or {})
         command_text = self._command_text(event.payload or {}, payload_text)
-        hints = {str(h).lower() for h in (event.risk_hints or [])}
-
-        credential_access = (
-            bool(hints.intersection(_CREDENTIAL_HINTS))
-            or tool_name in _READ_TOOLS
-            and any(token in payload_text for token in _SENSITIVE_TOKENS)
+        path_text = ""
+        if isinstance(event.payload, dict):
+            path_text = str(
+                event.payload.get("path")
+                or event.payload.get("file_path")
+                or ""
+            )
+        base = build_base_event_signals(
+            tool_name=tool_name,
+            path_text=path_text,
+            payload_text=payload_text,
+            command_text=command_text,
+            risk_hints=event.risk_hints or [],
         )
-        network_activity = (
-            tool_name in _NETWORK_TOOLS
-            or bool(hints.intersection(_NETWORK_HINTS))
-            or any(token in payload_text for token in _NETWORK_TOKENS)
-        )
-        tmp_path_touched = any(token in payload_text for token in _TMP_TOKENS)
-        staging_activity = tool_name in _WRITE_TOOLS or any(token in payload_text for token in _STAGING_TOKENS)
-        recon_action = (
-            tool_name in _READ_TOOLS
-            or tool_name in _EXEC_TOOLS
-            or tool_name == "bash"
-        ) and any(token in payload_text for token in _RECON_TOKENS)
-        archive_restore_action = self._is_archive_restore_action(command_text)
-        archive_inspection_action = self._is_archive_inspection_action(command_text)
-        archive_action = (
-            tool_name in _EXEC_TOOLS
-            and any(self._matches_shell_command_token(command_text, token) for token in _ARCHIVE_TOKENS)
-            and not archive_restore_action
-            and not archive_inspection_action
-        )
-        archive_sensitive_material = archive_action and any(
-            token in payload_text for token in _SENSITIVE_TOKENS
+        credential_access = base["credential_access"]
+        network_activity = base["network_activity"] or any(token in payload_text for token in _NETWORK_TOKENS)
+        tmp_path_touched = base["tmp_path_touched"] or any(token in payload_text for token in _TMP_TOKENS)
+        staging_activity = base["write_action"] or any(token in payload_text for token in _STAGING_TOKENS)
+        recon_action = base["recon_action"] or any(token in payload_text for token in _RECON_TOKENS)
+        archive = build_archive_command_signals(
+            tool_name=tool_name,
+            payload_text=payload_text,
+            command_text=command_text,
+            token_matcher=self._matches_shell_command_token,
         )
 
         return {
             "credential_access": credential_access,
             "network_activity": network_activity,
-            "read_action": tool_name in _READ_TOOLS,
-            "write_action": tool_name in _WRITE_TOOLS,
-            "exec_action": tool_name in _EXEC_TOOLS or "chmod" in payload_text or "install " in payload_text,
-            "sudo_action": tool_name == "sudo" or "sudo " in payload_text,
+            "read_action": base["read_action"],
+            "write_action": base["write_action"],
+            "exec_action": base["exec_action"],
+            "sudo_action": base["sudo_action"],
             "tmp_staging": tmp_path_touched and staging_activity,
             "tmp_exfil": tmp_path_touched and network_activity,
             "recon_action": recon_action,
-            "archive_action": archive_action,
-            "archive_sensitive_material": archive_sensitive_material,
+            "archive_action": archive["archive_action"],
+            "archive_sensitive_material": archive["archive_sensitive_material"],
         }
 
     def _is_archive_restore_action(self, command_text: str) -> bool:
-        return any(self._matches_shell_command_token(command_text, token) for token in _BASE64_DECODE_TOKENS) or any(
-            self._matches_shell_command_token(command_text, token) for token in _ARCHIVE_RESTORE_TOKENS
+        archive = build_archive_command_signals(
+            tool_name="bash",
+            command_text=command_text,
+            token_matcher=self._matches_shell_command_token,
         )
+        return archive["archive_restore_action"]
 
     def _is_archive_inspection_action(self, command_text: str) -> bool:
-        return any(self._matches_shell_command_token(command_text, token) for token in _ARCHIVE_INSPECTION_TOKENS)
+        archive = build_archive_command_signals(
+            tool_name="bash",
+            command_text=command_text,
+            token_matcher=self._matches_shell_command_token,
+        )
+        return archive["archive_inspection_action"]
 
     def _command_text(self, payload: dict[str, Any], payload_text: str) -> str:
         command = payload.get("command") if isinstance(payload, dict) else None
@@ -348,472 +300,7 @@ class L3TriggerPolicy:
         return pattern.search(payload_text) is not None
 
     def _matches_shell_command_token(self, command_text: str, token: str) -> bool:
-        for segment in self._shell_command_segments(command_text):
-            head = self._shell_command_head(segment)
-            if head.startswith(token):
-                return True
-        return False
-
-    def _shell_command_segments(self, command_text: str) -> list[str]:
-        segments: list[str] = []
-        current: list[str] = []
-        quote: str | None = None
-        escaped = False
-        i = 0
-
-        while i < len(command_text):
-            ch = command_text[i]
-
-            if escaped:
-                current.append(ch)
-                escaped = False
-                i += 1
-                continue
-
-            if quote is not None:
-                current.append(ch)
-                if ch == "\\" and quote == '"':
-                    escaped = True
-                elif ch == quote:
-                    quote = None
-                i += 1
-                continue
-
-            if ch in {'"', "'"}:
-                quote = ch
-                current.append(ch)
-                i += 1
-                continue
-
-            if command_text.startswith("&&", i) or command_text.startswith("||", i):
-                segments.append("".join(current))
-                current = []
-                i += 2
-                continue
-
-            if ch in {";", "|"}:
-                segments.append("".join(current))
-                current = []
-                i += 1
-                continue
-
-            current.append(ch)
-            i += 1
-
-        segments.append("".join(current))
-        return segments
-
-    def _shell_command_head(self, segment: str) -> str:
-        parts = self._split_shell_segment(segment)
-        idx = 0
-
-        while idx < len(parts):
-            part = parts[idx]
-            if _ENV_ASSIGNMENT_PATTERN.match(part):
-                idx += 1
-                continue
-            if part in _SHELL_PREFIX_TOKENS:
-                idx += 1
-                if part == "env":
-                    while idx < len(parts) and _ENV_ASSIGNMENT_PATTERN.match(parts[idx]):
-                        idx += 1
-                continue
-            break
-
-        if idx < len(parts) and parts[idx] in _SHELL_WRAPPER_TOKENS:
-            wrapped_command = self._extract_shell_wrapper_command(parts[idx + 1:])
-            if wrapped_command is not None:
-                return self._shell_command_head(wrapped_command)
-
-        if idx < len(parts) and self._is_python_launcher(parts[idx]):
-            wrapped_command = self._extract_python_launcher_command(parts[idx + 1:])
-            if wrapped_command is not None:
-                return self._shell_command_head(wrapped_command)
-
-        return " ".join(parts[idx:])
-
-    def _split_shell_segment(self, segment: str) -> list[str]:
-        try:
-            return shlex.split(segment, posix=True)
-        except ValueError:
-            return segment.strip().split()
-
-    def _extract_shell_wrapper_command(self, args: list[str]) -> str | None:
-        idx = 0
-        while idx < len(args):
-            arg = args[idx]
-            if arg == "--":
-                break
-            if not arg.startswith("-"):
-                return None
-            if self._shell_option_runs_command(arg):
-                if idx + 1 < len(args):
-                    return args[idx + 1]
-                return ""
-            idx += 1
-        return None
-
-    def _shell_option_runs_command(self, arg: str) -> bool:
-        if not arg.startswith("-") or arg.startswith("--"):
-            return False
-        return "c" in arg[1:]
-
-    def _is_python_launcher(self, command: str) -> bool:
-        if command == "python" or command == "python3":
-            return True
-        return bool(re.fullmatch(r"python\d+(?:\.\d+)?", command))
-
-    def _extract_python_launcher_command(self, args: list[str]) -> str | None:
-        idx = 0
-        while idx < len(args):
-            arg = args[idx]
-            if arg == "--":
-                break
-            if arg == "-c":
-                if idx + 1 < len(args):
-                    return self._extract_python_command_from_code(args[idx + 1])
-                return ""
-            idx += 1
-        return None
-
-    def _extract_python_command_from_code(self, code: str) -> str | None:
-        try:
-            tree = ast.parse(code)
-        except SyntaxError:
-            return None
-
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            command = self._python_call_command(node)
-            if command is not None:
-                return command
-        return None
-
-    def _python_call_command(self, node: ast.Call) -> str | None:
-        func = node.func
-        if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-            if func.value.id == "os" and func.attr in {"system", "popen"}:
-                return self._python_arg_to_command(node.args[0]) if node.args else None
-            if func.value.id == "os" and func.attr == "execl":
-                return self._python_args_to_command(node.args[1:])
-            if func.value.id == "os" and func.attr == "execlp":
-                return self._python_args_to_command(node.args[1:])
-            if func.value.id == "os" and func.attr == "execle":
-                return self._python_args_to_command_with_trailing_env(node.args[1:])
-            if func.value.id == "os" and func.attr == "execlpe":
-                return self._python_args_to_command_with_trailing_env(node.args[1:])
-            if func.value.id == "os" and func.attr == "execv":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_args_to_command(node, "argv")
-            if func.value.id == "os" and func.attr == "execve":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_args_to_command(node, "argv")
-            if func.value.id == "os" and func.attr == "execvpe":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "execvp":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "spawnl":
-                return self._python_args_to_command(node.args[2:])
-            if func.value.id == "os" and func.attr == "spawnlp":
-                return self._python_args_to_command(node.args[2:])
-            if func.value.id == "os" and func.attr == "spawnle":
-                return self._python_args_to_command_with_trailing_env(node.args[2:])
-            if func.value.id == "os" and func.attr == "spawnlpe":
-                return self._python_args_to_command_with_trailing_env(node.args[2:])
-            if func.value.id == "os" and func.attr == "spawnv":
-                if len(node.args) > 2:
-                    return self._python_arg_to_command(node.args[2])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "spawnve":
-                if len(node.args) > 2:
-                    return self._python_arg_to_command(node.args[2])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "spawnvpe":
-                if len(node.args) > 2:
-                    return self._python_arg_to_command(node.args[2])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "spawnvp":
-                if len(node.args) > 2:
-                    return self._python_arg_to_command(node.args[2])
-                return self._python_keyword_args_to_command(node, "args")
-            if func.value.id == "os" and func.attr == "posix_spawn":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_arg_to_command(node, "argv")
-            if func.value.id == "os" and func.attr == "posix_spawnp":
-                if len(node.args) > 1:
-                    return self._python_arg_to_command(node.args[1])
-                return self._python_keyword_arg_to_command(node, "argv")
-            if func.value.id == "subprocess" and func.attr.lower() in _PYTHON_SUBPROCESS_CALLS:
-                if node.args:
-                    return self._python_arg_to_command(node.args[0])
-                if func.attr.lower() in {"getoutput", "getstatusoutput"}:
-                    return self._python_keyword_arg_to_command(node, "cmd")
-                return self._python_keyword_arg_to_command(node, "args")
-        return None
-
-    def _python_arg_to_command(self, arg: ast.AST) -> str | None:
-        string_value = self._python_string_arg_value(arg)
-        if string_value is not None:
-            return string_value
-        parts = self._python_sequence_arg_parts(arg)
-        if parts is not None:
-            return shlex.join(parts)
-        return None
-
-    def _python_args_to_command(self, args: list[ast.AST]) -> str | None:
-        if not args:
-            return None
-        parts: list[str] = []
-        for arg in args:
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                parts.append(arg.value)
-                continue
-            if isinstance(arg, ast.Starred):
-                starred_parts = self._python_starred_arg_parts(arg.value)
-                if starred_parts is None:
-                    return None
-                parts.extend(starred_parts)
-                continue
-            return None
-        return shlex.join(parts)
-
-    def _python_args_to_command_with_trailing_env(self, args: list[ast.AST]) -> str | None:
-        if len(args) < 2 or not isinstance(args[-1], ast.Dict):
-            return None
-        return self._python_args_to_command(args[:-1])
-
-    def _python_keyword_arg_to_command(self, node: ast.Call, keyword_name: str) -> str | None:
-        for keyword in node.keywords:
-            if keyword.arg == keyword_name:
-                return self._python_arg_to_command(keyword.value)
-        return None
-
-    def _python_keyword_args_to_command(self, node: ast.Call, *keyword_names: str) -> str | None:
-        for keyword_name in keyword_names:
-            command = self._python_keyword_arg_to_command(node, keyword_name)
-            if command is not None:
-                return command
-        return None
-
-    def _python_string_arg_value(self, arg: ast.AST) -> str | None:
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            return arg.value
-        if isinstance(arg, ast.JoinedStr):
-            parts: list[str] = []
-            for value in arg.values:
-                if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                    parts.append(value.value)
-                    continue
-                if isinstance(value, ast.FormattedValue) and value.conversion == -1 and value.format_spec is None:
-                    formatted = self._python_string_arg_value(value.value)
-                    if formatted is None:
-                        return None
-                    parts.append(formatted)
-                    continue
-                return None
-            return "".join(parts)
-        if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Add):
-            left = self._python_string_arg_value(arg.left)
-            if left is None:
-                return None
-            right = self._python_string_arg_value(arg.right)
-            if right is None:
-                return None
-            return left + right
-        if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Mod):
-            template = self._python_string_arg_value(arg.left)
-            if template is None:
-                return None
-            values = self._python_percent_format_values(arg.right)
-            if values is None:
-                return None
-            try:
-                return template % values
-            except (TypeError, ValueError):
-                return None
-        if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute):
-            if arg.func.attr in {"substitute", "safe_substitute"}:
-                template = self._python_template_string(arg.func.value)
-                if template is None:
-                    return None
-                if arg.func.attr == "safe_substitute":
-                    if len(arg.args) > 1:
-                        return None
-                    if arg.args:
-                        if arg.keywords:
-                            return None
-                        mapping = self._python_string_mapping_from_dict(arg.args[0])
-                    else:
-                        mapping = self._python_string_mapping(arg.keywords)
-                elif len(arg.args) > 1:
-                    return None
-                elif arg.args:
-                    if arg.keywords:
-                        return None
-                    mapping = self._python_string_mapping_from_dict(arg.args[0])
-                else:
-                    mapping = self._python_string_mapping(arg.keywords)
-                if mapping is None:
-                    return None
-                try:
-                    if arg.func.attr == "safe_substitute":
-                        return template.safe_substitute(mapping)
-                    return template.substitute(mapping)
-                except (KeyError, ValueError):
-                    return None
-            if isinstance(arg.func.value, ast.Name) and arg.func.value.id == "subprocess" and arg.func.attr == "list2cmdline":
-                if len(arg.args) != 1 or arg.keywords:
-                    return None
-                parts = self._python_sequence_arg_parts(arg.args[0])
-                if parts is None:
-                    return None
-                return subprocess.list2cmdline(parts)
-            if isinstance(arg.func.value, ast.Name) and arg.func.value.id == "shlex" and arg.func.attr == "join":
-                if len(arg.args) != 1 or arg.keywords:
-                    return None
-                parts = self._python_sequence_arg_parts(arg.args[0])
-                if parts is None:
-                    return None
-                return shlex.join(parts)
-            if arg.func.attr == "format":
-                template = self._python_string_arg_value(arg.func.value)
-                if template is None:
-                    return None
-                values: list[str] = []
-                for value in arg.args:
-                    rendered = self._python_string_arg_value(value)
-                    if rendered is None:
-                        return None
-                    values.append(rendered)
-                mapping = self._python_string_mapping(arg.keywords)
-                if mapping is None:
-                    return None
-                try:
-                    return template.format(*values, **mapping)
-                except (IndexError, KeyError, ValueError):
-                    return None
-            if arg.func.attr == "format_map":
-                template = self._python_string_arg_value(arg.func.value)
-                if template is None or len(arg.args) != 1 or arg.keywords:
-                    return None
-                mapping = self._python_string_mapping_from_dict(arg.args[0])
-                if mapping is None:
-                    return None
-                try:
-                    return template.format_map(mapping)
-                except (KeyError, ValueError):
-                    return None
-            separator = self._python_string_arg_value(arg.func.value)
-            if separator is None or arg.func.attr != "join" or len(arg.args) != 1 or arg.keywords:
-                return None
-            parts = self._python_sequence_arg_parts(arg.args[0])
-            if parts is None:
-                return None
-            return separator.join(parts)
-        return None
-
-    def _python_template_string(self, arg: ast.AST) -> string.Template | None:
-        if not isinstance(arg, ast.Call) or not isinstance(arg.func, ast.Attribute):
-            return None
-        if (
-            not isinstance(arg.func.value, ast.Name)
-            or arg.func.value.id != "string"
-            or arg.func.attr.lower() != "template"
-        ):
-            return None
-        if len(arg.args) != 1 or arg.keywords:
-            return None
-        template = self._python_string_arg_value(arg.args[0])
-        if template is None:
-            return None
-        return string.Template(template)
-
-    def _python_string_mapping(self, keywords: list[ast.keyword]) -> dict[str, str] | None:
-        mapping: dict[str, str] = {}
-        for keyword in keywords:
-            if keyword.arg is None:
-                expanded = self._python_string_mapping_from_dict(keyword.value)
-                if expanded is None:
-                    return None
-                for key, value in expanded.items():
-                    if key in mapping:
-                        return None
-                    mapping[key] = value
-                continue
-            rendered = self._python_string_arg_value(keyword.value)
-            if rendered is None or keyword.arg in mapping:
-                return None
-            mapping[keyword.arg] = rendered
-        return mapping
-
-    def _python_string_mapping_from_dict(self, arg: ast.AST) -> dict[str, str] | None:
-        mapping: dict[str, str] = {}
-        if isinstance(arg, ast.Dict):
-            for key, value in zip(arg.keys, arg.values):
-                if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
-                    return None
-                rendered = self._python_string_arg_value(value)
-                if rendered is None or key.value in mapping:
-                    return None
-                mapping[key.value] = rendered
-            return mapping
-        if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name) and arg.func.id == "dict":
-            if arg.args:
-                return None
-            for keyword in arg.keywords:
-                if keyword.arg is None:
-                    return None
-                rendered = self._python_string_arg_value(keyword.value)
-                if rendered is None or keyword.arg in mapping:
-                    return None
-                mapping[keyword.arg] = rendered
-            return mapping
-        return None
-
-    def _python_percent_format_values(self, arg: ast.AST) -> str | tuple[str, ...] | None:
-        value = self._python_string_arg_value(arg)
-        if value is not None:
-            return value
-        parts = self._python_sequence_arg_parts(arg)
-        if parts is not None:
-            return tuple(parts)
-        return None
-
-    def _python_starred_arg_parts(self, arg: ast.AST) -> list[str] | None:
-        return self._python_sequence_arg_parts(arg)
-
-    def _python_sequence_arg_parts(self, arg: ast.AST) -> list[str] | None:
-        if isinstance(arg, ast.BinOp) and isinstance(arg.op, ast.Add):
-            left_parts = self._python_sequence_arg_parts(arg.left)
-            if left_parts is None:
-                return None
-            right_parts = self._python_sequence_arg_parts(arg.right)
-            if right_parts is None:
-                return None
-            return left_parts + right_parts
-        if not isinstance(arg, (ast.List, ast.Tuple)):
-            return None
-        parts: list[str] = []
-        for elt in arg.elts:
-            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                parts.append(elt.value)
-                continue
-            if isinstance(elt, ast.Starred):
-                starred_parts = self._python_starred_arg_parts(elt.value)
-                if starred_parts is None:
-                    return None
-                parts.extend(starred_parts)
-                continue
-            return None
-        return parts
+        return matches_shell_command_token(command_text, token)
 
     def _has_secret_plus_network_pattern(self, signals: list[dict[str, bool]]) -> bool:
         saw_credential = False

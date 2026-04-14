@@ -23,6 +23,11 @@ from .models import (
     RiskSnapshot,
     utc_now_iso,
 )
+from .risk_signals import (
+    has_process_sub_remote_command,
+    has_remote_pipe_exec_command,
+    is_credential_path,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -120,11 +125,6 @@ _D2_SYSTEM_CRITICAL = re.compile(
     r"^(/etc/|/usr/|/var/|/sys/|/proc/|/boot/)"
 )
 
-_D2_CREDENTIAL_PATTERNS = re.compile(
-    r"(\.ssh/|\.gnupg/|credentials|\.pem$|\.key$|\.p12$|\.pfx$|\.jks$)",
-    re.IGNORECASE,
-)
-
 _D2_CONFIG_PATTERNS = re.compile(
     r"(\.config\.|\.env|\.rc$|Makefile$|Dockerfile$|docker-compose)",
     re.IGNORECASE,
@@ -166,10 +166,10 @@ def _score_d2(event: CanonicalEvent) -> int:
     for p in paths:
         if _D2_SYSTEM_CRITICAL.search(p):
             max_score = max(max_score, 3)
-        elif _D2_CREDENTIAL_PATTERNS.search(p):
-            max_score = max(max_score, 2)
         elif _D2_CONFIG_PATTERNS.search(p):
             max_score = max(max_score, 1)
+        elif is_credential_path(p) or ".gnupg/" in p.lower():
+            max_score = max(max_score, 2)
     return max_score
 
 
@@ -239,6 +239,10 @@ _D3_HIGH_DANGER_PATTERNS = [
 
 def _has_dangerous_command_pattern(command: str) -> bool:
     """Check if a command matches any high-danger pattern."""
+    if has_remote_pipe_exec_command(command):
+        return True
+    if has_process_sub_remote_command(command):
+        return True
     for pat in _D3_HIGH_DANGER_PATTERNS:
         if pat.search(command):
             return True

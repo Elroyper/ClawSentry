@@ -309,6 +309,31 @@ export default function SessionDetail() {
                       Trigger detail: <span className="mono">{record.l3_trace?.trigger_detail}</span>
                     </p>
                   )}
+                  {record.meta.l3_requested !== undefined && (
+                    <p className="priority-session-meta">
+                      L3 requested: <span className="mono">{record.meta.l3_requested ? 'yes' : 'no'}</span>
+                    </p>
+                  )}
+                  {record.meta.l3_available !== undefined && (
+                    <p className="priority-session-meta">
+                      L3 available: <span className="mono">{record.meta.l3_available ? 'yes' : 'no'}</span>
+                    </p>
+                  )}
+                  {record.meta.l3_reason_code && (
+                    <p className="priority-session-meta">
+                      L3 reason code: <span className="mono">{record.meta.l3_reason_code}</span>
+                    </p>
+                  )}
+                  {record.meta.l3_state && record.meta.l3_state !== 'completed' && (
+                    <p className="priority-session-meta">
+                      L3 state: <span className="mono">{record.meta.l3_state}</span>
+                    </p>
+                  )}
+                  {record.meta.l3_reason && record.meta.l3_state && record.meta.l3_state !== 'completed' && (
+                    <p className="priority-session-meta">
+                      L3 reason: <span className="mono">{record.meta.l3_reason}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             )

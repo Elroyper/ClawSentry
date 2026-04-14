@@ -33,6 +33,26 @@ def test_runtime_feed_subscribes_to_key_runtime_event_types() -> None:
         assert f"'{event_type}'" in source
 
 
+def test_runtime_feed_subscribes_to_budget_exhausted_events() -> None:
+    source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
+
+    assert "'budget_exhausted'" in source
+    assert "Budget exhausted" in source
+    assert "provider" in source
+    assert "cost_usd" in source
+
+
+def test_runtime_feed_surfaces_l3_evidence_summary() -> None:
+    types_source = (ROOT / "api" / "types.ts").read_text()
+    feed_source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
+
+    assert "evidence_summary" in types_source
+    assert "retained_sources" in types_source
+    assert "tool_calls_count" in types_source
+    assert "evidence_summary" in feed_source
+    assert "formatL3EvidenceSummary" in feed_source
+
+
 def test_runtime_feed_exposes_event_type_and_priority_filters() -> None:
     source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
 

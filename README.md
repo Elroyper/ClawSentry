@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2691+ tests**, ~35s full suite
+- **2795+ tests**, ~37s full suite
 
 ## Installation
 
@@ -34,10 +34,10 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.2
+## What's New in v0.4.3
 
-- **L3 Python launcher hardening**: ClawSentry now better detects secret-harvest archive/export commands that are built inside bounded `python -c` helpers instead of being written as plain shell strings.
-- **Covered command builders**: `format_map(...)`, named / expanded-keyword `str.format(...)`, `string.Template(...).substitute(...)`, `string.Template(...).safe_substitute(...)`, and literal `dict(...)` mapping constructors are now reconstructed while ordinary `print(...)`, restore, inspection, and normal local packaging negatives stay excluded.
+- **Stronger operator-facing L3 telemetry**: `l3_state`, `l3_reason_code`, and compact retained-evidence summaries now flow across runtime feed, session summaries, session risk views, and other existing reporting paths.
+- **More complete gateway reporting**: budget state and budget-exhaustion telemetry now reach session/report/replay endpoints, while `decision_path_io` coverage expands across the main gateway-owned reporting surfaces.
 
 ## Quick Start
 

@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, AlertTriangle, FolderTree, Layers3, ShieldCheck, Siren } from 'lucide-react'
 import { api } from '../api/client'
-import type { HealthResponse, SessionSummary, SummaryResponse } from '../api/types'
+import type { HealthResponse, LLMUsageBucket, LLMUsageSnapshot, SessionSummary, SummaryResponse } from '../api/types'
 import MetricCard from '../components/MetricCard'
 import RuntimeFeed from '../components/RuntimeFeed'
 import SkeletonCard from '../components/SkeletonCard'
 import { RiskBadge } from '../components/badges'
+import LLMUsageDrilldown from '../components/LLMUsageDrilldown'
 import {
   activityState,
   formatRelativeTime,
@@ -19,6 +20,45 @@ function formatUptime(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
   return `${Math.floor(seconds / 86400)}d`
+}
+
+function formatUsd(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+function selectTopUsageLabel(buckets: Record<string, LLMUsageBucket>): string | null {
+  const topEntry = Object.entries(buckets).sort(([leftLabel, leftBucket], [rightLabel, rightBucket]) => {
+    return (
+      rightBucket.cost_usd - leftBucket.cost_usd ||
+      rightBucket.calls - leftBucket.calls ||
+      leftLabel.localeCompare(rightLabel)
+    )
+  })[0]
+
+  return topEntry?.[0] ?? null
+}
+
+function formatLlmUsageSummary(snapshot: LLMUsageSnapshot): string {
+  const usageScope = [
+    selectTopUsageLabel(snapshot.by_provider),
+    selectTopUsageLabel(snapshot.by_tier),
+    selectTopUsageLabel(snapshot.by_status),
+  ]
+    .filter(Boolean)
+    .join('/')
+
+  return [
+    `LLM usage ${snapshot.total_calls.toLocaleString()} calls`,
+    formatUsd(snapshot.total_cost_usd),
+    usageScope,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function FrameworkChip({ framework, count }: { framework: string; count: number }) {
@@ -35,6 +75,8 @@ export default function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const budgetExhaustionEvent = health?.budget_exhaustion_event
+  const llmUsageSnapshot = summary?.llm_usage_snapshot ?? health?.llm_usage_snapshot ?? null
 
   useEffect(() => {
     const load = () =>
@@ -124,6 +166,59 @@ export default function Dashboard() {
               <span className="hero-panel-label">Gateway uptime</span>
               <strong>{health ? formatUptime(health.uptime_seconds) : '—'}</strong>
             </div>
+            <div>
+              <span className="hero-panel-label">LLM usage</span>
+              <strong>{llmUsageSnapshot ? `${llmUsageSnapshot.total_calls.toLocaleString()} calls` : '—'}</strong>
+              <div className="mono" style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                {llmUsageSnapshot ? formatLlmUsageSummary(llmUsageSnapshot) : 'Usage snapshot unavailable'}
+              </div>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <span className="hero-panel-label">Daily budget</span>
+              <strong>{health ? formatUsd(health.budget.daily_budget_usd) : '—'}</strong>
+              <div className="mono" style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                {health ? (
+                  <>
+                    Spend {formatUsd(health.budget.daily_spend_usd)} · Remaining{' '}
+                    {health.budget.remaining_usd === null ? 'Unlimited' : formatUsd(health.budget.remaining_usd)} ·
+                    {' '}
+                    Exhausted {health.budget.exhausted ? 'Yes' : 'No'}
+                  </>
+                ) : (
+                  'Budget snapshot unavailable'
+                )}
+              </div>
+              {health && (health.budget.exhausted || budgetExhaustionEvent) && (
+                <div
+                  className="mono"
+                  style={{
+                    marginTop: 8,
+                    padding: '8px 10px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    background: 'rgba(239,68,68,0.08)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.72rem',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {budgetExhaustionEvent ? (
+                    <>
+                      <strong style={{ color: 'var(--color-block)' }}>Budget exhaustion event</strong>
+                      <span> · Operator attention required</span>
+                      <div style={{ color: 'var(--color-text-muted)' }}>
+                        {budgetExhaustionEvent.provider} · {budgetExhaustionEvent.tier} · {formatUsd(budgetExhaustionEvent.cost_usd)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <strong style={{ color: 'var(--color-block)' }}>Budget exhaustion event</strong>
+                      <span> · Operator attention required</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -158,6 +253,8 @@ export default function Dashboard() {
           subtext={health ? `${formatUptime(health.uptime_seconds)} uptime` : undefined}
         />
       </div>
+
+      <LLMUsageDrilldown snapshot={llmUsageSnapshot} />
 
       <div className="dashboard-grid dashboard-grid-primary">
         <section className="card section-card">

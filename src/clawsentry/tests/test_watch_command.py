@@ -223,6 +223,47 @@ class TestDecisionFormatterMixedFormat:
         assert "Trigger:" in result
         assert "secret_plus_network" in result
 
+    def test_verbose_decision_shows_l3_reason_code(self):
+        event = self._make(
+            decision="block",
+            risk_level="high",
+            actual_tier="L3",
+            l3_reason_code="hard_cap_exceeded",
+        )
+        result = format_decision(event, color=False, verbose=True)
+        assert "L3 reason code:" in result
+        assert "hard_cap_exceeded" in result
+
+    def test_verbose_decision_shows_l3_state_and_reason(self):
+        event = self._make(
+            decision="block",
+            risk_level="high",
+            actual_tier="L3",
+            l3_state="degraded",
+            l3_reason="L3 hard cap exceeded",
+        )
+        result = format_decision(event, color=False, verbose=True)
+        assert "L3 state:" in result
+        assert "degraded" in result
+        assert "L3 reason:" in result
+        assert "L3 hard cap exceeded" in result
+
+    def test_verbose_decision_shows_compact_evidence_summary(self):
+        event = self._make(
+            decision="block",
+            risk_level="high",
+            actual_tier="L3",
+            evidence_summary={
+                "retained_sources": ["trajectory", "file"],
+                "tool_calls_count": 2,
+            },
+        )
+        result = format_decision(event, color=False, verbose=True)
+        assert "Evidence:" in result
+        assert "trajectory, file" in result
+        assert "2 tool call(s)" in result
+        assert "tool_calls" not in result
+
     # --- no_emoji mode ---
 
     def test_no_emoji_removes_decision_emoji(self):
@@ -524,6 +565,31 @@ class TestFormatEvent:
         result = format_event(event, color=False, compact=True)
         assert "\n" not in result
         assert "EV-CANDIDATE" in result
+
+    def test_budget_exhausted_dispatch(self):
+        event = {
+            "type": "budget_exhausted",
+            "timestamp": "2026-03-22T10:30:45Z",
+            "provider": "openai",
+            "tier": "L2",
+            "status": "ok",
+            "cost_usd": 1.25,
+            "budget": {
+                "daily_budget_usd": 10.0,
+                "daily_spend_usd": 10.0,
+                "remaining_usd": 0.0,
+                "exhausted": True,
+            },
+        }
+        result = format_event(event, color=False)
+        assert not result.startswith("{")
+        assert "\n" not in result
+        assert "BUDGET EXHAUSTED" in result
+        assert "provider=openai" in result
+        assert "tier=L2" in result
+        assert "cost=$1.25" in result
+        assert "budget=$10.00/$10.00" in result
+        assert "remaining=$0.00" in result
 
 
 # ---------------------------------------------------------------------------

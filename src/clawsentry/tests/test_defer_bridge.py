@@ -307,3 +307,105 @@ class TestDeferBridge:
 
         resolved = next(e for e in events if e["type"] == "defer_resolved")
         assert resolved["resolved_decision"] == "allow"
+
+    @pytest.mark.asyncio
+    async def test_defer_bridge_persists_final_resolution_record(self):
+        """Final operator resolution should be replayable from trajectory storage."""
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=10.0,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_defer(gw)
+
+        body = _jsonrpc_request(session_id="sess-defer-persist", event_id="evt-defer-persist")
+
+        async def resolve_soon():
+            await asyncio.sleep(0.1)
+            for did in list(gw.defer_manager._pending.keys()):
+                gw.defer_manager.resolve_defer(did, "allow-once", "operator approved")
+
+        asyncio.create_task(resolve_soon())
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "allow"
+
+        rows = gw.trajectory_store.replay_session("sess-defer-persist")
+        resolution_rows = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ]
+        assert resolution_rows, rows
+        resolution = resolution_rows[-1]
+        assert resolution["decision"]["decision"] == "allow"
+        assert resolution["decision"]["decision_source"] == "operator"
+        assert resolution["meta"]["request_id"] == "req-evt-defer-persist"
+        assert resolution["meta"]["approval_id"].startswith("cs-defer-")
+
+        summary = gw.report_summary()
+        io = summary["decision_path_io"]
+        assert io["record_path"]["calls"] == 2
+        assert io["record_path"]["trajectory_store"]["calls"] == 2
+        assert io["record_path"]["session_registry"]["calls"] == 2
+        assert io["reporting"]["report_summary"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_defer_bridge_updates_session_view_after_final_deny(self):
+        """Session replay/report state should reflect the final resolved decision."""
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=10.0,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_defer(gw, RiskLevel.HIGH)
+
+        body = _jsonrpc_request(session_id="sess-defer-deny", event_id="evt-defer-deny")
+
+        async def resolve_soon():
+            await asyncio.sleep(0.1)
+            for did in list(gw.defer_manager._pending.keys()):
+                gw.defer_manager.resolve_defer(did, "deny", "too risky")
+
+        asyncio.create_task(resolve_soon())
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "block"
+
+        session_risk = gw.report_session_risk("sess-defer-deny")
+        assert session_risk["current_risk_level"] == "high"
+        assert len(session_risk["risk_timeline"]) == 2
+        assert session_risk["risk_timeline"][0]["decision"] == "defer"
+        assert session_risk["risk_timeline"][1]["decision"] == "block"
+
+        sessions = gw.report_sessions(limit=10)
+        sess = next(item for item in sessions["sessions"] if item["session_id"] == "sess-defer-deny")
+        assert sess["event_count"] == 1
+        assert sess["decision_distribution"]["block"] == 1
+        assert "defer" not in sess["decision_distribution"]
+
+    @pytest.mark.asyncio
+    async def test_defer_bridge_queue_full_persists_final_block(self):
+        """Queue-full fallback block should also persist as a final resolution record."""
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=10.0,
+            defer_max_pending=1,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_defer(gw, RiskLevel.HIGH)
+        assert gw.defer_manager.register_defer("existing-pending") is True
+
+        body = _jsonrpc_request(session_id="sess-defer-queue-full", event_id="evt-defer-queue-full")
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "block"
+
+        rows = gw.trajectory_store.replay_session("sess-defer-queue-full")
+        resolution_rows = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ]
+        assert resolution_rows, rows
+        resolution = resolution_rows[-1]
+        assert resolution["decision"]["decision"] == "block"
+        assert resolution["decision"]["decision_source"] == "policy"

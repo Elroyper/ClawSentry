@@ -34,6 +34,7 @@ from .semantic_analyzer import L2Result, _max_risk_level
 # Whitelist of toolkit methods callable by LLM in multi-turn mode
 _ALLOWED_TOOL_CALLS: dict[str, str] = {
     "read_trajectory": "read_trajectory",
+    "read_trajectory_page": "read_trajectory_page",
     "read_file": "read_file",
     "read_transcript": "read_transcript",
     "read_session_risk": "read_session_risk",
@@ -88,6 +89,7 @@ class AgentAnalyzer:
         mode: Optional[str],
         turns: list[dict],
         final_verdict: Optional[dict],
+        evidence_summary: Optional[dict[str, Any]],
         start: float,
         degraded: bool,
         degradation_reason: Optional[str] = None,
@@ -105,6 +107,104 @@ class AgentAnalyzer:
             "tool_calls_used": tool_calls_used,
             "degraded": degraded,
             "degradation_reason": degradation_reason,
+            "evidence_summary": evidence_summary or {},
+        }
+
+    @staticmethod
+    def _tool_name_to_evidence_source(tool_name: str) -> Optional[str]:
+        mapping = {
+            "read_trajectory": "trajectory",
+            "read_trajectory_page": "trajectory",
+            "read_session_risk": "session_risk",
+            "read_transcript": "transcript",
+            "read_file": "file",
+            "search_codebase": "codebase",
+            "query_git_diff": "git_diff",
+            "list_directory": "directory",
+        }
+        return mapping.get(tool_name)
+
+    @staticmethod
+    def _count_initial_evidence_sources(
+        trajectory: list[dict],
+        session_risk_history: list,
+    ) -> int:
+        return int(bool(trajectory)) + int(bool(session_risk_history))
+
+    def _toolkit_budget_cap(
+        self,
+        *,
+        mode: str,
+        trajectory: list[dict],
+        session_risk_history: list,
+    ) -> int:
+        source_count = self._count_initial_evidence_sources(
+            trajectory,
+            session_risk_history,
+        )
+        if mode == "multi_turn":
+            return min(self._toolkit.MAX_TOOL_CALLS, 4 + source_count)
+        if mode == "single_turn":
+            return min(self._toolkit.MAX_TOOL_CALLS, 2 + source_count)
+        return self._toolkit.MAX_TOOL_CALLS
+
+    def _build_evidence_summary(
+        self,
+        *,
+        toolkit: ReadOnlyToolkit | None,
+        trajectory: list[dict],
+        session_risk_history: list,
+        workspace_context: dict[str, Any],
+        turns: list[dict],
+        effective_budget_ms: float,
+        start: float,
+        toolkit_budget_mode: Optional[str] = None,
+        toolkit_budget_cap: Optional[int] = None,
+    ) -> dict[str, Any]:
+        retained_sources: list[str] = []
+        tool_calls: list[dict[str, Any]] = []
+
+        def _add_source(source: Optional[str]) -> None:
+            if source and source not in retained_sources:
+                retained_sources.append(source)
+
+        if trajectory:
+            _add_source("trajectory")
+        if session_risk_history:
+            _add_source("session_risk_history")
+
+        for turn in turns:
+            if turn.get("type") != "tool_call":
+                continue
+            tool_name = str(turn.get("tool_name") or "")
+            source = self._tool_name_to_evidence_source(tool_name)
+            _add_source(source)
+            tool_calls.append(
+                {
+                    "tool_name": tool_name,
+                    "evidence_source": source,
+                    "tool_result_length": turn.get("tool_result_length"),
+                    "latency_ms": turn.get("latency_ms"),
+                }
+            )
+
+        remaining_ms = max(0.0, effective_budget_ms - (time.monotonic() - start) * 1000)
+        return {
+            "retained_sources": retained_sources,
+            "tool_calls": tool_calls,
+            "trajectory_records": len(trajectory),
+            "session_risk_history_records": len(session_risk_history),
+            "workspace_context": {
+                "workspace_root_bound": bool(workspace_context.get("workspace_root")),
+                "transcript_bound": bool(workspace_context.get("transcript_path")),
+                "session_bound": bool(workspace_context.get("session_id")),
+            },
+            "toolkit_budget_mode": toolkit_budget_mode,
+            "toolkit_budget_cap": toolkit_budget_cap,
+            "budget_remaining_ms": round(remaining_ms, 3),
+            "toolkit_calls_remaining": (
+                toolkit.calls_remaining if toolkit is not None else None
+            ),
         }
 
     async def analyze(
@@ -115,6 +215,7 @@ class AgentAnalyzer:
         budget_ms: float,
     ) -> L2Result:
         start = time.monotonic()
+        workspace_context = self._workspace_context(event)
 
         # Fetch session risk history for cumulative trigger evaluation
         session_risk_history: list = []
@@ -139,6 +240,15 @@ class AgentAnalyzer:
                 skill_selected=None, mode=None, turns=[],
                 final_verdict=None, start=start,
                 degraded=True, degradation_reason="L3 trigger not matched",
+                evidence_summary=self._build_evidence_summary(
+                    toolkit=None,
+                    trajectory=[],
+                    session_risk_history=session_risk_history,
+                    workspace_context=workspace_context,
+                    turns=[],
+                    effective_budget_ms=budget_ms,
+                    start=start,
+                ),
             )
             return L2Result(
                 target_level=result.target_level, reasons=result.reasons,
@@ -148,7 +258,6 @@ class AgentAnalyzer:
             )
 
         try:
-            workspace_context = self._workspace_context(event)
             workspace_root = workspace_context.get("workspace_root")
             transcript_path = workspace_context.get("transcript_path")
             analysis_toolkit = self._toolkit.fork(
@@ -162,6 +271,13 @@ class AgentAnalyzer:
                 event.session_id,
                 limit=self._config.initial_trajectory_limit,
             )
+            toolkit_budget_mode = "multi_turn" if self._config.enable_multi_turn else "single_turn"
+            toolkit_budget_cap = self._toolkit_budget_cap(
+                mode=toolkit_budget_mode,
+                trajectory=trajectory,
+                session_risk_history=session_risk_history,
+            )
+            analysis_toolkit.set_calls_remaining(toolkit_budget_cap)
             base_budget = self._config.l3_budget_ms if self._config.l3_budget_ms is not None else budget_ms
             effective_budget = min(
                 base_budget, budget_ms, self._config.provider_timeout_ms, self._config.hard_cap_ms
@@ -180,9 +296,13 @@ class AgentAnalyzer:
                     start,
                     trigger_reason,
                     trigger_detail,
+                    session_risk_history,
+                    toolkit_budget_mode,
+                    toolkit_budget_cap,
                 )
             else:
                 return await self._run_single_turn(
+                    analysis_toolkit,
                     event,
                     l1_snapshot,
                     skill,
@@ -192,6 +312,9 @@ class AgentAnalyzer:
                     start,
                     trigger_reason,
                     trigger_detail,
+                    session_risk_history,
+                    toolkit_budget_mode,
+                    toolkit_budget_cap,
                 )
         except (Exception, asyncio.CancelledError):
             result = self._degraded(
@@ -205,6 +328,17 @@ class AgentAnalyzer:
                 final_verdict=None, start=start,
                 degraded=True,
                 degradation_reason="L3 analysis degraded; falling back to prior risk assessment",
+                evidence_summary=self._build_evidence_summary(
+                    toolkit=None,
+                    trajectory=[],
+                    session_risk_history=session_risk_history,
+                    workspace_context=workspace_context,
+                    turns=[],
+                    effective_budget_ms=budget_ms,
+                    start=start,
+                    toolkit_budget_mode=None,
+                    toolkit_budget_cap=None,
+                ),
             )
             return L2Result(
                 target_level=result.target_level, reasons=result.reasons,
@@ -228,6 +362,7 @@ class AgentAnalyzer:
 
     async def _run_single_turn(
         self,
+        toolkit: ReadOnlyToolkit,
         event: CanonicalEvent,
         l1_snapshot: RiskSnapshot,
         skill: ReviewSkill,
@@ -237,6 +372,9 @@ class AgentAnalyzer:
         start: float,
         trigger_reason: str,
         trigger_detail: Optional[str],
+        session_risk_history: list,
+        toolkit_budget_mode: str,
+        toolkit_budget_cap: int,
     ) -> L2Result:
         prompt = self._build_initial_prompt(
             event, l1_snapshot, skill, trajectory, workspace_context
@@ -308,6 +446,17 @@ class AgentAnalyzer:
             mode="single_turn",
             turns=turns,
             final_verdict=final_verdict,
+            evidence_summary=self._build_evidence_summary(
+                toolkit=toolkit,
+                trajectory=trajectory,
+                session_risk_history=session_risk_history,
+                workspace_context=workspace_context,
+                turns=turns,
+                effective_budget_ms=effective_budget,
+                start=start,
+                toolkit_budget_mode=toolkit_budget_mode,
+                toolkit_budget_cap=toolkit_budget_cap,
+            ),
             start=start,
             degraded=result.confidence == 0.0,
             degradation_reason=(
@@ -339,6 +488,9 @@ class AgentAnalyzer:
         start: float,
         trigger_reason: str,
         trigger_detail: Optional[str],
+        session_risk_history: list,
+        toolkit_budget_mode: str,
+        toolkit_budget_cap: int,
     ) -> L2Result:
         system_prompt = self._build_multi_turn_system_prompt(skill)
         messages: list[dict[str, str]] = [
@@ -370,6 +522,17 @@ class AgentAnalyzer:
                 mode="multi_turn",
                 turns=turns,
                 final_verdict=final_verdict,
+                evidence_summary=self._build_evidence_summary(
+                    toolkit=toolkit,
+                    trajectory=trajectory,
+                    session_risk_history=session_risk_history,
+                    workspace_context=workspace_context,
+                    turns=turns,
+                    effective_budget_ms=effective_budget,
+                    start=start,
+                    toolkit_budget_mode=toolkit_budget_mode,
+                    toolkit_budget_cap=toolkit_budget_cap,
+                ),
                 start=start,
                 degraded=degraded,
                 degradation_reason=degradation_reason,
@@ -465,7 +628,14 @@ class AgentAnalyzer:
 
             # Execute the toolkit call
             tool_start = time.monotonic()
-            tool_result = await self._execute_tool(toolkit, tool_name, tool_args)
+            try:
+                tool_result = await self._execute_tool(toolkit, tool_name, tool_args)
+            except ToolCallBudgetExhausted:
+                reason = "L3 tool call budget exhausted"
+                result = self._degraded(l1_snapshot, start, reason)
+                return _attach_trace(
+                    result, degraded=True, degradation_reason=reason,
+                )
             tool_latency = (time.monotonic() - tool_start) * 1000
             turn_counter += 1
             tool_result_str = (
@@ -580,7 +750,8 @@ class AgentAnalyzer:
             + "You may call read-only tools to gather more evidence. "
             + "Each intermediate response must be JSON: "
             + '{"thought": "...", "tool_call": {"name": "<tool>", "arguments": {...}}, "done": false}. '
-            + "Available tools: read_trajectory, read_file, read_transcript, read_session_risk, search_codebase, query_git_diff, list_directory. "
+            + "Available tools: read_trajectory, read_trajectory_page, read_file, read_transcript, read_session_risk, "
+            + "search_codebase, query_git_diff, list_directory. "
             + "When you have enough information, respond with the final JSON ONLY: "
             + '{"risk_level": "low|medium|high|critical", "findings": ["..."], "confidence": 0.0}.'
         )

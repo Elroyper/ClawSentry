@@ -17,7 +17,18 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 
 from clawsentry.gateway.server import SupervisionGateway, create_http_app, start_uds_server
-from clawsentry.gateway.models import DecisionTier, RiskLevel, RPC_VERSION
+from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.session_enforcement import EnforcementAction, SessionEnforcementPolicy
+from clawsentry.gateway.models import (
+    ClassifiedBy,
+    CanonicalDecision,
+    DecisionSource,
+    DecisionTier,
+    RiskDimensions,
+    RiskLevel,
+    RiskSnapshot,
+    RPC_VERSION,
+)
 from clawsentry.gateway.semantic_analyzer import L2Result
 
 
@@ -184,12 +195,395 @@ class TestGatewayCore:
         assert stats["workspace_root"] == "/workspace/worker"
         assert stats["transcript_path"] == "/tmp/session.jsonl"
 
+    def test_session_registry_retains_compact_l3_evidence_summary(self, gw):
+        session_id = "sess-evidence-summary-001"
+        evidence_summary = {
+            "retained_sources": [" trajectory ", "", "file"],
+            "tool_calls": [
+                {"tool_name": "read_file", "evidence_source": "file"},
+                {"tool_name": "search", "evidence_source": "trajectory"},
+            ],
+            "tool_calls_count": 999,
+        }
+
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-evidence-summary-001",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "block",
+                "risk_level": "high",
+            },
+            snapshot={
+                "risk_level": "high",
+                "composite_score": 2,
+                "dimensions": {"d1": 1, "d2": 0, "d3": 0, "d4": 0, "d5": 1},
+                "classified_by": "L3",
+                "classified_at": "2026-03-19T12:00:00+00:00",
+            },
+            meta={
+                "actual_tier": "L3",
+                "caller_adapter": "test-harness",
+                "l3_state": "completed",
+                "l3_reason": "L3 review completed",
+                "l3_reason_code": "trigger_not_matched",
+                "evidence_summary": evidence_summary,
+            },
+        )
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-evidence-summary-002",
+                "occurred_at": "2026-03-19T12:01:00+00:00",
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "allow",
+                "risk_level": "medium",
+            },
+            snapshot={
+                "risk_level": "medium",
+                "composite_score": 1,
+                "dimensions": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "classified_by": "L1",
+                "classified_at": "2026-03-19T12:01:00+00:00",
+            },
+            meta={
+                "record_type": "decision_resolution",
+                "actual_tier": "L1",
+                "caller_adapter": "test-harness",
+            },
+        )
+
+        stats = gw.session_registry.get_session_stats(session_id)
+        assert stats["latest_evidence_summary"] == {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls_count": 2,
+        }
+
+        session_risk = gw.session_registry.get_session_risk(session_id)
+        assert session_risk["evidence_summary"] == {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls_count": 2,
+        }
+        assert session_risk["l3_state"] == "completed"
+        assert session_risk["l3_reason"] == "L3 review completed"
+        assert session_risk["l3_reason_code"] == "trigger_not_matched"
+        assert session_risk["risk_timeline"][0]["evidence_summary"] == {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls_count": 2,
+        }
+        assert "evidence_summary" not in session_risk["risk_timeline"][1]
+
+    def test_report_sessions_surfaces_latest_compact_evidence_and_l3_metadata(self, gw):
+        rich_session_id = "sess-report-rich-001"
+        basic_session_id = "sess-report-basic-001"
+        evidence_summary = {
+            "retained_sources": [" trajectory ", "file"],
+            "tool_calls": [
+                {"tool_name": "read_file", "evidence_source": "file"},
+            ],
+        }
+
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-report-rich-001",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "session_id": rich_session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "block",
+                "risk_level": "high",
+            },
+            snapshot={
+                "risk_level": "high",
+                "composite_score": 2,
+                "dimensions": {"d1": 1, "d2": 0, "d3": 0, "d4": 0, "d5": 1},
+                "classified_by": "L3",
+                "classified_at": "2026-03-19T12:00:00+00:00",
+            },
+            meta={
+                "actual_tier": "L3",
+                "caller_adapter": "test-harness",
+                "l3_state": "completed",
+                "l3_reason": "L3 review completed",
+                "l3_reason_code": "trigger_not_matched",
+                "evidence_summary": evidence_summary,
+            },
+        )
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-report-rich-002",
+                "occurred_at": "2026-03-19T12:01:00+00:00",
+                "session_id": rich_session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "allow",
+                "risk_level": "medium",
+            },
+            snapshot={
+                "risk_level": "medium",
+                "composite_score": 1,
+                "dimensions": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "classified_by": "L1",
+                "classified_at": "2026-03-19T12:01:00+00:00",
+            },
+            meta={
+                "record_type": "decision_resolution",
+                "actual_tier": "L1",
+                "caller_adapter": "test-harness",
+            },
+        )
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-report-basic-001",
+                "occurred_at": "2026-03-19T12:02:00+00:00",
+                "session_id": basic_session_id,
+                "agent_id": "agent-002",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "allow",
+                "risk_level": "low",
+            },
+            snapshot={
+                "risk_level": "low",
+                "composite_score": 0,
+                "dimensions": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "classified_by": "L1",
+                "classified_at": "2026-03-19T12:02:00+00:00",
+            },
+            meta={
+                "actual_tier": "L1",
+                "caller_adapter": "test-harness",
+            },
+        )
+
+        report = gw.session_registry.list_sessions()
+        rich_session = next(
+            session for session in report["sessions"]
+            if session["session_id"] == rich_session_id
+        )
+        basic_session = next(
+            session for session in report["sessions"]
+            if session["session_id"] == basic_session_id
+        )
+
+        assert rich_session["evidence_summary"] == {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls_count": 1,
+        }
+        assert rich_session["l3_state"] == "completed"
+        assert rich_session["l3_reason"] == "L3 review completed"
+        assert rich_session["l3_reason_code"] == "trigger_not_matched"
+        assert "evidence_summary" not in basic_session
+        assert "l3_state" not in basic_session
+        assert "l3_reason" not in basic_session
+        assert "l3_reason_code" not in basic_session
+
+    def test_report_session_risk_surfaces_latest_l3_metadata(self, gw):
+        session_id = "sess-risk-contract-001"
+        evidence_summary = {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls": [
+                {"tool_name": "read_file", "evidence_source": "file"},
+            ],
+        }
+
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-risk-contract-001",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "block",
+                "risk_level": "high",
+            },
+            snapshot={
+                "risk_level": "high",
+                "composite_score": 2,
+                "dimensions": {"d1": 1, "d2": 0, "d3": 0, "d4": 0, "d5": 1},
+                "classified_by": "L3",
+                "classified_at": "2026-03-19T12:00:00+00:00",
+            },
+            meta={
+                "actual_tier": "L3",
+                "caller_adapter": "test-harness",
+                "l3_state": "completed",
+                "l3_reason": "L3 review completed",
+                "l3_reason_code": "trigger_not_matched",
+                "evidence_summary": evidence_summary,
+            },
+        )
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-risk-contract-002",
+                "occurred_at": "2026-03-19T12:01:00+00:00",
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={
+                "decision": "allow",
+                "risk_level": "medium",
+            },
+            snapshot={
+                "risk_level": "medium",
+                "composite_score": 1,
+                "dimensions": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "classified_by": "L1",
+                "classified_at": "2026-03-19T12:01:00+00:00",
+            },
+            meta={
+                "record_type": "decision_resolution",
+                "actual_tier": "L1",
+                "caller_adapter": "test-harness",
+            },
+        )
+
+        session_risk = gw.report_session_risk(session_id)
+        assert session_risk["evidence_summary"] == {
+            "retained_sources": ["trajectory", "file"],
+            "tool_calls_count": 1,
+        }
+        assert session_risk["l3_state"] == "completed"
+        assert session_risk["l3_reason"] == "L3 review completed"
+        assert session_risk["l3_reason_code"] == "trigger_not_matched"
+        assert session_risk["risk_timeline"][0]["l3_state"] == "completed"
+        assert session_risk["risk_timeline"][0]["l3_reason"] == "L3 review completed"
+        assert session_risk["risk_timeline"][0]["l3_reason_code"] == "trigger_not_matched"
+        assert session_risk["risk_timeline"][1]["l3_state"] is None
+        assert session_risk["risk_timeline"][1]["l3_reason"] is None
+        assert session_risk["risk_timeline"][1]["l3_reason_code"] is None
+
     @pytest.mark.asyncio
     async def test_health(self, gw):
         h = gw.health()
         assert h["status"] == "healthy"
         assert h["policy_engine"] == "L1+L2"
         assert h["rpc_version"] == RPC_VERSION
+
+    @pytest.mark.asyncio
+    async def test_health_and_summary_include_llm_usage_snapshot(self, gw):
+        gw.metrics.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=100,
+            output_tokens=25,
+        )
+        gw.metrics.record_llm_call(
+            provider="anthropic",
+            tier="L3",
+            status="error",
+            input_tokens=4,
+            output_tokens=2,
+        )
+
+        for payload in (gw.health(), gw.report_summary()):
+            snapshot = payload["llm_usage_snapshot"]
+            assert snapshot["total_calls"] == 2
+            assert snapshot["by_provider"]["openai"]["calls"] == 1
+            assert snapshot["by_provider"]["anthropic"]["calls"] == 1
+            assert snapshot["by_tier"]["L2"]["calls"] == 1
+            assert snapshot["by_tier"]["L3"]["calls"] == 1
+            assert snapshot["by_status"]["ok"]["calls"] == 1
+            assert snapshot["by_status"]["error"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_health_and_summary_include_decision_path_io_metrics(self, gw):
+        params = _sync_decision_params(
+            request_id="req-io-metrics",
+            event={
+                "event_id": "evt-io-metrics",
+                "trace_id": "trace-io-metrics",
+                "event_type": "pre_action",
+                "session_id": "sess-io-metrics",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"tool": "read_file", "path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        health = gw.health()
+        summary = gw.report_summary()
+
+        assert health["decision_path_io"]["record_path"]["calls"] == 1
+        assert health["decision_path_io"]["record_path"]["trajectory_store"]["calls"] == 1
+        assert health["decision_path_io"]["record_path"]["session_registry"]["calls"] == 1
+        assert health["decision_path_io"]["reporting"]["health"]["calls"] == 1
+        assert health["decision_path_io"]["reporting"]["report_summary"]["calls"] == 0
+
+        assert summary["decision_path_io"]["record_path"]["calls"] == 1
+        assert summary["decision_path_io"]["record_path"]["trajectory_store"]["calls"] == 1
+        assert summary["decision_path_io"]["record_path"]["session_registry"]["calls"] == 1
+        assert summary["decision_path_io"]["reporting"]["health"]["calls"] == 1
+        assert summary["decision_path_io"]["reporting"]["report_summary"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_session_report_endpoints_bump_independent_reporting_counters(self, gw):
+        params = _sync_decision_params(
+            request_id="req-session-report-io",
+            event={
+                "event_id": "evt-session-report-io",
+                "trace_id": "trace-session-report-io",
+                "event_type": "pre_action",
+                "session_id": "sess-session-report-io",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"tool": "read_file", "path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        sessions = gw.report_sessions(limit=10)
+        assert sessions["decision_path_io"]["record_path"]["calls"] == 1
+        assert sessions["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
+        assert sessions["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 0
+        assert sessions["decision_path_io"]["reporting"]["replay_session"]["calls"] == 0
+
+        session_risk = gw.report_session_risk("sess-session-report-io")
+        assert session_risk["decision_path_io"]["record_path"]["calls"] == 1
+        assert session_risk["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
+        assert session_risk["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
+        assert session_risk["decision_path_io"]["reporting"]["replay_session"]["calls"] == 0
+
+        replay = gw.replay_session("sess-session-report-io")
+        assert replay["decision_path_io"]["record_path"]["calls"] == 1
+        assert replay["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
+        assert replay["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
+        assert replay["decision_path_io"]["reporting"]["replay_session"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_requested_l2_returns_actual_tier_l2(self, gw):
@@ -313,10 +707,12 @@ class TestGatewayCore:
             result = await gw.handle_jsonrpc(body)
 
             assert result["result"]["actual_tier"] == "L3"
+            assert result["result"]["l3_state"] == "completed"
             assert result["result"]["decision"]["decision"] == "block"
 
             record = gw.trajectory_store.records[-1]
             assert record["meta"]["actual_tier"] == "L3"
+            assert record["meta"]["l3_state"] == "completed"
             assert record["risk_snapshot"]["classified_by"] == "L3"
             assert record["l3_trace"]["trigger_reason"] == "suspicious_pattern"
             assert record["l3_trace"]["trigger_detail"] == "secret_plus_network"
@@ -325,6 +721,7 @@ class TestGatewayCore:
             assert session_risk["actual_tier_distribution"]["L3"] == 1
             assert session_risk["risk_timeline"][-1]["actual_tier"] == "L3"
             assert session_risk["risk_timeline"][-1]["classified_by"] == "L3"
+            assert session_risk["risk_timeline"][-1]["l3_state"] == "completed"
 
             summary = gw.report_summary()
             assert summary["by_actual_tier"]["L3"] >= 1
@@ -335,9 +732,177 @@ class TestGatewayCore:
             assert any(
                 event.get("type") == "decision"
                 and event.get("actual_tier") == "L3"
+                and event.get("l3_state") == "completed"
                 and event.get("trigger_detail") == "secret_plus_network"
                 for event in decision_events
             )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    def test_budget_exhaustion_broadcasts_once(self):
+        gw = SupervisionGateway(detection_config=DetectionConfig(llm_daily_budget_usd=1.0))
+        sub_id, queue = gw.event_bus.subscribe(event_types={"budget_exhausted"})
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=400_000,
+                output_tokens=0,
+            )
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=1,
+                output_tokens=0,
+            )
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+
+            assert len(events) == 1
+            event = events[0]
+            assert event["type"] == "budget_exhausted"
+            assert event["provider"] == "openai"
+            assert event["budget"]["exhausted"] is True
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    def test_budget_exhaustion_reaches_default_event_bus_subscription(self):
+        gw = SupervisionGateway(detection_config=DetectionConfig(llm_daily_budget_usd=1.0))
+        sub_id, queue = gw.event_bus.subscribe()
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=400_000,
+                output_tokens=0,
+            )
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=1,
+                output_tokens=0,
+            )
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+
+            assert any(event.get("type") == "budget_exhausted" for event in events)
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_decision_event_includes_budget_state_after_exhaustion(self):
+        gw = SupervisionGateway(detection_config=DetectionConfig(llm_daily_budget_usd=1.0))
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=400_000,
+                output_tokens=0,
+            )
+
+            params = _sync_decision_params(
+                request_id="req-budget-decision",
+                decision_tier="L3",
+                deadline_ms=1500,
+                event={
+                    "event_id": "evt-budget-decision",
+                    "trace_id": "trace-budget-decision",
+                    "event_type": "pre_action",
+                    "session_id": "sess-budget-decision",
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "occurred_at": "2026-03-19T12:00:00+00:00",
+                    "payload": {"command": "cat /tmp/readme.txt"},
+                    "tool_name": "bash",
+                },
+            )
+            result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+            decision = result["result"]
+            assert decision["l3_reason_code"] == "budget_exhausted"
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+
+            decision_events = [event for event in events if event.get("type") == "decision"]
+            assert len(decision_events) == 1
+            event = decision_events[0]
+            assert event["budget"]["daily_budget_usd"] == 1.0
+            assert event["budget"]["exhausted"] is True
+            assert event["budget"]["remaining_usd"] == pytest.approx(0.0)
+
+            health_budget = gw.health()["budget"]
+            summary_budget = gw.report_summary()["budget"]
+            assert health_budget == summary_budget == event["budget"]
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_require_budget_exhaustion_is_reported_consistently(self):
+        gw = SupervisionGateway(
+            detection_config=DetectionConfig(llm_daily_budget_usd=1.0),
+            session_enforcement=SessionEnforcementPolicy(
+                enabled=True,
+                threshold=1,
+                action=EnforcementAction.L3_REQUIRE,
+            ),
+        )
+        gw.session_enforcement.force("sess-l3-budget", action=EnforcementAction.L3_REQUIRE)
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=400_000,
+                output_tokens=0,
+            )
+
+            params = _sync_decision_params(
+                request_id="req-l3-budget-force",
+                decision_tier="L3",
+                deadline_ms=1500,
+                event={
+                    "event_id": "evt-l3-budget-force",
+                    "trace_id": "trace-l3-budget-force",
+                    "event_type": "pre_action",
+                    "session_id": "sess-l3-budget",
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "occurred_at": "2026-03-19T12:00:00+00:00",
+                    "payload": {"command": "cat /tmp/readme.txt"},
+                    "tool_name": "bash",
+                },
+            )
+            result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+            payload = result["result"]
+            assert payload["actual_tier"] == "L1"
+            assert payload["decision"]["decision"] == "defer"
+            assert payload["l3_state"] == "skipped"
+            assert payload["l3_reason_code"] == "budget_exhausted"
+
+            decision_events = []
+            while not queue.empty():
+                decision_events.append(queue.get_nowait())
+            assert len(decision_events) == 1
+            event = decision_events[0]
+            assert event["budget"]["exhausted"] is True
+            assert event["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+            assert event["budget"]["remaining_usd"] == pytest.approx(0.0)
+            assert event["l3_reason_code"] == "budget_exhausted"
+
+            assert gw.health()["budget"] == event["budget"]
+            assert gw.report_summary()["budget"] == event["budget"]
         finally:
             gw.event_bus.unsubscribe(sub_id)
 
@@ -378,9 +943,63 @@ class TestGatewayCore:
         result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
 
         assert result["result"]["actual_tier"] == "L2"
+        assert result["result"]["l3_state"] == "skipped"
         record = gw.trajectory_store.records[-1]
         assert record["meta"]["actual_tier"] == "L2"
+        assert record["meta"]["l3_state"] == "skipped"
         assert record["risk_snapshot"]["classified_by"] == "L2"
+
+    @pytest.mark.asyncio
+    async def test_requested_l3_not_triggered_state_is_reported(self):
+        class NotTriggeredAnalyzer:
+            analyzer_id = "test-l3-not-triggered"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.LOW,
+                    reasons=["L3 trigger not matched"],
+                    confidence=0.0,
+                    analyzer_id=self.analyzer_id,
+                    latency_ms=11.0,
+                    trace={
+                        "trigger_reason": "trigger_not_matched",
+                        "mode": None,
+                        "turns": [],
+                        "degraded": True,
+                        "degradation_reason": "L3 trigger not matched",
+                    },
+                    decision_tier=DecisionTier.L1,
+                )
+
+        gw = SupervisionGateway(analyzer=NotTriggeredAnalyzer())
+        params = _sync_decision_params(
+            request_id="req-l3-not-triggered",
+            decision_tier="L3",
+            deadline_ms=1500,
+            event={
+                "event_id": "evt-l3-not-triggered",
+                "trace_id": "trace-l3-not-triggered",
+                "event_type": "pre_action",
+                "session_id": "sess-l3-not-triggered",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+
+        result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        assert result["result"]["actual_tier"] == "L1"
+        assert result["result"]["l3_state"] == "not_triggered"
+        assert result["result"]["l3_reason_code"] == "trigger_not_matched"
+        record = gw.trajectory_store.records[-1]
+        assert record["meta"]["l3_state"] == "not_triggered"
+        assert record["meta"]["l3_reason_code"] == "trigger_not_matched"
+        session_risk = gw.report_session_risk("sess-l3-not-triggered")
+        assert session_risk["risk_timeline"][-1]["l3_state"] == "not_triggered"
+        assert session_risk["risk_timeline"][-1]["l3_reason_code"] == "trigger_not_matched"
 
     @pytest.mark.asyncio
     async def test_requested_l3_degraded_path_keeps_actual_tier_l1_and_trigger_reason(self):
@@ -426,10 +1045,17 @@ class TestGatewayCore:
         result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
 
         assert result["result"]["actual_tier"] == "L1"
+        assert result["result"]["l3_state"] == "degraded"
+        assert result["result"]["l3_reason_code"] == "hard_cap_exceeded"
         record = gw.trajectory_store.records[-1]
         assert record["meta"]["actual_tier"] == "L1"
+        assert record["meta"]["l3_state"] == "degraded"
+        assert record["meta"]["l3_reason_code"] == "hard_cap_exceeded"
         assert record["l3_trace"]["trigger_reason"] == "cumulative_risk"
         assert record["l3_trace"]["degraded"] is True
+
+        session_risk = gw.report_session_risk("sess-l3-degraded")
+        assert session_risk["risk_timeline"][-1]["l3_reason_code"] == "hard_cap_exceeded"
 
     @pytest.mark.asyncio
     async def test_report_summary_counts(self, gw):
@@ -839,6 +1465,8 @@ class TestHttpTransport:
             assert resp.status_code == 200
             data = resp.json()
             assert data["status"] == "healthy"
+            assert data["decision_path_io"]["record_path"]["calls"] == 0
+            assert data["decision_path_io"]["reporting"]["health"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_dangerous_block(self, app):
@@ -875,6 +1503,8 @@ class TestHttpTransport:
             data = resp.json()
             assert data["total_records"] >= 1
             assert "by_source_framework" in data
+            assert data["decision_path_io"]["record_path"]["calls"] == 1
+            assert data["decision_path_io"]["reporting"]["report_summary"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_session_endpoint(self, app):
@@ -975,6 +1605,7 @@ class TestHttpTransport:
             assert resp.status_code == 200
             data = resp.json()
             assert data["total_records"] >= 1
+            assert data["decision_path_io"]["reporting"]["report_summary"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_sessions_endpoint(self, app):
@@ -1003,6 +1634,8 @@ class TestHttpTransport:
             data = resp.json()
             assert data["total_active"] >= 1
             assert any(s["session_id"] == "sess-sessions-1" for s in data["sessions"])
+            assert data["decision_path_io"]["record_path"]["calls"] == 1
+            assert data["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_sessions_respects_limit(self, app):
@@ -1194,6 +1827,8 @@ class TestHttpTransport:
             assert data["session_id"] == "sess-risk-1"
             assert data["current_risk_level"] in {"high", "critical"}
             assert len(data["risk_timeline"]) >= 1
+            assert data["decision_path_io"]["record_path"]["calls"] == 1
+            assert data["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_session_risk_includes_session_identity_metadata(self, app):
@@ -1228,6 +1863,7 @@ class TestHttpTransport:
             assert data["source_framework"] == "codex"
             assert data["workspace_root"] == "/workspace/repo-beta"
             assert data["transcript_path"] == "/workspace/repo-beta/.codex/transcript.jsonl"
+            assert data["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_session_risk_limit_capped_at_1000(self, app):
@@ -1255,6 +1891,7 @@ class TestHttpTransport:
             assert resp.status_code == 200
             data = resp.json()
             assert len(data["risk_timeline"]) >= 1
+            assert data["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_session_risk_limit_floor_at_1(self, app):
@@ -1282,6 +1919,7 @@ class TestHttpTransport:
             assert resp.status_code == 200
             data = resp.json()
             assert len(data["risk_timeline"]) == 1
+            assert data["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_http_report_session_risk_window_validation(self, app):
@@ -1300,6 +1938,36 @@ class TestHttpTransport:
             data = resp.json()
             assert data["session_id"] == "sess-risk-unknown"
             assert data["risk_timeline"] == []
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_endpoint_exposes_replay_io_counter(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post("/ahp", content=_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id="req-replay-io",
+                    event={
+                        "event_id": "evt-replay-io",
+                        "trace_id": "trace-replay-io",
+                        "event_type": "pre_action",
+                        "session_id": "sess-replay-io",
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": "2026-03-21T12:00:00+00:00",
+                        "payload": {"tool": "read_file", "path": "/tmp/replay"},
+                        "tool_name": "read_file",
+                    },
+                ),
+            ))
+
+            resp = await client.get("/report/session/sess-replay-io")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["session_id"] == "sess-replay-io"
+            assert data["record_count"] >= 1
+            assert data["decision_path_io"]["record_path"]["calls"] == 1
+            assert data["decision_path_io"]["reporting"]["replay_session"]["calls"] == 1
 
 
 # ===========================================================================
@@ -1764,7 +2432,6 @@ class TestSseStream:
             assert decision["decision"] == "block"
             assert decision["policy_id"] == "trajectory-alert"
             assert "multi-step attack detected" in decision["reason"]
-
             events = []
             while not queue.empty():
                 events.append(queue.get_nowait())
@@ -2249,6 +2916,37 @@ def test_trajectory_store_replay_includes_l3_trace(tmp_path):
     assert replayed[0]["l3_trace"] == trace
 
 
+def test_trajectory_store_records_decision_resolution(tmp_path):
+    from clawsentry.gateway.server import TrajectoryStore
+    store = TrajectoryStore(db_path=str(tmp_path / "test.db"))
+    store.record(
+        event={"session_id": "s1", "source_framework": "test", "event_type": "pre_action", "event_id": "evt-1"},
+        decision={"decision": "defer", "risk_level": "medium"},
+        snapshot={"risk_level": "medium"},
+        meta={"actual_tier": "L1", "request_id": "r1", "record_type": "decision"},
+    )
+    store.record_resolution(
+        event={
+            "session_id": "s1",
+            "source_framework": "test",
+            "event_type": "pre_action",
+            "event_id": "evt-1",
+        },
+        decision={"decision": "allow", "risk_level": "medium", "decision_source": "operator"},
+        snapshot={"risk_level": "medium"},
+        meta={
+            "actual_tier": "L1",
+            "request_id": "r1",
+            "approval_id": "cs-defer-123",
+        },
+    )
+    replayed = store.replay_session("s1")
+    assert len(replayed) == 2
+    assert replayed[-1]["meta"]["record_type"] == "decision_resolution"
+    assert replayed[-1]["meta"]["approval_id"] == "cs-defer-123"
+    assert replayed[-1]["decision"]["decision"] == "allow"
+
+
 def test_policy_engine_carries_l3_trace_to_snapshot():
     """L2Result.trace flows from analyzer through policy_engine to RiskSnapshot.l3_trace."""
     from unittest.mock import AsyncMock, MagicMock
@@ -2703,6 +3401,64 @@ class TestCS012RecordBeforeDeadline:
             assert len(decision_events) >= 1, (
                 "CS-013/CS-016: decision event must be broadcast even on DEADLINE_EXCEEDED"
             )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_decision_sse_includes_compact_evidence_summary_when_present(self, gw, monkeypatch):
+        decision = CanonicalDecision(
+            decision="block",
+            reason="L3 review completed",
+            policy_id="policy-l3",
+            risk_level="high",
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+        snapshot = RiskSnapshot(
+            risk_level=RiskLevel.HIGH,
+            composite_score=2.0,
+            dimensions=RiskDimensions(d1=1, d2=0, d3=0, d4=0, d5=1),
+            classified_by=ClassifiedBy.L3,
+            classified_at="2026-03-26T12:00:00+00:00",
+            l3_trace={
+                "trigger_reason": "manual_l3_escalate",
+                "degraded": False,
+                "evidence_summary": {
+                    "retained_sources": ["trajectory", "file"],
+                    "tool_calls": [
+                        {
+                            "tool_name": "read_file",
+                            "evidence_source": "file",
+                            "tool_result_length": 12,
+                            "latency_ms": 1.5,
+                        }
+                    ],
+                    "trajectory_records": 1,
+                },
+            },
+        )
+
+        def _fake_evaluate(*_args, **_kwargs):
+            return decision, snapshot, DecisionTier.L3
+
+        monkeypatch.setattr(gw.policy_engine, "evaluate", _fake_evaluate)
+
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        try:
+            body = _jsonrpc_request("ahp/sync_decision", _sync_decision_params())
+            result = await gw.handle_jsonrpc(body)
+            assert "result" in result
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+            decision_evt = next(e for e in events if e.get("type") == "decision")
+
+            assert decision_evt["evidence_summary"] == {
+                "retained_sources": ["trajectory", "file"],
+                "tool_calls_count": 1,
+            }
+            assert "tool_calls" not in decision_evt["evidence_summary"]
         finally:
             gw.event_bus.unsubscribe(sub_id)
 

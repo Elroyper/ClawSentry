@@ -83,6 +83,20 @@ class TestBudget:
         result = await tk.read_file("f.txt")
         assert result == "x"
 
+    @pytest.mark.asyncio
+    async def test_set_calls_remaining_is_bounded(self, tmp_path: Path) -> None:
+        (tmp_path / "f.txt").write_text("x", encoding="utf-8")
+        tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+        await tk.read_file("f.txt")
+        tk.set_calls_remaining(tk.MAX_TOOL_CALLS + 10)
+        assert tk.calls_remaining == tk.MAX_TOOL_CALLS
+        tk.set_calls_remaining(2)
+        assert tk.calls_remaining == 2
+        await tk.read_file("f.txt")
+        await tk.read_file("f.txt")
+        with pytest.raises(ToolCallBudgetExhausted):
+            await tk.read_file("f.txt")
+
 
 # ---------------------------------------------------------------------------
 # _safe_path / path traversal
@@ -197,6 +211,35 @@ class TestReadFile:
 
 
 class TestReadTrajectory:
+    def test_trajectory_store_replay_page_returns_cursor(self, tmp_path: Path) -> None:
+        from clawsentry.gateway.trajectory_store import TrajectoryStore
+
+        store = TrajectoryStore(db_path=str(tmp_path / "trajectory.db"))
+        for idx in range(3):
+            store.record(
+                event={
+                    "event_id": f"evt-{idx}",
+                    "session_id": "sess-1",
+                    "source_framework": "test",
+                    "event_type": "pre_action",
+                },
+                decision={"decision": "allow", "risk_level": "low"},
+                snapshot={"risk_level": "low"},
+                meta={"actual_tier": "L1", "request_id": f"r-{idx}"},
+            )
+
+        first_page = store.replay_session_page("sess-1", limit=2)
+        assert [record["event"]["event_id"] for record in first_page["records"]] == ["evt-1", "evt-2"]
+        assert first_page["next_cursor"] is not None
+
+        second_page = store.replay_session_page(
+            "sess-1",
+            limit=2,
+            cursor=first_page["next_cursor"],
+        )
+        assert [record["event"]["event_id"] for record in second_page["records"]] == ["evt-0"]
+        assert second_page["next_cursor"] is None
+
     @pytest.mark.asyncio
     async def test_caps_limit(self, tmp_path: Path) -> None:
         tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
@@ -226,6 +269,14 @@ class TestReadTrajectory:
         before = tk.calls_remaining
         await tk.read_trajectory("sess-1", limit=1)
         assert tk.calls_remaining == before - 1
+
+    @pytest.mark.asyncio
+    async def test_read_trajectory_page_returns_records_and_cursor(self, tmp_path: Path) -> None:
+        tk = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+        result = await tk.read_trajectory_page("sess-1", limit=2)
+
+        assert len(result["records"]) == 2
+        assert result["next_cursor"] is not None
 
 
 # ---------------------------------------------------------------------------

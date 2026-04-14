@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
 from clawsentry.gateway.models import RPC_VERSION
 
@@ -235,6 +236,94 @@ class TestMetricsEnabled:
         # mc2 text should not have any sample values for decisions_total
         # (no counter increments, so the metric may be declared but have 0)
         assert b'verdict="allow"' not in text2 or b" 0.0" in text2
+
+
+class TestBudgetExhaustionObservability:
+    """Budget exhaustion should emit a single observable event."""
+
+    def test_budget_exhaustion_callback_fires_once(self):
+        events: list[dict[str, object]] = []
+        tracker = LLMBudgetTracker(daily_budget_usd=1.0)
+        mc = MetricsCollector(
+            enabled=False,
+            budget_tracker=tracker,
+            budget_exhausted_callback=events.append,
+        )
+
+        mc.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=400_000,
+            output_tokens=0,
+        )
+        mc.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=1,
+            output_tokens=0,
+        )
+
+        assert len(events) == 1
+        event = events[0]
+        assert event["type"] == "budget_exhausted"
+        assert event["provider"] == "openai"
+        assert event["tier"] == "L2"
+        assert event["status"] == "ok"
+        assert event["budget"]["daily_budget_usd"] == 1.0
+        assert event["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+        assert event["budget"]["remaining_usd"] == pytest.approx(0.0)
+        assert event["budget"]["exhausted"] is True
+        assert event["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+
+
+# ===========================================================================
+# LLM usage snapshot
+# ===========================================================================
+
+
+class TestLLMUsageSnapshot:
+    """MetricsCollector should expose aggregated LLM usage breakdowns."""
+
+    def test_llm_usage_snapshot_breaks_down_by_provider_tier_and_status(self):
+        mc = MetricsCollector(enabled=False)
+
+        mc.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=100,
+            output_tokens=25,
+        )
+        mc.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="timeout",
+            input_tokens=10,
+            output_tokens=0,
+        )
+        mc.record_llm_call(
+            provider="anthropic",
+            tier="L3",
+            status="error",
+            input_tokens=4,
+            output_tokens=2,
+        )
+
+        snapshot = mc.llm_usage_snapshot()
+
+        assert snapshot["total_calls"] == 3
+        assert snapshot["total_input_tokens"] == 114
+        assert snapshot["total_output_tokens"] == 27
+        assert snapshot["by_provider"]["openai"]["calls"] == 2
+        assert snapshot["by_provider"]["openai"]["input_tokens"] == 110
+        assert snapshot["by_provider"]["anthropic"]["output_tokens"] == 2
+        assert snapshot["by_tier"]["L2"]["calls"] == 2
+        assert snapshot["by_tier"]["L3"]["calls"] == 1
+        assert snapshot["by_status"]["ok"]["calls"] == 1
+        assert snapshot["by_status"]["timeout"]["calls"] == 1
+        assert snapshot["by_status"]["error"]["calls"] == 1
 
 
 # ===========================================================================

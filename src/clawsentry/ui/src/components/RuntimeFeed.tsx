@@ -18,6 +18,7 @@ const RUNTIME_EVENT_TYPES: RuntimeEventType[] = [
   'pattern_evolved',
   'defer_pending',
   'defer_resolved',
+  'budget_exhausted',
   'session_enforcement_change',
 ]
 
@@ -27,6 +28,7 @@ const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
   'post_action_finding',
   'defer_pending',
   'defer_resolved',
+  'budget_exhausted',
   'session_enforcement_change',
 ]
 
@@ -41,6 +43,7 @@ const EVENT_LABELS: Record<RuntimeEventType, string> = {
   pattern_evolved: 'Pattern Evolved',
   defer_pending: 'Defer Pending',
   defer_resolved: 'Defer Resolved',
+  budget_exhausted: 'Budget Exhausted',
   session_enforcement_change: 'Enforcement',
 }
 
@@ -84,6 +87,11 @@ const EVENT_TONES: Record<RuntimeEventType, { color: string; bg: string; border:
     color: '#34d399',
     bg: 'rgba(52,211,153,0.12)',
     border: 'rgba(52,211,153,0.2)',
+  },
+  budget_exhausted: {
+    color: 'var(--color-block)',
+    bg: 'rgba(239,68,68,0.12)',
+    border: 'rgba(239,68,68,0.2)',
   },
   session_enforcement_change: {
     color: 'var(--color-block)',
@@ -191,9 +199,29 @@ function PatternBadge({ patternId }: { patternId: string }) {
   )
 }
 
+function formatL3EvidenceSummary(summary?: {
+  retained_sources?: string[]
+  tool_calls_count?: number
+} | null) {
+  if (!summary) return null
+
+  const parts: string[] = []
+
+  if (summary.retained_sources?.length) {
+    parts.push(summary.retained_sources.filter(Boolean).join(', '))
+  }
+
+  if (typeof summary.tool_calls_count === 'number') {
+    parts.push(`${summary.tool_calls_count} tool call(s)`)
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {
   switch (event.type) {
-    case 'decision':
+    case 'decision': {
+      const evidenceSummary = formatL3EvidenceSummary(event.evidence_summary)
       return (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
@@ -220,8 +248,39 @@ function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {
               Trigger pattern: <span className="mono">{event.trigger_detail}</span>
             </div>
           )}
+          {event.l3_requested !== undefined && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              L3 requested: <span className="mono">{event.l3_requested ? 'yes' : 'no'}</span>
+            </div>
+          )}
+          {event.l3_available !== undefined && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              L3 available: <span className="mono">{event.l3_available ? 'yes' : 'no'}</span>
+            </div>
+          )}
+          {event.l3_reason_code && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              L3 reason code: <span className="mono">{event.l3_reason_code}</span>
+            </div>
+          )}
+          {event.l3_state && event.l3_state !== 'completed' && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              L3 state: <span className="mono">{event.l3_state}</span>
+            </div>
+          )}
+          {event.l3_reason && event.l3_state && event.l3_state !== 'completed' && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              L3 reason: <span className="mono">{event.l3_reason}</span>
+            </div>
+          )}
+          {evidenceSummary && (
+            <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
+              Evidence: <span className="mono">{evidenceSummary}</span>
+            </div>
+          )}
         </>
       )
+    }
     case 'alert':
       return (
         <>
@@ -328,6 +387,43 @@ function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {
             </span>
           )}
         </div>
+      )
+    case 'budget_exhausted':
+      return (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span className="badge badge-block">Budget exhausted</span>
+            <span className="mono" style={{ fontSize: '0.78rem', fontWeight: 500 }}>
+              Provider
+            </span>
+            <span className="mono text-muted" style={{ fontSize: '0.72rem' }}>
+              {event.provider}
+            </span>
+            <span className="mono" style={{ fontSize: '0.78rem', fontWeight: 500 }}>
+              Tier
+            </span>
+            <span className="badge badge-defer">{event.tier}</span>
+            <span className="mono" style={{ fontSize: '0.78rem', fontWeight: 500 }}>
+              Cost
+            </span>
+            <span className="mono text-muted" style={{ fontSize: '0.72rem' }}>
+              ${event.cost_usd.toFixed(2)}
+            </span>
+          </div>
+          <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 6 }}>
+            Budget exhausted: <span className="mono">{event.budget.exhausted ? 'yes' : 'no'}</span>
+            {' · '}
+            Daily spend <span className="mono">${event.budget.daily_spend_usd.toFixed(2)}</span>
+            {' / '}
+            <span className="mono">${event.budget.daily_budget_usd.toFixed(2)}</span>
+            {event.budget.remaining_usd !== null && (
+              <>
+                {' · '}
+                Remaining <span className="mono">${event.budget.remaining_usd.toFixed(2)}</span>
+              </>
+            )}
+          </div>
+        </>
       )
     case 'session_enforcement_change':
       return (

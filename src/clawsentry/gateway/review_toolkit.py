@@ -17,6 +17,7 @@ class ReadOnlyToolkit:
     MAX_FILE_READ_BYTES = 512_000
     MAX_TOOL_CALLS = 20
     MAX_TRAJECTORY_EVENTS = 500
+    MAX_TRAJECTORY_PAGE_SIZE = 100
     MAX_SESSION_RISK_EVENTS = 200
 
     def __init__(
@@ -98,6 +99,13 @@ class ReadOnlyToolkit:
     def reset_budget(self) -> None:
         self._calls_remaining = self.MAX_TOOL_CALLS
 
+    def set_calls_remaining(self, calls_remaining: int) -> None:
+        try:
+            remaining = int(calls_remaining)
+        except (TypeError, ValueError):
+            remaining = 0
+        self._calls_remaining = max(0, min(remaining, self.MAX_TOOL_CALLS))
+
     def _consume_call(self) -> None:
         if self._calls_remaining <= 0:
             raise ToolCallBudgetExhausted(
@@ -144,6 +152,22 @@ class ReadOnlyToolkit:
             }
             for rec in records
         ]
+
+    async def read_trajectory_page(
+        self,
+        session_id: str,
+        cursor: int | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        self._consume_call()
+        if self._trajectory_store is None:
+            return {"records": [], "next_cursor": None}
+        capped_limit = min(max(int(limit), 1), self.MAX_TRAJECTORY_PAGE_SIZE)
+        return self._trajectory_store.replay_session_page(
+            session_id,
+            cursor=cursor,
+            limit=capped_limit,
+        )
 
     async def read_file(self, relative_path: str) -> str:
         self._consume_call()

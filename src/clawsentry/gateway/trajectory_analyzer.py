@@ -16,6 +16,17 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+from .risk_signals import (
+    READ_TOOLS,
+    WRITE_TOOLS,
+    build_base_event_signals,
+    has_network_command,
+    has_privilege_escalation_command,
+    has_recon_command,
+    is_credential_path,
+    is_temp_path,
+)
+
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------
@@ -61,34 +72,11 @@ class _BufferedEvent:
 # Built-in attack sequences
 # ---------------------------------------------------------------------------
 
-# _SENSITIVE_FILE_RE: narrower set used by exfil-credential sequence
-# _CREDENTIAL_FILE_RE: broader set used by secret-harvest sequence (includes .p12/.pfx/.jks/.keystore/.aws/.ssh)
-_SENSITIVE_FILE_RE = re.compile(
-    r"\.env$|\.pem$|\.key$|id_rsa|id_ed25519|credentials|\.secret|\.token|\.password",
-    re.IGNORECASE,
-)
-
-_NETWORK_TOOLS = {"http_request", "web_fetch", "curl", "wget"}
-
 _DOWNLOAD_RE = re.compile(r"(curl|wget)\s+.*https?://", re.IGNORECASE)
 _CHMOD_EXEC_RE = re.compile(r"chmod\s+\+?[0-7]*x", re.IGNORECASE)
 _SHELL_CONFIG_RE = re.compile(
     r"\.(bashrc|bash_profile|profile|zshrc|zprofile)$", re.IGNORECASE,
 )
-_RECON_RE = re.compile(
-    r"\b(uname|id|whoami|hostname|cat\s+/etc/(os-release|issue|passwd)|lsb_release|arch)\b",
-    re.IGNORECASE,
-)
-_PRIVESC_RE = re.compile(
-    r"\bsudo\b.*\b(chmod|chown|rm|mv|cp|useradd|usermod|visudo|passwd)\b",
-    re.IGNORECASE,
-)
-_CREDENTIAL_FILE_RE = re.compile(
-    r"\.(env|pem|key|p12|pfx|jks|keystore)$|id_rsa|id_ed25519|credentials|\.secret|\.token|\.password|\.aws/|\.ssh/",
-    re.IGNORECASE,
-)
-_TMP_PATH_RE = re.compile(r"^/tmp/|^/var/tmp/|^C:\\Temp\\", re.IGNORECASE)
-_EXFIL_TMP_RE = re.compile(r"(curl|wget).*(/tmp/|/var/tmp/)", re.IGNORECASE)
 
 
 def _default_sequences() -> list[AttackSequence]:
@@ -161,15 +149,13 @@ def _matches_step(step: dict[str, Any], evt: _BufferedEvent) -> bool:
 
     if step_type == "sensitive_file_read":
         return (
-            evt.tool_name.lower() in ("read_file", "read", "cat")
-            and bool(_SENSITIVE_FILE_RE.search(evt.path))
+            evt.tool_name.lower() in READ_TOOLS
+            and is_credential_path(evt.path)
         )
 
     if step_type == "network_request":
-        return (
-            evt.tool_name.lower() in _NETWORK_TOOLS
-            or bool(re.search(r"\b(curl|wget)\b", evt.command, re.IGNORECASE))
-        )
+        base = build_base_event_signals(tool_name=evt.tool_name, path_text=evt.path, command_text=evt.command)
+        return base["network_activity"]
 
     if step_type == "remote_download":
         return bool(_DOWNLOAD_RE.search(evt.command))
@@ -184,25 +170,25 @@ def _matches_step(step: dict[str, Any], evt: _BufferedEvent) -> bool:
         )
 
     if step_type == "recon_command":
-        return bool(_RECON_RE.search(evt.command))
+        return has_recon_command(evt.command)
 
     if step_type == "privilege_escalation":
-        return bool(_PRIVESC_RE.search(evt.command))
+        return has_privilege_escalation_command(evt.command)
 
     if step_type == "credential_file_read":
         return (
-            evt.tool_name.lower() in ("read_file", "read", "cat")
-            and bool(_CREDENTIAL_FILE_RE.search(evt.path))
+            evt.tool_name.lower() in READ_TOOLS
+            and is_credential_path(evt.path)
         )
 
     if step_type == "tmp_write":
         return (
-            evt.tool_name.lower() in ("write_file", "write")
-            and bool(_TMP_PATH_RE.search(evt.path))
+            evt.tool_name.lower() in WRITE_TOOLS
+            and is_temp_path(evt.path)
         )
 
     if step_type == "tmp_exfil":
-        return bool(_EXFIL_TMP_RE.search(evt.command))
+        return is_temp_path(evt.command) and has_network_command(evt.command)
 
     # tool_names check (for custom sequences)
     if "tool_names" in step:

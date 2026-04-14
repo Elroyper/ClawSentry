@@ -116,6 +116,13 @@ def has_manual_l2_escalation_flag(context: Optional[DecisionContext]) -> bool:
     return any(bool(context.session_risk_summary.get(flag)) for flag in flags)
 
 
+def should_force_l3_follow_up(context: Optional[DecisionContext]) -> bool:
+    if context is None or not isinstance(context.session_risk_summary, dict):
+        return False
+    flags = ("force_l3", "l3_escalate", "force_deep_review", "manual_l3_escalation")
+    return any(bool(context.session_risk_summary.get(flag)) for flag in flags)
+
+
 # ---------------------------------------------------------------------------
 # RuleBasedAnalyzer
 # ---------------------------------------------------------------------------
@@ -416,7 +423,8 @@ class CompositeAnalyzer:
             >= RISK_LEVEL_ORDER[RiskLevel.HIGH]
         )
 
-        if not l2_decisive and len(self._analyzers) > 1:
+        force_follow_up = should_force_l3_follow_up(context)
+        if (force_follow_up or not l2_decisive) and len(self._analyzers) > 1:
             elapsed_so_far = (time.monotonic() - start) * 1000
             remaining_budget = max(0, budget_ms - elapsed_so_far)
 

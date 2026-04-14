@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger("clawsentry.metrics")
 
@@ -72,6 +72,15 @@ def _estimate_cost(
     return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
 
 
+def _empty_llm_usage_bucket() -> dict[str, float | int]:
+    return {
+        "calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+    }
+
+
 # ---------------------------------------------------------------------------
 # MetricsCollector
 # ---------------------------------------------------------------------------
@@ -90,13 +99,35 @@ class MetricsCollector:
         If ``False`` — or if ``prometheus_client`` is not installed — all
         recording methods become silent no-ops and
         :meth:`generate_metrics_text` returns ``b""``.
+    budget_tracker:
+        Optional shared :class:`LLMBudgetTracker` to update from LLM spend
+        accounting.  Spend recording happens even when Prometheus metrics are
+        disabled so budget gating stays active.
     """
 
-    def __init__(self, enabled: bool = True) -> None:
+    def __init__(
+        self,
+        enabled: bool = True,
+        *,
+        budget_tracker: Optional["LLMBudgetTracker"] = None,
+        budget_exhausted_callback: Optional[Callable[[dict[str, Any]], None]] = None,
+    ) -> None:
         if not _PROMETHEUS_AVAILABLE:
             self.enabled = False
         else:
             self.enabled = enabled
+        self._budget_tracker = budget_tracker
+        self._budget_exhausted_callback = budget_exhausted_callback
+        self._llm_usage_lock = threading.Lock()
+        self._llm_usage_breakdown: dict[str, Any] = {
+            "total_calls": 0,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_cost_usd": 0.0,
+            "by_provider": {},
+            "by_tier": {},
+            "by_status": {},
+        }
 
         if not self.enabled:
             return
@@ -165,6 +196,72 @@ class MetricsCollector:
     # Recording methods
     # ------------------------------------------------------------------
 
+    def _update_llm_usage_bucket(
+        self,
+        bucket_map: dict[str, dict[str, float | int]],
+        key: str,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+    ) -> None:
+        bucket = bucket_map.get(key)
+        if bucket is None:
+            bucket = _empty_llm_usage_bucket()
+            bucket_map[key] = bucket
+        bucket["calls"] = int(bucket["calls"]) + 1
+        bucket["input_tokens"] = int(bucket["input_tokens"]) + input_tokens
+        bucket["output_tokens"] = int(bucket["output_tokens"]) + output_tokens
+        bucket["cost_usd"] = float(bucket["cost_usd"]) + cost
+
+    def _record_llm_usage_breakdown(
+        self,
+        *,
+        provider: str,
+        tier: str,
+        status: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+    ) -> None:
+        provider_key = str(provider or "unknown")
+        tier_key = str(tier or "unknown")
+        status_key = str(status or "unknown")
+        with self._llm_usage_lock:
+            self._llm_usage_breakdown["total_calls"] = int(
+                self._llm_usage_breakdown["total_calls"]
+            ) + 1
+            self._llm_usage_breakdown["total_input_tokens"] = int(
+                self._llm_usage_breakdown["total_input_tokens"]
+            ) + input_tokens
+            self._llm_usage_breakdown["total_output_tokens"] = int(
+                self._llm_usage_breakdown["total_output_tokens"]
+            ) + output_tokens
+            self._llm_usage_breakdown["total_cost_usd"] = float(
+                self._llm_usage_breakdown["total_cost_usd"]
+            ) + cost
+            self._update_llm_usage_bucket(
+                self._llm_usage_breakdown["by_provider"],
+                provider_key,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost=cost,
+            )
+            self._update_llm_usage_bucket(
+                self._llm_usage_breakdown["by_tier"],
+                tier_key,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost=cost,
+            )
+            self._update_llm_usage_bucket(
+                self._llm_usage_breakdown["by_status"],
+                status_key,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost=cost,
+            )
+
     def record_decision(
         self,
         *,
@@ -202,6 +299,39 @@ class MetricsCollector:
         output_tokens: int = 0,
     ) -> None:
         """Record an LLM API call with token counts."""
+        cost = _estimate_cost(provider, input_tokens, output_tokens)
+        self._record_llm_usage_breakdown(
+            provider=provider,
+            tier=tier,
+            status=status,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+        )
+        if self._budget_tracker is not None and cost > 0:
+            exhausted = self._budget_tracker.record_spend(cost)
+            if exhausted:
+                budget_snapshot = self._budget_tracker.snapshot()
+                exhausted_event = {
+                    "type": "budget_exhausted",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "provider": provider,
+                    "tier": tier,
+                    "status": status,
+                    "cost_usd": cost,
+                    "budget": budget_snapshot,
+                }
+                if self._budget_exhausted_callback is not None:
+                    try:
+                        self._budget_exhausted_callback(exhausted_event)
+                    except Exception:
+                        logger.exception("budget exhaustion callback failed")
+                logger.warning(
+                    "LLM daily budget exhausted after %s spend from provider=%s tier=%s",
+                    cost,
+                    provider,
+                    tier,
+                )
         if not self.enabled:
             return
         self._llm_calls_total.labels(
@@ -219,7 +349,6 @@ class MetricsCollector:
                 provider=provider,
                 direction="output",
             ).inc(output_tokens)
-        cost = _estimate_cost(provider, input_tokens, output_tokens)
         if cost > 0:
             self._llm_cost_total.labels(provider=provider).inc(cost)
 
@@ -259,6 +388,43 @@ class MetricsCollector:
         if not self.enabled:
             return b""
         return generate_latest(self._registry)
+
+    def llm_usage_snapshot(self) -> dict[str, Any]:
+        """Return a read-only snapshot of aggregated LLM usage."""
+        with self._llm_usage_lock:
+            return {
+                "total_calls": int(self._llm_usage_breakdown["total_calls"]),
+                "total_input_tokens": int(self._llm_usage_breakdown["total_input_tokens"]),
+                "total_output_tokens": int(self._llm_usage_breakdown["total_output_tokens"]),
+                "total_cost_usd": float(self._llm_usage_breakdown["total_cost_usd"]),
+                "by_provider": {
+                    provider: {
+                        "calls": int(bucket["calls"]),
+                        "input_tokens": int(bucket["input_tokens"]),
+                        "output_tokens": int(bucket["output_tokens"]),
+                        "cost_usd": float(bucket["cost_usd"]),
+                    }
+                    for provider, bucket in self._llm_usage_breakdown["by_provider"].items()
+                },
+                "by_tier": {
+                    tier: {
+                        "calls": int(bucket["calls"]),
+                        "input_tokens": int(bucket["input_tokens"]),
+                        "output_tokens": int(bucket["output_tokens"]),
+                        "cost_usd": float(bucket["cost_usd"]),
+                    }
+                    for tier, bucket in self._llm_usage_breakdown["by_tier"].items()
+                },
+                "by_status": {
+                    status: {
+                        "calls": int(bucket["calls"]),
+                        "input_tokens": int(bucket["input_tokens"]),
+                        "output_tokens": int(bucket["output_tokens"]),
+                        "cost_usd": float(bucket["cost_usd"]),
+                    }
+                    for status, bucket in self._llm_usage_breakdown["by_status"].items()
+                },
+            }
 
 
 # ---------------------------------------------------------------------------
@@ -315,3 +481,23 @@ class LLMBudgetTracker:
                 self._exhausted_notified = True
                 return True
             return False
+
+    def snapshot(self) -> dict[str, float | bool | None]:
+        """Return a point-in-time view of the current UTC-day budget state."""
+        with self._lock:
+            self._maybe_reset()
+            if self._budget <= 0:
+                return {
+                    "daily_budget_usd": self._budget,
+                    "daily_spend_usd": self._daily_spend,
+                    "remaining_usd": None,
+                    "exhausted": False,
+                }
+
+            remaining = max(self._budget - self._daily_spend, 0.0)
+            return {
+                "daily_budget_usd": self._budget,
+                "daily_spend_usd": self._daily_spend,
+                "remaining_usd": remaining,
+                "exhausted": self._daily_spend >= self._budget,
+            }

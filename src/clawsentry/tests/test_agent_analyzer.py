@@ -4,6 +4,8 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from clawsentry.gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
 from clawsentry.gateway.l3_trigger import L3TriggerPolicy
 from clawsentry.gateway.models import (
@@ -17,7 +19,7 @@ from clawsentry.gateway.models import (
     RiskSnapshot,
 )
 from clawsentry.gateway.review_skills import SkillRegistry
-from clawsentry.gateway.review_toolkit import ReadOnlyToolkit
+from clawsentry.gateway.review_toolkit import ReadOnlyToolkit, ToolCallBudgetExhausted
 
 
 from .conftest import StubTrajectoryStore as _BaseStubStore
@@ -360,6 +362,42 @@ def test_multi_turn_executes_tool_call_then_final_response(tmp_path: Path):
     assert provider.complete.call_count == 2
 
 
+def test_multi_turn_executes_paged_trajectory_tool_call(tmp_path: Path):
+    tool_call_response = '{"thought": "page through session history", "tool_call": {"name": "read_trajectory_page", "arguments": {"session_id": "sess-agent-analyzer", "limit": 1}}, "done": false}'
+    final_response = '{"risk_level": "high", "findings": ["paged history reviewed"], "confidence": 0.88}'
+
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(side_effect=[tool_call_response, final_response])
+
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True, initial_trajectory_limit=5, max_reasoning_turns=4),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(
+                tool_name="bash",
+                payload={"command": "cat token.txt"},
+                risk_hints=["credential_exfiltration"],
+            ),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            10000,
+        )
+    )
+
+    assert result.target_level == RiskLevel.HIGH
+    assert "paged history reviewed" in result.reasons
+    assert provider.complete.call_count == 2
+
+
 def test_multi_turn_degrades_on_invalid_tool_name(tmp_path: Path):
     tool_call_with_bad_tool = '{"thought": "try to write", "tool_call": {"name": "write_file", "arguments": {"path": "x"}}, "done": false}'
     final_response = '{"risk_level": "high", "findings": ["fallback"], "confidence": 0.5}'
@@ -390,6 +428,9 @@ def test_multi_turn_degrades_on_invalid_tool_name(tmp_path: Path):
     # write_file is not in toolkit whitelist — should degrade
     assert result.target_level == RiskLevel.MEDIUM
     assert result.confidence == 0.0
+    assert result.trace is not None
+    assert result.trace["degradation_reason"] == "L3 requested non-whitelisted tool: write_file"
+    assert result.trace["degraded"] is True
 
 
 def test_multi_turn_stops_at_max_turns(tmp_path: Path):
@@ -449,6 +490,55 @@ def test_mvp_trace_recorded_on_degraded(tmp_path: Path):
     assert result.trace["turns"] == []
 
 
+class BenignHistoryStore:
+    def replay_session(self, session_id, limit=100):
+        return [
+            {
+                "recorded_at": "2026-03-26T01:00:00+00:00",
+                "event": {
+                    "session_id": session_id,
+                    "tool_name": "read_file",
+                    "event_type": "pre_action",
+                    "risk_hints": [],
+                },
+                "decision": {"risk_level": "low"},
+            }
+        ]
+
+
+def test_l3_trace_retains_partial_evidence_summary_when_degraded(tmp_path: Path):
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(return_value='{}')
+    store = BenignHistoryStore()
+    toolkit = ReadOnlyToolkit(tmp_path, store)
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False),
+        trajectory_store=store,
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="read_file", risk_hints=[]),
+            DecisionContext(),
+            _snap(RiskLevel.MEDIUM),
+            3000,
+        )
+    )
+
+    assert result.trace is not None
+    assert result.trace["degraded"] is True
+    evidence = result.trace["evidence_summary"]
+    assert evidence["retained_sources"] == ["session_risk_history"]
+    assert evidence["toolkit_calls_remaining"] is None
+    assert evidence["budget_remaining_ms"] >= 0
+
+
 def test_mvp_trace_recorded_on_single_turn_success(tmp_path: Path):
     """Single-turn MVP records skill, LLM call, and final verdict in trace."""
     provider = MagicMock()
@@ -481,6 +571,11 @@ def test_mvp_trace_recorded_on_single_turn_success(tmp_path: Path):
     assert result.trace["turns"][0]["type"] == "llm_call"
     assert result.trace["final_verdict"]["risk_level"] == "high"
     assert result.trace["final_verdict"]["confidence"] == 0.82
+    evidence = result.trace["evidence_summary"]
+    assert evidence["retained_sources"] == ["trajectory"]
+    assert evidence["toolkit_budget_mode"] == "single_turn"
+    assert evidence["toolkit_budget_cap"] == 3
+    assert evidence["toolkit_calls_remaining"] == 3
 
 
 def test_multi_turn_trace_records_tool_calls(tmp_path: Path):
@@ -520,6 +615,119 @@ def test_multi_turn_trace_records_tool_calls(tmp_path: Path):
     assert turns[2]["type"] == "llm_call"
     assert result.trace["tool_calls_used"] == 1
     assert result.trace["final_verdict"]["risk_level"] == "critical"
+
+
+def test_multi_turn_tool_call_budget_exhaustion_degrades_with_stable_reason(tmp_path: Path):
+    tool_call_resp = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(return_value=tool_call_resp)
+
+    class BudgetExhaustedToolkit(ReadOnlyToolkit):
+        def fork(self, workspace_root=None, transcript_path=None, session_id=None):
+            self.bind_session_context(
+                workspace_root=workspace_root or self.default_workspace_root,
+                transcript_path=transcript_path,
+                session_id=session_id,
+            )
+            return self
+
+        async def read_file(self, relative_path: str):
+            raise ToolCallBudgetExhausted("ReadOnlyToolkit budget exhausted")
+
+    toolkit = BudgetExhaustedToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
+    )
+
+    try:
+        result = asyncio.run(
+            analyzer.analyze(
+                _evt(
+                    tool_name="bash",
+                    payload={"command": "cat secrets.env"},
+                    risk_hints=["credential_exfiltration"],
+                ),
+                DecisionContext(session_risk_summary={"l3_escalate": True}),
+                _snap(RiskLevel.MEDIUM),
+                10000,
+            )
+        )
+    except ToolCallBudgetExhausted as exc:
+        pytest.fail(f"tool call budget exhaustion should degrade into a trace, not raise: {exc}")
+
+    assert result.trace is not None
+    assert result.trace["degraded"] is True
+    assert result.trace["degradation_reason"] == "L3 tool call budget exhausted"
+
+
+def test_multi_turn_trace_retains_evidence_summary_on_success(tmp_path: Path):
+    tool_call_resp = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+    final_resp = '{"risk_level": "critical", "findings": ["creds found"], "confidence": 0.95}'
+
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(side_effect=[tool_call_resp, final_resp])
+
+    (tmp_path / "secrets.env").write_text("API_KEY=abc123", encoding="utf-8")
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(
+                tool_name="bash",
+                payload={"command": "cat secrets.env"},
+                risk_hints=["credential_exfiltration"],
+            ),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            10000,
+        )
+    )
+
+    assert result.trace is not None
+    evidence = result.trace["evidence_summary"]
+    assert evidence["retained_sources"] == ["trajectory", "file"]
+    assert evidence["toolkit_budget_mode"] == "multi_turn"
+    assert evidence["toolkit_budget_cap"] == 5
+    assert evidence["toolkit_calls_remaining"] == 4
+    assert evidence["budget_remaining_ms"] >= 0
+
+
+def test_multi_turn_system_prompt_lists_paged_trajectory_tool(tmp_path: Path) -> None:
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True),
+    )
+    skill = registry.select_skill(
+        _evt(tool_name="bash", risk_hints=["credential_exfiltration"]),
+        ["credential_exfiltration"],
+    )
+
+    prompt = analyzer._build_multi_turn_system_prompt(skill)
+
+    assert "read_trajectory_page" in prompt
 
 
 def test_multi_turn_can_read_bound_transcript(tmp_path: Path):
@@ -576,7 +784,8 @@ def test_multi_turn_can_read_session_risk_history(tmp_path: Path):
     provider.provider_id = "mock-llm"
     provider.complete = AsyncMock(side_effect=[tool_call_resp, final_resp])
 
-    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    store = StubTrajectoryStore()
+    toolkit = ReadOnlyToolkit(tmp_path, store)
     registry = SkillRegistry(_skills_dir(tmp_path))
 
     class StubSessionRegistry:
@@ -606,6 +815,7 @@ def test_multi_turn_can_read_session_risk_history(tmp_path: Path):
         skill_registry=registry,
         trigger_policy=L3TriggerPolicy(),
         config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
+        trajectory_store=store,
         session_registry=StubSessionRegistry(),
     )
 
@@ -626,6 +836,10 @@ def test_multi_turn_can_read_session_risk_history(tmp_path: Path):
     assert result.trace is not None
     assert result.trace["turns"][1]["tool_name"] == "read_session_risk"
     assert "history shows repeated high risk" in result.reasons
+    evidence = result.trace["evidence_summary"]
+    assert evidence["toolkit_budget_mode"] == "multi_turn"
+    assert evidence["toolkit_budget_cap"] == 6
+    assert evidence["toolkit_calls_remaining"] == 5
 
 
 class HighRiskHistoryStore:
@@ -788,6 +1002,9 @@ def test_l3_manual_trigger_works_without_toolkit_trajectory_store(tmp_path: Path
     assert result.confidence > 0.0
     assert result.trace is not None
     assert result.trace["degraded"] is False
+    evidence = result.trace["evidence_summary"]
+    assert evidence["toolkit_budget_mode"] == "single_turn"
+    assert evidence["toolkit_budget_cap"] == 2
 
 
 # ---------------------------------------------------------------------------

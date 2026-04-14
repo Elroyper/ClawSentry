@@ -68,6 +68,7 @@ from .detection_config import (
     build_detection_config_with_preset,
 )
 from .llm_factory import build_analyzer_from_env
+from .l3_runtime import build_l3_runtime_info
 from .pattern_evolution import PatternEvolutionManager
 from .policy_engine import L1PolicyEngine
 from .post_action_analyzer import PostActionAnalyzer
@@ -92,6 +93,75 @@ def _risk_rank(risk_level: Optional[str]) -> int:
     return _RISK_LEVEL_RANK.get(str(risk_level or "low").lower(), 0)
 
 
+def _compact_l3_evidence_summary(l3_trace: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return a compact operator-facing evidence summary from an L3 trace."""
+    if not isinstance(l3_trace, dict):
+        return None
+
+    evidence_summary = l3_trace.get("evidence_summary")
+    if not isinstance(evidence_summary, dict):
+        return None
+
+    summary: dict[str, Any] = {}
+
+    retained_sources = evidence_summary.get("retained_sources")
+    if isinstance(retained_sources, list):
+        compact_sources = [
+            str(source).strip()
+            for source in retained_sources
+            if str(source).strip()
+        ]
+        if compact_sources:
+            summary["retained_sources"] = compact_sources
+
+    tool_calls = evidence_summary.get("tool_calls")
+    if isinstance(tool_calls, list):
+        summary["tool_calls_count"] = len(tool_calls)
+    else:
+        tool_calls_count = evidence_summary.get("tool_calls_count")
+        if isinstance(tool_calls_count, int):
+            summary["tool_calls_count"] = tool_calls_count
+
+    return summary or None
+
+
+def _copy_budget_event(budget_event: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return a copy of a budget exhaustion event payload."""
+    if not isinstance(budget_event, dict):
+        return None
+    copied = dict(budget_event)
+    budget = copied.get("budget")
+    if isinstance(budget, dict):
+        copied["budget"] = dict(budget)
+    return copied or None
+
+
+def _new_io_metric_bucket() -> dict[str, float | int]:
+    return {
+        "calls": 0,
+        "total_seconds": 0.0,
+        "last_seconds": 0.0,
+        "max_seconds": 0.0,
+    }
+
+
+def _observe_io_metric(bucket: dict[str, float | int], elapsed_seconds: float) -> None:
+    elapsed = max(0.0, float(elapsed_seconds))
+    bucket["calls"] = int(bucket["calls"]) + 1
+    bucket["total_seconds"] = float(bucket["total_seconds"]) + elapsed
+    bucket["last_seconds"] = elapsed
+    bucket["max_seconds"] = max(float(bucket["max_seconds"]), elapsed)
+
+
+def _snapshot_io_metric(bucket: dict[str, float | int]) -> dict[str, float | int]:
+    return {
+        "calls": int(bucket["calls"]),
+        "total_seconds": round(float(bucket["total_seconds"]), 6),
+        "last_seconds": round(float(bucket["last_seconds"]), 6),
+        "max_seconds": round(float(bucket["max_seconds"]), 6),
+    }
+
+
 def _risk_level_from_string(risk_level: str) -> RiskLevel:
     try:
         return RiskLevel(str(risk_level or "high").lower())
@@ -105,6 +175,19 @@ def _enforcement_action_from_config(action: str) -> EnforcementAction:
     if action == "defer":
         return EnforcementAction.DEFER
     return EnforcementAction.DEFER
+
+
+def _analyzer_supports_l3(analyzer: Any) -> bool:
+    """Return True when analyzer tree includes an L3-capable analyzer."""
+    if analyzer is None:
+        return False
+    analyzer_id = str(getattr(analyzer, "analyzer_id", "") or "")
+    if analyzer_id == "agent-reviewer":
+        return True
+    for child in getattr(analyzer, "_analyzers", []) or []:
+        if _analyzer_supports_l3(child):
+            return True
+    return False
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -270,15 +353,134 @@ class SupervisionGateway:
             store_path=self._detection_config.evolved_patterns_path or "",
             enabled=self._detection_config.evolving_enabled,
         )
-        # P3: Prometheus metrics collector
-        _metrics_enabled = os.getenv("CS_METRICS_ENABLED", "true").lower() not in ("0", "false", "no")
-        self.metrics = MetricsCollector(enabled=_metrics_enabled)
         # P3: LLM daily budget tracker
         self.budget_tracker = LLMBudgetTracker(
             daily_budget_usd=self._detection_config.llm_daily_budget_usd,
         )
+        self._budget_exhaustion_event: dict[str, Any] | None = None
+        # P3: Prometheus metrics collector
+        _metrics_enabled = os.getenv("CS_METRICS_ENABLED", "true").lower() not in ("0", "false", "no")
+        self.metrics = MetricsCollector(
+            enabled=_metrics_enabled,
+            budget_tracker=self.budget_tracker,
+            budget_exhausted_callback=self._handle_budget_exhausted,
+        )
+        self._io_metrics = {
+            "record_path": {
+                "calls": 0,
+                "total_seconds": 0.0,
+                "last_seconds": 0.0,
+                "max_seconds": 0.0,
+                "trajectory_store": _new_io_metric_bucket(),
+                "session_registry": _new_io_metric_bucket(),
+            },
+            "reporting": {
+                "health": _new_io_metric_bucket(),
+                "report_summary": _new_io_metric_bucket(),
+                "report_sessions": _new_io_metric_bucket(),
+                "report_session_risk": _new_io_metric_bucket(),
+                "replay_session": _new_io_metric_bucket(),
+            },
+        }
         self._start_time = time.monotonic()
         self._ready = True
+
+    def _handle_budget_exhausted(self, event: dict[str, Any]) -> None:
+        """Store and broadcast the first budget exhaustion transition for the day."""
+        normalized_event = dict(event)
+        budget = normalized_event.get("budget")
+        if isinstance(budget, dict):
+            normalized_event["budget"] = dict(budget)
+        self._budget_exhaustion_event = normalized_event
+        self.event_bus.broadcast(normalized_event)
+
+    def _budget_state(self) -> dict[str, Any]:
+        """Return the current budget-governance state for reporting surfaces."""
+        return {
+            "budget": self.budget_tracker.snapshot(),
+            "budget_exhaustion_event": _copy_budget_event(self._budget_exhaustion_event),
+        }
+
+    def _observe_record_path_io(
+        self,
+        *,
+        elapsed_seconds: float,
+        trajectory_store_seconds: float,
+        session_registry_seconds: float,
+    ) -> None:
+        record_bucket = self._io_metrics["record_path"]
+        _observe_io_metric(record_bucket, elapsed_seconds)
+        _observe_io_metric(record_bucket["trajectory_store"], trajectory_store_seconds)
+        _observe_io_metric(record_bucket["session_registry"], session_registry_seconds)
+
+    def _observe_reporting_io(self, report_name: str, elapsed_seconds: float) -> None:
+        _observe_io_metric(self._io_metrics["reporting"][report_name], elapsed_seconds)
+
+    def _decision_path_io_snapshot(self) -> dict[str, Any]:
+        record_bucket = self._io_metrics["record_path"]
+        reporting_bucket = self._io_metrics["reporting"]
+        return {
+            "record_path": {
+                **_snapshot_io_metric(record_bucket),
+                "trajectory_store": _snapshot_io_metric(record_bucket["trajectory_store"]),
+                "session_registry": _snapshot_io_metric(record_bucket["session_registry"]),
+            },
+            "reporting": {
+                "health": _snapshot_io_metric(reporting_bucket["health"]),
+                "report_summary": _snapshot_io_metric(reporting_bucket["report_summary"]),
+                "report_sessions": _snapshot_io_metric(reporting_bucket["report_sessions"]),
+                "report_session_risk": _snapshot_io_metric(reporting_bucket["report_session_risk"]),
+                "replay_session": _snapshot_io_metric(reporting_bucket["replay_session"]),
+            },
+        }
+
+    def _record_decision_path(
+        self,
+        *,
+        event: dict[str, Any],
+        decision: dict[str, Any],
+        snapshot: dict[str, Any],
+        meta: dict[str, Any],
+        l3_trace: dict[str, Any] | None,
+    ) -> None:
+        is_resolution = str(meta.get("record_type") or "") == "decision_resolution"
+        total_start = time.perf_counter()
+        trajectory_store_seconds = 0.0
+        session_registry_seconds = 0.0
+        try:
+            trajectory_start = time.perf_counter()
+            if is_resolution:
+                self.trajectory_store.record_resolution(
+                    event=event,
+                    decision=decision,
+                    snapshot=snapshot,
+                    meta=meta,
+                    l3_trace=l3_trace,
+                )
+            else:
+                self.trajectory_store.record(
+                    event=event,
+                    decision=decision,
+                    snapshot=snapshot,
+                    meta=meta,
+                    l3_trace=l3_trace,
+                )
+            trajectory_store_seconds = time.perf_counter() - trajectory_start
+
+            session_start = time.perf_counter()
+            self.session_registry.record(
+                event=event,
+                decision=decision,
+                snapshot=snapshot,
+                meta=meta,
+            )
+            session_registry_seconds = time.perf_counter() - session_start
+        finally:
+            self._observe_record_path_io(
+                elapsed_seconds=time.perf_counter() - total_start,
+                trajectory_store_seconds=trajectory_store_seconds,
+                session_registry_seconds=session_registry_seconds,
+            )
 
     async def handle_jsonrpc(self, raw_body: bytes) -> dict[str, Any]:
         """
@@ -437,31 +639,94 @@ class SupervisionGateway:
             str(req.event.session_id or "")
         )
         enforcement_applied = False
+        budget_exhausted = not self.budget_tracker.can_spend()
+        effective_requested_tier = req.decision_tier
+        l3_runtime_reason_override: str | None = None
+        l3_runtime_reason_code_override: str | None = None
         if (
             enforcement is not None
             and req.event.event_type == EventType.PRE_ACTION
         ):
-            decision = self._make_enforcement_decision(enforcement, req.event)
-            # Still need a snapshot for recording — run L1 but override decision
-            try:
-                remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
-                _, snapshot, _ = self.policy_engine.evaluate(
-                    req.event, req.context, req.decision_tier,
-                    deadline_budget_ms=remaining_ms,
-                    config=project_config,
-                )
-            except Exception:
-                logger.exception("Policy engine error during enforcement snapshot")
-                from .policy_engine import RiskSnapshot
-                snapshot = RiskSnapshot()
-            actual_tier = DecisionTier.L1
-            enforcement_applied = True
+            if enforcement.action == EnforcementAction.L3_REQUIRE:
+                effective_requested_tier = DecisionTier.L3
+                if budget_exhausted:
+                    decision = self._make_enforcement_decision(enforcement, req.event)
+                    l3_runtime_reason_override = "LLM budget exhausted; operator review required"
+                    l3_runtime_reason_code_override = "budget_exhausted"
+                    try:
+                        remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                        _, snapshot, _ = self.policy_engine.evaluate(
+                            req.event, req.context, DecisionTier.L1,
+                            deadline_budget_ms=remaining_ms,
+                            config=project_config,
+                        )
+                    except Exception:
+                        logger.exception("Policy engine error during enforcement snapshot")
+                        from .policy_engine import RiskSnapshot
+                        snapshot = RiskSnapshot()
+                    actual_tier = DecisionTier.L1
+                    enforcement_applied = True
+                else:
+                    session_summary = {}
+                    if req.context is not None and isinstance(req.context.session_risk_summary, dict):
+                        session_summary.update(req.context.session_risk_summary)
+                    session_summary.update({
+                        "force_l3": True,
+                        "l3_require_enforced": True,
+                    })
+                    effective_context = (
+                        req.context.model_copy(update={"session_risk_summary": session_summary})
+                        if req.context is not None
+                        else DecisionContext(session_risk_summary=session_summary)
+                    )
+                    try:
+                        remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                        decision, snapshot, actual_tier = self.policy_engine.evaluate(
+                            req.event, effective_context, DecisionTier.L3,
+                            deadline_budget_ms=remaining_ms,
+                            config=project_config,
+                        )
+                    except Exception:
+                        logger.exception("Policy engine error")
+                        error_resp = SyncDecisionErrorResponse(
+                            request_id=req.request_id,
+                            rpc_error_code=RPCErrorCode.ENGINE_INTERNAL_ERROR,
+                            rpc_error_message="Internal engine error. Check server logs for details.",
+                            retry_eligible=True,
+                            retry_after_ms=50,
+                        )
+                        return self._jsonrpc_error_with_data(rpc_id, -32603, error_resp)
+
+                    if actual_tier != DecisionTier.L3:
+                        decision = self._make_enforcement_decision(enforcement, req.event)
+                        l3_runtime_reason_override = "Local L3 review did not complete; operator review required"
+                        l3_runtime_reason_code_override = "local_l3_not_completed"
+                        enforcement_applied = True
+            else:
+                decision = self._make_enforcement_decision(enforcement, req.event)
+                # Still need a snapshot for recording — run L1 but override decision
+                try:
+                    remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                    _, snapshot, _ = self.policy_engine.evaluate(
+                        req.event, req.context, req.decision_tier,
+                        deadline_budget_ms=remaining_ms,
+                        config=project_config,
+                    )
+                except Exception:
+                    logger.exception("Policy engine error during enforcement snapshot")
+                    from .policy_engine import RiskSnapshot
+                    snapshot = RiskSnapshot()
+                actual_tier = DecisionTier.L1
+                enforcement_applied = True
         else:
             # --- P3: LLM budget check — force L1 if exhausted ---
             requested_tier = req.decision_tier
-            budget_exhausted = not self.budget_tracker.can_spend()
             if budget_exhausted:
                 requested_tier = DecisionTier.L1
+                if req.decision_tier != DecisionTier.L1:
+                    l3_runtime_reason_override = "LLM budget exhausted; L3 skipped"
+                    l3_runtime_reason_code_override = "budget_exhausted"
+            effective_requested_tier = requested_tier
 
             # Evaluate normally
             try:
@@ -494,10 +759,25 @@ class SupervisionGateway:
         event_dict = req.event.model_dump(mode="json")
         decision_dict = decision.model_dump(mode="json")
         snapshot_dict = snapshot.model_dump(mode="json")
+        l3_trace = snapshot.l3_trace
+        l3_available = _analyzer_supports_l3(self.policy_engine.analyzer)
+        if actual_tier == DecisionTier.L3 or l3_trace is not None:
+            l3_available = True
+        l3_info = build_l3_runtime_info(
+            requested_tier=req.decision_tier,
+            effective_tier=effective_requested_tier,
+            actual_tier=actual_tier,
+            l3_available=l3_available,
+            l3_trace=l3_trace,
+            l3_reason=l3_runtime_reason_override,
+            l3_reason_code=l3_runtime_reason_code_override,
+        )
         meta_dict = {
             "request_id": req.request_id,
             "actual_tier": actual_tier.value,
             "deadline_ms": req.deadline_ms,
+            "record_type": "decision",
+            **l3_info,
             "caller_adapter": (
                 req.context.caller_adapter
                 if req.context and req.context.caller_adapter
@@ -563,19 +843,12 @@ class SupervisionGateway:
         except Exception:
             logger.exception("trajectory analysis failed for event %s", req.event.event_id)
 
-        l3_trace = snapshot.l3_trace
-        self.trajectory_store.record(
+        self._record_decision_path(
             event=event_dict,
             decision=decision_dict,
             snapshot=snapshot_dict,
             meta=meta_dict,
             l3_trace=l3_trace,
-        )
-        self.session_registry.record(
-            event=event_dict,
-            decision=decision_dict,
-            snapshot=snapshot_dict,
-            meta=meta_dict,
         )
 
         for alert in pending_trajectory_alerts:
@@ -632,26 +905,34 @@ class SupervisionGateway:
             latency_s=_latency_s,
         )
 
-        self.event_bus.broadcast(
-            {
-                "type": "decision",
-                "session_id": session_id,
-                "event_id": str(event_dict.get("event_id") or "unknown"),
-                "risk_level": current_risk_level,
-                "decision": str(decision_dict.get("decision") or "unknown"),
-                "tool_name": event_dict.get("tool_name"),
-                "actual_tier": actual_tier.value,
-                "timestamp": occurred_at,
-                "reason": str(decision_dict.get("reason") or ""),
-                "command": str(
-                    event_dict.get("payload", {}).get("command", "")
-                    or event_dict.get("tool_name", "")
-                ),
-                "trigger_detail": (l3_trace or {}).get("trigger_detail"),
-                "approval_id": event_dict.get("approval_id"),
-                "expires_at": event_dict.get("payload", {}).get("expiresAtMs"),
-            }
-        )
+        decision_event = {
+            "type": "decision",
+            "session_id": session_id,
+            "event_id": str(event_dict.get("event_id") or "unknown"),
+            "risk_level": current_risk_level,
+            "decision": str(decision_dict.get("decision") or "unknown"),
+            "tool_name": event_dict.get("tool_name"),
+            "actual_tier": actual_tier.value,
+            "l3_available": l3_info["l3_available"],
+            "l3_requested": l3_info["l3_requested"],
+            "l3_state": l3_info["l3_state"],
+            "l3_reason": l3_info["l3_reason"],
+            "l3_reason_code": l3_info["l3_reason_code"],
+            "timestamp": occurred_at,
+            "reason": str(decision_dict.get("reason") or ""),
+            "command": str(
+                event_dict.get("payload", {}).get("command", "")
+                or event_dict.get("tool_name", "")
+            ),
+            "trigger_detail": (l3_trace or {}).get("trigger_detail"),
+            "approval_id": event_dict.get("approval_id"),
+            "expires_at": event_dict.get("payload", {}).get("expiresAtMs"),
+        }
+        decision_event.update(self._budget_state())
+        evidence_summary = _compact_l3_evidence_summary(l3_trace)
+        if evidence_summary is not None:
+            decision_event["evidence_summary"] = evidence_summary
+        self.event_bus.broadcast(decision_event)
 
         if (
             previous_risk_level is not None
@@ -783,6 +1064,24 @@ class SupervisionGateway:
                     final=True,
                 )
                 decision_dict = decision.model_dump(mode="json")
+                resolution_recorded_at = utc_now_iso()
+                resolution_event = dict(event_dict)
+                resolution_event["occurred_at"] = resolution_recorded_at
+                resolution_event["approval_id"] = defer_id
+                resolution_meta = {
+                    **meta_dict,
+                    "approval_id": defer_id,
+                }
+                self._record_decision_path(
+                    event=resolution_event,
+                    decision=decision_dict,
+                    snapshot=snapshot_dict,
+                    meta={
+                        **resolution_meta,
+                        "record_type": "decision_resolution",
+                    },
+                    l3_trace=l3_trace,
+                )
             else:
                 self.metrics.defer_registered()
 
@@ -825,6 +1124,25 @@ class SupervisionGateway:
                 # Update dict for response
                 decision_dict = decision.model_dump(mode="json")
 
+                resolution_recorded_at = utc_now_iso()
+                resolution_event = dict(event_dict)
+                resolution_event["occurred_at"] = resolution_recorded_at
+                resolution_event["approval_id"] = defer_id
+                resolution_meta = {
+                    **meta_dict,
+                    "approval_id": defer_id,
+                }
+                self._record_decision_path(
+                    event=resolution_event,
+                    decision=decision_dict,
+                    snapshot=snapshot_dict,
+                    meta={
+                        **resolution_meta,
+                        "record_type": "decision_resolution",
+                    },
+                    l3_trace=l3_trace,
+                )
+
                 self.metrics.defer_resolved()
 
                 # Broadcast defer_resolved event
@@ -834,7 +1152,7 @@ class SupervisionGateway:
                     "approval_id": defer_id,
                     "resolved_decision": decision_dict["decision"],
                     "resolved_reason": decision_dict["reason"],
-                    "timestamp": utc_now_iso(),
+                    "timestamp": resolution_recorded_at,
                 })
 
         # Check if we exceeded deadline (after recording + broadcasts, so
@@ -855,6 +1173,11 @@ class SupervisionGateway:
             request_id=req.request_id,
             decision=decision,
             actual_tier=actual_tier,
+            l3_available=l3_info["l3_available"],
+            l3_requested=l3_info["l3_requested"],
+            l3_state=l3_info["l3_state"],
+            l3_reason=l3_info["l3_reason"],
+            l3_reason_code=l3_info["l3_reason_code"],
             served_at=utc_now_iso(),
         )
         resp_dict = resp.model_dump(mode="json")
@@ -903,8 +1226,10 @@ class SupervisionGateway:
 
     def health(self) -> dict[str, Any]:
         """Return gateway health status."""
+        start = time.perf_counter()
         uptime = time.monotonic() - self._start_time
-        return {
+        budget_state = self._budget_state()
+        payload = {
             "status": "healthy",
             "uptime_seconds": round(uptime, 1),
             "cache_size": self.idempotency_cache.size(),
@@ -913,14 +1238,27 @@ class SupervisionGateway:
             "policy_engine": "L1+L2",
             "rpc_version": RPC_VERSION,
             "auth_enabled": bool(os.getenv("CS_AUTH_TOKEN")),
+            "budget": budget_state["budget"],
+            "budget_exhaustion_event": budget_state["budget_exhaustion_event"],
+            "llm_usage_snapshot": self.metrics.llm_usage_snapshot(),
         }
+        self._observe_reporting_io("health", time.perf_counter() - start)
+        payload["decision_path_io"] = self._decision_path_io_snapshot()
+        return payload
 
     def report_summary(self, window_seconds: Optional[int] = None) -> dict[str, Any]:
         """Return cross-framework summary metrics from trajectory records."""
+        start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         summary = self.trajectory_store.summary(since_seconds=since_seconds)
+        budget_state = self._budget_state()
         summary["generated_at"] = utc_now_iso()
         summary["window_seconds"] = since_seconds
+        summary["budget"] = budget_state["budget"]
+        summary["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        summary["llm_usage_snapshot"] = self.metrics.llm_usage_snapshot()
+        self._observe_reporting_io("report_summary", time.perf_counter() - start)
+        summary["decision_path_io"] = self._decision_path_io_snapshot()
         return summary
 
     def replay_session(
@@ -930,19 +1268,26 @@ class SupervisionGateway:
         window_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
         """Return timeline records for a session (most recent first by append order)."""
+        start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         records = self.trajectory_store.replay_session(
             session_id=session_id,
             limit=limit,
             since_seconds=since_seconds,
         )
-        return {
+        payload = {
             "session_id": session_id,
             "record_count": len(records),
             "records": records,
             "generated_at": utc_now_iso(),
             "window_seconds": since_seconds,
         }
+        budget_state = self._budget_state()
+        payload["budget"] = budget_state["budget"]
+        payload["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        self._observe_reporting_io("replay_session", time.perf_counter() - start)
+        payload["decision_path_io"] = self._decision_path_io_snapshot()
+        return payload
 
     def report_sessions(
         self,
@@ -953,6 +1298,7 @@ class SupervisionGateway:
         min_risk: Optional[str] = None,
         window_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
+        start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         effective_limit = min(max(limit, 1), 200)
         result = self.session_registry.list_sessions(
@@ -962,8 +1308,13 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        budget_state = self._budget_state()
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
+        result["budget"] = budget_state["budget"]
+        result["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        self._observe_reporting_io("report_sessions", time.perf_counter() - start)
+        result["decision_path_io"] = self._decision_path_io_snapshot()
         return result
 
     def report_session_risk(
@@ -973,6 +1324,7 @@ class SupervisionGateway:
         limit: int = 100,
         window_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
+        start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         effective_limit = min(max(limit, 1), 1000)
         result = self.session_registry.get_session_risk(
@@ -980,8 +1332,13 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        budget_state = self._budget_state()
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
+        result["budget"] = budget_state["budget"]
+        result["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        self._observe_reporting_io("report_session_risk", time.perf_counter() - start)
+        result["decision_path_io"] = self._decision_path_io_snapshot()
         return result
 
     def report_alerts(
@@ -1280,12 +1637,12 @@ def create_http_app(
                 media_type="application/json",
             )
 
-        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_candidate", "pattern_evolved", "defer_pending", "defer_resolved"}
+        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_candidate", "pattern_evolved", "defer_pending", "defer_resolved", "budget_exhausted"}
         if types:
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -1704,6 +2061,7 @@ async def run_gateway(
         patterns_path=detection_config.attack_patterns_path,
         evolved_patterns_path=detection_config.evolved_patterns_path if detection_config.evolving_enabled else None,
         l3_budget_ms=detection_config.l3_budget_ms,
+        metrics=gateway.metrics,
     )
     if analyzer is not None:
         gateway.policy_engine = L1PolicyEngine(analyzer=analyzer, config=detection_config)

@@ -27,6 +27,7 @@ from clawsentry.gateway.llm_provider import (
     LLMUsage,
     OpenAIProvider,
 )
+from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
 
 
 # ===========================================================================
@@ -248,6 +249,43 @@ class TestInstrumentedProvider:
 
         call_kwargs = metrics.record_llm_call.call_args
         assert call_kwargs[1]["tier"] == "L3"
+
+    def test_metrics_updates_shared_budget_tracker(self):
+        inner = self._make_inner()
+        inner._last_usage = LLMUsage(
+            input_tokens=400_000,
+            output_tokens=0,
+            provider="openai",
+            model="gpt-4o-mini",
+        )
+        tracker = LLMBudgetTracker(daily_budget_usd=1.0)
+        metrics = MetricsCollector(enabled=False, budget_tracker=tracker)
+        ip = InstrumentedProvider(inner, metrics, tier="L2")
+
+        asyncio.run(ip.complete("sys", "user", timeout_ms=3000))
+
+        assert tracker.can_spend() is False
+        assert tracker.record_spend(0.0) is False
+
+    def test_metrics_usage_snapshot_updates_on_success(self):
+        inner = self._make_inner(response="done", provider_id="anthropic")
+        inner._last_usage = LLMUsage(
+            input_tokens=12,
+            output_tokens=7,
+            provider="anthropic",
+            model="claude-haiku",
+        )
+        metrics = MetricsCollector(enabled=False)
+        ip = InstrumentedProvider(inner, metrics, tier="L2")
+
+        result = asyncio.run(ip.complete("sys", "user", timeout_ms=3000))
+
+        assert result == "done"
+        snapshot = metrics.llm_usage_snapshot()
+        assert snapshot["total_calls"] == 1
+        assert snapshot["by_provider"]["anthropic"]["calls"] == 1
+        assert snapshot["by_tier"]["L2"]["calls"] == 1
+        assert snapshot["by_status"]["ok"]["calls"] == 1
 
     # --- Error handling ---
 

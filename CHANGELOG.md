@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-04-14
+
+### 改进
+
+- **L3 operator telemetry 与 retained-evidence 继续收口** — `l3_state`、`l3_reason_code` 与 compact `evidence_summary` 现在不只停留在单点 trace，而是进一步对齐到 `watch`、Dashboard Runtime Feed、session summary、session risk 以及其他现有 gateway/reporting 路径，便于 operator 在不打开原始轨迹的情况下快速理解 L3 运行态与保留证据。
+- **Gateway reporting 与 budget governance 对齐** — `budget` / `budget_exhaustion_event` 现在已扩展到 session/report/replay surfaces；`decision_path_io` 也继续从 `health` / `report_summary` 扩展到 session/report endpoints，使当前同步决策路径的运营读数更完整。
+- **共享信号与 bounded evidence collection 继续硬化** — L3/runtime 相关实现继续沿“共享低级信号 + bounded evidence budget + 明确 degraded reason taxonomy”方向收口，在保持同步架构稳定的前提下扩大可解释性与运维可见性。
+
+### 文档
+
+- **公开文档同步到新发布基线** — GitHub README、PyPI README、在线文档安装页、首页与 changelog 已统一刷新到 `v0.4.3`，并更新当前完整测试基线与最新能力摘要。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2795 passed, 3 skipped`
+- UI 渲染测试：`5 passed`
+- `mkdocs build --strict`：PASS
+- UI 生产构建：PASS
+
 ## [0.4.2] — 2026-04-11
 
 ### 改进
@@ -750,6 +769,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.3
 [0.4.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.1
 [0.4.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.2
 [0.4.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.0

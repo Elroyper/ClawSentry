@@ -427,6 +427,11 @@ class SyncDecisionResponse(BaseModel):
     rpc_status: str = Field(default="ok")
     decision: CanonicalDecision
     actual_tier: DecisionTier
+    l3_available: Optional[bool] = None
+    l3_requested: Optional[bool] = None
+    l3_state: Optional[str] = None
+    l3_reason: Optional[str] = None
+    l3_reason_code: Optional[str] = None
     served_at: str  # UTC ISO8601
 
     @field_validator("served_at")

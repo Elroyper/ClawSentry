@@ -140,12 +140,34 @@ class TrajectoryStore:
         self._conn.commit()
         self._prune_expired(now_ts=ts)
 
+    def record_resolution(
+        self,
+        *,
+        event: dict,
+        decision: dict,
+        snapshot: dict,
+        meta: dict,
+        recorded_at_ts: Optional[float] = None,
+        l3_trace: Optional[dict] = None,
+    ) -> None:
+        resolution_meta = dict(meta)
+        resolution_meta["record_type"] = "decision_resolution"
+        self.record(
+            event=event,
+            decision=decision,
+            snapshot=snapshot,
+            meta=resolution_meta,
+            recorded_at_ts=recorded_at_ts,
+            l3_trace=l3_trace,
+        )
+
     def _query_records(
         self,
         *,
         session_id: Optional[str] = None,
         since_seconds: Optional[int] = None,
         limit: Optional[int] = None,
+        before_id: Optional[int] = None,
     ) -> list[dict[str, Any]]:
         self._prune_expired()
         clauses: list[str] = []
@@ -156,11 +178,14 @@ class TrajectoryStore:
         if since_seconds is not None and since_seconds > 0:
             clauses.append("recorded_at_ts >= ?")
             params.append(time.time() - since_seconds)
+        if before_id is not None and before_id > 0:
+            clauses.append("id < ?")
+            params.append(before_id)
 
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         if limit is not None and limit > 0:
             sql = (
-                "SELECT recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
+                "SELECT id, recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
                 "FROM trajectory_records "
                 f"{where_sql} "
                 "ORDER BY id DESC LIMIT ?"
@@ -169,7 +194,7 @@ class TrajectoryStore:
             rows = list(reversed(rows))
         else:
             sql = (
-                "SELECT recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
+                "SELECT id, recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json "
                 "FROM trajectory_records "
                 f"{where_sql} "
                 "ORDER BY id ASC"
@@ -185,6 +210,7 @@ class TrajectoryStore:
                     "decision": json.loads(row["decision_json"]),
                     "risk_snapshot": json.loads(row["snapshot_json"]),
                     "meta": json.loads(row["meta_json"]),
+                    "record_id": int(row["id"]),
                     "recorded_at": row["recorded_at"],
                     "recorded_at_ts": float(row["recorded_at_ts"]),
                     "l3_trace": json.loads(l3_raw) if l3_raw else None,
@@ -402,6 +428,29 @@ class TrajectoryStore:
         since_seconds: Optional[int] = None,
     ) -> list[dict[str, Any]]:
         return self._query_records(session_id=session_id, limit=limit, since_seconds=since_seconds)
+
+    def replay_session_page(
+        self,
+        session_id: str,
+        *,
+        limit: int = 100,
+        cursor: Optional[int] = None,
+        since_seconds: Optional[int] = None,
+    ) -> dict[str, Any]:
+        effective_limit = min(max(limit, 1), 500)
+        records = self._query_records(
+            session_id=session_id,
+            limit=effective_limit + 1,
+            since_seconds=since_seconds,
+            before_id=cursor,
+        )
+        has_more = len(records) > effective_limit
+        page_records = records[-effective_limit:] if has_more else records
+        next_cursor = page_records[0]["record_id"] if has_more and page_records else None
+        return {
+            "records": page_records,
+            "next_cursor": next_cursor,
+        }
 
     def clear(self) -> None:
         self._conn.execute("DELETE FROM trajectory_records")

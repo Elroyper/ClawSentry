@@ -3,6 +3,23 @@ export type DecisionVerdict = 'allow' | 'block' | 'defer' | 'modify'
 export type DecisionTier = 'L1' | 'L2' | 'L3'
 export type AlertSeverity = RiskLevel
 
+export interface LLMUsageBucket {
+  calls: number
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number
+}
+
+export interface LLMUsageSnapshot {
+  total_calls: number
+  total_input_tokens: number
+  total_output_tokens: number
+  total_cost_usd: number
+  by_provider: Record<string, LLMUsageBucket>
+  by_tier: Record<string, LLMUsageBucket>
+  by_status: Record<string, LLMUsageBucket>
+}
+
 export interface HealthResponse {
   status: string
   uptime_seconds: number
@@ -10,6 +27,16 @@ export interface HealthResponse {
   trajectory_count: number
   policy_engine: string
   auth_enabled: boolean
+  budget: HealthBudgetSnapshot
+  budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
+  llm_usage_snapshot?: LLMUsageSnapshot | null
+}
+
+export interface HealthBudgetSnapshot {
+  daily_budget_usd: number
+  daily_spend_usd: number
+  remaining_usd: number | null
+  exhausted: boolean
 }
 
 export interface SummaryResponse {
@@ -22,6 +49,8 @@ export interface SummaryResponse {
   by_caller_adapter: Record<string, number>
   generated_at: string
   window_seconds: number | null
+  budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
+  llm_usage_snapshot?: LLMUsageSnapshot | null
 }
 
 export interface SessionSummary {
@@ -63,10 +92,16 @@ export interface SessionRisk {
     decision: DecisionVerdict
     actual_tier: DecisionTier
     classified_by: DecisionTier
+    l3_reason_code?: string
   }>
   risk_hints_seen: string[]
   tools_used: string[]
   actual_tier_distribution: Partial<Record<DecisionTier, number>>
+}
+
+export interface L3EvidenceSummary {
+  retained_sources?: string[]
+  tool_calls_count?: number
 }
 
 export interface TrajectoryRecord {
@@ -82,10 +117,19 @@ export interface TrajectoryRecord {
     composite_score: number
     dimensions: { d1: number; d2: number; d3: number; d4: number; d5: number }
   }
-  meta: { actual_tier: DecisionTier; caller_adapter: string }
+  meta: {
+    actual_tier: DecisionTier
+    caller_adapter: string
+    l3_available?: boolean
+    l3_requested?: boolean
+    l3_reason_code?: string
+    l3_state?: string
+    l3_reason?: string
+  }
   l3_trace?: {
     trigger_reason?: string
     trigger_detail?: string
+    evidence_summary?: L3EvidenceSummary | null
   } | null
   recorded_at: string
 }
@@ -113,7 +157,13 @@ export interface SSEDecisionEvent {
   timestamp: string
   reason: string
   command: string
+  l3_available?: boolean
+  l3_requested?: boolean
   trigger_detail?: string
+  l3_reason_code?: string
+  l3_state?: string
+  l3_reason?: string
+  evidence_summary?: L3EvidenceSummary | null
   approval_id?: string
   expires_at?: number
 }
@@ -126,6 +176,16 @@ export interface SSEAlertEvent {
   current_risk: string
   message: string
   timestamp: string
+}
+
+export interface SSEBudgetExhaustedEvent {
+  type: 'budget_exhausted'
+  timestamp: string
+  provider: string
+  tier: string
+  status: string
+  cost_usd: number
+  budget: HealthBudgetSnapshot
 }
 
 export type SSEPostActionFindingEvent = {
@@ -200,6 +260,7 @@ export type RuntimeEventType =
   | 'pattern_evolved'
   | 'defer_pending'
   | 'defer_resolved'
+  | 'budget_exhausted'
   | 'session_enforcement_change'
 
 export type SSERuntimeEvent =
@@ -211,4 +272,5 @@ export type SSERuntimeEvent =
   | (SSEPatternEvolvedEvent & { type: 'pattern_evolved' })
   | (SSEDeferPendingEvent & { type: 'defer_pending' })
   | (SSEDeferResolvedEvent & { type: 'defer_resolved' })
+  | SSEBudgetExhaustedEvent
   | (SSESessionEnforcementChangeEvent & { type: 'session_enforcement_change' })

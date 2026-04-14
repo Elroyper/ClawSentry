@@ -986,6 +986,47 @@ class TestCompositeAnalyzerSequential:
         assert l3_called, "L3 should run when L2 confidence < threshold"
 
     @pytest.mark.asyncio
+    async def test_force_l3_flag_runs_follow_up_even_when_l2_is_decisive(self):
+        """Forced local L3 should bypass the normal decisive-L2 short-circuit."""
+        l3_called = False
+
+        class DecisiveL2:
+            analyzer_id = "decisive-l2"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["L2 detected critical threat"],
+                    confidence=0.95,
+                    analyzer_id="decisive-l2",
+                    latency_ms=10.0,
+                    decision_tier=DecisionTier.L2,
+                )
+
+        class ForcedL3:
+            analyzer_id = "forced-l3"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                nonlocal l3_called
+                l3_called = True
+                return L2Result(
+                    target_level=RiskLevel.CRITICAL,
+                    reasons=["forced L3 reviewed the request"],
+                    confidence=0.99,
+                    analyzer_id="forced-l3",
+                    latency_ms=50.0,
+                    trace={"trigger_reason": "manual_l3_escalate", "turns": []},
+                    decision_tier=DecisionTier.L3,
+                )
+
+        composite = CompositeAnalyzer([DecisiveL2(), ForcedL3()])
+        context = DecisionContext(session_risk_summary={"force_l3": True})
+        result = await composite.analyze(_evt("bash"), context, _snap(), 10000)
+
+        assert l3_called, "Forced L3 should run even when L2 is decisive"
+        assert result.decision_tier == DecisionTier.L3
+
+    @pytest.mark.asyncio
     async def test_empty_analyzers(self):
         """CompositeAnalyzer with no analyzers should fall back gracefully."""
         composite = CompositeAnalyzer([])
