@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **2795 tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **2812 tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -349,6 +349,25 @@ banner.
 | `clawsentry watch` | SSE real-time display (`--filter`/`--json`/`--no-color`/`--interactive`) |
 | `clawsentry init <framework>` | Initialize config (`a3s-code`/`claude-code`/`codex`/`openclaw`) |
 | `clawsentry harness` | a3s-code stdio bridge subprocess |
+| `clawsentry rules lint` | Authoring-time validation for attack patterns + review skills (`--json`) |
+| `clawsentry rules dry-run` | Replay sample canonical events against current rule surfaces (`--events`, `--json`; accepts JSON object / array / JSONL) |
+
+### Rule Governance
+
+`clawsentry rules` is the first CS-01 authoring-time governance surface.
+It is intentionally narrow: it validates and dry-runs the existing YAML rule
+assets instead of introducing a runtime DSL for L1/L2/L3 control flow.
+
+```bash
+clawsentry rules lint --json
+clawsentry rules dry-run --events examples/sample-events.jsonl --json
+```
+
+`rules lint` reports schema / duplicate / conflict findings for attack
+patterns and review skills. `rules dry-run` replays sample canonical events
+from a JSON object, JSON array, or JSONL file through the current
+attack-pattern matcher and review-skill selector so authors can preview
+policy effects before rollout.
 
 ---
 
@@ -435,7 +454,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (2795 tests)
++-- tests/                             # Test suite (2812 tests)
 ```
 
 ---
@@ -513,7 +532,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 2795 passed, 3 skipped
+# Expected: 2812 passed, 3 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

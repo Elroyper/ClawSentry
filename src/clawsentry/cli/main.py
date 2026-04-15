@@ -300,6 +300,27 @@ def _build_parser() -> argparse.ArgumentParser:
     config_sub.add_parser("disable", help="Disable ClawSentry for this project.")
     config_sub.add_parser("enable", help="Enable ClawSentry for this project.")
 
+    # --- rules ---
+    rules_parser = sub.add_parser(
+        "rules",
+        help="Lint and dry-run rule authoring surfaces.",
+    )
+    rules_sub = rules_parser.add_subparsers(dest="rules_command")
+    rules_sub.required = True
+
+    rules_lint = rules_sub.add_parser("lint", help="Validate current rule surfaces.")
+    rules_lint.add_argument("--attack-patterns", default=None, help="Path to attack patterns YAML.")
+    rules_lint.add_argument("--evolved-patterns", default=None, help="Path to evolved patterns YAML.")
+    rules_lint.add_argument("--skills-dir", default=None, help="Directory containing review skill YAML files.")
+    rules_lint.add_argument("--json", action="store_true", default=False, help="Output lint report as JSON.")
+
+    rules_dry_run = rules_sub.add_parser("dry-run", help="Dry-run rule matching against sample events.")
+    rules_dry_run.add_argument("--events", required=True, help="JSON/JSONL file containing canonical sample events.")
+    rules_dry_run.add_argument("--attack-patterns", default=None, help="Path to attack patterns YAML.")
+    rules_dry_run.add_argument("--evolved-patterns", default=None, help="Path to evolved patterns YAML.")
+    rules_dry_run.add_argument("--skills-dir", default=None, help="Directory containing review skill YAML files.")
+    rules_dry_run.add_argument("--json", action="store_true", default=False, help="Output dry-run report as JSON.")
+
     # --- latch ---
     latch_parser = sub.add_parser(
         "latch",
@@ -459,6 +480,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.command is None:
         parser.print_help()
         return
+    if remaining and args.command not in {"gateway", "stack", "harness"}:
+        parser.error(f"unrecognized arguments: {' '.join(remaining)}")
 
     if args.command == "init":
         # Handle --restore for openclaw
@@ -603,6 +626,29 @@ def main(argv: list[str] | None = None) -> None:
             run_config_enable(target_dir=target)
         else:
             print("Usage: clawsentry config {init,show,set,disable,enable}")
+
+    elif args.command == "rules":
+        from .rules_command import run_rules_dry_run, run_rules_lint
+
+        if args.rules_command == "lint":
+            sys.exit(
+                run_rules_lint(
+                    patterns_path=args.attack_patterns,
+                    evolved_patterns_path=args.evolved_patterns,
+                    skills_dir=args.skills_dir,
+                    as_json=args.json,
+                )
+            )
+        elif args.rules_command == "dry-run":
+            sys.exit(
+                run_rules_dry_run(
+                    events_path=args.events,
+                    patterns_path=args.attack_patterns,
+                    evolved_patterns_path=args.evolved_patterns,
+                    skills_dir=args.skills_dir,
+                    as_json=args.json,
+                )
+            )
 
     elif args.command == "latch":
         from .latch_command import (

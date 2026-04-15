@@ -344,6 +344,15 @@ Session Detail 页现在首先回答“这个 session 是谁”：
 - replay / decision timeline
 - tools used / risk hints / tier distribution
 
+如果这个 session 触发过 L3，这一页现在还会继续给出一组更适合 operator 读取的运行态字段：
+
+- `l3_state`
+- `l3_reason_code`
+- `trigger_detail`
+- compact `evidence_summary`
+- `budget_exhaustion_event`
+- `decision_path_io`
+
 如果你之前只看到一个 `session_id` 不知道上下文，那么这次改动就是为了解决这个问题。
 
 ---

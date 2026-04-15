@@ -212,6 +212,18 @@ clawsentry gateway
 [ahp.llm-factory] Custom skills loaded from /etc/clawsentry/skills (1 skills)
 ```
 
+### 步骤 5: 用 `clawsentry rules` 做作者期验证
+
+在当前版本里，推荐把自定义 Skill 的作者期检查和 sample event 预演放在上线前做一遍：
+
+```bash
+clawsentry rules lint --skills-dir /etc/clawsentry/skills --json
+clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
+  --events examples/sample-events.jsonl --json
+```
+
+`rules lint` 会报告重复 skill 名称、触发签名冲突、缺失 source 等问题；`rules dry-run` 会告诉你 sample canonical events 最终会选中哪个 skill。完整治理面说明见：[CS-01 规则治理](rule-governance.md)。
+
 ---
 
 ## Skill Schema 完整参考

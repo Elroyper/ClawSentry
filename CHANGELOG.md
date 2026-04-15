@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [0.4.4] — 2026-04-15
+
+### 改进
+
+- **CS-01 规则治理工具首版** — 新增 `clawsentry rules lint` 与 `clawsentry rules dry-run`，对现有 attack patterns / review skills 做作者期 `schema / duplicate / conflict` 校验，并支持用 sample canonical events 预演当前规则面的命中 pattern 与 skill 选择结果；`rules dry-run` 现在兼容 JSON object / JSON array / JSONL 输入，并把缺失或非法输入收成更清晰的命令级错误码；该能力刻意保持为窄范围治理层，不引入横跨 L1/L2/L3 的运行时 DSL。
+- **L3 operator telemetry 文档与 surfacing 对齐** — `l3_state`、`l3_reason_code`、`trigger_detail`、compact `evidence_summary`、`budget_exhaustion_event` 与 `decision_path_io` 的公开说明现已同步到在线文档、包内 README 和 GitHub README，避免公开文档继续停留在早期 L3 slice 语义。
+
+### 文档
+
+- **在线文档补齐 CS-01 与 L3 最新公开语义** — 新增 CS-01 规则治理页，CLI 参考现在覆盖 `clawsentry rules`，并补齐 custom skills / attack patterns 的作者期治理流程；L3 审查 Agent、Dashboard、Reporting API 与首页同步更新到当前 operator-facing telemetry 口径。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2812 passed, 3 skipped`
+- Focused rules / docs / L3 回归：`100 passed`
+- Broader safety slice：`440 passed`
+- `mkdocs build --strict`：PASS
+
 ## [0.4.3] — 2026-04-14
 
 ### 改进
@@ -769,6 +787,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.3
 [0.4.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.1
 [0.4.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.2

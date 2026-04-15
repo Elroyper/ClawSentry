@@ -48,8 +48,11 @@ clawsentry-stack     # 等价于 clawsentry stack
 | [`harness`](#clawsentry-harness) | stdio hook 处理器 | 由框架自动调用，通常无需手动使用 |
 | [`watch`](#clawsentry-watch) | 实时监控事件流 | `clawsentry watch --interactive` |
 | [`audit`](#clawsentry-audit) | 离线查询审计日志 | `clawsentry audit --risk high --since 1h` |
-| [`doctor`](#clawsentry-doctor) | 诊断配置和连接（17 项检查） | `clawsentry doctor` |
+| [`doctor`](#clawsentry-doctor) | 诊断配置和连接（19 项检查） | `clawsentry doctor` |
+| [`test-llm`](#clawsentry-test-llm) | 验证 L2/L3 连通性、时延与当前运行模式 | `clawsentry test-llm --json` |
+| [`service`](#clawsentry-service) | 安装或检查常驻服务（systemd/launchd） | `clawsentry service status` |
 | [`config`](#clawsentry-config) | 管理项目安全预设 | `clawsentry config init --preset high` |
+| [`rules`](#clawsentry-rules) | CS-01 作者期规则治理 | `clawsentry rules lint --json` |
 | [`latch`](#clawsentry-latch) | 管理 Latch 移动监控 | `clawsentry latch install` |
 
 > **新用户推荐路径：** 先运行 `clawsentry start --framework <你的框架>`。它会自动补齐项目配置、启动 Gateway，并在前台显示 `watch` 事件流；只有需要手动拆分步骤或排障时，再单独使用 `init`、`gateway`、`watch`。
@@ -64,7 +67,7 @@ clawsentry-stack     # 等价于 clawsentry stack
     | `clawsentry-harness` | a3s-code stdio transport 自动调用 | 不是普通用户入口，通常只出现在 SDK transport 配置里 |
 
 !!! abstract "本页快速导航"
-    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [config](#clawsentry-config) · [integrations](#clawsentry-integrations) · [latch](#clawsentry-latch)
+    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [test-llm](#clawsentry-test-llm) · [service](#clawsentry-service) · [config](#clawsentry-config) · [rules](#clawsentry-rules) · [integrations](#clawsentry-integrations) · [latch](#clawsentry-latch)
 
 ---
 
@@ -921,6 +924,86 @@ clawsentry doctor --json
 
 ---
 
+## clawsentry test-llm
+
+`clawsentry test-llm` 用于做一轮实时 LLM 探针，确认当前 provider 配置、基础连通性、L2 语义分析链路，以及可选的 L3 审查链路是否正常。
+
+### 语法
+
+```bash
+clawsentry test-llm [--json] [--no-color] [--skip-l3]
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--json` | `false` | 输出结构化 JSON 结果 |
+| `--no-color` | `false` | 禁用 ANSI 颜色输出 |
+| `--skip-l3` | `false` | 跳过 L3 probe，只验证 provider reachability 与 L2 |
+
+### 它会检查什么
+
+1. provider API reachability
+2. 单次调用时延
+3. L2 semantic analysis 对 sample suspicious event 的响应
+4. 当 `CS_L3_ENABLED=true` 且未传 `--skip-l3` 时，额外执行一次 L3 review probe
+
+### 示例
+
+```bash
+clawsentry test-llm
+clawsentry test-llm --skip-l3
+clawsentry test-llm --json
+```
+
+---
+
+## clawsentry service
+
+`clawsentry service` 用于把 Gateway 安装成用户级常驻服务，适合长期运行或系统登录后自动拉起。
+
+### 语法
+
+```bash
+clawsentry service install [--no-enable]
+clawsentry service uninstall
+clawsentry service status
+```
+
+### 子命令
+
+| 子命令 | 说明 |
+|--------|------|
+| `install` | 写入平台服务定义，并默认启用/启动 |
+| `uninstall` | 停止并移除服务定义 |
+| `status` | 查看当前服务状态 |
+
+### 平台行为
+
+- Linux：安装为 `systemd --user` service
+- macOS：安装为 `~/Library/LaunchAgents` 下的 `launchd` user agent
+- 环境变量文件：`~/.config/clawsentry/gateway.env`
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--no-enable` | `false` | 只写入服务文件，不立即 enable/start |
+
+### 示例
+
+```bash
+clawsentry service install
+clawsentry service install --no-enable
+clawsentry service status
+clawsentry service uninstall
+```
+
+更多部署细节见：[Deployment](../operations/deployment.md)。
+
+---
+
 ## clawsentry config
 
 管理项目级 `.clawsentry.toml` 配置文件。通过预设等级快速配置检测灵敏度。
@@ -1007,6 +1090,53 @@ preset = "high"
 ```
 
 该文件应放置在项目根目录，Gateway 和 Harness 启动时会自动读取并应用预设配置。
+
+---
+
+## clawsentry rules
+
+`clawsentry rules` 是 `CS-01` 的作者期规则治理入口，用于检查和预演当前 YAML 规则面。它刻意保持为窄范围治理层：管理的是 attack patterns / evolved patterns / review skills 的 authoring surface，而不是跨 L1/L2/L3 的运行时 DSL。
+
+### 语法
+
+```bash
+clawsentry rules lint [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+```
+
+### 子命令
+
+| 子命令 | 说明 |
+|--------|------|
+| `lint` | 加载当前规则资产，输出 schema / duplicate / conflict / source 问题 |
+| `dry-run` | 用 sample canonical events 预演 pattern 命中与 skill 选择结果 |
+
+### 输入与输出
+
+- `lint` 默认读取内置 `attack_patterns.yaml` 与 `skills/`，可额外叠加 `--evolved-patterns` 和 `--skills-dir`
+- `dry-run --events` 接受三种输入：单个 JSON object、JSON array、JSONL
+- `--json` 会返回 machine-readable 报告，包含 `fingerprint`、`source_summaries`、`version_summary`、`findings`
+
+### 退出码
+
+| 退出码 | 含义 |
+|--------|------|
+| `0` | 无 findings / 输入有效 |
+| `1` | 存在规则治理 findings |
+| `2` | CLI 调用错误或输入文件错误 |
+
+### 示例
+
+```bash
+clawsentry rules lint --json
+clawsentry rules dry-run --events examples/sample-events.jsonl --json
+clawsentry rules dry-run --events my-events.json --skills-dir /etc/clawsentry/skills
+```
+
+!!! tip "和 L3 自定义 Skill 的关系"
+    `clawsentry rules` 不会替换 L3 的运行时选择逻辑；它只是帮助你在 rollout 之前确认当前 YAML 规则面是否可加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
+
+更多 authoring 细节见：[CS-01 规则治理](../advanced/rule-governance.md)。
 
 ---
 

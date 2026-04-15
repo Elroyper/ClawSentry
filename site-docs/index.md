@@ -321,7 +321,7 @@ flowchart LR
 
 ## CLI 与 API
 
-- [CLI 命令参考 →](cli/index.md) — `init / gateway / watch / doctor / audit / config / start / stop / latch`
+- [CLI 命令参考 →](cli/index.md) — `init / gateway / watch / doctor / audit / config / rules / integrations / start / stop / latch`
 - [REST API 文档 →](api/decisions.md) — 决策端点、报表监控、SSE 推送、认证
 
 ---
@@ -348,8 +348,8 @@ Gateway 在 `/ui` 路径自动挂载静态文件，无需额外配置。
 
 | 指标 | 数据 |
 |:---:|:---:|
-| 测试用例 | **2795+** |
-| 测试耗时 | **~37s** |
+| 测试用例 | **2812+** |
+| 测试耗时 | **~50s** |
 | 协议版本 | `sync_decision.1.0` |
 | Python 版本 | >= 3.11 |
 | 许可证 | MIT |

@@ -271,10 +271,26 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
       },
       "first_event_at": "2026-03-23T10:00:00+00:00",
       "last_event_at": "2026-03-23T10:30:00+00:00",
-      "d4_accumulation": 4
+      "d4_accumulation": 4,
+      "l3_state": "completed",
+      "l3_reason_code": "suspicious_sequence_matched",
+      "evidence_summary": {
+        "reasoning_turns": 3,
+        "tools_observed": ["read_trajectory", "read_file"],
+        "key_findings": [
+          "Read secret-like file before outbound curl",
+          "L3 retained bounded transcript evidence"
+        ]
+      }
     }
   ],
   "total_active": 15,
+  "decision_path_io": {
+    "record_path": {"calls": 25},
+    "reporting": {
+      "report_sessions": {"calls": 1}
+    }
+  },
   "generated_at": "2026-03-23T10:31:00+00:00",
   "window_seconds": null
 }
@@ -289,9 +305,14 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `transcript_path` | 该 session 的 transcript / 日志路径（若框架提供） |
 | `caller_adapter` | Gateway 侧识别到的调用适配器 |
 | `decision_distribution` | 该 session 内各判决类型分布 |
+| `l3_state` / `l3_reason_code` | 当前 session 最新一次 L3 运行态与原因码摘要 |
+| `evidence_summary` | 当前 session 最新一次保留下来的紧凑证据摘要 |
 
 !!! info "为什么这里新增了 `workspace_root` 和 `transcript_path`？"
     从 `0.3.8` 开始，Web UI 的核心视图不再只按 session_id 平铺，而是按 `framework -> workspace -> session` 组织。因此 API 也同步暴露工作空间级元数据，方便前端和外部系统直接做分组与定位。
+
+!!! note "当前版本新增的 L3 摘要字段"
+    当前版本的 session summary 已直接暴露 `l3_state`、`l3_reason_code`、compact `evidence_summary`，并在响应顶层附带 `decision_path_io`。如果只做值守或 dashboard 聚合，通常不需要再去展开完整 `l3_trace`。
 
 ### curl 示例
 
@@ -357,17 +378,34 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
         "request_id": "a3s-evt-001-...",
         "actual_tier": "L1",
         "deadline_ms": 100,
-        "caller_adapter": "a3s-adapter.v1"
+        "caller_adapter": "a3s-adapter.v1",
+        "l3_state": "completed",
+        "l3_reason_code": "suspicious_sequence_matched"
       },
       "recorded_at": "2026-03-23T10:00:00.001+00:00",
       "recorded_at_ts": 1774530000.001,
-      "l3_trace": null
+      "l3_trace": {
+        "trigger_detail": "secret_plus_network",
+        "evidence_summary": {
+          "reasoning_turns": 3,
+          "tools_observed": ["read_trajectory", "read_file"]
+        }
+      }
     }
   ],
+  "decision_path_io": {
+    "record_path": {"calls": 25},
+    "reporting": {
+      "replay_session": {"calls": 1}
+    }
+  },
   "generated_at": "2026-03-23T10:31:00+00:00",
   "window_seconds": null
 }
 ```
+
+!!! note "关于 `l3_trace` 和紧凑摘要"
+    `l3_trace` 仍然是最完整的结构化证据，但当前报表和 UI 更常直接消费其提炼后的 `l3_state`、`l3_reason_code`、`trigger_detail` 与 compact `evidence_summary`。如果你只需要值守级上下文，优先看这些顶层字段；只有在做深度审计或复盘时，再回退到完整 `l3_trace`。
 
 ### curl 示例
 
@@ -442,6 +480,22 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
     "L1": 23,
     "L2": 2
   },
+  "l3_state": "degraded",
+  "l3_reason_code": "hard_cap_exceeded",
+  "evidence_summary": {
+    "reasoning_turns": 4,
+    "tools_observed": ["read_trajectory", "read_transcript"],
+    "key_findings": [
+      "Repeated secret harvest observed",
+      "Budget-capped evidence retained before degrade"
+    ]
+  },
+  "decision_path_io": {
+    "record_path": {"calls": 25},
+    "reporting": {
+      "report_session_risk": {"calls": 1}
+    }
+  },
   "generated_at": "2026-03-23T10:31:00+00:00",
   "window_seconds": null
 }
@@ -460,6 +514,8 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `risk_hints_seen` | 该会话曾触发的所有风险提示集合 |
 | `tools_used` | 该会话使用过的工具集合 |
 | `actual_tier_distribution` | 各决策层级的使用次数分布 |
+| `l3_state` / `l3_reason_code` | 当前 session 最新一次 L3 运行态与原因码摘要 |
+| `evidence_summary` | 当前 session 最新一次紧凑 retained-evidence 摘要 |
 
 ### curl 示例
 

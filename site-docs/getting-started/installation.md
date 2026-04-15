@@ -180,7 +180,7 @@ clawsentry --help
 预期输出：
 
 ```
-usage: clawsentry [-h] {init,gateway,stack,harness,watch,doctor,audit,config,start,stop,status} ...
+usage: clawsentry [-h] {init,gateway,stack,harness,watch,audit,doctor,test-llm,service,config,rules,latch,integrations,start,stop,status} ...
 
 ClawSentry — AHP unified safety supervision framework.
 ```
@@ -195,10 +195,13 @@ ClawSentry — AHP unified safety supervision framework.
 | `clawsentry status` | 查看 Gateway 运行状态 |
 | `clawsentry init <framework>` | 初始化框架集成配置 |
 | `clawsentry config init/show/set/disable/enable` | 管理项目级 `.clawsentry.toml` 配置 |
+| `clawsentry rules lint/dry-run` | 作者期规则治理：lint YAML 规则面、预演 sample events |
+| `clawsentry integrations status` | 查看多框架 readiness / 诊断状态 |
 | `clawsentry gateway` | 启动 Supervision Gateway |
 | `clawsentry watch` | 实时 SSE 事件监控 |
 | `clawsentry doctor` | 配置安全审计 |
 | `clawsentry audit` | 离线审计日志查询 |
+| `clawsentry test-llm` | 验证 L2/L3 连通性、时延与当前运行模式 |
 | `clawsentry-gateway` | 直接启动 HTTP 网关服务 |
 | `clawsentry-harness` | 启动 stdio 协议桥接进程 |
 | `clawsentry-stack` | 启动完整栈（网关 + OpenClaw 集成） |
@@ -215,12 +218,12 @@ python -m pytest src/clawsentry/tests/ -v --tb=short
 
 ```
 ========================= test session starts ==========================
-collected 2798 items
+collected 2815 items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 2795 passed, 3 skipped in ~37s ===============
+========================= 2812 passed, 3 skipped in ~50s ===============
 ```
 
 !!! success "全部通过即安装成功"

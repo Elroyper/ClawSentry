@@ -26,19 +26,21 @@ description: ClawSentry 常见问题与解答
 
 ### 支持哪些 Agent 框架？
 
-ClawSentry 目前内置两个 Adapter：
+ClawSentry 当前公开支持四条接入路径：
 
-| 框架 | 传输方式 | 适配器 | 状态 |
-|------|---------|--------|------|
-| **a3s-code** | stdio / HTTP | `A3SAdapter` + `A3SGatewayHarness` | 已完成 |
-| **OpenClaw** | WebSocket / Webhook | `OpenClawAdapter` + WS 监听器 | 已完成 |
+| 框架 | 集成方式 | 自动拦截 | 状态 |
+|------|---------|:--------:|------|
+| **Claude Code** | Host hooks + `clawsentry-harness` | 是 | 已完成 |
+| **a3s-code** | 显式 SDK Transport（stdio / HTTP） | 是 | 已完成 |
+| **OpenClaw** | WebSocket / Webhook | 是 | 已完成 |
+| **Codex** | Session JSONL watcher | 否（监控/告警） | 已完成 |
 
 !!! tip "扩展自定义框架"
     ClawSentry 的 Adapter 架构是可扩展的。要对接一个新的 Agent 框架，你需要：
 
     1. 编写 Adapter 类，将框架原始事件转换为 `CanonicalEvent`
     2. 将 `CanonicalDecision` 转换回框架能理解的响应格式
-    3. 注册到 Gateway 的事件处理流程
+    3. 注册到 Gateway 的事件处理流程或 watcher 路径
 
     所有框架共享同一个策略引擎和决策流程，只有事件的归一化逻辑不同。
 
