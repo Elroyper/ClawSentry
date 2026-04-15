@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from .l3_runtime import L3ReasonCode
 from .l3_trigger import L3TriggerPolicy
 from .llm_provider import LLMProvider
 from .models import CanonicalEvent, DecisionContext, DecisionTier, RiskLevel, RiskSnapshot
@@ -80,6 +81,53 @@ class AgentAnalyzer:
     def analyzer_id(self) -> str:
         return "agent-reviewer"
 
+    @staticmethod
+    def _infer_l3_reason_code(
+        *,
+        trigger_reason: str,
+        degraded: bool,
+        degradation_reason: Optional[str],
+    ) -> str | None:
+        """Infer stable L3 reason code for operator-facing runtime reporting.
+
+        Note: This intentionally avoids brittle substring matching by relying on
+        exact / prefix matches for AgentAnalyzer-emitted reasons.
+        """
+
+        normalized_trigger = str(trigger_reason or "").strip()
+        if normalized_trigger == "trigger_not_matched":
+            return L3ReasonCode.TRIGGER_NOT_MATCHED.value
+
+        if not degraded:
+            return None
+
+        reason = str(degradation_reason or "").strip()
+        if not reason:
+            return L3ReasonCode.UNKNOWN_DEGRADED.value
+
+        # Exact matches (AgentAnalyzer emitted)
+        exact: dict[str, str] = {
+            "L3 hard cap exceeded": L3ReasonCode.HARD_CAP_EXCEEDED.value,
+            "L3 LLM call failed": L3ReasonCode.LLM_CALL_FAILED.value,
+            "L3 max reasoning turns exceeded": L3ReasonCode.MAX_TURNS_EXCEEDED.value,
+            "L3 response parse failed": L3ReasonCode.LLM_RESPONSE_PARSE_FAILED.value,
+            "L3 response unresolvable risk level": L3ReasonCode.LLM_RESPONSE_UNRESOLVABLE_RISK_LEVEL.value,
+            "L3 format retry failed": L3ReasonCode.FORMAT_RETRY_FAILED.value,
+            "L3 tool call budget exhausted": L3ReasonCode.TOOL_CALL_BUDGET_EXHAUSTED.value,
+            "L3 trigger not matched": L3ReasonCode.TRIGGER_NOT_MATCHED.value,
+        }
+        mapped = exact.get(reason)
+        if mapped is not None:
+            return mapped
+
+        # Prefix matches (AgentAnalyzer emitted with details)
+        if reason.startswith("L3 requested non-whitelisted tool:"):
+            return L3ReasonCode.REQUESTED_NON_WHITELISTED_TOOL.value
+        if reason.startswith("L3 analysis degraded"):
+            return L3ReasonCode.ANALYSIS_EXCEPTION.value
+
+        return L3ReasonCode.UNKNOWN_DEGRADED.value
+
     def _build_trace(
         self,
         *,
@@ -93,9 +141,19 @@ class AgentAnalyzer:
         start: float,
         degraded: bool,
         degradation_reason: Optional[str] = None,
+        l3_reason_code: Optional[str] = None,
     ) -> dict:
         """Build a structured trace dict capturing the L3 reasoning process."""
         tool_calls_used = sum(1 for t in turns if t.get("type") == "tool_call")
+        computed_reason_code = (
+            str(l3_reason_code).strip() if l3_reason_code is not None else None
+        )
+        if not computed_reason_code:
+            computed_reason_code = self._infer_l3_reason_code(
+                trigger_reason=trigger_reason,
+                degraded=degraded,
+                degradation_reason=degradation_reason,
+            )
         return {
             "trigger_reason": trigger_reason,
             "trigger_detail": trigger_detail,
@@ -107,6 +165,7 @@ class AgentAnalyzer:
             "tool_calls_used": tool_calls_used,
             "degraded": degraded,
             "degradation_reason": degradation_reason,
+            "l3_reason_code": computed_reason_code,
             "evidence_summary": evidence_summary or {},
         }
 
@@ -138,6 +197,10 @@ class AgentAnalyzer:
         trajectory: list[dict],
         session_risk_history: list,
     ) -> int:
+        # Keep toolkit budgeting deterministic and analyzer-owned. We tune how
+        # much evidence L3 may gather based on the initial evidence already
+        # available to the analyzer, without turning ReadOnlyToolkit itself into
+        # an adaptive scheduler.
         source_count = self._count_initial_evidence_sources(
             trajectory,
             session_risk_history,
@@ -163,6 +226,14 @@ class AgentAnalyzer:
     ) -> dict[str, Any]:
         retained_sources: list[str] = []
         tool_calls: list[dict[str, Any]] = []
+        toolkit_calls_remaining = toolkit.calls_remaining if toolkit is not None else None
+        toolkit_budget_exhausted: bool | None = None
+        if (
+            isinstance(toolkit_budget_cap, int)
+            and toolkit_budget_cap > 0
+            and isinstance(toolkit_calls_remaining, int)
+        ):
+            toolkit_budget_exhausted = toolkit_calls_remaining <= 0
 
         def _add_source(source: Optional[str]) -> None:
             if source and source not in retained_sources:
@@ -201,10 +272,9 @@ class AgentAnalyzer:
             },
             "toolkit_budget_mode": toolkit_budget_mode,
             "toolkit_budget_cap": toolkit_budget_cap,
+            "toolkit_budget_exhausted": toolkit_budget_exhausted,
             "budget_remaining_ms": round(remaining_ms, 3),
-            "toolkit_calls_remaining": (
-                toolkit.calls_remaining if toolkit is not None else None
-            ),
+            "toolkit_calls_remaining": toolkit_calls_remaining,
         }
 
     async def analyze(
@@ -428,6 +498,12 @@ class AgentAnalyzer:
                     })
                     if retry_result.confidence > 0.0:
                         result = retry_result
+                    else:
+                        result = self._degraded(
+                            l1_snapshot,
+                            start,
+                            "L3 format retry failed",
+                        )
                 except (asyncio.TimeoutError, Exception):
                     pass  # Retry failed; keep original degraded result
 
@@ -863,14 +939,29 @@ class AgentAnalyzer:
         elapsed_ms = (time.monotonic() - start) * 1000
         try:
             cleaned = self._strip_markdown(raw)
-            data = json.loads(cleaned)
+            try:
+                data = json.loads(cleaned)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                return self._degraded(
+                    l1_snapshot,
+                    start,
+                    "L3 response parse failed",
+                )
             if not isinstance(data, dict):
-                raise ValueError("LLM response is not a JSON object")
+                return self._degraded(
+                    l1_snapshot,
+                    start,
+                    "L3 response parse failed",
+                )
 
             raw_level = self._extract_risk_level_from_data(data)
             risk_level = self._resolve_risk_level(raw_level)
             if risk_level is None:
-                raise ValueError(f"Cannot resolve risk_level from '{raw_level}'")
+                return self._degraded(
+                    l1_snapshot,
+                    start,
+                    "L3 response unresolvable risk level",
+                )
 
             findings = self._extract_findings_from_data(data)
             confidence = float(data.get("confidence", 0.7))

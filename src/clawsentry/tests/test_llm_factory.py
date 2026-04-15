@@ -20,10 +20,14 @@ def _clean_env():
     """Return a mock env dict with all AHP_LLM_* and API keys cleared."""
     keys_to_clear = [
         "CS_LLM_PROVIDER",
+        "CS_LLM_API_KEY",
         "CS_LLM_MODEL",
         "CS_LLM_BASE_URL",
         "CS_L3_ENABLED",
         "CS_L3_MULTI_TURN",
+        "CS_LLM_L3_ENABLED",
+        "CS_ENTERPRISE_ENABLED",
+        "CS_LLM_ENTERPRISE_ENABLED",
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
     ]
@@ -81,6 +85,19 @@ class TestBuildAnalyzerFromEnv:
         assert isinstance(result._analyzers[1], LLMAnalyzer)
         assert isinstance(result._analyzers[1]._provider, OpenAIProvider)
 
+    def test_openai_provider_from_shared_api_key(self):
+        """CS_LLM_API_KEY is the shared key for LLM-backed features."""
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-shared-key-123",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env()
+        assert isinstance(result, CompositeAnalyzer)
+        assert isinstance(result._analyzers[1], LLMAnalyzer)
+        assert isinstance(result._analyzers[1]._provider, OpenAIProvider)
+
     def test_anthropic_provider_from_env(self):
         """CS_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY → CompositeAnalyzer with AnthropicProvider."""
         env = {
@@ -93,6 +110,19 @@ class TestBuildAnalyzerFromEnv:
         assert isinstance(result, CompositeAnalyzer)
         assert len(result._analyzers) == 2
         assert isinstance(result._analyzers[0], RuleBasedAnalyzer)
+        assert isinstance(result._analyzers[1], LLMAnalyzer)
+        assert isinstance(result._analyzers[1]._provider, AnthropicProvider)
+
+    def test_anthropic_provider_from_shared_api_key(self):
+        """CS_LLM_API_KEY should also work for anthropic-provider-backed flows."""
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "anthropic",
+            "CS_LLM_API_KEY": "sk-shared-key-123",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env()
+        assert isinstance(result, CompositeAnalyzer)
         assert isinstance(result._analyzers[1], LLMAnalyzer)
         assert isinstance(result._analyzers[1]._provider, AnthropicProvider)
 
@@ -227,3 +257,24 @@ class TestBuildAnalyzerFromEnv:
         with mock.patch.dict(os.environ, env, clear=False):
             result = build_analyzer_from_env()
         assert isinstance(result, CompositeAnalyzer)
+
+    def test_l3_enabled_alias_works(self):
+        """CS_LLM_L3_ENABLED should behave like CS_L3_ENABLED for the unified settings layer."""
+        from pathlib import Path
+        from clawsentry.gateway.server import TrajectoryStore
+        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-test-key-123",
+            "CS_LLM_L3_ENABLED": "true",
+        }
+        store = TrajectoryStore(db_path=":memory:")
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env(
+                trajectory_store=store,
+                workspace_root=Path("/tmp"),
+            )
+        assert isinstance(result, CompositeAnalyzer)
+        assert isinstance(result._analyzers[1], AgentAnalyzer)

@@ -131,6 +131,17 @@ def _format_evidence_summary(summary: dict[str, Any] | None) -> str | None:
     if isinstance(tool_calls_count, int):
         parts.append(f"{tool_calls_count} tool call(s)")
 
+    toolkit_budget_cap = summary.get("toolkit_budget_cap")
+    toolkit_calls_remaining = summary.get("toolkit_calls_remaining")
+    if isinstance(toolkit_budget_cap, int) and isinstance(toolkit_calls_remaining, int) and toolkit_budget_cap > 0:
+        toolkit_summary = f"toolkit {toolkit_calls_remaining}/{toolkit_budget_cap}"
+        if summary.get("toolkit_budget_exhausted") is True:
+            parts.append(f"{toolkit_summary} (exhausted)")
+        else:
+            parts.append(toolkit_summary)
+    elif summary.get("toolkit_budget_exhausted") is True:
+        parts.append("toolkit exhausted")
+
     return " · ".join(parts) if parts else None
 
 

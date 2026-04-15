@@ -124,6 +124,26 @@ def test_ui_types_expose_l3_reason_code_for_operator_surfaces() -> None:
     assert "l3_reason_code?: string" in source
 
 
+def test_session_summary_types_expose_l3_metadata_and_evidence_for_lists() -> None:
+    source = _read_ui_file("api/types.ts")
+
+    assert "export interface SessionSummary" in source
+    assert "l3_state?: string" in source
+    assert "l3_reason?: string" in source
+    assert "l3_reason_code?: string" in source
+    assert "evidence_summary?: L3EvidenceSummary | null" in source
+
+
+def test_ui_types_expose_compact_toolkit_budget_fields_in_l3_evidence_summary() -> None:
+    source = _read_ui_file("api/types.ts")
+
+    assert "export interface L3EvidenceSummary" in source
+    assert "toolkit_budget_mode?: string" in source
+    assert "toolkit_budget_cap?: number" in source
+    assert "toolkit_calls_remaining?: number" in source
+    assert "toolkit_budget_exhausted?: boolean" in source
+
+
 def test_ui_types_expose_l3_availability_and_request_state() -> None:
     source = _read_ui_file("api/types.ts")
 
@@ -221,6 +241,39 @@ def test_dashboard_emphasizes_budget_exhaustion_for_operators() -> None:
     assert "Operator attention required" in source
 
 
+def test_ui_types_model_reporting_envelope_for_session_detail_surfaces() -> None:
+    source = _read_ui_file("api/types.ts")
+
+    assert "export interface ReportingEnvelope" in source
+    assert "budget: HealthBudgetSnapshot" in source
+    assert "export interface SessionRiskResponse" in source
+    assert "export interface SessionReplayResponse" in source
+    assert "budget_exhaustion_event?: SSEBudgetExhaustedEvent | null" in source
+    assert "llm_usage_snapshot?: LLMUsageSnapshot | null" in source
+
+
+def test_api_client_preserves_session_detail_reporting_envelope() -> None:
+    source = _read_ui_file("api/client.ts")
+
+    assert "SessionRiskResponse" in source
+    assert "SessionReplayResponse" in source
+    assert "SessionReplayPageResponse" in source
+    assert "sessionRisk: (id: string, params?: { windowSeconds?: number | null }) =>" in source
+    assert "apiFetch<SessionRiskResponse>" in source
+    assert "sessionReplay: (id: string, limit?: number): Promise<SessionReplayResponse> =>" in source
+    assert "apiFetch<SessionReplayResponse>" in source
+    assert "sessionReplayPage: (" in source
+    assert "params?: { limit?: number; cursor?: number; windowSeconds?: number | null }" in source
+    assert "): Promise<SessionReplayPageResponse> =>" in source
+    assert "new URLSearchParams()" in source
+    assert "qs.set('cursor', String(params.cursor))" in source
+    assert "qs.set('limit', String(params.limit))" in source
+    assert "qs.set('window_seconds', String(params.windowSeconds))" in source
+    assert "apiFetch<SessionReplayPageResponse>" in source
+    assert "/report/session/${id}/page" in source
+    assert "return result.records ?? []" not in source
+
+
 def test_session_detail_replay_surfaces_l3_trigger_detail() -> None:
     source = _read_ui_file("pages/SessionDetail.tsx")
 
@@ -249,6 +302,100 @@ def test_session_detail_replay_surfaces_l3_state_and_reason() -> None:
 
     assert "record.meta.l3_state" in source
     assert "record.meta.l3_reason" in source
+
+
+def test_session_detail_replay_surfaces_compact_evidence_summary() -> None:
+    source = _read_ui_file("pages/SessionDetail.tsx")
+
+    assert "record.l3_trace?.evidence_summary" in source
+    assert "Evidence" in source
+
+
+def test_shared_evidence_summary_helper_marks_toolkit_exhaustion() -> None:
+    source = _read_ui_file("lib/l3EvidenceSummary.ts")
+
+    assert "toolkit_budget_exhausted" in source
+    assert "(exhausted)" in source
+
+
+def test_session_detail_replay_reuses_shared_l3_evidence_summary_helper() -> None:
+    session_detail_source = _read_ui_file("pages/SessionDetail.tsx")
+    helper_source = _read_ui_file("lib/l3EvidenceSummary.ts")
+    types_source = _read_ui_file("api/types.ts")
+
+    assert "formatL3EvidenceSummary" in session_detail_source
+    assert "formatL3EvidenceSummary" in helper_source
+    assert "retained_sources" in helper_source
+    assert "tool_calls_count" in helper_source
+    assert "toolkit_budget_mode" in types_source
+    assert "toolkit_budget_cap" in helper_source
+    assert "toolkit_calls_remaining" in helper_source
+    assert "parts.join(' · ')" in helper_source
+
+
+def test_dashboard_priority_sessions_surface_l3_reason_code_and_evidence_summary() -> None:
+    source = _read_ui_file("pages/Dashboard.tsx")
+    helper_source = _read_ui_file("lib/sessionL3Annotations.ts")
+
+    assert "formatSessionL3Annotation" in source
+    assert "toolkit_budget_exhausted" in source
+    assert "Toolkit evidence budget hotspots" in source
+    assert "session.l3_reason_code" in helper_source
+    assert "session.evidence_summary" in helper_source
+    assert "formatL3EvidenceSummary" in helper_source
+
+
+def test_dashboard_surfaces_toolkit_evidence_budget_hotspot_metric() -> None:
+    source = _read_ui_file("pages/Dashboard.tsx")
+
+    assert "Toolkit Evidence Budget" in source
+    assert "Sessions hitting toolkit evidence budget" in source
+    assert "No sessions are currently hitting toolkit evidence budget." in source
+
+
+def test_sessions_inventory_surface_l3_reason_code_and_evidence_summary() -> None:
+    source = _read_ui_file("pages/Sessions.tsx")
+    helper_source = _read_ui_file("lib/sessionL3Annotations.ts")
+
+    assert "formatSessionL3Annotation" in source
+    assert "session.l3_reason_code" in helper_source
+    assert "session.evidence_summary" in helper_source
+    assert "formatL3EvidenceSummary" in helper_source
+    assert "session.evidence_summary?.toolkit_budget_exhausted" in source
+    assert "Budget exhausted only" in source
+    assert "aria-pressed" in source
+
+
+def test_session_detail_surfaces_budget_snapshot_and_current_exhaustion_state() -> None:
+    source = _read_ui_file("pages/SessionDetail.tsx")
+
+    assert "budget_exhaustion_event" in source
+    assert "Daily budget" in source
+    assert "Spend" in source
+    assert "Remaining" in source
+    assert "Exhausted" in source
+
+
+def test_ui_types_model_session_replay_page_cursor_contract() -> None:
+    source = _read_ui_file("api/types.ts")
+
+    assert "export interface SessionReplayPageResponse" in source
+    assert "extends ReportingEnvelope" in source
+    assert "session_id: string" in source
+    assert "record_count: number" in source
+    assert "records: TrajectoryRecord[]" in source
+    assert "next_cursor: number | null" in source
+    assert "window_seconds: number | null" in source
+
+
+def test_session_detail_uses_paged_replay_with_load_more() -> None:
+    source = _read_ui_file("pages/SessionDetail.tsx")
+
+    assert "api.sessionReplayPage(sessionId, { windowSeconds: sessionWindowSeconds })" in source
+    assert "cursor: replayNextCursor" in source
+    assert "windowSeconds: sessionWindowSeconds" in source
+    assert "Load more" in source
+    assert "nextCursor" in source
 
 
 def test_session_risk_timeline_exposes_tier_fields_without_trace_parsing() -> None:

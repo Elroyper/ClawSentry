@@ -16,6 +16,32 @@ def _risk_rank(risk_level: Optional[str]) -> int:
     return _RISK_LEVEL_RANK.get(str(risk_level or "low").lower(), 0)
 
 
+def _new_io_metric_bucket() -> dict[str, float | int]:
+    return {
+        "calls": 0,
+        "total_seconds": 0.0,
+        "last_seconds": 0.0,
+        "max_seconds": 0.0,
+    }
+
+
+def _observe_io_metric(bucket: dict[str, float | int], elapsed_seconds: float) -> None:
+    elapsed = max(0.0, float(elapsed_seconds))
+    bucket["calls"] = int(bucket["calls"]) + 1
+    bucket["total_seconds"] = float(bucket["total_seconds"]) + elapsed
+    bucket["last_seconds"] = elapsed
+    bucket["max_seconds"] = max(float(bucket["max_seconds"]), elapsed)
+
+
+def _snapshot_io_metric(bucket: dict[str, float | int]) -> dict[str, float | int]:
+    return {
+        "calls": int(bucket["calls"]),
+        "total_seconds": round(float(bucket["total_seconds"]), 6),
+        "last_seconds": round(float(bucket["last_seconds"]), 6),
+        "max_seconds": round(float(bucket["max_seconds"]), 6),
+    }
+
+
 class SessionRegistry:
     """In-memory live session view for current-process metrics endpoints."""
 
@@ -26,10 +52,20 @@ class SessionRegistry:
         self,
         max_sessions: int = DEFAULT_MAX_SESSIONS,
         max_timeline_per_session: int = DEFAULT_MAX_TIMELINE_PER_SESSION,
-    ) -> None:
+        ) -> None:
         self.max_sessions = max(max_sessions, 1)
         self.max_timeline_per_session = max(max_timeline_per_session, 1)
         self._sessions: dict[str, dict[str, Any]] = {}
+        self._io_metrics = {
+            "list_sessions": _new_io_metric_bucket(),
+            "get_session_risk": _new_io_metric_bucket(),
+        }
+
+    def io_metrics_snapshot(self) -> dict[str, dict[str, float | int]]:
+        return {
+            name: _snapshot_io_metric(bucket)
+            for name, bucket in self._io_metrics.items()
+        }
 
     def _evict_if_needed(self) -> None:
         while len(self._sessions) > self.max_sessions:
@@ -77,6 +113,23 @@ class SessionRegistry:
             tool_calls_count = summary.get("tool_calls_count")
             if isinstance(tool_calls_count, int):
                 compact["tool_calls_count"] = tool_calls_count
+
+        toolkit_budget_mode = str(summary.get("toolkit_budget_mode") or "").strip()
+        if toolkit_budget_mode:
+            compact["toolkit_budget_mode"] = toolkit_budget_mode
+
+        toolkit_budget_cap = summary.get("toolkit_budget_cap")
+        if isinstance(toolkit_budget_cap, int):
+            compact["toolkit_budget_cap"] = toolkit_budget_cap
+
+        toolkit_calls_remaining = summary.get("toolkit_calls_remaining")
+        if isinstance(toolkit_calls_remaining, int):
+            compact["toolkit_calls_remaining"] = toolkit_calls_remaining
+        toolkit_budget_exhausted = summary.get("toolkit_budget_exhausted")
+        if isinstance(toolkit_budget_exhausted, bool):
+            compact["toolkit_budget_exhausted"] = toolkit_budget_exhausted
+        elif isinstance(toolkit_budget_cap, int) and toolkit_budget_cap > 0 and isinstance(toolkit_calls_remaining, int):
+            compact["toolkit_budget_exhausted"] = toolkit_calls_remaining <= 0
 
         return compact or None
 
@@ -277,55 +330,59 @@ class SessionRegistry:
         limit: int = 50,
         since_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
-        _ = status
-        sessions = list(self._sessions.values())
-        if since_seconds is not None and since_seconds > 0:
-            cutoff = time.time() - since_seconds
-            sessions = [s for s in sessions if float(s.get("last_event_ts", 0.0)) >= cutoff]
-        if min_risk:
-            min_rank = _risk_rank(min_risk)
-            sessions = [
-                s for s in sessions
-                if _risk_rank(s.get("current_risk_level")) >= min_rank
-            ]
+        start = time.perf_counter()
+        try:
+            _ = status
+            sessions = list(self._sessions.values())
+            if since_seconds is not None and since_seconds > 0:
+                cutoff = time.time() - since_seconds
+                sessions = [s for s in sessions if float(s.get("last_event_ts", 0.0)) >= cutoff]
+            if min_risk:
+                min_rank = _risk_rank(min_risk)
+                sessions = [
+                    s for s in sessions
+                    if _risk_rank(s.get("current_risk_level")) >= min_rank
+                ]
 
-        if sort == "last_event":
-            sessions.sort(
-                key=lambda s: (float(s.get("last_event_ts", 0.0)), _risk_rank(s.get("current_risk_level"))),
-                reverse=True,
-            )
-        else:
-            sessions.sort(
-                key=lambda s: (_risk_rank(s.get("current_risk_level")), float(s.get("last_event_ts", 0.0))),
-                reverse=True,
-            )
+            if sort == "last_event":
+                sessions.sort(
+                    key=lambda s: (float(s.get("last_event_ts", 0.0)), _risk_rank(s.get("current_risk_level"))),
+                    reverse=True,
+                )
+            else:
+                sessions.sort(
+                    key=lambda s: (_risk_rank(s.get("current_risk_level")), float(s.get("last_event_ts", 0.0))),
+                    reverse=True,
+                )
 
-        effective_limit = min(max(limit, 1), 200)
-        serialized_sessions: list[dict[str, Any]] = []
-        for session in sessions[:effective_limit]:
-            serialized_session = {
-                "session_id": session["session_id"],
-                "agent_id": session["agent_id"],
-                "source_framework": session["source_framework"],
-                "caller_adapter": session["caller_adapter"],
-                "workspace_root": session["workspace_root"],
-                "transcript_path": session["transcript_path"],
-                "current_risk_level": session["current_risk_level"],
-                "cumulative_score": session["cumulative_score"],
-                "event_count": session["event_count"],
-                "high_risk_event_count": session["high_risk_event_count"],
-                "decision_distribution": dict(session["decision_distribution"]),
-                "first_event_at": session["first_event_at"],
-                "last_event_at": session["last_event_at"],
-                "d4_accumulation": session["d4_accumulation"],
+            effective_limit = min(max(limit, 1), 200)
+            serialized_sessions: list[dict[str, Any]] = []
+            for session in sessions[:effective_limit]:
+                serialized_session = {
+                    "session_id": session["session_id"],
+                    "agent_id": session["agent_id"],
+                    "source_framework": session["source_framework"],
+                    "caller_adapter": session["caller_adapter"],
+                    "workspace_root": session["workspace_root"],
+                    "transcript_path": session["transcript_path"],
+                    "current_risk_level": session["current_risk_level"],
+                    "cumulative_score": session["cumulative_score"],
+                    "event_count": session["event_count"],
+                    "high_risk_event_count": session["high_risk_event_count"],
+                    "decision_distribution": dict(session["decision_distribution"]),
+                    "first_event_at": session["first_event_at"],
+                    "last_event_at": session["last_event_at"],
+                    "d4_accumulation": session["d4_accumulation"],
+                }
+                serialized_session.update(self._latest_session_annotations(session))
+                serialized_sessions.append(serialized_session)
+
+            return {
+                "sessions": serialized_sessions,
+                "total_active": len(sessions),
             }
-            serialized_session.update(self._latest_session_annotations(session))
-            serialized_sessions.append(serialized_session)
-
-        return {
-            "sessions": serialized_sessions,
-            "total_active": len(sessions),
-        }
+        finally:
+            _observe_io_metric(self._io_metrics["list_sessions"], time.perf_counter() - start)
 
     def get_session_risk(
         self,
@@ -334,69 +391,73 @@ class SessionRegistry:
         limit: int = 100,
         since_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
-        session = self._sessions.get(session_id)
-        if session is None:
+        start = time.perf_counter()
+        try:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return {
+                    "session_id": session_id,
+                    "current_risk_level": "low",
+                    "cumulative_score": 0,
+                    "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                    "risk_timeline": [],
+                    "evidence_summary": None,
+                    "risk_hints_seen": [],
+                    "tools_used": [],
+                    "actual_tier_distribution": {},
+                }
+
+            timeline = list(session["risk_timeline"])
+            if since_seconds is not None and since_seconds > 0:
+                cutoff = time.time() - since_seconds
+                timeline = [item for item in timeline if float(item.get("occurred_at_ts", 0.0)) >= cutoff]
+            effective_limit = min(max(limit, 1), 1000)
+            timeline = timeline[-effective_limit:]
+
             return {
                 "session_id": session_id,
-                "current_risk_level": "low",
-                "cumulative_score": 0,
-                "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
-                "risk_timeline": [],
-                "evidence_summary": None,
-                "risk_hints_seen": [],
-                "tools_used": [],
-                "actual_tier_distribution": {},
+                "agent_id": session["agent_id"],
+                "source_framework": session["source_framework"],
+                "caller_adapter": session["caller_adapter"],
+                "workspace_root": session["workspace_root"],
+                "transcript_path": session["transcript_path"],
+                "current_risk_level": session["current_risk_level"],
+                "cumulative_score": session["cumulative_score"],
+                "dimensions_latest": dict(session["dimensions_latest"]),
+                "event_count": session["event_count"],
+                "high_risk_event_count": session["high_risk_event_count"],
+                "first_event_at": session["first_event_at"],
+                "last_event_at": session["last_event_at"],
+                "risk_timeline": [
+                    {
+                        "event_id": item["event_id"],
+                        "occurred_at": item["occurred_at"],
+                        "risk_level": item["risk_level"],
+                        "composite_score": item["composite_score"],
+                        "tool_name": item["tool_name"],
+                        "decision": item["decision"],
+                        "actual_tier": item["actual_tier"],
+                        "classified_by": item["classified_by"],
+                        "l3_state": item.get("l3_state"),
+                        "l3_reason": item.get("l3_reason"),
+                        "l3_reason_code": item.get("l3_reason_code"),
+                        **(
+                            {"evidence_summary": item["evidence_summary"]}
+                            if item.get("evidence_summary") is not None
+                            else {}
+                        ),
+                    }
+                    for item in timeline
+                ],
+                "evidence_summary": (
+                    dict(session["latest_evidence_summary"])
+                    if session.get("latest_evidence_summary") is not None
+                    else None
+                ),
+                "risk_hints_seen": sorted(session["risk_hints_seen"]),
+                "tools_used": sorted(session["tools_used"]),
+                "actual_tier_distribution": dict(session["actual_tier_distribution"]),
+                **self._latest_session_annotations(session),
             }
-
-        timeline = list(session["risk_timeline"])
-        if since_seconds is not None and since_seconds > 0:
-            cutoff = time.time() - since_seconds
-            timeline = [item for item in timeline if float(item.get("occurred_at_ts", 0.0)) >= cutoff]
-        effective_limit = min(max(limit, 1), 1000)
-        timeline = timeline[-effective_limit:]
-
-        return {
-            "session_id": session_id,
-            "agent_id": session["agent_id"],
-            "source_framework": session["source_framework"],
-            "caller_adapter": session["caller_adapter"],
-            "workspace_root": session["workspace_root"],
-            "transcript_path": session["transcript_path"],
-            "current_risk_level": session["current_risk_level"],
-            "cumulative_score": session["cumulative_score"],
-            "dimensions_latest": dict(session["dimensions_latest"]),
-            "event_count": session["event_count"],
-            "high_risk_event_count": session["high_risk_event_count"],
-            "first_event_at": session["first_event_at"],
-            "last_event_at": session["last_event_at"],
-            "risk_timeline": [
-                {
-                    "event_id": item["event_id"],
-                    "occurred_at": item["occurred_at"],
-                    "risk_level": item["risk_level"],
-                    "composite_score": item["composite_score"],
-                    "tool_name": item["tool_name"],
-                    "decision": item["decision"],
-                    "actual_tier": item["actual_tier"],
-                    "classified_by": item["classified_by"],
-                    "l3_state": item.get("l3_state"),
-                    "l3_reason": item.get("l3_reason"),
-                    "l3_reason_code": item.get("l3_reason_code"),
-                    **(
-                        {"evidence_summary": item["evidence_summary"]}
-                        if item.get("evidence_summary") is not None
-                        else {}
-                    ),
-                }
-                for item in timeline
-            ],
-            "evidence_summary": (
-                dict(session["latest_evidence_summary"])
-                if session.get("latest_evidence_summary") is not None
-                else None
-            ),
-            "risk_hints_seen": sorted(session["risk_hints_seen"]),
-            "tools_used": sorted(session["tools_used"]),
-            "actual_tier_distribution": dict(session["actual_tier_distribution"]),
-            **self._latest_session_annotations(session),
-        }
+        finally:
+            _observe_io_metric(self._io_metrics["get_session_risk"], time.perf_counter() - start)

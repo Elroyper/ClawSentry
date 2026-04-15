@@ -348,6 +348,11 @@ class TestDeferBridge:
         assert io["record_path"]["trajectory_store"]["calls"] == 2
         assert io["record_path"]["session_registry"]["calls"] == 2
         assert io["reporting"]["report_summary"]["calls"] == 1
+        assert io["reporting"]["report_summary"]["trajectory_store"]["calls"] == 1
+
+        page = gw.trajectory_store.replay_session_page("sess-defer-persist")
+        assert page["records"]
+        assert gw.trajectory_store.io_metrics_snapshot()["replay_session_page"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_defer_bridge_updates_session_view_after_final_deny(self):

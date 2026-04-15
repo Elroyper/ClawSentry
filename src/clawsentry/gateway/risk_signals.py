@@ -111,6 +111,39 @@ _PRIVESC_RE = re.compile(
 )
 _TMP_PATH_RE = re.compile(r"/tmp/|/var/tmp/|c:\\temp\\", re.IGNORECASE)
 
+_NETWORK_INDICATOR_TOKENS = (
+    "curl",
+    "wget",
+    "http://",
+    "https://",
+    "scp",
+    "rsync",
+    "nc ",
+    "ncat",
+    "socat",
+    "dig ",
+    "nslookup",
+)
+_STAGING_INDICATOR_TOKENS = (
+    "cp ",
+    "mv ",
+    "tee ",
+    ">",
+)
+_RECON_INDICATOR_TOKENS = (
+    "whoami",
+    "id",
+    "uname",
+    "hostname",
+    "printenv",
+    "env",
+    "/etc/os-release",
+    "ps -",
+    "ss -",
+    "ifconfig",
+    "ip addr",
+)
+
 
 def normalize_hints(risk_hints: Iterable[str] | None) -> set[str]:
     return {str(h).lower() for h in (risk_hints or [])}
@@ -167,6 +200,22 @@ def has_recon_command(value: str) -> bool:
 
 def has_privilege_escalation_command(value: str) -> bool:
     return bool(_PRIVESC_RE.search(str(value or "")))
+
+def has_network_indicator(value: str) -> bool:
+    text = str(value or "").lower()
+    return any(token in text for token in _NETWORK_INDICATOR_TOKENS)
+
+
+def has_staging_indicator(value: str) -> bool:
+    text = str(value or "").lower()
+    if any(token in text for token in _STAGING_INDICATOR_TOKENS):
+        return True
+    return any(token in text for token in ARCHIVE_TOKENS)
+
+
+def has_recon_indicator(value: str) -> bool:
+    text = str(value or "").lower()
+    return any(token in text for token in _RECON_INDICATOR_TOKENS)
 
 
 def _default_command_token_matcher(command_text: str, token: str) -> bool:

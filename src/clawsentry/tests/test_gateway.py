@@ -12,6 +12,7 @@ import os
 import struct
 import time
 from collections import deque
+from datetime import date
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -35,6 +36,12 @@ from clawsentry.gateway.semantic_analyzer import L2Result
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _assert_has_reporting_envelope(payload: dict) -> None:
+    assert "budget" in payload
+    assert "budget_exhaustion_event" in payload
+    assert "llm_usage_snapshot" in payload
+    assert "decision_path_io" in payload
 
 def _jsonrpc_request(method: str, params: dict, rpc_id: int = 1) -> bytes:
     return json.dumps({
@@ -204,6 +211,10 @@ class TestGatewayCore:
                 {"tool_name": "search", "evidence_source": "trajectory"},
             ],
             "tool_calls_count": 999,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 0,
+            "toolkit_budget_exhausted": True,
         }
 
         gw.session_registry.record(
@@ -268,12 +279,20 @@ class TestGatewayCore:
         assert stats["latest_evidence_summary"] == {
             "retained_sources": ["trajectory", "file"],
             "tool_calls_count": 2,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 0,
+            "toolkit_budget_exhausted": True,
         }
 
         session_risk = gw.session_registry.get_session_risk(session_id)
         assert session_risk["evidence_summary"] == {
             "retained_sources": ["trajectory", "file"],
             "tool_calls_count": 2,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 0,
+            "toolkit_budget_exhausted": True,
         }
         assert session_risk["l3_state"] == "completed"
         assert session_risk["l3_reason"] == "L3 review completed"
@@ -281,6 +300,10 @@ class TestGatewayCore:
         assert session_risk["risk_timeline"][0]["evidence_summary"] == {
             "retained_sources": ["trajectory", "file"],
             "tool_calls_count": 2,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 0,
+            "toolkit_budget_exhausted": True,
         }
         assert "evidence_summary" not in session_risk["risk_timeline"][1]
 
@@ -292,6 +315,10 @@ class TestGatewayCore:
             "tool_calls": [
                 {"tool_name": "read_file", "evidence_source": "file"},
             ],
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 4,
+            "toolkit_budget_exhausted": False,
         }
 
         gw.session_registry.record(
@@ -391,6 +418,10 @@ class TestGatewayCore:
         assert rich_session["evidence_summary"] == {
             "retained_sources": ["trajectory", "file"],
             "tool_calls_count": 1,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 4,
+            "toolkit_budget_exhausted": False,
         }
         assert rich_session["l3_state"] == "completed"
         assert rich_session["l3_reason"] == "L3 review completed"
@@ -407,6 +438,10 @@ class TestGatewayCore:
             "tool_calls": [
                 {"tool_name": "read_file", "evidence_source": "file"},
             ],
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 4,
+            "toolkit_budget_exhausted": False,
         }
 
         gw.session_registry.record(
@@ -471,6 +506,10 @@ class TestGatewayCore:
         assert session_risk["evidence_summary"] == {
             "retained_sources": ["trajectory", "file"],
             "tool_calls_count": 1,
+            "toolkit_budget_mode": "multi_turn",
+            "toolkit_budget_cap": 5,
+            "toolkit_calls_remaining": 4,
+            "toolkit_budget_exhausted": False,
         }
         assert session_risk["l3_state"] == "completed"
         assert session_risk["l3_reason"] == "L3 review completed"
@@ -541,6 +580,7 @@ class TestGatewayCore:
         assert health["decision_path_io"]["record_path"]["trajectory_store"]["calls"] == 1
         assert health["decision_path_io"]["record_path"]["session_registry"]["calls"] == 1
         assert health["decision_path_io"]["reporting"]["health"]["calls"] == 1
+        assert health["decision_path_io"]["reporting"]["health"]["trajectory_count"]["calls"] == 1
         assert health["decision_path_io"]["reporting"]["report_summary"]["calls"] == 0
 
         assert summary["decision_path_io"]["record_path"]["calls"] == 1
@@ -548,6 +588,7 @@ class TestGatewayCore:
         assert summary["decision_path_io"]["record_path"]["session_registry"]["calls"] == 1
         assert summary["decision_path_io"]["reporting"]["health"]["calls"] == 1
         assert summary["decision_path_io"]["reporting"]["report_summary"]["calls"] == 1
+        assert summary["decision_path_io"]["reporting"]["report_summary"]["trajectory_store"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_session_report_endpoints_bump_independent_reporting_counters(self, gw):
@@ -568,22 +609,60 @@ class TestGatewayCore:
         await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
 
         sessions = gw.report_sessions(limit=10)
+        _assert_has_reporting_envelope(sessions)
         assert sessions["decision_path_io"]["record_path"]["calls"] == 1
         assert sessions["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
+        assert sessions["decision_path_io"]["reporting"]["report_sessions"]["session_registry"]["calls"] == 1
         assert sessions["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 0
         assert sessions["decision_path_io"]["reporting"]["replay_session"]["calls"] == 0
 
         session_risk = gw.report_session_risk("sess-session-report-io")
+        _assert_has_reporting_envelope(session_risk)
         assert session_risk["decision_path_io"]["record_path"]["calls"] == 1
         assert session_risk["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
         assert session_risk["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
+        assert session_risk["decision_path_io"]["reporting"]["report_session_risk"]["session_registry"]["calls"] == 1
         assert session_risk["decision_path_io"]["reporting"]["replay_session"]["calls"] == 0
 
         replay = gw.replay_session("sess-session-report-io")
+        _assert_has_reporting_envelope(replay)
         assert replay["decision_path_io"]["record_path"]["calls"] == 1
         assert replay["decision_path_io"]["reporting"]["report_sessions"]["calls"] == 1
         assert replay["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
         assert replay["decision_path_io"]["reporting"]["replay_session"]["calls"] == 1
+        assert replay["decision_path_io"]["reporting"]["replay_session"]["trajectory_query"]["calls"] == 1
+
+    def test_report_alerts_bumps_independent_reporting_counter_and_query_metrics(self, gw):
+        payload = gw.report_alerts(limit=10)
+
+        _assert_has_reporting_envelope(payload)
+        assert payload["decision_path_io"]["reporting"]["report_alerts"]["calls"] == 1
+        assert payload["decision_path_io"]["reporting"]["report_alerts"]["alert_registry"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_reporting_surfaces_share_envelope_keys(self, gw):
+        params = _sync_decision_params(
+            request_id="req-envelope",
+            event={
+                "event_id": "evt-envelope",
+                "trace_id": "trace-envelope",
+                "event_type": "pre_action",
+                "session_id": "sess-envelope",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"tool": "read_file", "path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        _assert_has_reporting_envelope(gw.health())
+        _assert_has_reporting_envelope(gw.report_summary())
+        _assert_has_reporting_envelope(gw.report_sessions(limit=10))
+        _assert_has_reporting_envelope(gw.report_session_risk("sess-envelope"))
+        _assert_has_reporting_envelope(gw.replay_session("sess-envelope"))
+        _assert_has_reporting_envelope(gw.report_alerts())
 
     @pytest.mark.asyncio
     async def test_requested_l2_returns_actual_tier_l2(self, gw):
@@ -840,12 +919,42 @@ class TestGatewayCore:
             assert event["budget"]["daily_budget_usd"] == 1.0
             assert event["budget"]["exhausted"] is True
             assert event["budget"]["remaining_usd"] == pytest.approx(0.0)
+            assert "llm_usage_snapshot" in event
 
             health_budget = gw.health()["budget"]
             summary_budget = gw.report_summary()["budget"]
             assert health_budget == summary_budget == event["budget"]
         finally:
             gw.event_bus.unsubscribe(sub_id)
+
+    def test_report_alerts_includes_shared_reporting_state(self):
+        gw = SupervisionGateway()
+        payload = gw.report_alerts()
+
+        assert payload["generated_at"]
+        assert payload["window_seconds"] is None
+        _assert_has_reporting_envelope(payload)
+
+    def test_report_alerts_clears_stale_budget_exhaustion_event_after_daily_reset(self):
+        gw = SupervisionGateway(detection_config=DetectionConfig(llm_daily_budget_usd=1.0))
+        gw.metrics.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=400_000,
+            output_tokens=0,
+        )
+
+        gw.budget_tracker._day_start = date(2000, 1, 1)
+
+        payload = gw.report_alerts()
+
+        assert payload["budget"]["daily_budget_usd"] == 1.0
+        assert payload["budget"]["daily_spend_usd"] == pytest.approx(0.0)
+        assert payload["budget"]["remaining_usd"] == pytest.approx(1.0)
+        assert payload["budget"]["exhausted"] is False
+        assert payload["budget_exhaustion_event"] is None
+        assert payload["llm_usage_snapshot"]["total_calls"] == 1
 
     @pytest.mark.asyncio
     async def test_l3_require_budget_exhaustion_is_reported_consistently(self):
@@ -1124,6 +1233,79 @@ class TestGatewayCore:
         assert replay["records"][0]["event"]["session_id"] == "sess-target"
 
     @pytest.mark.asyncio
+    async def test_replay_session_page_paginates_and_tracks_io(self, gw):
+        session_id = "sess-page-target"
+        for index in range(3):
+            await gw.handle_jsonrpc(_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id=f"req-page-{index}",
+                    event={
+                        "event_id": f"evt-page-{index}",
+                        "trace_id": f"trace-page-{index}",
+                        "event_type": "pre_action",
+                        "session_id": session_id,
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": f"2026-03-19T12:00:0{index}+00:00",
+                        "payload": {"tool": "read_file", "path": f"/tmp/{index}.txt"},
+                        "tool_name": "read_file",
+                    },
+                ),
+            ))
+
+        first_page = gw.replay_session_page(session_id, limit=2)
+        _assert_has_reporting_envelope(first_page)
+        assert first_page["session_id"] == session_id
+        assert first_page["window_seconds"] is None
+        assert first_page["record_count"] == 2
+        assert len(first_page["records"]) == 2
+        assert first_page["next_cursor"] == first_page["records"][0]["record_id"]
+        assert first_page["records"][0]["event"]["event_id"] == "evt-page-1"
+        assert first_page["records"][1]["event"]["event_id"] == "evt-page-2"
+        assert first_page["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 1
+        assert first_page["decision_path_io"]["reporting"]["replay_session_page"]["trajectory_query"]["calls"] == 1
+
+        second_page = gw.replay_session_page(session_id, limit=2, cursor=first_page["next_cursor"])
+        _assert_has_reporting_envelope(second_page)
+        assert second_page["session_id"] == session_id
+        assert second_page["record_count"] == 1
+        assert len(second_page["records"]) == 1
+        assert second_page["next_cursor"] is None
+        assert second_page["records"][0]["event"]["event_id"] == "evt-page-0"
+        assert second_page["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 2
+        assert second_page["decision_path_io"]["reporting"]["replay_session_page"]["trajectory_query"]["calls"] == 2
+
+    @pytest.mark.asyncio
+    async def test_replay_session_page_with_window_seconds(self, gw):
+        session_id = "sess-page-window-001"
+        body = _jsonrpc_request(
+            "ahp/sync_decision",
+            _sync_decision_params(
+                request_id="req-page-window-001",
+                event={
+                    "event_id": "evt-page-window-1",
+                    "trace_id": "trace-page-window-1",
+                    "event_type": "pre_action",
+                    "session_id": session_id,
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "occurred_at": "2026-03-19T12:00:00+00:00",
+                    "payload": {"tool": "read_file", "path": "/tmp/1.txt"},
+                    "tool_name": "read_file",
+                },
+            ),
+        )
+        await gw.handle_jsonrpc(body)
+
+        page = gw.replay_session_page(session_id, limit=1, window_seconds=60)
+        _assert_has_reporting_envelope(page)
+        assert page["window_seconds"] == 60
+        assert page["record_count"] == 1
+        assert page["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 1
+        assert page["decision_path_io"]["reporting"]["replay_session_page"]["trajectory_query"]["calls"] == 1
+
+    @pytest.mark.asyncio
     async def test_trajectory_persists_across_gateway_instances(self, tmp_path):
         db_path = tmp_path / "trajectory.db"
         gw1 = SupervisionGateway(trajectory_db_path=str(db_path))
@@ -1181,6 +1363,21 @@ class TestGatewayCore:
         summary = gw.report_summary(window_seconds=60)
         assert summary["total_records"] == 1
         assert summary["by_decision"]["block"] == 1
+
+    def test_trajectory_store_replay_session_page_tracks_query_timing(self, tmp_path):
+        from clawsentry.gateway.server import TrajectoryStore
+
+        store = TrajectoryStore(db_path=str(tmp_path / "test.db"))
+        store.record(
+            event={"session_id": "sess-page", "event_type": "pre_action"},
+            decision={"decision": "allow", "risk_level": "low"},
+            snapshot={"risk_level": "low"},
+            meta={"actual_tier": "L1"},
+        )
+        store.replay_session_page("sess-page")
+
+        metrics = store.io_metrics_snapshot()
+        assert metrics["replay_session_page"]["calls"] == 1
 
     @pytest.mark.asyncio
     async def test_report_summary_includes_actual_tier_distribution(self, gw):
@@ -1968,6 +2165,175 @@ class TestHttpTransport:
             assert data["record_count"] >= 1
             assert data["decision_path_io"]["record_path"]["calls"] == 1
             assert data["decision_path_io"]["reporting"]["replay_session"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_endpoint_contract(self, app):
+        transport = ASGITransport(app=app)
+        session_id = "sess-replay-page-http"
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for index in range(3):
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-replay-page-http-{index}",
+                        event={
+                            "event_id": f"evt-replay-page-http-{index}",
+                            "trace_id": f"trace-replay-page-http-{index}",
+                            "event_type": "pre_action",
+                            "session_id": session_id,
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": f"2026-03-21T12:00:0{index}+00:00",
+                            "payload": {"tool": "read_file", "path": f"/tmp/{index}.txt"},
+                            "tool_name": "read_file",
+                        },
+                    ),
+                ))
+
+            resp = await client.get(f"/report/session/{session_id}/page", params={"limit": 2})
+            assert resp.status_code == 200
+            data = resp.json()
+            _assert_has_reporting_envelope(data)
+            assert data["session_id"] == session_id
+            assert data["window_seconds"] is None
+            assert data["record_count"] == 2
+            assert len(data["records"]) == 2
+            assert data["next_cursor"] == data["records"][0]["record_id"]
+            assert data["records"][0]["event"]["event_id"] == "evt-replay-page-http-1"
+            assert data["records"][1]["event"]["event_id"] == "evt-replay-page-http-2"
+            assert data["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 1
+            assert data["decision_path_io"]["reporting"]["replay_session_page"]["trajectory_query"]["calls"] == 1
+
+            resp = await client.get(
+                f"/report/session/{session_id}/page",
+                params={"limit": 2, "cursor": data["next_cursor"]},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["record_count"] == 1
+            assert len(data["records"]) == 1
+            assert data["next_cursor"] is None
+            assert data["records"][0]["event"]["event_id"] == "evt-replay-page-http-0"
+            assert data["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 2
+            assert data["decision_path_io"]["reporting"]["replay_session_page"]["trajectory_query"]["calls"] == 2
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_rejects_non_positive_cursor(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/report/session/sess-replay-page-invalid/page", params={"cursor": 0})
+            assert resp.status_code == 400
+            assert "cursor" in resp.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_window_validation(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get(
+                "/report/session/sess-replay-page-window/page",
+                params={"window_seconds": -1},
+            )
+            assert resp.status_code == 400
+            assert "window_seconds" in resp.json()["error"]
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_window_seconds_are_preserved(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            session_id = "sess-replay-page-window-http"
+            for index in range(2):
+                body = _jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-replay-page-window-http-{index}",
+                        event={
+                            "event_id": f"evt-replay-page-window-http-{index}",
+                            "trace_id": f"trace-replay-page-window-http-{index}",
+                            "event_type": "pre_action",
+                            "session_id": session_id,
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": f"2026-03-21T12:00:0{index}+00:00",
+                            "payload": {"tool": "read_file", "path": f"/tmp/{index}.txt"},
+                            "tool_name": "read_file",
+                        },
+                    ),
+                )
+                await client.post("/ahp", content=body)
+
+            resp = await client.get(
+                f"/report/session/{session_id}/page",
+                params={"limit": 2, "window_seconds": 300},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            _assert_has_reporting_envelope(data)
+            assert data["window_seconds"] == 300
+            assert data["record_count"] == 2
+            assert data["decision_path_io"]["reporting"]["replay_session_page"]["calls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_limit_floor_at_1(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            session_id = "sess-replay-page-floor-http"
+            for index in range(2):
+                body = _jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-replay-page-floor-http-{index}",
+                        event={
+                            "event_id": f"evt-replay-page-floor-http-{index}",
+                            "trace_id": f"trace-replay-page-floor-http-{index}",
+                            "event_type": "pre_action",
+                            "session_id": session_id,
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": f"2026-03-21T12:00:0{index}+00:00",
+                            "payload": {"tool": "read_file", "path": f"/tmp/{index}.txt"},
+                            "tool_name": "read_file",
+                        },
+                    ),
+                )
+                await client.post("/ahp", content=body)
+
+            resp = await client.get(f"/report/session/{session_id}/page", params={"limit": 0})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["record_count"] == 1
+            assert len(data["records"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_http_report_session_page_limit_capped_at_500(self, monkeypatch):
+        monkeypatch.setenv("CS_RATE_LIMIT_PER_MINUTE", "0")
+        transport = ASGITransport(app=create_http_app(SupervisionGateway()))
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            session_id = "sess-replay-page-cap-http"
+            for index in range(501):
+                body = _jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-replay-page-cap-http-{index}",
+                        event={
+                            "event_id": f"evt-replay-page-cap-http-{index}",
+                            "trace_id": f"trace-replay-page-cap-http-{index}",
+                            "event_type": "pre_action",
+                            "session_id": session_id,
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": f"2026-03-21T12:00:{index % 60:02d}+00:00",
+                            "payload": {"tool": "read_file", "path": f"/tmp/{index}.txt"},
+                            "tool_name": "read_file",
+                        },
+                    ),
+                )
+                await client.post("/ahp", content=body)
+
+            resp = await client.get(f"/report/session/{session_id}/page", params={"limit": 9999})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["record_count"] == 500
+            assert len(data["records"]) == 500
 
 
 # ===========================================================================
@@ -3434,6 +3800,10 @@ class TestCS012RecordBeforeDeadline:
                         }
                     ],
                     "trajectory_records": 1,
+                    "toolkit_budget_mode": "multi_turn",
+                    "toolkit_budget_cap": 5,
+                    "toolkit_calls_remaining": 0,
+                    "toolkit_budget_exhausted": True,
                 },
             },
         )
@@ -3457,6 +3827,10 @@ class TestCS012RecordBeforeDeadline:
             assert decision_evt["evidence_summary"] == {
                 "retained_sources": ["trajectory", "file"],
                 "tool_calls_count": 1,
+                "toolkit_budget_mode": "multi_turn",
+                "toolkit_budget_cap": 5,
+                "toolkit_calls_remaining": 0,
+                "toolkit_budget_exhausted": True,
             }
             assert "tool_calls" not in decision_evt["evidence_summary"]
         finally:

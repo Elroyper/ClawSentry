@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-04-15
+
+### 改进
+
+- **Enterprise OS 兼容 reporting facade** — 新增独立的 `enterprise/*` 查询接口层，在不侵入原有判决链和现有 WebUI 的前提下，对外提供企业安全中台可直接消费的健康状态、总体摘要、实时风险概览、会话列表、单会话风险时间线、回放、告警与 SSE 实时流。
+- **TrinityGuard 风险映射与实时聚合** — 企业接口返回的 payload 现在附带 TrinityGuard 三层风险分类（tier / subtype），并补充实时风险总量、按风险等级分布、按 TrinityGuard 大类/小类分布等聚合信息，便于企业侧快速搭建定制看板。
+- **统一 LLM 配置与 enterprise fallback** — L2、L3 与 enterprise 语义 fallback 现在共用同一套 `CS_LLM_*` 配置解析逻辑，并兼容旧 provider key；当规则映射无法覆盖企业分类时，enterprise 兼容层会按统一配置走 LLM 语义判断并安全降级到 `unmapped`。
+
+### 文档
+
+- **企业 UI 对接材料补充到开发仓库** — 新增面向企业 UI 会议的说明材料，重点从“能提供什么信息、通过哪些接口获取、当前 WebUI 承载哪些信息结构、企业版额外多了什么”四个角度整理对接内容。
+- **公开版本口径同步到 `v0.4.5`** — 开发仓库导航、GitHub README、包内 README、在线安装页、首页和 changelog 已统一更新到当前发布版本与测试基线。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2883 passed, 3 skipped`
+- Focused enterprise / LLM 配置回归：`40 passed`
+- Reporting regression subset：`18 passed, 123 deselected`
+- `mkdocs build --strict`：PASS
+
 ## [0.4.4] — 2026-04-15
 
 ### 改进
@@ -787,6 +807,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.5
 [0.4.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.3
 [0.4.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.1

@@ -3,12 +3,15 @@ LLM Analyzer factory — builds SemanticAnalyzer from environment variables.
 
 Environment variables:
   CS_LLM_PROVIDER     = "anthropic" | "openai" | "" (default: rule-based only)
-  ANTHROPIC_API_KEY    = API key for Anthropic provider
-  OPENAI_API_KEY       = API key for OpenAI-compatible provider
+  CS_LLM_API_KEY      = shared API key for all LLM-backed features
+  ANTHROPIC_API_KEY   = legacy API key for Anthropic provider
+  OPENAI_API_KEY      = legacy API key for OpenAI-compatible provider
   CS_LLM_MODEL        = override default model name
   CS_LLM_BASE_URL     = OpenAI-compatible base URL (e.g. kimi-k2.5 endpoint)
   CS_L3_ENABLED       = "true" to enable AgentAnalyzer (L3 review agent)
+  CS_LLM_L3_ENABLED   = alias for CS_L3_ENABLED
   CS_L3_MULTI_TURN    = "false" to force MVP single-turn mode when L3 is enabled
+  CS_ENTERPRISE_ENABLED = enterprise compatibility feature flag
 """
 
 from __future__ import annotations
@@ -19,16 +22,30 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .llm_provider import AnthropicProvider, InstrumentedProvider, LLMProviderConfig, OpenAIProvider
+from .llm_settings import LLMSettings, resolve_llm_settings
 from .semantic_analyzer import CompositeAnalyzer, LLMAnalyzer, RuleBasedAnalyzer
 
 logger = logging.getLogger("ahp.llm-factory")
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None or not str(raw).strip():
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Backward-compatible helper retained for CLI/runtime imports."""
+    raw = str(os.getenv(name, "")).strip()
+    if not raw:
         return default
-    return str(raw).strip().lower() in ("true", "1", "yes", "on")
+    return raw.lower() in ("true", "1", "yes", "on")
+
+
+def _build_provider(settings: LLMSettings) -> AnthropicProvider | OpenAIProvider:
+    config_kwargs = {
+        "api_key": settings.api_key,
+        "model": settings.model,
+    }
+    if settings.provider == "anthropic":
+        return AnthropicProvider(LLMProviderConfig(**config_kwargs))
+    if settings.provider == "openai":
+        return OpenAIProvider(LLMProviderConfig(base_url=settings.base_url, **config_kwargs))
+    raise ValueError(f"Unsupported LLM provider: {settings.provider!r}")
 
 
 def build_analyzer_from_env(
@@ -52,39 +69,20 @@ def build_analyzer_from_env(
         trajectory_store: TrajectoryStore instance for L3 ReadOnlyToolkit.
         workspace_root: Workspace root path for L3 ReadOnlyToolkit.
     """
-    provider_name = os.getenv("CS_LLM_PROVIDER", "").strip().lower()
-    if not provider_name:
+    settings = resolve_llm_settings()
+    if settings is None:
         return None
 
-    model = os.getenv("CS_LLM_MODEL", "").strip() or ""
-    base_url = os.getenv("CS_LLM_BASE_URL", "").strip() or None
-
-    if provider_name == "anthropic":
-        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        if not api_key:
-            logger.warning("CS_LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is empty; falling back to rule-based")
-            return None
-        config = LLMProviderConfig(api_key=api_key, model=model)
-        provider = AnthropicProvider(config)
-
-    elif provider_name == "openai":
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
-        if not api_key:
-            logger.warning("CS_LLM_PROVIDER=openai but OPENAI_API_KEY is empty; falling back to rule-based")
-            return None
-        config = LLMProviderConfig(api_key=api_key, model=model, base_url=base_url)
-        provider = OpenAIProvider(config)
-
-    else:
-        logger.warning("Unknown CS_LLM_PROVIDER=%r; falling back to rule-based", provider_name)
-        return None
+    provider = _build_provider(settings)
 
     logger.info(
         "LLM provider configured: %s (model=%s, base_url=%s)",
-        provider_name,
-        model or "(default)",
-        base_url or "(default)",
+        settings.provider,
+        settings.model or "(default)",
+        settings.base_url or "(default)",
     )
+    if settings.enterprise_enabled:
+        logger.info("Enterprise LLM compatibility flag enabled")
 
     # Wrap L2 provider with instrumentation when metrics collector is provided.
     l2_provider = InstrumentedProvider(provider, metrics, tier="L2") if metrics is not None else provider
@@ -95,8 +93,7 @@ def build_analyzer_from_env(
     ]
     l2_composite = CompositeAnalyzer(l2_analyzers)
 
-    l3_enabled = _env_bool("CS_L3_ENABLED", False)
-    if l3_enabled:
+    if settings.l3_enabled:
         try:
             from .agent_analyzer import AgentAnalyzer
             from .review_toolkit import ReadOnlyToolkit
@@ -113,7 +110,9 @@ def build_analyzer_from_env(
                     loaded = skill_registry.load_additional(custom_path)
                     logger.info("Custom skills loaded from %s (%d skills)", custom_path, loaded)
             from .agent_analyzer import AgentAnalyzerConfig
-            enable_multi_turn = _env_bool("CS_L3_MULTI_TURN", True)
+            enable_multi_turn = str(os.getenv("CS_L3_MULTI_TURN", "").strip()).lower() in ("true", "1", "yes", "on")
+            if not str(os.getenv("CS_L3_MULTI_TURN", "")).strip():
+                enable_multi_turn = True
             agent_config = AgentAnalyzerConfig(
                 l3_budget_ms=l3_budget_ms,
                 enable_multi_turn=enable_multi_turn,

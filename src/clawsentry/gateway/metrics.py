@@ -470,6 +470,8 @@ class LLMBudgetTracker:
 
     def record_spend(self, cost_usd: float) -> bool:
         """Record spend.  Returns ``True`` if budget NEWLY exhausted (first time only)."""
+        if cost_usd < 0:
+            raise ValueError(f"cost_usd must be >= 0, got {cost_usd}")
         if self._budget <= 0:
             return False
         with self._lock:

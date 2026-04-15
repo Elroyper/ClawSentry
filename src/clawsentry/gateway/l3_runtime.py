@@ -22,6 +22,9 @@ class L3ReasonCode(str, enum.Enum):
     HARD_CAP_EXCEEDED = "hard_cap_exceeded"
     LLM_CALL_FAILED = "llm_call_failed"
     MAX_TURNS_EXCEEDED = "max_turns_exceeded"
+    LLM_RESPONSE_PARSE_FAILED = "llm_response_parse_failed"
+    LLM_RESPONSE_UNRESOLVABLE_RISK_LEVEL = "llm_response_unresolvable_risk_level"
+    FORMAT_RETRY_FAILED = "format_retry_failed"
     ANALYSIS_EXCEPTION = "analysis_exception"
     REQUESTED_NON_WHITELISTED_TOOL = "requested_non_whitelisted_tool"
     TOOL_CALL_BUDGET_EXHAUSTED = "tool_call_budget_exhausted"
@@ -48,6 +51,12 @@ def infer_l3_reason_code(
         return L3ReasonCode.LLM_CALL_FAILED.value
     if "max reasoning turns exceeded" in normalized:
         return L3ReasonCode.MAX_TURNS_EXCEEDED.value
+    if "format retry failed" in normalized:
+        return L3ReasonCode.FORMAT_RETRY_FAILED.value
+    if "response parse failed" in normalized:
+        return L3ReasonCode.LLM_RESPONSE_PARSE_FAILED.value
+    if "unresolvable risk level" in normalized:
+        return L3ReasonCode.LLM_RESPONSE_UNRESOLVABLE_RISK_LEVEL.value
     if "requested non-whitelisted tool" in normalized:
         return L3ReasonCode.REQUESTED_NON_WHITELISTED_TOOL.value
     if "tool call budget exhausted" in normalized:
@@ -82,10 +91,12 @@ def build_l3_runtime_info(
     reason = l3_reason
 
     trace_reason = ""
+    trace_reason_code: str | None = None
     trigger_reason = ""
     degraded = False
     if isinstance(l3_trace, dict):
         trace_reason = str(l3_trace.get("degradation_reason") or "").strip()
+        trace_reason_code = str(l3_trace.get("l3_reason_code") or "").strip() or None
         trigger_reason = str(l3_trace.get("trigger_reason") or "").strip()
         degraded = bool(l3_trace.get("degraded"))
 
@@ -103,7 +114,7 @@ def build_l3_runtime_info(
     elif l3_available:
         state = L3RunState.ENABLED.value
 
-    reason_code = l3_reason_code or infer_l3_reason_code(
+    reason_code = l3_reason_code or trace_reason_code or infer_l3_reason_code(
         state=state,
         reason=reason,
         trigger_reason=trigger_reason,

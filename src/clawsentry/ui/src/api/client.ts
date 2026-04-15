@@ -2,8 +2,9 @@ import type {
   HealthResponse,
   SummaryResponse,
   SessionSummary,
-  SessionRisk,
-  TrajectoryRecord,
+  SessionRiskResponse,
+  SessionReplayPageResponse,
+  SessionReplayResponse,
   Alert,
 } from './types'
 
@@ -73,12 +74,30 @@ export const api = {
     const result = await apiFetch<{ sessions: SessionSummary[] }>(`/report/sessions?${qs}`)
     return result.sessions ?? []
   },
-  sessionRisk: (id: string) => apiFetch<SessionRisk>(`/report/session/${id}/risk`),
-  sessionReplay: async (id: string, limit?: number) => {
-    const result = await apiFetch<{ records: TrajectoryRecord[] }>(
-      `/report/session/${id}${limit ? `?limit=${limit}` : ''}`,
+  sessionRisk: (id: string, params?: { windowSeconds?: number | null }) => {
+    const qs = new URLSearchParams()
+    if (params?.windowSeconds !== undefined && params?.windowSeconds !== null) {
+      qs.set('window_seconds', String(params.windowSeconds))
+    }
+    return apiFetch<SessionRiskResponse>(
+      `/report/session/${id}/risk${qs.toString() ? `?${qs.toString()}` : ''}`,
     )
-    return result.records ?? []
+  },
+  sessionReplay: (id: string, limit?: number): Promise<SessionReplayResponse> =>
+    apiFetch<SessionReplayResponse>(`/report/session/${id}${limit ? `?limit=${limit}` : ''}`),
+  sessionReplayPage: (
+    id: string,
+    params?: { limit?: number; cursor?: number; windowSeconds?: number | null },
+  ): Promise<SessionReplayPageResponse> => {
+    const qs = new URLSearchParams()
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.cursor !== undefined) qs.set('cursor', String(params.cursor))
+    if (params?.windowSeconds !== undefined && params?.windowSeconds !== null) {
+      qs.set('window_seconds', String(params.windowSeconds))
+    }
+    return apiFetch<SessionReplayPageResponse>(
+      `/report/session/${id}/page${qs.toString() ? `?${qs.toString()}` : ''}`,
+    )
   },
   alerts: async (params?: { severity?: string; acknowledged?: boolean; limit?: number }) => {
     const qs = new URLSearchParams()

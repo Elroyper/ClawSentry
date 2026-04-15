@@ -135,6 +135,23 @@ class TestAuthEnabled:
             assert resp.status_code == 200
 
     @pytest.mark.asyncio
+    async def test_report_session_page_without_token_returns_401(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get("/report/session/sess-001/page")
+            assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_report_session_page_with_valid_token_returns_200(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.get(
+                "/report/session/sess-001/page",
+                headers={"Authorization": f"Bearer {SECRET}"},
+            )
+            assert resp.status_code == 200
+
+    @pytest.mark.asyncio
     async def test_report_sessions_without_token_returns_401(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as c:

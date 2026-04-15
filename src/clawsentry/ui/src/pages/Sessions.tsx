@@ -11,6 +11,7 @@ import {
   formatRelativeTime,
   groupSessions,
 } from '../lib/sessionGroups'
+import { formatSessionL3Annotation } from '../lib/sessionL3Annotations'
 
 const VERDICT_COLORS: Record<string, string> = {
   allow: '#32c48d',
@@ -59,6 +60,7 @@ export default function Sessions() {
   const [minRisk, setMinRisk] = useState('')
   const [framework, setFramework] = useState('')
   const [query, setQuery] = useState('')
+  const [budgetExhaustedOnly, setBudgetExhaustedOnly] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -104,6 +106,7 @@ export default function Sessions() {
   const frameworks = Array.from(new Set(sessions.map(session => session.source_framework))).sort()
   const filteredSessions = sessions.filter(session => {
     if (framework && session.source_framework !== framework) return false
+    if (budgetExhaustedOnly && session.evidence_summary?.toolkit_budget_exhausted !== true) return false
     if (!deferredQuery) return true
     const haystack = [
       session.session_id,
@@ -152,6 +155,14 @@ export default function Sessions() {
             <option value="high">High+</option>
             <option value="critical">Critical Only</option>
           </select>
+          <button
+            type="button"
+            className={`btn ${budgetExhaustedOnly ? 'btn-primary' : ''}`}
+            onClick={() => setBudgetExhaustedOnly(value => !value)}
+            aria-pressed={budgetExhaustedOnly}
+          >
+            Budget exhausted only
+          </button>
           <button className="btn" onClick={() => setRefreshNonce(value => value + 1)} disabled={loading}>
             <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
             Refresh
@@ -230,13 +241,15 @@ export default function Sessions() {
                   </div>
 
                   <div className="session-card-stack">
-                    {workspace.sessions.map(session => (
-                      <Link
-                        key={session.session_id}
-                        to={`/sessions/${session.session_id}`}
-                        className="session-card-row"
-                      >
-                        <div className="session-card-main">
+                    {workspace.sessions.map(session => {
+                      const sessionL3Annotation = formatSessionL3Annotation(session)
+                      return (
+                        <Link
+                          key={session.session_id}
+                          to={`/sessions/${session.session_id}`}
+                          className="session-card-row"
+                        >
+                          <div className="session-card-main">
                           <div className="session-card-head">
                             <span className="mono session-card-id">{session.session_id}</span>
                             <RiskBadge level={session.current_risk_level} />
@@ -244,20 +257,26 @@ export default function Sessions() {
                           <p className="session-card-meta">
                             {session.agent_id || 'unknown agent'} · {session.caller_adapter}
                           </p>
+                          {sessionL3Annotation && (
+                            <p className="session-card-meta mono" style={{ fontSize: '0.72rem' }}>
+                              {sessionL3Annotation}
+                            </p>
+                          )}
                           <VerdictBar dist={session.decision_distribution} />
-                        </div>
-                        <div className="session-card-side">
-                          <ScoreBar score={session.cumulative_score} />
-                          <div className="session-card-statline">
-                            <span>{session.event_count} events</span>
-                            <span>{session.high_risk_event_count} high-risk</span>
                           </div>
-                          <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
-                            {formatRelativeTime(session.last_event_at)}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
+                          <div className="session-card-side">
+                            <ScoreBar score={session.cumulative_score} />
+                            <div className="session-card-statline">
+                              <span>{session.event_count} events</span>
+                              <span>{session.high_risk_event_count} high-risk</span>
+                            </div>
+                            <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
+                              {formatRelativeTime(session.last_event_at)}
+                            </span>
+                          </div>
+                        </Link>
+                      )
+                    })}
                   </div>
                 </article>
               ))}

@@ -20,13 +20,7 @@ export interface LLMUsageSnapshot {
   by_status: Record<string, LLMUsageBucket>
 }
 
-export interface HealthResponse {
-  status: string
-  uptime_seconds: number
-  cache_size: number
-  trajectory_count: number
-  policy_engine: string
-  auth_enabled: boolean
+export interface ReportingEnvelope {
   budget: HealthBudgetSnapshot
   budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
   llm_usage_snapshot?: LLMUsageSnapshot | null
@@ -39,7 +33,16 @@ export interface HealthBudgetSnapshot {
   exhausted: boolean
 }
 
-export interface SummaryResponse {
+export interface HealthResponse extends ReportingEnvelope {
+  status: string
+  uptime_seconds: number
+  cache_size: number
+  trajectory_count: number
+  policy_engine: string
+  auth_enabled: boolean
+}
+
+export interface SummaryResponse extends ReportingEnvelope {
   total_records: number
   by_source_framework: Record<string, number>
   by_event_type: Record<string, number>
@@ -49,8 +52,6 @@ export interface SummaryResponse {
   by_caller_adapter: Record<string, number>
   generated_at: string
   window_seconds: number | null
-  budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
-  llm_usage_snapshot?: LLMUsageSnapshot | null
 }
 
 export interface SessionSummary {
@@ -67,6 +68,10 @@ export interface SessionSummary {
   decision_distribution: Record<string, number>
   first_event_at: string
   last_event_at: string
+  l3_state?: string
+  l3_reason?: string
+  l3_reason_code?: string
+  evidence_summary?: L3EvidenceSummary | null
 }
 
 export interface SessionRisk {
@@ -83,6 +88,10 @@ export interface SessionRisk {
   high_risk_event_count: number
   first_event_at: string
   last_event_at: string
+  l3_state?: string
+  l3_reason?: string
+  l3_reason_code?: string
+  evidence_summary?: L3EvidenceSummary | null
   risk_timeline: Array<{
     event_id: string
     occurred_at: string
@@ -93,6 +102,7 @@ export interface SessionRisk {
     actual_tier: DecisionTier
     classified_by: DecisionTier
     l3_reason_code?: string
+    evidence_summary?: L3EvidenceSummary | null
   }>
   risk_hints_seen: string[]
   tools_used: string[]
@@ -102,6 +112,10 @@ export interface SessionRisk {
 export interface L3EvidenceSummary {
   retained_sources?: string[]
   tool_calls_count?: number
+  toolkit_budget_mode?: string
+  toolkit_budget_cap?: number
+  toolkit_calls_remaining?: number
+  toolkit_budget_exhausted?: boolean
 }
 
 export interface TrajectoryRecord {
@@ -145,6 +159,28 @@ export interface Alert {
   acknowledged: boolean
   acknowledged_by: string | null
   acknowledged_at: string | null
+}
+
+export interface SessionRiskResponse extends ReportingEnvelope, SessionRisk {
+  generated_at: string
+  window_seconds: number | null
+}
+
+export interface SessionReplayResponse extends ReportingEnvelope {
+  session_id: string
+  record_count: number
+  records: TrajectoryRecord[]
+  generated_at: string
+  window_seconds: number | null
+}
+
+export interface SessionReplayPageResponse extends ReportingEnvelope {
+  session_id: string
+  record_count: number
+  records: TrajectoryRecord[]
+  next_cursor: number | null
+  generated_at: string
+  window_seconds: number | null
 }
 
 export interface SSEDecisionEvent {

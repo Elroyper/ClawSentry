@@ -50,6 +50,11 @@ class TestBudgetTrackerUnlimited:
         assert bt.can_spend() is True
         assert bt.record_spend(999.0) is False
 
+    def test_negative_spend_rejected_even_when_unlimited(self):
+        bt = LLMBudgetTracker(daily_budget_usd=0.0)
+        with pytest.raises(ValueError, match="cost_usd must be >= 0"):
+            bt.record_spend(-1.0)
+
 
 # ---------------------------------------------------------------------------
 # LLMBudgetTracker — limited mode
@@ -89,6 +94,11 @@ class TestBudgetTrackerLimited:
         assert bt.record_spend(2.0) is True  # way over
         assert bt.record_spend(1.0) is False  # already notified
         assert bt.can_spend() is False
+
+    def test_negative_spend_rejected(self):
+        bt = LLMBudgetTracker(daily_budget_usd=1.0)
+        with pytest.raises(ValueError, match="cost_usd must be >= 0"):
+            bt.record_spend(-0.1)
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +334,36 @@ class TestGatewayBudgetAccountingIntegration:
             assert event["type"] == "budget_exhausted"
             assert event["budget"]["exhausted"] is True
             assert event["budget"]["daily_spend_usd"] == pytest.approx(1.0)
+
+    def test_reporting_surfaces_clear_stale_exhaustion_event_after_daily_reset(self):
+        cfg = DetectionConfig(llm_daily_budget_usd=1.0)
+        gw = SupervisionGateway(detection_config=cfg)
+
+        gw.metrics.record_llm_call(
+            provider="openai",
+            tier="L2",
+            status="ok",
+            input_tokens=400_000,
+            output_tokens=0,
+        )
+
+        gw.budget_tracker._day_start = date(2000, 1, 1)
+
+        for payload in (
+            gw.health(),
+            gw.report_summary(),
+            gw.report_sessions(),
+            gw.report_session_risk("missing-session"),
+            gw.replay_session("missing-session"),
+        ):
+            budget = payload["budget"]
+            assert budget["daily_budget_usd"] == 1.0
+            assert budget["daily_spend_usd"] == pytest.approx(0.0)
+            assert budget["remaining_usd"] == pytest.approx(1.0)
+            assert budget["exhausted"] is False
+            assert payload["budget_exhaustion_event"] is None
+
+        assert gw.health()["llm_usage_snapshot"]["total_calls"] == 1
 
     def test_reporting_surfaces_expose_budget_fields_without_exhaustion(self):
         gw = SupervisionGateway()

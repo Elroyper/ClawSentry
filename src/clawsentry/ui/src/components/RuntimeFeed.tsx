@@ -8,6 +8,7 @@ import type {
   RuntimeEventType,
   SSERuntimeEvent,
 } from '../api/types'
+import { formatL3EvidenceSummary } from '../lib/l3EvidenceSummary'
 
 const RUNTIME_EVENT_TYPES: RuntimeEventType[] = [
   'decision',
@@ -197,25 +198,6 @@ function PatternBadge({ patternId }: { patternId: string }) {
       {patternId}
     </span>
   )
-}
-
-function formatL3EvidenceSummary(summary?: {
-  retained_sources?: string[]
-  tool_calls_count?: number
-} | null) {
-  if (!summary) return null
-
-  const parts: string[] = []
-
-  if (summary.retained_sources?.length) {
-    parts.push(summary.retained_sources.filter(Boolean).join(', '))
-  }
-
-  if (typeof summary.tool_calls_count === 'number') {
-    parts.push(`${summary.tool_calls_count} tool call(s)`)
-  }
-
-  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {

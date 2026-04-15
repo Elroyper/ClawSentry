@@ -4,7 +4,14 @@ import { ArrowLeft, FolderTree, ScrollText, ShieldAlert } from 'lucide-react'
 import { api } from '../api/client'
 import { DecisionBadge, RiskBadge } from '../components/badges'
 import SkeletonCard from '../components/SkeletonCard'
-import type { SessionRisk, TrajectoryRecord } from '../api/types'
+import type {
+  HealthBudgetSnapshot,
+  SSEBudgetExhaustedEvent,
+  SessionReplayPageResponse,
+  SessionRisk,
+  SessionRiskResponse,
+  TrajectoryRecord,
+} from '../api/types'
 import {
   Area,
   AreaChart,
@@ -20,6 +27,12 @@ import {
   YAxis,
 } from 'recharts'
 import { formatRelativeTime, workspaceLabel } from '../lib/sessionGroups'
+import { formatL3EvidenceSummary } from '../lib/l3EvidenceSummary'
+
+type ReportingEnvelope = {
+  budget?: HealthBudgetSnapshot | null
+  budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
+}
 
 const DIMENSION_LABELS: Record<string, string> = {
   d1: 'Tool risk',
@@ -38,6 +51,12 @@ const TOOLTIP_STYLE = {
   boxShadow: '0 18px 40px rgba(3, 11, 25, 0.34)',
 }
 
+const RECENT_WINDOW_SECONDS = 60 * 60
+const WINDOW_OPTIONS: Array<{ label: string; value: number | null }> = [
+  { label: 'All', value: null },
+  { label: 'Recent 1h', value: RECENT_WINDOW_SECONDS },
+]
+
 function classifyHint(hint: string): string {
   const normalized = hint.toLowerCase()
   if (normalized.includes('shell') || normalized.includes('command')) return 'shell'
@@ -51,6 +70,15 @@ function HintTag({ hint }: { hint: string }) {
   return <span className={`hint-tag hint-tag-${classifyHint(hint)}`}>{hint}</span>
 }
 
+function formatUsd(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
 function TierBadge({ tier }: { tier: string }) {
   const normalized = tier.toUpperCase()
   const className = normalized === 'L3' ? 'badge-tier-l3' : normalized === 'L2' ? 'badge-tier-l2' : 'badge-tier-l1'
@@ -62,23 +90,104 @@ function TimelineLatency({ ms }: { ms: number }) {
   return <span className={`latency-badge ${className}`}>{ms}ms</span>
 }
 
+function normalizeSessionRisk(result: SessionRisk | SessionRiskResponse): {
+  risk: SessionRisk
+  reporting: ReportingEnvelope
+} {
+  const response = result as SessionRiskResponse
+  return {
+    risk: response,
+    reporting: {
+      budget: response.budget ?? null,
+      budget_exhaustion_event: response.budget_exhaustion_event ?? null,
+    },
+  }
+}
+
+function normalizeSessionReplayPage(result: SessionReplayPageResponse): {
+  records: TrajectoryRecord[]
+  nextCursor: number | null
+  reporting: ReportingEnvelope
+} {
+  return {
+    records: Array.isArray(result.records) ? result.records : [],
+    nextCursor: result.next_cursor ?? null,
+    reporting: {
+      budget: result.budget ?? null,
+      budget_exhaustion_event: result.budget_exhaustion_event ?? null,
+    },
+  }
+}
+
 export default function SessionDetail() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const [risk, setRisk] = useState<SessionRisk | null>(null)
   const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([])
+  const [replayNextCursor, setReplayNextCursor] = useState<number | null>(null)
+  const [replayLoadingMore, setReplayLoadingMore] = useState(false)
+  const [replayLoadMoreError, setReplayLoadMoreError] = useState<string | null>(null)
+  const [budget, setBudget] = useState<HealthBudgetSnapshot | null>(null)
+  const [budgetExhaustionEvent, setBudgetExhaustionEvent] = useState<SSEBudgetExhaustedEvent | null>(null)
+  const [initialLoadError, setInitialLoadError] = useState<string | null>(null)
+  const [reloadNonce, setReloadNonce] = useState(0)
+  const [sessionWindowSeconds, setSessionWindowSeconds] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!sessionId) return
     setLoading(true)
-    Promise.all([api.sessionRisk(sessionId), api.sessionReplay(sessionId)])
+    setInitialLoadError(null)
+    setRisk(null)
+    setTrajectory([])
+    setReplayNextCursor(null)
+    setReplayLoadMoreError(null)
+    setBudget(null)
+    setBudgetExhaustionEvent(null)
+    Promise.all([
+      api.sessionRisk(sessionId, { windowSeconds: sessionWindowSeconds }),
+      api.sessionReplayPage(sessionId, { windowSeconds: sessionWindowSeconds }),
+    ])
       .then(([riskResult, trajectoryResult]) => {
-        setRisk(riskResult)
-        setTrajectory(trajectoryResult)
+        const normalizedRisk = normalizeSessionRisk(riskResult)
+        const normalizedReplay = normalizeSessionReplayPage(trajectoryResult)
+
+        setRisk(normalizedRisk.risk)
+        setTrajectory(normalizedReplay.records)
+        setReplayNextCursor(normalizedReplay.nextCursor)
+        setBudget(normalizedRisk.reporting.budget ?? normalizedReplay.reporting.budget ?? null)
+        setBudgetExhaustionEvent(
+          normalizedRisk.reporting.budget_exhaustion_event
+          ?? normalizedReplay.reporting.budget_exhaustion_event
+          ?? null,
+        )
       })
-      .catch(() => {})
+      .catch(() => {
+        setInitialLoadError('Could not load session detail. Try again.')
+      })
       .finally(() => setLoading(false))
-  }, [sessionId])
+  }, [reloadNonce, sessionId, sessionWindowSeconds])
+
+  async function loadMoreReplayRecords() {
+    if (!sessionId || replayLoadingMore || replayNextCursor === null) return
+
+    setReplayLoadingMore(true)
+    setReplayLoadMoreError(null)
+    try {
+      const replayResult = await api.sessionReplayPage(sessionId, {
+        cursor: replayNextCursor,
+        windowSeconds: sessionWindowSeconds,
+      })
+      const normalizedReplay = normalizeSessionReplayPage(replayResult)
+      setTrajectory(prev => [...prev, ...normalizedReplay.records])
+      setReplayNextCursor(normalizedReplay.nextCursor)
+      setBudget(prev => prev ?? normalizedReplay.reporting.budget ?? null)
+      setBudgetExhaustionEvent(prev => prev ?? normalizedReplay.reporting.budget_exhaustion_event ?? null)
+    } catch {
+      setReplayLoadMoreError('Could not load older replay records. Try again.')
+    } finally {
+      setReplayLoadingMore(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -88,6 +197,35 @@ export default function SessionDetail() {
           {[0, 1, 2].map(index => <SkeletonCard key={index} rows={4} height={220} />)}
         </div>
         <SkeletonCard rows={8} height={320} />
+      </div>
+    )
+  }
+
+  if (initialLoadError) {
+    return (
+      <div className="session-detail-shell">
+        <Link to="/sessions" className="back-link">
+          <ArrowLeft size={13} />
+          Back to session inventory
+        </Link>
+        <section className="card section-card" role="alert" style={{ marginTop: 20 }}>
+          <div className="section-card-header">
+            <div>
+              <p className="section-kicker">Session detail</p>
+              <h2>Unable to load session data</h2>
+            </div>
+          </div>
+          <p className="priority-session-meta" style={{ marginBottom: 16 }}>
+            {initialLoadError}
+          </p>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setReloadNonce(value => value + 1)}
+          >
+            Retry
+          </button>
+        </section>
       </div>
     )
   }
@@ -104,6 +242,7 @@ export default function SessionDetail() {
     time: new Date(item.occurred_at).toLocaleTimeString(),
     score: Number(item.composite_score.toFixed(3)),
   })) ?? []
+  const showBudgetWarning = Boolean(budget?.exhausted || budgetExhaustionEvent)
 
   return (
     <div className="session-detail-shell">
@@ -232,6 +371,56 @@ export default function SessionDetail() {
             </div>
           </div>
         </section>
+
+        {budget && (
+          <section className="card section-card">
+            <div className="section-card-header">
+              <div>
+                <p className="section-kicker">Budget</p>
+                <h2>Budget governance</h2>
+              </div>
+            </div>
+            <div className="detail-meta-list">
+              <div className="detail-meta-item">
+                <div>
+                  <span>Daily budget</span>
+                  <strong className="mono">{formatUsd(budget.daily_budget_usd)}</strong>
+                </div>
+              </div>
+              <div className="detail-meta-item">
+                <div>
+                  <span>Current state</span>
+                  <strong className="mono">
+                    Spend {formatUsd(budget.daily_spend_usd)} · Remaining {budget.remaining_usd === null ? 'Unlimited' : formatUsd(budget.remaining_usd)} · Exhausted {budget.exhausted ? 'Yes' : 'No'}
+                  </strong>
+                </div>
+              </div>
+              {showBudgetWarning && (
+                <div
+                  className="mono"
+                  style={{
+                    marginTop: 4,
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(239,68,68,0.3)',
+                    background: 'rgba(239,68,68,0.08)',
+                    color: 'var(--color-text)',
+                    fontSize: '0.72rem',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong style={{ color: 'var(--color-block)' }}>Budget exhaustion event</strong>
+                  <span> · Operator attention required</span>
+                  {budgetExhaustionEvent && (
+                    <div style={{ color: 'var(--color-text-muted)' }}>
+                      {budgetExhaustionEvent.provider || 'unknown'} · {budgetExhaustionEvent.tier || 'unknown'} · {formatUsd(budgetExhaustionEvent.cost_usd ?? 0)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="card section-card" style={{ marginBottom: 18 }}>
@@ -278,11 +467,38 @@ export default function SessionDetail() {
             <p className="section-kicker">Replay</p>
             <h2>Decision timeline</h2>
           </div>
+          <div
+            role="group"
+            aria-label="Session time window"
+            style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+          >
+            {WINDOW_OPTIONS.map(option => {
+              const isSelected = sessionWindowSeconds === option.value
+              return (
+                <button
+                  key={option.label}
+                  type="button"
+                  className="secondary-button"
+                  aria-pressed={isSelected}
+                  onClick={() => setSessionWindowSeconds(option.value)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 999,
+                    border: isSelected ? '1px solid rgba(94,165,255,0.55)' : '1px solid rgba(148,163,184,0.28)',
+                    background: isSelected ? 'rgba(94,165,255,0.16)' : 'rgba(255,255,255,0.03)',
+                  }}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
           <span className="section-meta">{trajectory.length} events</span>
         </div>
         <div className="decision-timeline">
           {trajectory.map((record, index) => {
             const input = typeof record.event?.input === 'string' ? record.event.input : ''
+            const evidenceSummary = formatL3EvidenceSummary(record.l3_trace?.evidence_summary)
             return (
               <div key={`${record.recorded_at}-${index}`} className="decision-timeline-row">
                 <span className="mono decision-timeline-time">
@@ -334,6 +550,11 @@ export default function SessionDetail() {
                       L3 reason: <span className="mono">{record.meta.l3_reason}</span>
                     </p>
                   )}
+                  {evidenceSummary && (
+                    <p className="priority-session-meta">
+                      Evidence: <span className="mono">{evidenceSummary}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             )
@@ -342,6 +563,27 @@ export default function SessionDetail() {
             <div className="empty-inline">No trajectory records yet.</div>
           )}
         </div>
+        {replayLoadMoreError && (
+          <p
+            className="priority-session-meta"
+            role="alert"
+            style={{ marginTop: 14, textAlign: 'center', color: 'var(--color-warning, #f59e0b)' }}
+          >
+            {replayLoadMoreError}
+          </p>
+        )}
+        {replayNextCursor !== null && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={loadMoreReplayRecords}
+              disabled={replayLoadingMore}
+            >
+              {replayLoadingMore ? 'Loading more…' : 'Load more'}
+            </button>
+          </div>
+        )}
       </section>
     </div>
   )

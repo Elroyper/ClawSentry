@@ -1,0 +1,464 @@
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import SessionDetail from './SessionDetail'
+import { api } from '../api/client'
+
+vi.mock('../api/client', () => ({
+  api: {
+    sessionRisk: vi.fn(),
+    sessionReplay: vi.fn(),
+    sessionReplayPage: vi.fn(),
+  },
+}))
+
+vi.mock('recharts', () => {
+  const Stub = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>
+  return {
+    ResponsiveContainer: Stub,
+    AreaChart: () => null,
+    CartesianGrid: () => null,
+    PolarAngleAxis: () => null,
+    PolarGrid: () => null,
+    PolarRadiusAxis: () => null,
+    Radar: () => null,
+    RadarChart: () => null,
+    Tooltip: () => null,
+    XAxis: () => null,
+    YAxis: () => null,
+    Area: () => null,
+  }
+})
+
+function makeRiskResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    session_id: 'sess-123',
+    agent_id: 'agent-1',
+    source_framework: 'codex',
+    caller_adapter: 'codex-http',
+    workspace_root: '/workspace/demo',
+    transcript_path: '/workspace/demo/session.jsonl',
+    current_risk_level: 'medium',
+    cumulative_score: 0.62,
+    dimensions_latest: { d1: 0.2, d2: 0.1, d3: 0.3, d4: 0.0, d5: 0.1 },
+    event_count: 3,
+    high_risk_event_count: 0,
+    first_event_at: '2026-04-14T08:00:00Z',
+    last_event_at: '2026-04-14T08:05:00Z',
+    risk_timeline: [
+      {
+        event_id: 'evt-1',
+        occurred_at: '2026-04-14T08:05:00Z',
+        risk_level: 'medium',
+        composite_score: 0.62,
+        tool_name: 'bash',
+        decision: 'allow',
+        actual_tier: 'L2',
+        classified_by: 'L2',
+      },
+    ],
+    risk_hints_seen: ['shell command'],
+    tools_used: ['bash'],
+    actual_tier_distribution: { L2: 1 },
+    budget: {
+      daily_budget_usd: 10,
+      daily_spend_usd: 3.25,
+      remaining_usd: 6.75,
+      exhausted: false,
+    },
+    budget_exhaustion_event: null,
+    ...overrides,
+  }
+}
+
+function makeReplayPageResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    session_id: 'sess-123',
+    record_count: 1,
+    records: [
+      {
+        event: { tool_name: 'bash', input: 'ls -la' },
+        decision: {
+          decision: 'allow',
+          reason: 'Safe read-only command',
+          risk_level: 'low',
+          decision_latency_ms: 42,
+        },
+        risk_snapshot: {
+          risk_level: 'low',
+          composite_score: 0.21,
+          dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+        },
+        meta: {
+          actual_tier: 'L1',
+          caller_adapter: 'codex-http',
+        },
+        l3_trace: {
+          evidence_summary: {
+            retained_sources: ['trajectory', 'file'],
+            tool_calls_count: 2,
+            toolkit_budget_mode: 'multi_turn',
+            toolkit_budget_cap: 5,
+            toolkit_calls_remaining: 0,
+            toolkit_budget_exhausted: true,
+          },
+        },
+        recorded_at: '2026-04-14T08:05:10Z',
+      },
+    ],
+    next_cursor: 2,
+    generated_at: '2026-04-14T08:05:15Z',
+    window_seconds: null,
+    budget: {
+      daily_budget_usd: 10,
+      daily_spend_usd: 3.25,
+      remaining_usd: 6.75,
+      exhausted: false,
+    },
+    budget_exhaustion_event: null,
+    ...overrides,
+  }
+}
+
+const RECENT_WINDOW_SECONDS = 60 * 60
+
+function renderSessionDetail() {
+  return render(
+    <MemoryRouter
+      initialEntries={['/sessions/sess-123']}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <Routes>
+        <Route path="/sessions/:sessionId" element={<SessionDetail />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+describe('SessionDetail', () => {
+  beforeEach(() => {
+    vi.mocked(api.sessionRisk).mockResolvedValue(makeRiskResponse() as never)
+    vi.mocked(api.sessionReplayPage).mockResolvedValue(makeReplayPageResponse() as never)
+  })
+
+  it('renders the current budget snapshot without an exhaustion warning when budget is active', async () => {
+    renderSessionDetail()
+
+    expect(await screen.findByText('Budget governance')).toBeInTheDocument()
+    expect(screen.getByText('Daily budget')).toBeInTheDocument()
+    expect(screen.getByText('$10.00')).toBeInTheDocument()
+    expect(screen.getByText(/Spend \$3\.25 · Remaining \$6\.75 · Exhausted No/i)).toBeInTheDocument()
+    expect(screen.queryByText('Budget exhaustion event')).not.toBeInTheDocument()
+  })
+
+  it('renders toolkit budget telemetry inside the compact evidence summary', async () => {
+    renderSessionDetail()
+
+    expect(await screen.findByText('Evidence:')).toBeInTheDocument()
+    expect(screen.getByText('trajectory, file · 2 tool call(s) · toolkit 0/5 (exhausted)')).toBeInTheDocument()
+  })
+
+  it('switches the initial window and re-fetches the first replay page for the new scope', async () => {
+    vi.mocked(api.sessionRisk).mockImplementation((_sessionId, params) =>
+      Promise.resolve(makeRiskResponse({
+        window_seconds: params?.windowSeconds ?? null,
+      }) as never))
+    vi.mocked(api.sessionReplayPage).mockImplementation((_sessionId, params) => {
+      if (params?.cursor !== undefined) {
+        return Promise.reject(new Error('older page unavailable') as never)
+      }
+
+      const isRecentWindow = params?.windowSeconds === RECENT_WINDOW_SECONDS
+      return Promise.resolve(makeReplayPageResponse({
+        records: [
+          {
+            event: { tool_name: 'bash', input: isRecentWindow ? 'recent ls -la' : 'ls -la' },
+            decision: {
+              decision: 'allow',
+              reason: isRecentWindow ? 'Recent window record' : 'All window record',
+              risk_level: 'low',
+              decision_latency_ms: 42,
+            },
+            risk_snapshot: {
+              risk_level: 'low',
+              composite_score: 0.21,
+              dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+            },
+            meta: {
+              actual_tier: 'L1',
+              caller_adapter: 'codex-http',
+            },
+            l3_trace: null,
+            recorded_at: '2026-04-14T08:05:10Z',
+          },
+        ],
+        next_cursor: isRecentWindow ? null : 9,
+      }) as never)
+    })
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('ls -la')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load older replay records. Try again.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Recent 1h' }))
+
+    expect(await screen.findByText('recent ls -la')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Could not load older replay records. Try again.')).not.toBeInTheDocument()
+
+    const riskWindowParams = vi.mocked(api.sessionRisk).mock.calls.map(call => call[1])
+    expect(riskWindowParams).toContainEqual({ windowSeconds: null })
+    expect(riskWindowParams).toContainEqual({ windowSeconds: RECENT_WINDOW_SECONDS })
+
+    const replayWindowParams = vi.mocked(api.sessionReplayPage).mock.calls.map(call => call[1])
+    expect(replayWindowParams).toContainEqual({ windowSeconds: null })
+    expect(replayWindowParams).toContainEqual({ cursor: 9, windowSeconds: null })
+    expect(replayWindowParams).toContainEqual({ windowSeconds: RECENT_WINDOW_SECONDS })
+    expect(replayWindowParams[replayWindowParams.length - 1]).toEqual({ windowSeconds: RECENT_WINDOW_SECONDS })
+  })
+
+  it('shows a visible error state when the initial session risk load fails', async () => {
+    vi.mocked(api.sessionRisk).mockRejectedValueOnce(new Error('risk unavailable') as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load session detail. Try again.')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('Decision timeline')).not.toBeInTheDocument()
+  })
+
+  it('shows a visible error state when the first replay page load fails', async () => {
+    vi.mocked(api.sessionReplayPage).mockRejectedValueOnce(new Error('replay unavailable') as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load session detail. Try again.')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('Decision timeline')).not.toBeInTheDocument()
+  })
+
+  it('renders the first replay page and allows loading older records', async () => {
+    vi.mocked(api.sessionReplayPage)
+      .mockResolvedValueOnce(makeReplayPageResponse({
+        records: [
+          {
+            event: { tool_name: 'bash', input: 'ls -la' },
+            decision: {
+              decision: 'allow',
+              reason: 'Safe read-only command',
+              risk_level: 'low',
+              decision_latency_ms: 42,
+            },
+            risk_snapshot: {
+              risk_level: 'low',
+              composite_score: 0.21,
+              dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+            },
+            meta: {
+              actual_tier: 'L1',
+              caller_adapter: 'codex-http',
+            },
+            l3_trace: null,
+            recorded_at: '2026-04-14T08:05:10Z',
+          },
+          {
+            event: { tool_name: 'python', input: 'print("new")' },
+            decision: {
+              decision: 'allow',
+              reason: 'Safe transform',
+              risk_level: 'low',
+              decision_latency_ms: 28,
+            },
+            risk_snapshot: {
+              risk_level: 'low',
+              composite_score: 0.18,
+              dimensions: { d1: 0.0, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+            },
+            meta: {
+              actual_tier: 'L1',
+              caller_adapter: 'codex-http',
+            },
+            l3_trace: null,
+            recorded_at: '2026-04-14T08:05:20Z',
+          },
+        ],
+        next_cursor: 9,
+      }) as never)
+      .mockResolvedValueOnce(makeReplayPageResponse({
+        records: [
+          {
+            event: { tool_name: 'cat', input: 'cat older.txt' },
+            decision: {
+              decision: 'allow',
+              reason: 'Older record',
+              risk_level: 'low',
+              decision_latency_ms: 36,
+            },
+            risk_snapshot: {
+              risk_level: 'low',
+              composite_score: 0.12,
+              dimensions: { d1: 0.0, d2: 0.0, d3: 0.0, d4: 0.0, d5: 0.0 },
+            },
+            meta: {
+              actual_tier: 'L1',
+              caller_adapter: 'codex-http',
+            },
+            l3_trace: null,
+            recorded_at: '2026-04-14T08:04:10Z',
+          },
+        ],
+        next_cursor: null,
+      }) as never)
+
+    const { container } = renderSessionDetail()
+
+    expect(await screen.findByText('ls -la')).toBeInTheDocument()
+    expect(screen.getByText('print("new")')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(await screen.findByText('cat older.txt')).toBeInTheDocument()
+    const rows = container.querySelectorAll('.decision-timeline-row')
+    expect(rows).toHaveLength(3)
+    expect(within(rows[2] as HTMLElement).getByText('cat older.txt')).toBeInTheDocument()
+  })
+
+  it('shows an error when loading older replay records fails and keeps the pagination button visible', async () => {
+    vi.mocked(api.sessionReplayPage)
+      .mockResolvedValueOnce(makeReplayPageResponse({
+        records: [
+          {
+            event: { tool_name: 'bash', input: 'ls -la' },
+            decision: {
+              decision: 'allow',
+              reason: 'Safe read-only command',
+              risk_level: 'low',
+              decision_latency_ms: 42,
+            },
+            risk_snapshot: {
+              risk_level: 'low',
+              composite_score: 0.21,
+              dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+            },
+            meta: {
+              actual_tier: 'L1',
+              caller_adapter: 'codex-http',
+            },
+            l3_trace: null,
+            recorded_at: '2026-04-14T08:05:10Z',
+          },
+        ],
+        next_cursor: 9,
+      }) as never)
+      .mockRejectedValueOnce(new Error('network down') as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('ls -la')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load older replay records. Try again.')
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+  })
+
+  it('renders an exhaustion warning when the current budget is exhausted', async () => {
+    vi.mocked(api.sessionRisk).mockResolvedValue(makeRiskResponse({
+      budget: {
+        daily_budget_usd: 10,
+        daily_spend_usd: 10,
+        remaining_usd: 0,
+        exhausted: true,
+      },
+      budget_exhaustion_event: {
+        type: 'budget_exhausted',
+        timestamp: '2026-04-14T08:05:00Z',
+        provider: 'openai',
+        tier: 'L2',
+        status: 'ok',
+        cost_usd: 1.25,
+        budget: {
+          daily_budget_usd: 10,
+          daily_spend_usd: 10,
+          remaining_usd: 0,
+          exhausted: true,
+        },
+      },
+    }) as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('Budget exhaustion event')).toBeInTheDocument()
+    expect(screen.getByText(/Operator attention required/i)).toBeInTheDocument()
+    expect(screen.getByText(/openai · L2 · \$1\.25/i)).toBeInTheDocument()
+  })
+
+  it('hides the load more button when no older replay pages remain', async () => {
+    vi.mocked(api.sessionReplayPage).mockResolvedValueOnce(makeReplayPageResponse({
+      records: [
+        {
+          event: { tool_name: 'bash', input: 'ls -la' },
+          decision: {
+            decision: 'allow',
+            reason: 'Safe read-only command',
+            risk_level: 'low',
+            decision_latency_ms: 42,
+          },
+          risk_snapshot: {
+            risk_level: 'low',
+            composite_score: 0.21,
+            dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+          },
+          meta: {
+            actual_tier: 'L1',
+            caller_adapter: 'codex-http',
+          },
+          l3_trace: null,
+          recorded_at: '2026-04-14T08:05:10Z',
+        },
+      ],
+      next_cursor: null,
+    }) as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('ls -la')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('does not render a stale exhaustion warning after reset when the current budget is no longer exhausted', async () => {
+    vi.mocked(api.sessionRisk).mockResolvedValue(makeRiskResponse({
+      risk_timeline: [
+        {
+          event_id: 'evt-reset-1',
+          occurred_at: '2026-04-13T23:59:59Z',
+          risk_level: 'medium',
+          composite_score: 0.71,
+          tool_name: 'bash',
+          decision: 'defer',
+          actual_tier: 'L1',
+          classified_by: 'L2',
+          l3_reason_code: 'budget_exhausted',
+        },
+      ],
+      budget: {
+        daily_budget_usd: 10,
+        daily_spend_usd: 0,
+        remaining_usd: 10,
+        exhausted: false,
+      },
+      budget_exhaustion_event: null,
+    }) as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('Budget governance')).toBeInTheDocument()
+    expect(screen.getByText(/Spend \$0\.00 · Remaining \$10\.00 · Exhausted No/i)).toBeInTheDocument()
+    expect(screen.queryByText('Budget exhaustion event')).not.toBeInTheDocument()
+  })
+})

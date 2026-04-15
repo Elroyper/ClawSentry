@@ -9,11 +9,11 @@ from typing import Any
 from .command_normalization import matches_shell_command_token
 from .models import CanonicalEvent, DecisionContext, RiskLevel, RiskSnapshot
 from .risk_signals import (
-    NETWORK_TOOLS,
-    READ_TOOLS,
-    WRITE_TOOLS,
     build_archive_command_signals,
     build_base_event_signals,
+    has_network_indicator,
+    has_recon_indicator,
+    has_staging_indicator,
 )
 
 
@@ -38,63 +38,6 @@ _CUMULATIVE_THRESHOLD = 5
 _COMPLEX_PAYLOAD_LENGTH = 512
 _COMPLEX_PAYLOAD_DEPTH = 3
 _COMPLEX_PAYLOAD_KEYS = 6
-_SENSITIVE_TOKENS = (
-    ".env",
-    ".pem",
-    ".key",
-    ".p12",
-    ".pfx",
-    ".jks",
-    ".keystore",
-    ".ssh",
-    ".aws",
-    "id_rsa",
-    "credentials",
-    "secret",
-    "token",
-    "password",
-    "api_key",
-)
-_NETWORK_TOKENS = (
-    "curl",
-    "wget",
-    "http://",
-    "https://",
-    "scp",
-    "rsync",
-    "nc ",
-    "ncat",
-    "socat",
-    "dig ",
-    "nslookup",
-)
-_TMP_TOKENS = (
-    "/tmp/",
-    "/var/tmp/",
-)
-_STAGING_TOKENS = (
-    "cp ",
-    "mv ",
-    "tee ",
-    "tar ",
-    "zip ",
-    "gzip ",
-    "base64 ",
-    ">",
-)
-_RECON_TOKENS = (
-    "whoami",
-    "id",
-    "uname",
-    "hostname",
-    "printenv",
-    "env",
-    "/etc/os-release",
-    "ps -",
-    "ss -",
-    "ifconfig",
-    "ip addr",
-)
 
 
 class L3TriggerPolicy:
@@ -248,10 +191,10 @@ class L3TriggerPolicy:
             risk_hints=event.risk_hints or [],
         )
         credential_access = base["credential_access"]
-        network_activity = base["network_activity"] or any(token in payload_text for token in _NETWORK_TOKENS)
-        tmp_path_touched = base["tmp_path_touched"] or any(token in payload_text for token in _TMP_TOKENS)
-        staging_activity = base["write_action"] or any(token in payload_text for token in _STAGING_TOKENS)
-        recon_action = base["recon_action"] or any(token in payload_text for token in _RECON_TOKENS)
+        network_activity = base["network_activity"] or has_network_indicator(payload_text)
+        tmp_path_touched = base["tmp_path_touched"]
+        staging_activity = base["write_action"] or has_staging_indicator(payload_text)
+        recon_action = base["recon_action"] or has_recon_indicator(payload_text)
         archive = build_archive_command_signals(
             tool_name=tool_name,
             payload_text=payload_text,

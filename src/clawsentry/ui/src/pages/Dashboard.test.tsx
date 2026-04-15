@@ -1,0 +1,168 @@
+import { render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import Dashboard from './Dashboard'
+import { api } from '../api/client'
+
+vi.mock('../api/client', () => ({
+  api: {
+    summary: vi.fn(),
+    health: vi.fn(),
+    sessions: vi.fn(),
+  },
+}))
+
+vi.mock('../components/RuntimeFeed', () => ({
+  default: () => <div data-testid="runtime-feed" />,
+}))
+
+vi.mock('../components/LLMUsageDrilldown', () => ({
+  default: () => <div data-testid="llm-usage-drilldown" />,
+}))
+
+function makeSessionSummary(overrides: Record<string, unknown> = {}) {
+  return {
+    session_id: 'sess-123',
+    agent_id: 'agent-1',
+    source_framework: 'codex',
+    caller_adapter: 'codex-http',
+    workspace_root: '/workspace/demo',
+    transcript_path: '/workspace/demo/session.jsonl',
+    current_risk_level: 'medium',
+    cumulative_score: 0.62,
+    event_count: 12,
+    high_risk_event_count: 2,
+    decision_distribution: { allow: 10, block: 2 },
+    first_event_at: '2026-04-15T07:00:00Z',
+    last_event_at: '2026-04-15T07:15:00Z',
+    l3_state: 'degraded',
+    l3_reason_code: 'toolkit_budget_exhausted',
+    evidence_summary: {
+      retained_sources: ['trajectory', 'file'],
+      tool_calls_count: 3,
+      toolkit_budget_mode: 'multi_turn',
+      toolkit_budget_cap: 5,
+      toolkit_calls_remaining: 0,
+      toolkit_budget_exhausted: true,
+    },
+    ...overrides,
+  }
+}
+
+function makeSummaryResponse() {
+  return {
+    total_records: 12,
+    by_source_framework: { codex: 1 },
+    by_event_type: { decision: 12 },
+    by_decision: { allow: 10, block: 2 },
+    by_risk_level: { medium: 1 },
+    by_actual_tier: { L2: 1 },
+    by_caller_adapter: { 'codex-http': 1 },
+    generated_at: '2026-04-15T07:15:00Z',
+    window_seconds: null,
+    budget: {
+      daily_budget_usd: 10,
+      daily_spend_usd: 3.25,
+      remaining_usd: 6.75,
+      exhausted: false,
+    },
+    budget_exhaustion_event: null,
+    llm_usage_snapshot: {
+      total_calls: 4,
+      total_input_tokens: 100,
+      total_output_tokens: 50,
+      total_cost_usd: 1.23,
+      by_provider: {},
+      by_tier: {},
+      by_status: {},
+    },
+  }
+}
+
+function makeHealthResponse() {
+  return {
+    status: 'ok',
+    uptime_seconds: 7200,
+    cache_size: 3,
+    trajectory_count: 12,
+    policy_engine: 'default',
+    auth_enabled: true,
+    budget: {
+      daily_budget_usd: 10,
+      daily_spend_usd: 3.25,
+      remaining_usd: 6.75,
+      exhausted: false,
+    },
+    budget_exhaustion_event: null,
+    llm_usage_snapshot: {
+      total_calls: 4,
+      total_input_tokens: 100,
+      total_output_tokens: 50,
+      total_cost_usd: 1.23,
+      by_provider: {},
+      by_tier: {},
+      by_status: {},
+    },
+  }
+}
+
+function renderDashboard() {
+  return render(
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <Dashboard />
+    </MemoryRouter>,
+  )
+}
+
+describe('Dashboard', () => {
+  beforeEach(() => {
+    vi.mocked(api.summary).mockResolvedValue(makeSummaryResponse() as never)
+    vi.mocked(api.health).mockResolvedValue(makeHealthResponse() as never)
+    vi.mocked(api.sessions).mockResolvedValue([makeSessionSummary()] as never)
+  })
+
+  it('surfaces a toolkit evidence budget hotspot metric and session card', async () => {
+    const { container } = renderDashboard()
+
+    expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
+    expect(screen.getByText('Toolkit Evidence Budget')).toBeInTheDocument()
+
+    const metricCard = Array.from(container.querySelectorAll('.metric-card')).find(card =>
+      card.textContent?.includes('Toolkit Evidence Budget'),
+    )
+    expect(metricCard).toBeTruthy()
+    expect(within(metricCard as HTMLElement).getByText('1')).toBeInTheDocument()
+
+    const hotspotSection = screen.getByText('Toolkit evidence budget hotspots').closest('section')
+    expect(hotspotSection).not.toBeNull()
+    expect(within(hotspotSection as HTMLElement).getByText('sess-123')).toBeInTheDocument()
+    expect(screen.getByText('Toolkit evidence budget exhausted · codex · 12 events')).toBeInTheDocument()
+  })
+
+  it('shows an empty hotspot state when no sessions hit toolkit evidence budget', async () => {
+    vi.mocked(api.sessions).mockResolvedValue([
+      makeSessionSummary({
+        session_id: 'sess-clean',
+        evidence_summary: {
+          retained_sources: ['trajectory'],
+          tool_calls_count: 1,
+          toolkit_budget_mode: 'multi_turn',
+          toolkit_budget_cap: 5,
+          toolkit_calls_remaining: 2,
+          toolkit_budget_exhausted: false,
+        },
+      }),
+    ] as never)
+
+    const { container } = renderDashboard()
+
+    expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
+    const metricCard = Array.from(container.querySelectorAll('.metric-card')).find(card =>
+      card.textContent?.includes('Toolkit Evidence Budget'),
+    )
+    expect(metricCard).toBeTruthy()
+    expect(within(metricCard as HTMLElement).getByText('0')).toBeInTheDocument()
+    expect(screen.getByText('No sessions are currently hitting toolkit evidence budget.')).toBeInTheDocument()
+  })
+})

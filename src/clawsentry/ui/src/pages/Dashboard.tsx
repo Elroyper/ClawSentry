@@ -15,6 +15,7 @@ import {
   riskRank,
   workspaceLabel,
 } from '../lib/sessionGroups'
+import { formatSessionL3Annotation } from '../lib/sessionL3Annotations'
 
 function formatUptime(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -70,6 +71,10 @@ function FrameworkChip({ framework, count }: { framework: string; count: number 
   )
 }
 
+function hasToolkitEvidenceBudgetExhausted(session: SessionSummary): boolean {
+  return session.evidence_summary?.toolkit_budget_exhausted === true
+}
+
 export default function Dashboard() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null)
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -108,6 +113,16 @@ export default function Dashboard() {
       return new Date(b.last_event_at).getTime() - new Date(a.last_event_at).getTime()
     })
     .slice(0, 6)
+
+  const toolkitEvidenceBudgetHotspots = sessions
+    .filter(hasToolkitEvidenceBudgetExhausted)
+    .sort((a, b) => {
+      const rankDiff = riskRank(a.current_risk_level) - riskRank(b.current_risk_level)
+      if (rankDiff !== 0) return rankDiff
+      return new Date(b.last_event_at).getTime() - new Date(a.last_event_at).getTime()
+    })
+    .slice(0, 5)
+  const toolkitEvidenceBudgetHotspotCount = sessions.filter(hasToolkitEvidenceBudgetExhausted).length
 
   const priorityWorkspaces = groupedSessions
     .flatMap(framework => framework.workspaces.map(workspace => ({ ...workspace, framework: framework.framework })))
@@ -239,6 +254,13 @@ export default function Dashboard() {
           subtext={`${criticalSessions} critical right now`}
         />
         <MetricCard
+          label="Toolkit Evidence Budget"
+          value={toolkitEvidenceBudgetHotspotCount.toLocaleString()}
+          accent="amber"
+          icon={<Siren size={20} />}
+          subtext="Sessions hitting toolkit evidence budget"
+        />
+        <MetricCard
           label="Block Rate"
           value={`${blockRate}%`}
           accent="amber"
@@ -359,13 +381,15 @@ export default function Dashboard() {
             <Link to="/sessions" className="section-link">Review all sessions</Link>
           </div>
           <div className="priority-session-list">
-            {prioritySessions.map(session => (
-              <Link
-                key={session.session_id}
-                to={`/sessions/${session.session_id}`}
-                className="priority-session-row"
-              >
-                <div>
+            {prioritySessions.map(session => {
+              const sessionL3Annotation = formatSessionL3Annotation(session)
+              return (
+                <Link
+                  key={session.session_id}
+                  to={`/sessions/${session.session_id}`}
+                  className="priority-session-row"
+                >
+                  <div>
                   <div className="priority-session-top">
                     <strong>{workspaceLabel(session.workspace_root)}</strong>
                     <RiskBadge level={session.current_risk_level} />
@@ -373,17 +397,69 @@ export default function Dashboard() {
                   <p className="priority-session-meta">
                     {session.source_framework} · {session.event_count} events · {session.high_risk_event_count} high-risk
                   </p>
+                  {sessionL3Annotation && (
+                    <p className="priority-session-meta mono" style={{ fontSize: '0.72rem' }}>
+                      {sessionL3Annotation}
+                    </p>
+                  )}
                   <p className="priority-session-id mono">{session.session_id}</p>
-                </div>
-                <div className="priority-session-side">
-                  <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
-                    {formatRelativeTime(session.last_event_at)}
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  </div>
+                  <div className="priority-session-side">
+                    <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
+                      {formatRelativeTime(session.last_event_at)}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
             {prioritySessions.length === 0 && (
               <div className="empty-inline">No active sessions to prioritize.</div>
+            )}
+          </div>
+        </section>
+
+        <section className="card section-card">
+          <div className="section-card-header">
+            <div>
+              <p className="section-kicker">Evidence</p>
+              <h2>Toolkit evidence budget hotspots</h2>
+            </div>
+            <span className="section-meta">{toolkitEvidenceBudgetHotspots.length} shown</span>
+          </div>
+          <div className="priority-session-list">
+            {toolkitEvidenceBudgetHotspots.map(session => {
+              const sessionL3Annotation = formatSessionL3Annotation(session)
+              return (
+                <Link
+                  key={session.session_id}
+                  to={`/sessions/${session.session_id}`}
+                  className="priority-session-row"
+                >
+                  <div>
+                    <div className="priority-session-top">
+                      <strong>{workspaceLabel(session.workspace_root)}</strong>
+                      <RiskBadge level={session.current_risk_level} />
+                    </div>
+                    <p className="priority-session-meta">
+                      Toolkit evidence budget exhausted · {session.source_framework} · {session.event_count} events
+                    </p>
+                    {sessionL3Annotation && (
+                      <p className="priority-session-meta mono" style={{ fontSize: '0.72rem' }}>
+                        {sessionL3Annotation}
+                      </p>
+                    )}
+                    <p className="priority-session-id mono">{session.session_id}</p>
+                  </div>
+                  <div className="priority-session-side">
+                    <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
+                      {formatRelativeTime(session.last_event_at)}
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+            {toolkitEvidenceBudgetHotspots.length === 0 && (
+              <div className="empty-inline">No sessions are currently hitting toolkit evidence budget.</div>
             )}
           </div>
         </section>

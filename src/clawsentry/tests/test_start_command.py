@@ -40,7 +40,7 @@ class TestDetectFramework:
         oc_home.mkdir()
         (oc_home / "openclaw.json").write_text("{}")
         result = detect_framework(openclaw_home=oc_home)
-        assert result == "openclaw"
+        assert result is None
 
     def test_detects_a3s_code(self, tmp_path):
         a3s_dir = tmp_path / ".a3s-code"
@@ -60,13 +60,15 @@ class TestDetectFramework:
         )
         assert result is None
 
-    def test_openclaw_takes_priority(self, tmp_path):
-        oc_home = tmp_path / ".openclaw"
-        oc_home.mkdir()
-        (oc_home / "openclaw.json").write_text("{}")
-        a3s_dir = tmp_path / ".a3s-code"
-        a3s_dir.mkdir()
-        result = detect_framework(openclaw_home=oc_home, a3s_dir=a3s_dir)
+    def test_shell_env_framework_opt_in(self, tmp_path, monkeypatch):
+        """Explicit CS_FRAMEWORK in *shell env* is treated as opt-in."""
+        monkeypatch.setenv("CS_FRAMEWORK", "openclaw")
+        result = detect_framework(
+            openclaw_home=tmp_path / ".openclaw",
+            a3s_dir=tmp_path / ".a3s-code",
+            codex_home=tmp_path / ".codex",
+            claude_home=tmp_path / ".claude",
+        )
         assert result == "openclaw"
 
     def test_returns_none_when_nothing_found(self, tmp_path):
@@ -81,6 +83,8 @@ class TestDetectFramework:
     def test_detects_codex_from_sessions_dir(self, tmp_path):
         codex_home = tmp_path / ".codex"
         (codex_home / "sessions").mkdir(parents=True)
+        # Opt-in is required to avoid silent monitoring activation.
+        os.environ["CS_CODEX_WATCH_ENABLED"] = "true"
         result = detect_framework(
             openclaw_home=tmp_path / "nope",
             a3s_dir=tmp_path / "nope2",
@@ -646,7 +650,7 @@ class TestRunStart:
 
 
 class TestDetectFrameworkFix:
-    """detect_framework should check BOTH settings.json and settings.local.json."""
+    """detect_framework should not silently activate monitoring integrations."""
 
     def test_detect_claude_code_from_settings_json(self, tmp_path):
         claude_home = tmp_path / ".claude"
@@ -671,10 +675,10 @@ class TestDetectFrameworkFix:
         result = detect_framework(
             openclaw_home=nope, a3s_dir=nope, claude_home=claude_home,
         )
-        assert result == "claude-code"
+        assert result is None
 
     def test_detect_claude_code_from_settings_local_json(self, tmp_path):
-        """Legacy: settings.local.json should still be detected."""
+        """Legacy Claude hooks should not cause auto-detect by themselves."""
         claude_home = tmp_path / ".claude"
         claude_home.mkdir()
         settings = {
@@ -697,7 +701,7 @@ class TestDetectFrameworkFix:
         result = detect_framework(
             openclaw_home=nope, a3s_dir=nope, claude_home=claude_home,
         )
-        assert result == "claude-code"
+        assert result is None
 
     def test_detect_none_when_no_hooks(self, tmp_path):
         claude_home = tmp_path / ".claude"

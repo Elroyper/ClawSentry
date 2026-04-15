@@ -78,6 +78,17 @@ from .session_enforcement import (
     EnforcementAction,
     SessionEnforcementPolicy,
 )
+from .enterprise import (
+    build_enterprise_event_async,
+    build_enterprise_live_snapshot_async,
+    enterprise_mode_enabled,
+    enrich_alerts_payload_async,
+    enrich_health_payload_async,
+    enrich_replay_payload_async,
+    enrich_session_risk_payload_async,
+    enrich_sessions_payload_async,
+    enrich_summary_payload_async,
+)
 
 logger = logging.getLogger("clawsentry")
 
@@ -121,6 +132,23 @@ def _compact_l3_evidence_summary(l3_trace: dict[str, Any] | None) -> dict[str, A
         tool_calls_count = evidence_summary.get("tool_calls_count")
         if isinstance(tool_calls_count, int):
             summary["tool_calls_count"] = tool_calls_count
+
+    toolkit_budget_mode = str(evidence_summary.get("toolkit_budget_mode") or "").strip()
+    if toolkit_budget_mode:
+        summary["toolkit_budget_mode"] = toolkit_budget_mode
+
+    toolkit_budget_cap = evidence_summary.get("toolkit_budget_cap")
+    if isinstance(toolkit_budget_cap, int):
+        summary["toolkit_budget_cap"] = toolkit_budget_cap
+
+    toolkit_calls_remaining = evidence_summary.get("toolkit_calls_remaining")
+    if isinstance(toolkit_calls_remaining, int):
+        summary["toolkit_calls_remaining"] = toolkit_calls_remaining
+    toolkit_budget_exhausted = evidence_summary.get("toolkit_budget_exhausted")
+    if isinstance(toolkit_budget_exhausted, bool):
+        summary["toolkit_budget_exhausted"] = toolkit_budget_exhausted
+    elif isinstance(toolkit_budget_cap, int) and toolkit_budget_cap > 0 and isinstance(toolkit_calls_remaining, int):
+        summary["toolkit_budget_exhausted"] = toolkit_calls_remaining <= 0
 
     return summary or None
 
@@ -380,6 +408,8 @@ class SupervisionGateway:
                 "report_sessions": _new_io_metric_bucket(),
                 "report_session_risk": _new_io_metric_bucket(),
                 "replay_session": _new_io_metric_bucket(),
+                "replay_session_page": _new_io_metric_bucket(),
+                "report_alerts": _new_io_metric_bucket(),
             },
         }
         self._start_time = time.monotonic()
@@ -396,10 +426,23 @@ class SupervisionGateway:
 
     def _budget_state(self) -> dict[str, Any]:
         """Return the current budget-governance state for reporting surfaces."""
+        budget = self.budget_tracker.snapshot()
+        if not budget.get("exhausted", False):
+            self._budget_exhaustion_event = None
         return {
-            "budget": self.budget_tracker.snapshot(),
+            "budget": budget,
             "budget_exhaustion_event": _copy_budget_event(self._budget_exhaustion_event),
         }
+
+    def _reporting_state(self) -> dict[str, Any]:
+        """Shared reporting envelope for gateway-owned surfaces."""
+        payload = self._budget_state()
+        payload["llm_usage_snapshot"] = self.metrics.llm_usage_snapshot()
+        return payload
+
+    def _reporting_io_state(self) -> dict[str, Any]:
+        """Shared I/O envelope; call after observing the current endpoint."""
+        return {"decision_path_io": self._decision_path_io_snapshot()}
 
     def _observe_record_path_io(
         self,
@@ -419,6 +462,9 @@ class SupervisionGateway:
     def _decision_path_io_snapshot(self) -> dict[str, Any]:
         record_bucket = self._io_metrics["record_path"]
         reporting_bucket = self._io_metrics["reporting"]
+        trajectory_store_io = self.trajectory_store.io_metrics_snapshot()
+        session_registry_io = self.session_registry.io_metrics_snapshot()
+        alert_registry_io = self.alert_registry.io_metrics_snapshot()
         return {
             "record_path": {
                 **_snapshot_io_metric(record_bucket),
@@ -426,11 +472,34 @@ class SupervisionGateway:
                 "session_registry": _snapshot_io_metric(record_bucket["session_registry"]),
             },
             "reporting": {
-                "health": _snapshot_io_metric(reporting_bucket["health"]),
-                "report_summary": _snapshot_io_metric(reporting_bucket["report_summary"]),
-                "report_sessions": _snapshot_io_metric(reporting_bucket["report_sessions"]),
-                "report_session_risk": _snapshot_io_metric(reporting_bucket["report_session_risk"]),
-                "replay_session": _snapshot_io_metric(reporting_bucket["replay_session"]),
+                "health": {
+                    **_snapshot_io_metric(reporting_bucket["health"]),
+                    "trajectory_count": trajectory_store_io["count"],
+                },
+                "report_summary": {
+                    **_snapshot_io_metric(reporting_bucket["report_summary"]),
+                    "trajectory_store": trajectory_store_io["summary"],
+                },
+                "report_sessions": {
+                    **_snapshot_io_metric(reporting_bucket["report_sessions"]),
+                    "session_registry": session_registry_io["list_sessions"],
+                },
+                "report_session_risk": {
+                    **_snapshot_io_metric(reporting_bucket["report_session_risk"]),
+                    "session_registry": session_registry_io["get_session_risk"],
+                },
+                "replay_session": {
+                    **_snapshot_io_metric(reporting_bucket["replay_session"]),
+                    "trajectory_query": trajectory_store_io["replay_session"],
+                },
+                "replay_session_page": {
+                    **_snapshot_io_metric(reporting_bucket["replay_session_page"]),
+                    "trajectory_query": trajectory_store_io["replay_session_page"],
+                },
+                "report_alerts": {
+                    **_snapshot_io_metric(reporting_bucket["report_alerts"]),
+                    "alert_registry": alert_registry_io["list_alerts"],
+                },
             },
         }
 
@@ -928,7 +997,7 @@ class SupervisionGateway:
             "approval_id": event_dict.get("approval_id"),
             "expires_at": event_dict.get("payload", {}).get("expiresAtMs"),
         }
-        decision_event.update(self._budget_state())
+        decision_event.update(self._reporting_state())
         evidence_summary = _compact_l3_evidence_summary(l3_trace)
         if evidence_summary is not None:
             decision_event["evidence_summary"] = evidence_summary
@@ -1228,7 +1297,6 @@ class SupervisionGateway:
         """Return gateway health status."""
         start = time.perf_counter()
         uptime = time.monotonic() - self._start_time
-        budget_state = self._budget_state()
         payload = {
             "status": "healthy",
             "uptime_seconds": round(uptime, 1),
@@ -1238,12 +1306,10 @@ class SupervisionGateway:
             "policy_engine": "L1+L2",
             "rpc_version": RPC_VERSION,
             "auth_enabled": bool(os.getenv("CS_AUTH_TOKEN")),
-            "budget": budget_state["budget"],
-            "budget_exhaustion_event": budget_state["budget_exhaustion_event"],
-            "llm_usage_snapshot": self.metrics.llm_usage_snapshot(),
         }
+        payload.update(self._reporting_state())
         self._observe_reporting_io("health", time.perf_counter() - start)
-        payload["decision_path_io"] = self._decision_path_io_snapshot()
+        payload.update(self._reporting_io_state())
         return payload
 
     def report_summary(self, window_seconds: Optional[int] = None) -> dict[str, Any]:
@@ -1251,14 +1317,11 @@ class SupervisionGateway:
         start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         summary = self.trajectory_store.summary(since_seconds=since_seconds)
-        budget_state = self._budget_state()
         summary["generated_at"] = utc_now_iso()
         summary["window_seconds"] = since_seconds
-        summary["budget"] = budget_state["budget"]
-        summary["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
-        summary["llm_usage_snapshot"] = self.metrics.llm_usage_snapshot()
+        summary.update(self._reporting_state())
         self._observe_reporting_io("report_summary", time.perf_counter() - start)
-        summary["decision_path_io"] = self._decision_path_io_snapshot()
+        summary.update(self._reporting_io_state())
         return summary
 
     def replay_session(
@@ -1282,11 +1345,39 @@ class SupervisionGateway:
             "generated_at": utc_now_iso(),
             "window_seconds": since_seconds,
         }
-        budget_state = self._budget_state()
-        payload["budget"] = budget_state["budget"]
-        payload["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        payload.update(self._reporting_state())
         self._observe_reporting_io("replay_session", time.perf_counter() - start)
-        payload["decision_path_io"] = self._decision_path_io_snapshot()
+        payload.update(self._reporting_io_state())
+        return payload
+
+    def replay_session_page(
+        self,
+        session_id: str,
+        *,
+        limit: int = 100,
+        cursor: Optional[int] = None,
+        window_seconds: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Return a paged replay payload for a session."""
+        start = time.perf_counter()
+        since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
+        page = self.trajectory_store.replay_session_page(
+            session_id=session_id,
+            limit=limit,
+            cursor=cursor,
+            since_seconds=since_seconds,
+        )
+        payload = {
+            "session_id": session_id,
+            "record_count": len(page["records"]),
+            "records": page["records"],
+            "next_cursor": page["next_cursor"],
+            "generated_at": utc_now_iso(),
+            "window_seconds": since_seconds,
+        }
+        payload.update(self._reporting_state())
+        self._observe_reporting_io("replay_session_page", time.perf_counter() - start)
+        payload.update(self._reporting_io_state())
         return payload
 
     def report_sessions(
@@ -1308,13 +1399,11 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
-        budget_state = self._budget_state()
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
-        result["budget"] = budget_state["budget"]
-        result["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        result.update(self._reporting_state())
         self._observe_reporting_io("report_sessions", time.perf_counter() - start)
-        result["decision_path_io"] = self._decision_path_io_snapshot()
+        result.update(self._reporting_io_state())
         return result
 
     def report_session_risk(
@@ -1332,13 +1421,11 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
-        budget_state = self._budget_state()
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
-        result["budget"] = budget_state["budget"]
-        result["budget_exhaustion_event"] = budget_state["budget_exhaustion_event"]
+        result.update(self._reporting_state())
         self._observe_reporting_io("report_session_risk", time.perf_counter() - start)
-        result["decision_path_io"] = self._decision_path_io_snapshot()
+        result.update(self._reporting_io_state())
         return result
 
     def report_alerts(
@@ -1349,6 +1436,7 @@ class SupervisionGateway:
         window_seconds: Optional[int] = None,
         limit: int = 100,
     ) -> dict[str, Any]:
+        start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         effective_limit = min(max(limit, 1), 1000)
         result = self.alert_registry.list_alerts(
@@ -1359,6 +1447,9 @@ class SupervisionGateway:
         )
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
+        result.update(self._reporting_state())
+        self._observe_reporting_io("report_alerts", time.perf_counter() - start)
+        result.update(self._reporting_io_state())
         return result
 
     def acknowledge_alert(
@@ -1461,6 +1552,29 @@ def create_http_app(
         )
 
     verify_auth = _make_auth_dependency(auth_token)
+    report_event_types = {
+        "decision",
+        "session_risk_change",
+        "session_start",
+        "alert",
+        "session_enforcement_change",
+        "post_action_finding",
+        "trajectory_alert",
+        "pattern_candidate",
+        "pattern_evolved",
+        "defer_pending",
+        "defer_resolved",
+        "budget_exhausted",
+    }
+    enterprise_enabled = enterprise_mode_enabled()
+
+    def _enterprise_get(path: str, **kwargs):
+        def decorator(func):
+            if enterprise_enabled:
+                app.get(path, **kwargs)(func)
+            return func
+
+        return decorator
 
     # Rate limiter (0 = disabled)
     rate_limit_per_min = int(os.getenv("CS_RATE_LIMIT_PER_MINUTE", "300"))
@@ -1592,6 +1706,13 @@ def create_http_app(
     async def health_endpoint():
         return gateway.health()
 
+    @_enterprise_get("/enterprise/health")
+    async def enterprise_health_endpoint(request: Request):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        return await enrich_health_payload_async(gateway.health(), gateway)
+
     # --- P3: Prometheus /metrics endpoint ---
     _metrics_auth_enabled = os.getenv("CS_METRICS_AUTH", "").lower() in ("1", "true", "yes")
 
@@ -1620,6 +1741,33 @@ def create_http_app(
             )
         return gateway.report_summary(window_seconds=window_seconds)
 
+    @_enterprise_get("/enterprise/report/summary")
+    async def enterprise_report_summary_endpoint(
+        request: Request,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        return await enrich_summary_payload_async(
+            gateway.report_summary(window_seconds=window_seconds),
+            gateway,
+            window_seconds=window_seconds,
+        )
+
+    @_enterprise_get("/enterprise/report/live")
+    async def enterprise_report_live_endpoint(request: Request):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        return await build_enterprise_live_snapshot_async(gateway)
+
     @app.get("/report/stream")
     async def report_stream_endpoint(
         request: Request,
@@ -1637,7 +1785,7 @@ def create_http_app(
                 media_type="application/json",
             )
 
-        event_types = {"decision", "session_risk_change", "session_start", "alert", "session_enforcement_change", "post_action_finding", "trajectory_alert", "pattern_candidate", "pattern_evolved", "defer_pending", "defer_resolved", "budget_exhausted"}
+        event_types = set(report_event_types)
         if types:
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
@@ -1670,6 +1818,62 @@ def create_http_app(
                         # Keep "type" in data payload so clients that only parse data: lines
                         # (e.g. urllib-based watch CLI) can still dispatch on event type.
                         payload = {**event, "type": event_type}
+                        yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+            finally:
+                gateway.event_bus.unsubscribe(subscriber_id)
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    @_enterprise_get("/enterprise/report/stream")
+    async def enterprise_report_stream_endpoint(
+        request: Request,
+        session_id: Optional[str] = None,
+        min_risk: Optional[str] = None,
+        types: Optional[str] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if min_risk is not None and min_risk not in {"low", "medium", "high", "critical"}:
+            return Response(
+                content=json.dumps({"error": "min_risk must be one of: low, medium, high, critical"}),
+                status_code=400,
+                media_type="application/json",
+            )
+
+        event_types = set(report_event_types)
+        if types:
+            requested_types = {item.strip() for item in types.split(",") if item.strip()}
+            if not requested_types or not requested_types.issubset(event_types):
+                return Response(
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted"}),
+                    status_code=400,
+                    media_type="application/json",
+                )
+            event_types = requested_types
+
+        subscriber_id, queue = gateway.event_bus.subscribe(
+            session_id=session_id,
+            min_risk=min_risk,
+            event_types=event_types,
+        )
+        if subscriber_id is None or queue is None:
+            return Response(
+                content=json.dumps({"error": "Too many SSE subscribers"}),
+                status_code=503,
+                media_type="application/json",
+            )
+
+        async def event_generator():
+            yield ": connected\n\n"
+            try:
+                while True:
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                        event_type = str(event.get("type") or "message")
+                        payload = await build_enterprise_event_async({**event, "type": event_type}, gateway)
                         yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
                     except asyncio.TimeoutError:
                         yield ": keepalive\n\n"
@@ -1723,6 +1927,54 @@ def create_http_app(
             window_seconds=window_seconds,
         )
 
+    @_enterprise_get("/enterprise/report/sessions")
+    async def enterprise_report_sessions_endpoint(
+        request: Request,
+        status: str = "active",
+        sort: str = "risk_level",
+        limit: int = 50,
+        min_risk: Optional[str] = None,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if status not in {"active", "all"}:
+            return Response(
+                content=json.dumps({"error": "status must be one of: active, all"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if sort not in {"risk_level", "last_event"}:
+            return Response(
+                content=json.dumps({"error": "sort must be one of: risk_level, last_event"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if min_risk is not None and min_risk not in {"low", "medium", "high", "critical"}:
+            return Response(
+                content=json.dumps({"error": "min_risk must be one of: low, medium, high, critical"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 200)
+        return await enrich_sessions_payload_async(
+            gateway.report_sessions(
+                status=status,
+                sort=sort,
+                limit=effective_limit,
+                min_risk=min_risk,
+                window_seconds=window_seconds,
+            ),
+            gateway,
+        )
+
     @app.get("/report/session/{session_id}/risk")
     async def report_session_risk_endpoint(
         request: Request,
@@ -1746,6 +1998,32 @@ def create_http_app(
             window_seconds=window_seconds,
         )
 
+    @_enterprise_get("/enterprise/report/session/{session_id}/risk")
+    async def enterprise_report_session_risk_endpoint(
+        request: Request,
+        session_id: str,
+        limit: int = 100,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 1000)
+        return await enrich_session_risk_payload_async(
+            gateway.report_session_risk(
+                session_id=session_id,
+                limit=effective_limit,
+                window_seconds=window_seconds,
+            ),
+            gateway,
+        )
+
     @app.get("/report/session/{session_id}")
     async def report_session_endpoint(
         request: Request,
@@ -1767,6 +2045,95 @@ def create_http_app(
             session_id=session_id,
             limit=effective_limit,
             window_seconds=window_seconds,
+        )
+
+    @_enterprise_get("/enterprise/report/session/{session_id}")
+    async def enterprise_report_session_endpoint(
+        request: Request,
+        session_id: str,
+        limit: int = 100,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 1000)
+        return await enrich_replay_payload_async(
+            gateway.replay_session(
+                session_id=session_id,
+                limit=effective_limit,
+                window_seconds=window_seconds,
+            )
+        )
+
+    @app.get("/report/session/{session_id}/page")
+    async def report_session_page_endpoint(
+        request: Request,
+        session_id: str,
+        limit: int = 100,
+        cursor: Optional[int] = None,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if cursor is not None and cursor < 1:
+            return Response(
+                content=json.dumps({"error": "cursor must be >= 1"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 500)
+        return gateway.replay_session_page(
+            session_id=session_id,
+            limit=effective_limit,
+            cursor=cursor,
+            window_seconds=window_seconds,
+        )
+
+    @_enterprise_get("/enterprise/report/session/{session_id}/page")
+    async def enterprise_report_session_page_endpoint(
+        request: Request,
+        session_id: str,
+        limit: int = 100,
+        cursor: Optional[int] = None,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if cursor is not None and cursor < 1:
+            return Response(
+                content=json.dumps({"error": "cursor must be >= 1"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 500)
+        return await enrich_replay_payload_async(
+            gateway.replay_session_page(
+                session_id=session_id,
+                limit=effective_limit,
+                cursor=cursor,
+                window_seconds=window_seconds,
+            )
         )
 
     @app.get("/report/alerts")
@@ -1807,6 +2174,49 @@ def create_http_app(
             acknowledged=ack_filter,
             window_seconds=window_seconds,
             limit=effective_limit,
+        )
+
+    @_enterprise_get("/enterprise/report/alerts")
+    async def enterprise_report_alerts_endpoint(
+        request: Request,
+        severity: Optional[str] = None,
+        acknowledged: Optional[str] = None,
+        window_seconds: Optional[int] = None,
+        limit: int = 100,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if severity is not None and severity not in {"low", "medium", "high", "critical"}:
+            return Response(
+                content=json.dumps({"error": "severity must be one of: low, medium, high, critical"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if acknowledged is not None and acknowledged not in {"true", "false"}:
+            return Response(
+                content=json.dumps({"error": "acknowledged must be 'true' or 'false'"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        ack_filter: Optional[bool] = None
+        if acknowledged is not None:
+            ack_filter = acknowledged == "true"
+        effective_limit = min(max(limit, 1), 1000)
+        return await enrich_alerts_payload_async(
+            gateway.report_alerts(
+                severity=severity,
+                acknowledged=ack_filter,
+                window_seconds=window_seconds,
+                limit=effective_limit,
+            ),
+            gateway,
         )
 
     @app.post("/report/alerts/{alert_id}/acknowledge")

@@ -256,12 +256,17 @@ class TestDecisionFormatterMixedFormat:
             evidence_summary={
                 "retained_sources": ["trajectory", "file"],
                 "tool_calls_count": 2,
+                "toolkit_budget_mode": "multi_turn",
+                "toolkit_budget_cap": 5,
+                "toolkit_calls_remaining": 0,
+                "toolkit_budget_exhausted": True,
             },
         )
         result = format_decision(event, color=False, verbose=True)
         assert "Evidence:" in result
         assert "trajectory, file" in result
         assert "2 tool call(s)" in result
+        assert "toolkit 0/5 (exhausted)" in result
         assert "tool_calls" not in result
 
     # --- no_emoji mode ---

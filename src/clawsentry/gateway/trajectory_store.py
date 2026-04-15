@@ -25,6 +25,32 @@ INVALID_EVENT_RATE_WARNING_15M_MAX = 0.01
 MAX_WINDOW_SECONDS = 604800  # 1 week
 
 
+def _new_io_metric_bucket() -> dict[str, float | int]:
+    return {
+        "calls": 0,
+        "total_seconds": 0.0,
+        "last_seconds": 0.0,
+        "max_seconds": 0.0,
+    }
+
+
+def _observe_io_metric(bucket: dict[str, float | int], elapsed_seconds: float) -> None:
+    elapsed = max(0.0, float(elapsed_seconds))
+    bucket["calls"] = int(bucket["calls"]) + 1
+    bucket["total_seconds"] = float(bucket["total_seconds"]) + elapsed
+    bucket["last_seconds"] = elapsed
+    bucket["max_seconds"] = max(float(bucket["max_seconds"]), elapsed)
+
+
+def _snapshot_io_metric(bucket: dict[str, float | int]) -> dict[str, float | int]:
+    return {
+        "calls": int(bucket["calls"]),
+        "total_seconds": round(float(bucket["total_seconds"]), 6),
+        "last_seconds": round(float(bucket["last_seconds"]), 6),
+        "max_seconds": round(float(bucket["max_seconds"]), 6),
+    }
+
+
 class TrajectoryStore:
     """SQLite-backed trajectory store with retention + query window support."""
 
@@ -42,8 +68,20 @@ class TrajectoryStore:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL")
+        self._io_metrics = {
+            "count": _new_io_metric_bucket(),
+            "summary": _new_io_metric_bucket(),
+            "replay_session": _new_io_metric_bucket(),
+            "replay_session_page": _new_io_metric_bucket(),
+        }
         self._init_schema()
         self._prune_expired()
+
+    def io_metrics_snapshot(self) -> dict[str, dict[str, float | int]]:
+        return {
+            name: _snapshot_io_metric(bucket)
+            for name, bucket in self._io_metrics.items()
+        }
 
     def _init_schema(self) -> None:
         cur = self._conn.cursor()
@@ -223,56 +261,64 @@ class TrajectoryStore:
         return self._query_records()
 
     def count(self, since_seconds: Optional[int] = None) -> int:
-        self._prune_expired()
-        clauses: list[str] = []
-        params: list[Any] = []
-        if since_seconds is not None and since_seconds > 0:
-            clauses.append("recorded_at_ts >= ?")
-            params.append(time.time() - since_seconds)
-        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        sql = f"SELECT COUNT(*) AS c FROM trajectory_records {where_sql}"
-        row = self._conn.execute(sql, params).fetchone()
-        return int(row["c"]) if row else 0
+        start = time.perf_counter()
+        try:
+            self._prune_expired()
+            clauses: list[str] = []
+            params: list[Any] = []
+            if since_seconds is not None and since_seconds > 0:
+                clauses.append("recorded_at_ts >= ?")
+                params.append(time.time() - since_seconds)
+            where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+            sql = f"SELECT COUNT(*) AS c FROM trajectory_records {where_sql}"
+            row = self._conn.execute(sql, params).fetchone()
+            return int(row["c"]) if row else 0
+        finally:
+            _observe_io_metric(self._io_metrics["count"], time.perf_counter() - start)
 
     def summary(self, since_seconds: Optional[int] = None) -> dict[str, Any]:
-        records = self._query_records(since_seconds=since_seconds)
-        by_source_framework: dict[str, int] = defaultdict(int)
-        by_event_type: dict[str, int] = defaultdict(int)
-        by_decision: dict[str, int] = defaultdict(int)
-        by_risk_level: dict[str, int] = defaultdict(int)
-        by_actual_tier: dict[str, int] = defaultdict(int)
-        by_caller_adapter: dict[str, int] = defaultdict(int)
-        now_ts = time.time()
+        start = time.perf_counter()
+        try:
+            records = self._query_records(since_seconds=since_seconds)
+            by_source_framework: dict[str, int] = defaultdict(int)
+            by_event_type: dict[str, int] = defaultdict(int)
+            by_decision: dict[str, int] = defaultdict(int)
+            by_risk_level: dict[str, int] = defaultdict(int)
+            by_actual_tier: dict[str, int] = defaultdict(int)
+            by_caller_adapter: dict[str, int] = defaultdict(int)
+            now_ts = time.time()
 
-        for rec in records:
-            event = rec.get("event", {})
-            decision = rec.get("decision", {})
-            meta = rec.get("meta", {})
-            source_framework = str(event.get("source_framework", "unknown"))
-            event_type = str(event.get("event_type", "unknown"))
-            decision_verdict = str(decision.get("decision", "unknown"))
-            risk_level = str(decision.get("risk_level", "unknown"))
-            actual_tier = str(meta.get("actual_tier", "L1"))
-            caller_adapter = str(meta.get("caller_adapter", "unknown"))
+            for rec in records:
+                event = rec.get("event", {})
+                decision = rec.get("decision", {})
+                meta = rec.get("meta", {})
+                source_framework = str(event.get("source_framework", "unknown"))
+                event_type = str(event.get("event_type", "unknown"))
+                decision_verdict = str(decision.get("decision", "unknown"))
+                risk_level = str(decision.get("risk_level", "unknown"))
+                actual_tier = str(meta.get("actual_tier", "L1"))
+                caller_adapter = str(meta.get("caller_adapter", "unknown"))
 
-            by_source_framework[source_framework] += 1
-            by_event_type[event_type] += 1
-            by_decision[decision_verdict] += 1
-            by_risk_level[risk_level] += 1
-            by_actual_tier[actual_tier] += 1
-            by_caller_adapter[caller_adapter] += 1
+                by_source_framework[source_framework] += 1
+                by_event_type[event_type] += 1
+                by_decision[decision_verdict] += 1
+                by_risk_level[risk_level] += 1
+                by_actual_tier[actual_tier] += 1
+                by_caller_adapter[caller_adapter] += 1
 
-        return {
-            "total_records": len(records),
-            "by_source_framework": dict(by_source_framework),
-            "by_event_type": dict(by_event_type),
-            "by_decision": dict(by_decision),
-            "by_risk_level": dict(by_risk_level),
-            "by_actual_tier": dict(by_actual_tier),
-            "by_caller_adapter": dict(by_caller_adapter),
-            "invalid_event": self._build_invalid_event_metrics(records, now_ts),
-            "high_risk_trend": self._build_high_risk_trend(records, now_ts),
-        }
+            return {
+                "total_records": len(records),
+                "by_source_framework": dict(by_source_framework),
+                "by_event_type": dict(by_event_type),
+                "by_decision": dict(by_decision),
+                "by_risk_level": dict(by_risk_level),
+                "by_actual_tier": dict(by_actual_tier),
+                "by_caller_adapter": dict(by_caller_adapter),
+                "invalid_event": self._build_invalid_event_metrics(records, now_ts),
+                "high_risk_trend": self._build_high_risk_trend(records, now_ts),
+            }
+        finally:
+            _observe_io_metric(self._io_metrics["summary"], time.perf_counter() - start)
 
     @staticmethod
     def _is_invalid_event_record(record: dict[str, Any]) -> bool:
@@ -427,7 +473,11 @@ class TrajectoryStore:
         limit: int = 100,
         since_seconds: Optional[int] = None,
     ) -> list[dict[str, Any]]:
-        return self._query_records(session_id=session_id, limit=limit, since_seconds=since_seconds)
+        start = time.perf_counter()
+        try:
+            return self._query_records(session_id=session_id, limit=limit, since_seconds=since_seconds)
+        finally:
+            _observe_io_metric(self._io_metrics["replay_session"], time.perf_counter() - start)
 
     def replay_session_page(
         self,
@@ -437,20 +487,24 @@ class TrajectoryStore:
         cursor: Optional[int] = None,
         since_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
-        effective_limit = min(max(limit, 1), 500)
-        records = self._query_records(
-            session_id=session_id,
-            limit=effective_limit + 1,
-            since_seconds=since_seconds,
-            before_id=cursor,
-        )
-        has_more = len(records) > effective_limit
-        page_records = records[-effective_limit:] if has_more else records
-        next_cursor = page_records[0]["record_id"] if has_more and page_records else None
-        return {
-            "records": page_records,
-            "next_cursor": next_cursor,
-        }
+        start = time.perf_counter()
+        try:
+            effective_limit = min(max(limit, 1), 500)
+            records = self._query_records(
+                session_id=session_id,
+                limit=effective_limit + 1,
+                since_seconds=since_seconds,
+                before_id=cursor,
+            )
+            has_more = len(records) > effective_limit
+            page_records = records[-effective_limit:] if has_more else records
+            next_cursor = page_records[0]["record_id"] if has_more and page_records else None
+            return {
+                "records": page_records,
+                "next_cursor": next_cursor,
+            }
+        finally:
+            _observe_io_metric(self._io_metrics["replay_session_page"], time.perf_counter() - start)
 
     def clear(self) -> None:
         self._conn.execute("DELETE FROM trajectory_records")

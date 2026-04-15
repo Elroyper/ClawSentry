@@ -311,6 +311,34 @@ class TestL3Probe:
         assert "trigger=cumulative_risk" in detail
         assert "reason_code=hard_cap_exceeded" in detail
 
+    def test_degraded_detail_prefers_structured_reason_code(self, monkeypatch):
+        async def fake_analyze(self, event, context, l1_snapshot, budget_ms):
+            return L2Result(
+                target_level=RiskLevel.HIGH,
+                reasons=["response parsing failed"],
+                confidence=0.0,
+                trace={
+                    "degraded": True,
+                    "mode": "multi_turn",
+                    "trigger_reason": "cumulative_risk",
+                    "degradation_reason": "L3 hard cap exceeded",
+                    "l3_reason_code": "llm_response_parse_failed",
+                },
+            )
+
+        monkeypatch.setattr(
+            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            fake_analyze,
+        )
+
+        provider = MagicMock()
+        ok, latency, detail = asyncio.run(_test_l3(provider))
+
+        assert ok is False
+        assert latency > 0
+        assert "reason_code=llm_response_parse_failed" in detail
+        assert "reason_code=hard_cap_exceeded" not in detail
+
 
 # ---------------------------------------------------------------------------
 # run_test_llm (integration-level, no real API calls)

@@ -129,12 +129,14 @@ def _format_l3_detail(result: object, trace: dict | None) -> str:
     if trace.get("degraded"):
         parts.append("degraded=true")
         degradation_reason = str(trace.get("degradation_reason") or "").strip()
-        reason_code = infer_l3_reason_code(
-            state="degraded" if trace.get("degraded") else None,
-            reason=degradation_reason,
-            trigger_reason=str(trace.get("trigger_reason") or "").strip(),
-            degraded=bool(trace.get("degraded")),
-        )
+        reason_code = str(trace.get("l3_reason_code") or "").strip()
+        if not reason_code:
+            reason_code = infer_l3_reason_code(
+                state="degraded" if trace.get("degraded") else None,
+                reason=degradation_reason,
+                trigger_reason=str(trace.get("trigger_reason") or "").strip(),
+                degraded=bool(trace.get("degraded")),
+            )
         if reason_code:
             parts.append(f"reason_code={reason_code}")
         if degradation_reason:

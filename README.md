@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2812+ tests**, ~50s full suite
+- **2883+ tests**, ~40s full suite
 
 ## Installation
 
@@ -34,10 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.4
+## What's New in v0.4.5
 
-- **CS-01 rule governance toolkit**: `clawsentry rules lint` and `clawsentry rules dry-run` now provide an authoring-time governance surface for YAML attack patterns and review skills, including structured findings, deterministic fingerprints, JSON/JSONL dry-run input, and clearer CLI error handling.
-- **L3 operator telemetry is now documented and surfaced consistently**: `l3_state`, `l3_reason_code`, `trigger_detail`, compact `evidence_summary`, `budget_exhaustion_event`, and `decision_path_io` now align across watch, dashboard, session/report/replay surfaces, and the public documentation.
+- **Enterprise compatibility reporting facade**: new `enterprise/*` reporting endpoints let enterprise security consoles reuse the existing WebUI data surface while adding enterprise-oriented summary, live, session, alert, replay, and SSE query paths.
+- **TrinityGuard-aware enterprise risk mapping**: enterprise payloads now include TrinityGuard tier/subtype classification, live risk rollups, and safe rule-first plus LLM-fallback mapping for unmapped long-tail observations.
+- **Unified LLM configuration path**: L2, L3, and enterprise semantic fallback now share the same provider/key/model/base-url configuration flow, reducing duplicated setup across features.
 
 ## Quick Start
 

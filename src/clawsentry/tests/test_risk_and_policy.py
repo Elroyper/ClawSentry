@@ -5,8 +5,11 @@ Covers: D1-D5 scoring, short-circuit rules, missing dimension fallbacks,
 D4 session accumulation, L1 policy decisions, fallback decisions.
 """
 
+import time
+
 import pytest
 
+from clawsentry.gateway.agent_analyzer import AgentAnalyzer
 from clawsentry.gateway.l3_runtime import build_l3_runtime_info
 from clawsentry.gateway.models import (
     CanonicalEvent,
@@ -479,6 +482,23 @@ class TestL3RuntimeInfo:
         assert info["l3_reason"] == "L3 trigger not matched"
         assert info["l3_reason_code"] == "trigger_not_matched"
 
+    def test_structured_reason_code_in_trace_is_preferred(self):
+        info = build_l3_runtime_info(
+            requested_tier=DecisionTier.L3,
+            effective_tier=DecisionTier.L3,
+            actual_tier=DecisionTier.L1,
+            l3_available=True,
+            l3_trace={
+                "trigger_reason": "cumulative_risk",
+                "degraded": True,
+                "degradation_reason": "something went wrong",
+                "l3_reason_code": "llm_call_failed",
+            },
+        )
+
+        assert info["l3_state"] == "degraded"
+        assert info["l3_reason_code"] == "llm_call_failed"
+
     def test_requested_l3_without_agent_result_maps_to_skipped(self):
         info = build_l3_runtime_info(
             requested_tier=DecisionTier.L3,
@@ -589,6 +609,77 @@ class TestL3RuntimeInfo:
 
         assert info["l3_state"] == "degraded"
         assert info["l3_reason_code"] == "analysis_exception"
+
+    def test_llm_response_parse_failed_maps_to_reason_code(self):
+        info = build_l3_runtime_info(
+            requested_tier=DecisionTier.L3,
+            effective_tier=DecisionTier.L3,
+            actual_tier=DecisionTier.L1,
+            l3_available=True,
+            l3_trace={
+                "trigger_reason": "cumulative_risk",
+                "degraded": True,
+                "degradation_reason": "L3 response parse failed",
+            },
+        )
+
+        assert info["l3_state"] == "degraded"
+        assert info["l3_reason_code"] == "llm_response_parse_failed"
+
+    def test_llm_response_unresolvable_risk_level_maps_to_reason_code(self):
+        info = build_l3_runtime_info(
+            requested_tier=DecisionTier.L3,
+            effective_tier=DecisionTier.L3,
+            actual_tier=DecisionTier.L1,
+            l3_available=True,
+            l3_trace={
+                "trigger_reason": "cumulative_risk",
+                "degraded": True,
+                "degradation_reason": "L3 response unresolvable risk level",
+            },
+        )
+
+        assert info["l3_state"] == "degraded"
+        assert info["l3_reason_code"] == "llm_response_unresolvable_risk_level"
+
+    def test_format_retry_failed_maps_to_reason_code(self):
+        info = build_l3_runtime_info(
+            requested_tier=DecisionTier.L3,
+            effective_tier=DecisionTier.L3,
+            actual_tier=DecisionTier.L1,
+            l3_available=True,
+            l3_trace={
+                "trigger_reason": "cumulative_risk",
+                "degraded": True,
+                "degradation_reason": "L3 format retry failed",
+            },
+        )
+
+        assert info["l3_state"] == "degraded"
+        assert info["l3_reason_code"] == "format_retry_failed"
+
+
+class TestAgentAnalyzerTraceReasonCodes:
+    def test_build_trace_attaches_reason_code(self):
+        analyzer = AgentAnalyzer(
+            provider=object(),
+            toolkit=object(),
+            skill_registry=object(),
+        )
+        trace = analyzer._build_trace(
+            trigger_reason="cumulative_risk",
+            trigger_detail=None,
+            skill_selected=None,
+            mode="single_turn",
+            turns=[],
+            final_verdict=None,
+            evidence_summary={},
+            start=time.monotonic(),
+            degraded=True,
+            degradation_reason="L3 hard cap exceeded",
+        )
+
+        assert trace["l3_reason_code"] == "hard_cap_exceeded"
 
     def test_medium_pre_action_auto_escalates_to_l2_and_can_upgrade(self):
         engine = L1PolicyEngine()

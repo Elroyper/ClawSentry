@@ -173,6 +173,77 @@ def test_mvp_returns_llm_result_when_trigger_matches(tmp_path: Path):
     assert "credential access looks suspicious" in result.reasons
 
 
+def test_toolkit_budget_cap_scales_with_initial_evidence_sources(tmp_path: Path):
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True),
+    )
+
+    assert analyzer._toolkit_budget_cap(
+        mode="single_turn",
+        trajectory=[],
+        session_risk_history=[],
+    ) == 2
+    assert analyzer._toolkit_budget_cap(
+        mode="single_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[],
+    ) == 3
+    assert analyzer._toolkit_budget_cap(
+        mode="single_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[{"event_id": "risk-1"}],
+    ) == 4
+    assert analyzer._toolkit_budget_cap(
+        mode="multi_turn",
+        trajectory=[],
+        session_risk_history=[],
+    ) == 4
+    assert analyzer._toolkit_budget_cap(
+        mode="multi_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[],
+    ) == 5
+    assert analyzer._toolkit_budget_cap(
+        mode="multi_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[{"event_id": "risk-1"}],
+    ) == 6
+
+
+def test_toolkit_budget_cap_is_bounded_by_toolkit_max_calls(tmp_path: Path, monkeypatch):
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    monkeypatch.setattr(ReadOnlyToolkit, "MAX_TOOL_CALLS", 5)
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True),
+    )
+
+    assert analyzer._toolkit_budget_cap(
+        mode="multi_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[{"event_id": "risk-1"}],
+    ) == 5
+    assert analyzer._toolkit_budget_cap(
+        mode="single_turn",
+        trajectory=[{"event_id": "evt-1"}],
+        session_risk_history=[{"event_id": "risk-1"}],
+    ) == 4
+
+
 def test_l3_prompt_includes_worker_workspace_context(tmp_path: Path):
     worker_root = tmp_path / "worker-project"
     worker_root.mkdir()
@@ -518,7 +589,7 @@ def test_l3_trace_retains_partial_evidence_summary_when_degraded(tmp_path: Path)
         toolkit=toolkit,
         skill_registry=registry,
         trigger_policy=L3TriggerPolicy(),
-        config=AgentAnalyzerConfig(enable_multi_turn=False),
+        config=AgentAnalyzerConfig(enable_multi_turn=False, provider_timeout_ms=500),
         trajectory_store=store,
     )
 
@@ -576,6 +647,7 @@ def test_mvp_trace_recorded_on_single_turn_success(tmp_path: Path):
     assert evidence["toolkit_budget_mode"] == "single_turn"
     assert evidence["toolkit_budget_cap"] == 3
     assert evidence["toolkit_calls_remaining"] == 3
+    assert evidence["toolkit_budget_exhausted"] is False
 
 
 def test_multi_turn_trace_records_tool_calls(tmp_path: Path):
@@ -617,26 +689,17 @@ def test_multi_turn_trace_records_tool_calls(tmp_path: Path):
     assert result.trace["final_verdict"]["risk_level"] == "critical"
 
 
-def test_multi_turn_tool_call_budget_exhaustion_degrades_with_stable_reason(tmp_path: Path):
-    tool_call_resp = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+def test_multi_turn_tool_call_budget_exhaustion_degrades_with_stable_reason(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(ReadOnlyToolkit, "MAX_TOOL_CALLS", 1)
+    tool_call_resp_1 = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+    tool_call_resp_2 = '{"thought": "check once more", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
 
     provider = MagicMock()
     provider.provider_id = "mock-llm"
-    provider.complete = AsyncMock(return_value=tool_call_resp)
+    provider.complete = AsyncMock(side_effect=[tool_call_resp_1, tool_call_resp_2])
 
-    class BudgetExhaustedToolkit(ReadOnlyToolkit):
-        def fork(self, workspace_root=None, transcript_path=None, session_id=None):
-            self.bind_session_context(
-                workspace_root=workspace_root or self.default_workspace_root,
-                transcript_path=transcript_path,
-                session_id=session_id,
-            )
-            return self
-
-        async def read_file(self, relative_path: str):
-            raise ToolCallBudgetExhausted("ReadOnlyToolkit budget exhausted")
-
-    toolkit = BudgetExhaustedToolkit(tmp_path, StubTrajectoryStore())
+    (tmp_path / "secrets.env").write_text("API_KEY=abc123", encoding="utf-8")
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
     registry = SkillRegistry(_skills_dir(tmp_path))
     analyzer = AgentAnalyzer(
         provider=provider,
@@ -665,46 +728,55 @@ def test_multi_turn_tool_call_budget_exhaustion_degrades_with_stable_reason(tmp_
     assert result.trace is not None
     assert result.trace["degraded"] is True
     assert result.trace["degradation_reason"] == "L3 tool call budget exhausted"
+    evidence = result.trace["evidence_summary"]
+    assert evidence["toolkit_budget_exhausted"] is True
+    assert evidence["toolkit_calls_remaining"] == 0
 
 
 def test_multi_turn_trace_retains_evidence_summary_on_success(tmp_path: Path):
-    tool_call_resp = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+    tool_call_resp_1 = '{"thought": "check file", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
+    tool_call_resp_2 = '{"thought": "check once more", "tool_call": {"name": "read_file", "arguments": {"relative_path": "secrets.env"}}, "done": false}'
     final_resp = '{"risk_level": "critical", "findings": ["creds found"], "confidence": 0.95}'
 
     provider = MagicMock()
     provider.provider_id = "mock-llm"
-    provider.complete = AsyncMock(side_effect=[tool_call_resp, final_resp])
+    provider.complete = AsyncMock(side_effect=[tool_call_resp_1, tool_call_resp_2, final_resp])
 
     (tmp_path / "secrets.env").write_text("API_KEY=abc123", encoding="utf-8")
-    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
-    registry = SkillRegistry(_skills_dir(tmp_path))
-    analyzer = AgentAnalyzer(
-        provider=provider,
-        toolkit=toolkit,
-        skill_registry=registry,
-        trigger_policy=L3TriggerPolicy(),
-        config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
-    )
-
-    result = asyncio.run(
-        analyzer.analyze(
-            _evt(
-                tool_name="bash",
-                payload={"command": "cat secrets.env"},
-                risk_hints=["credential_exfiltration"],
-            ),
-            DecisionContext(session_risk_summary={"l3_escalate": True}),
-            _snap(RiskLevel.MEDIUM),
-            10000,
+    original_max_tool_calls = ReadOnlyToolkit.MAX_TOOL_CALLS
+    ReadOnlyToolkit.MAX_TOOL_CALLS = 2
+    try:
+        toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+        registry = SkillRegistry(_skills_dir(tmp_path))
+        analyzer = AgentAnalyzer(
+            provider=provider,
+            toolkit=toolkit,
+            skill_registry=registry,
+            trigger_policy=L3TriggerPolicy(),
+            config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
         )
-    )
+        result = asyncio.run(
+            analyzer.analyze(
+                _evt(
+                    tool_name="bash",
+                    payload={"command": "cat secrets.env"},
+                    risk_hints=["credential_exfiltration"],
+                ),
+                DecisionContext(session_risk_summary={"l3_escalate": True}),
+                _snap(RiskLevel.MEDIUM),
+                10000,
+            )
+        )
+    finally:
+        ReadOnlyToolkit.MAX_TOOL_CALLS = original_max_tool_calls
 
     assert result.trace is not None
     evidence = result.trace["evidence_summary"]
     assert evidence["retained_sources"] == ["trajectory", "file"]
     assert evidence["toolkit_budget_mode"] == "multi_turn"
-    assert evidence["toolkit_budget_cap"] == 5
-    assert evidence["toolkit_calls_remaining"] == 4
+    assert evidence["toolkit_budget_cap"] == 2
+    assert evidence["toolkit_calls_remaining"] == 0
+    assert evidence["toolkit_budget_exhausted"] is True
     assert evidence["budget_remaining_ms"] >= 0
 
 
@@ -840,6 +912,7 @@ def test_multi_turn_can_read_session_risk_history(tmp_path: Path):
     assert evidence["toolkit_budget_mode"] == "multi_turn"
     assert evidence["toolkit_budget_cap"] == 6
     assert evidence["toolkit_calls_remaining"] == 5
+    assert evidence["toolkit_budget_exhausted"] is False
 
 
 class HighRiskHistoryStore:
@@ -1005,6 +1078,7 @@ def test_l3_manual_trigger_works_without_toolkit_trajectory_store(tmp_path: Path
     evidence = result.trace["evidence_summary"]
     assert evidence["toolkit_budget_mode"] == "single_turn"
     assert evidence["toolkit_budget_cap"] == 2
+    assert evidence["toolkit_budget_exhausted"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1041,6 +1115,65 @@ def test_parse_markdown_wrapped_json(tmp_path: Path):
     assert result.target_level == RiskLevel.HIGH
     assert "credential leak" in result.reasons
     assert result.trace["degraded"] is False
+
+
+def test_parse_invalid_json_degrades_with_parse_failed_reason(tmp_path: Path):
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(return_value="not valid json")
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False, provider_timeout_ms=500),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "echo"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            1000,
+        )
+    )
+
+    assert result.confidence == 0.0
+    assert result.trace is not None
+    assert result.trace["degradation_reason"] == "L3 response parse failed"
+    assert provider.complete.call_count == 1
+
+
+def test_parse_missing_risk_level_degrades_with_unresolvable_reason(tmp_path: Path):
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(return_value='{"findings": ["missing risk level"], "confidence": 0.8}')
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "echo"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            1000,
+        )
+    )
+
+    assert result.confidence == 0.0
+    assert result.trace is not None
+    assert result.trace["degradation_reason"] == "L3 response unresolvable risk level"
 
 
 def test_parse_nested_risk_assessment_structure(tmp_path: Path):
@@ -1137,6 +1270,37 @@ def test_format_correction_retry_on_unparseable_response(tmp_path: Path):
     assert result.trace is not None
     assert len(result.trace["turns"]) == 2
     assert result.trace["turns"][1]["type"] == "format_retry"
+
+
+def test_format_correction_retry_failure_maps_to_dedicated_reason(tmp_path: Path):
+    bad_response = "still not json"
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(side_effect=[bad_response, bad_response])
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "echo"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            10000,
+        )
+    )
+
+    assert result.confidence == 0.0
+    assert result.trace is not None
+    assert result.trace["degradation_reason"] == "L3 format retry failed"
+    assert provider.complete.call_count == 2
 
 
 def test_no_format_retry_when_budget_exhausted(tmp_path: Path):

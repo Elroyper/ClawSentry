@@ -76,15 +76,28 @@ def detect_framework(
     Returns ``"openclaw"``, ``"a3s-code"``, ``"codex"``, ``"claude-code"``,
     or ``None``.  Explicit ``CS_FRAMEWORK`` in ``.env.clawsentry`` takes
     highest priority.
+
+    Monitoring integrations must be **explicitly enabled**. This function only
+    treats project-local config (``.env.clawsentry``) and explicit environment
+    variables as opt-in signals. It deliberately avoids silently activating
+    monitoring based on home-directory heuristics (e.g. ``~/.codex/sessions``,
+    ``~/.claude/settings.json``, ``~/.openclaw/openclaw.json``).
     """
     env_file = Path.cwd() / ".env.clawsentry"
     env_framework = _read_framework_from_env_file(env_file)
     if env_framework:
         return env_framework
 
-    oc = openclaw_home or Path.home() / ".openclaw"
-    if (oc / "openclaw.json").is_file():
-        return "openclaw"
+    # Explicit shell env can opt-in without writing .env.clawsentry first.
+    shell_framework = os.environ.get("CS_FRAMEWORK", "").strip()
+    if shell_framework in _SUPPORTED_FRAMEWORKS:
+        return shell_framework
+    shell_enabled = os.environ.get("CS_ENABLED_FRAMEWORKS", "").strip()
+    if shell_enabled:
+        enabled = [item.strip() for item in shell_enabled.split(",") if item.strip()]
+        for item in enabled:
+            if item in _SUPPORTED_FRAMEWORKS:
+                return item
 
     # Legacy ClawSentry releases wrote .a3s-code/settings.json. Keep it as a
     # project marker only; a3s-code AHP still requires explicit SDK transport.
@@ -92,25 +105,20 @@ def detect_framework(
     if (a3s / "settings.json").is_file():
         return "a3s-code"
 
-    # Claude Code: check BOTH settings.json and settings.local.json
-    effective_claude_home = claude_home or Path.home() / ".claude"
-    for filename in ("settings.json", "settings.local.json"):
-        claude_settings = effective_claude_home / filename
-        if claude_settings.is_file():
-            try:
-                import json as _json
-                data = _json.loads(claude_settings.read_text())
-                hooks = data.get("hooks", {})
-                if any("clawsentry" in str(v) for v in hooks.values()):
-                    return "claude-code"
-            except Exception:
-                pass
+    # Codex: opt-in only when explicitly enabled.
+    explicit_codex_session_dir = os.environ.get("CS_CODEX_SESSION_DIR", "").strip()
+    if explicit_codex_session_dir:
+        candidate = Path(explicit_codex_session_dir)
+        if (candidate).is_dir():
+            return "codex"
 
-    effective_codex_home = codex_home or Path(
-        os.environ.get("CODEX_HOME", Path.home() / ".codex")
-    )
-    if (effective_codex_home / "sessions").is_dir():
-        return "codex"
+    codex_opt_in = os.environ.get("CS_CODEX_WATCH_ENABLED", "").lower() in ("1", "true", "yes")
+    if codex_opt_in:
+        effective_codex_home = codex_home or Path(
+            os.environ.get("CODEX_HOME", Path.home() / ".codex")
+        )
+        if (effective_codex_home / "sessions").is_dir():
+            return "codex"
 
     return None
 
