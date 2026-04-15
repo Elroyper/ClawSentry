@@ -5,10 +5,36 @@ description: YAML 规则与技能的上线前治理：lint、dry-run、fingerpri
 
 # 规则治理
 
-规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的**上线前治理**补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
+这页是给**规则作者、风控同学和安全运营人员**看的。
+
+如果你只记一句话，可以记这个：
+
+> 规则治理就是“上线前先体检一遍规则”，确认它能不能加载、会不会互相打架、用样例事件跑出来是不是你预期的结果。
+
+它处理的是**上线前检查**，不是新的运行时策略语言。你不需要先理解内部 L1/L2/L3 实现，只要按本页流程走，就能把大多数明显问题挡在上线前。
 
 !!! abstract "本页快速导航"
     [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [典型工作流](#workflow) · [输出字段](#outputs)
+
+## 什么时候用这页
+
+通常有三种情况：
+
+- 你改了攻击模式，想确认规则文件本身没写坏
+- 你新增了自定义 L3 Skill，想确认能被正确加载和选中
+- 你准备发版，想先拿样例事件预演一遍
+
+最常用的命令只有两条：
+
+```bash
+clawsentry rules lint --json
+clawsentry rules dry-run --events examples/sample-events.jsonl --json
+```
+
+可以把它们理解成：
+
+- `lint`：查规则文件有没有问题
+- `dry-run`：拿样例事件预演结果
 
 ## 作用边界 {#scope}
 
@@ -22,11 +48,11 @@ description: YAML 规则与技能的上线前治理：lint、dry-run、fingerpri
 
 - 不引入新的运行时 scheduler
 - 不替换 `PatternMatcher` / `SkillRegistry` / `L3TriggerPolicy`
-- 不构造一个覆盖 L1/L2/L3 控制流的全局 DSL
+- 不把 ClawSentry 改造成一个覆盖 L1/L2/L3 的全局 DSL
 
 更准确的理解是：
 
-> 规则治理是“规则作者在上线前自检和预演”的治理层，不是“运行时策略解释器”。
+> 规则治理是“作者期自检和预演”的治理层，不是“运行时解释器”。
 
 ## 规则面组成 {#rule-surfaces}
 
@@ -43,13 +69,44 @@ description: YAML 规则与技能的上线前治理：lint、dry-run、fingerpri
 - `--skills-dir` 会在 built-in 基础上叠加，而不是替换
 - `--evolved-patterns` 会把 active evolved patterns 纳入治理报告
 
+## 三步完成一次上线前检查
+
+### 第 1 步：先看规则文件能不能用
+
+```bash
+clawsentry rules lint --json
+```
+
+这一步主要回答：
+
+- 文件在不在
+- YAML 能不能解析
+- 规则 ID / Skill 名称有没有重复
+- 有没有明显冲突
+
+### 第 2 步：再拿样例事件预演
+
+```bash
+clawsentry rules dry-run --events examples/sample-events.jsonl --json
+```
+
+这一步主要回答：
+
+- 哪些 attack pattern 会命中
+- 最终会选中哪个 review skill
+- 样例输入本身有没有格式问题
+
+### 第 3 步：结果符合预期再 rollout
+
+只有前两步结果都符合预期时，才建议继续发布、灰度或合并到正式规则面。
+
 ## `clawsentry rules lint` {#rules-lint}
 
 ```bash
 clawsentry rules lint [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 ```
 
-`lint` 会输出当前规则面的治理报告，重点看：
+`lint` 会输出当前规则面的治理报告。最值得优先看的内容是：
 
 - source 是否存在、是否可解析
 - attack pattern 的 item-level schema 问题
@@ -74,7 +131,7 @@ clawsentry rules lint \
 clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 ```
 
-`dry-run` 不会修改任何运行时状态，只会把 sample canonical events 放到当前规则面上预演：
+`dry-run` 不会修改任何运行时状态。你可以把它理解成“先拿样例事件跑一遍”：
 
 - 哪些 attack pattern 会命中
 - 最终会选中哪个 review skill
@@ -94,7 +151,7 @@ clawsentry rules dry-run --events examples/sample-events.jsonl --json
 
 ## 典型工作流 {#workflow}
 
-### 调整 attack patterns 后
+### 改了 attack patterns 之后
 
 ```bash
 clawsentry rules lint --attack-patterns /opt/clawsentry/patterns.yaml --json
@@ -102,7 +159,7 @@ clawsentry rules dry-run --attack-patterns /opt/clawsentry/patterns.yaml \
   --events examples/sample-events.jsonl --json
 ```
 
-### 调整自定义 L3 skills 后
+### 改了自定义 L3 Skills 之后
 
 ```bash
 clawsentry rules lint --skills-dir /etc/clawsentry/skills --json
@@ -110,9 +167,9 @@ clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
   --events examples/sample-events.jsonl --json
 ```
 
-### 与 release checklist 一起使用
+### 发版前最小检查
 
-如果本次版本包含规则治理相关修改，发布前至少保留两条 smoke：
+如果本次版本包含规则相关修改，发布前至少保留两条 smoke：
 
 ```bash
 PYTHONPATH=src python -m clawsentry rules lint --json
@@ -133,7 +190,7 @@ PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-event
 
 ### `source_summaries`
 
-按 source 列出当前加载了哪些规则资产，例如：
+按 source 列出当前到底加载了哪些规则资产，例如：
 
 - `attack_patterns`
 - `evolved_patterns`
@@ -152,7 +209,7 @@ PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-event
 
 ### `findings`
 
-结构化治理结果。当前常见的 findings 包括：
+结构化检查结果。当前常见的 findings 包括：
 
 - source 缺失
 - YAML 解析失败
@@ -165,6 +222,6 @@ PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-event
 ## 与其他页面的关系
 
 - [CLI 命令参考](../cli/index.md) — `rules` 命令语法与退出码
-- [攻击模式定制](attack-patterns.md) — attack patterns YAML 结构
-- [自定义 L3 Skills](custom-skills.md) — review skills YAML 结构
+- [攻击模式定制](attack-patterns.md) — 如何编写 attack patterns 规则
+- [自定义 L3 Skills](custom-skills.md) — 如何编写 review skills
 - [自进化模式库](pattern-evolution.md) — evolved patterns 来源
