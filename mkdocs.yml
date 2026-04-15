@@ -123,6 +123,7 @@ nav:
     - 轨迹分析器: decision-layers/trajectory-analyzer.md
   - Web 仪表板: dashboard/index.md
   - 高级用法:
+    - 自定义能力总览: advanced/authoring-overview.md
     - 规则治理: advanced/rule-governance.md
     - 自定义 L3 Skills: advanced/custom-skills.md
     - 自定义 L2 Analyzer: advanced/custom-analyzer.md

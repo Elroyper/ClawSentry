@@ -16,6 +16,23 @@ description: YAML 规则与技能的上线前治理：lint、dry-run、fingerpri
 !!! abstract "本页快速导航"
     [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [典型工作流](#workflow) · [输出字段](#outputs)
 
+## 先区分“编写”和“治理”
+
+这页讲的是**治理**，也就是检查和预演。
+
+如果你想知道：
+
+- 哪些高级能力可以由业务或安全团队编写
+- 攻击模式和 L3 Skills 分别应该去哪里看
+- 这些内容改完后是如何生效的
+
+建议先看：[自定义能力总览](authoring-overview.md)。
+
+可以把两页的分工理解成：
+
+- [自定义能力总览](authoring-overview.md)：回答“能改什么、去哪改、怎么生效”
+- 当前页：回答“改完之后怎么检查能不能上线”
+
 ## 什么时候用这页
 
 通常有三种情况：
@@ -221,6 +238,7 @@ PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-event
 
 ## 与其他页面的关系
 
+- [自定义能力总览](authoring-overview.md) — 高级用法里哪些内容可以编写、如何生效
 - [CLI 命令参考](../cli/index.md) — `rules` 命令语法与退出码
 - [攻击模式定制](attack-patterns.md) — 如何编写 attack patterns 规则
 - [自定义 L3 Skills](custom-skills.md) — 如何编写 review skills
