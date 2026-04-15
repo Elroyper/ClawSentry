@@ -222,7 +222,7 @@ clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
   --events examples/sample-events.jsonl --json
 ```
 
-`rules lint` 会报告重复 skill 名称、触发签名冲突、缺失 source 等问题；`rules dry-run` 会告诉你 sample canonical events 最终会选中哪个 skill。完整治理面说明见：[CS-01 规则治理](rule-governance.md)。
+`rules lint` 会报告重复 skill 名称、触发签名冲突、缺失 source 等问题；`rules dry-run` 会告诉你 sample canonical events 最终会选中哪个 skill。完整治理面说明见：[规则治理](rule-governance.md)。
 
 ---
 

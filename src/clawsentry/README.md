@@ -69,7 +69,7 @@ covers five bounded sequence families:
 - reconnaissance commands followed by `sudo`-backed privileged execution
 - repeated secret harvest followed by archive/packaging preparation
 
-For operator-facing telemetry, the top-level `trigger_reason` remains stable,
+For runtime observability, the top-level `trigger_reason` remains stable,
 while suspicious-pattern traces now also expose a finer `trigger_detail`
 family such as `secret_plus_network` or `secret_harvest_archive`.
 That detail is now visible in `clawsentry watch`, the dashboard runtime feed,
@@ -354,9 +354,9 @@ banner.
 
 ### Rule Governance
 
-`clawsentry rules` is the first CS-01 authoring-time governance surface.
-It is intentionally narrow: it validates and dry-runs the existing YAML rule
-assets instead of introducing a runtime DSL for L1/L2/L3 control flow.
+`clawsentry rules` is the rule-governance entrypoint. It is intentionally
+narrow: it validates and dry-runs the existing YAML rule assets instead of
+introducing a runtime DSL for L1/L2/L3 control flow.
 
 ```bash
 clawsentry rules lint --json

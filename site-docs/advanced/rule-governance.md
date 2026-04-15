@@ -1,18 +1,18 @@
 ---
-title: CS-01 规则治理
-description: CS-01 作者期规则治理面：YAML authoring surface、lint、dry-run、fingerprint 与 rollout 前检查
+title: 规则治理
+description: YAML 规则与技能的上线前治理：lint、dry-run、fingerprint 与 rollout 前检查
 ---
 
-# CS-01 规则治理
+# 规则治理
 
-`CS-01` 的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则面的**作者期治理**补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
+规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的**上线前治理**补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
 
 !!! abstract "本页快速导航"
     [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [典型工作流](#workflow) · [输出字段](#outputs)
 
 ## 作用边界 {#scope}
 
-当前版本的 `CS-01` 只管理以下 authoring surface：
+当前版本的规则治理只管理以下规则资产：
 
 - L2 attack patterns YAML
 - 可选 evolved patterns YAML
@@ -26,7 +26,7 @@ description: CS-01 作者期规则治理面：YAML authoring surface、lint、dr
 
 更准确的理解是：
 
-> `CS-01` 是“规则作者在上线前自检和预演”的治理层，不是“运行时策略解释器”。
+> 规则治理是“规则作者在上线前自检和预演”的治理层，不是“运行时策略解释器”。
 
 ## 规则面组成 {#rule-surfaces}
 
@@ -35,7 +35,7 @@ description: CS-01 作者期规则治理面：YAML authoring surface、lint、dr
 | Core attack patterns | `src/clawsentry/gateway/attack_patterns.yaml` | L2 规则库主干 |
 | Evolved patterns | `CS_EVOLVED_PATTERNS_PATH` 指向的 YAML | E-5 提升后的 experimental / stable 模式 |
 | Built-in review skills | `src/clawsentry/gateway/skills/*.yaml` | L3 内置审查技能 |
-| Custom review skills | `--skills-dir` 指向的目录 | rollout 前追加的自定义 L3 技能 |
+| Custom review skills | `--skills-dir` 指向的目录 | 上线前追加的自定义 L3 技能 |
 
 默认情况下：
 
@@ -112,7 +112,7 @@ clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
 
 ### 与 release checklist 一起使用
 
-如果本次版本包含 `CS-01` 相关修改，发布前至少保留两条 smoke：
+如果本次版本包含规则治理相关修改，发布前至少保留两条 smoke：
 
 ```bash
 PYTHONPATH=src python -m clawsentry rules lint --json

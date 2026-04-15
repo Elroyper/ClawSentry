@@ -52,7 +52,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 | [`test-llm`](#clawsentry-test-llm) | 验证 L2/L3 连通性、时延与当前运行模式 | `clawsentry test-llm --json` |
 | [`service`](#clawsentry-service) | 安装或检查常驻服务（systemd/launchd） | `clawsentry service status` |
 | [`config`](#clawsentry-config) | 管理项目安全预设 | `clawsentry config init --preset high` |
-| [`rules`](#clawsentry-rules) | CS-01 作者期规则治理 | `clawsentry rules lint --json` |
+| [`rules`](#clawsentry-rules) | 规则治理（lint / dry-run） | `clawsentry rules lint --json` |
 | [`latch`](#clawsentry-latch) | 管理 Latch 移动监控 | `clawsentry latch install` |
 
 > **新用户推荐路径：** 先运行 `clawsentry start --framework <你的框架>`。它会自动补齐项目配置、启动 Gateway，并在前台显示 `watch` 事件流；只有需要手动拆分步骤或排障时，再单独使用 `init`、`gateway`、`watch`。
@@ -1095,7 +1095,7 @@ preset = "high"
 
 ## clawsentry rules
 
-`clawsentry rules` 是 `CS-01` 的作者期规则治理入口，用于检查和预演当前 YAML 规则面。它刻意保持为窄范围治理层：管理的是 attack patterns / evolved patterns / review skills 的 authoring surface，而不是跨 L1/L2/L3 的运行时 DSL。
+`clawsentry rules` 是规则治理入口，用于检查和预演当前 YAML 规则面。它刻意保持为窄范围治理层：管理的是 attack patterns / evolved patterns / review skills 这些规则资产，而不是跨 L1/L2/L3 的统一运行时策略语言。
 
 ### 语法
 
@@ -1136,7 +1136,7 @@ clawsentry rules dry-run --events my-events.json --skills-dir /etc/clawsentry/sk
 !!! tip "和 L3 自定义 Skill 的关系"
     `clawsentry rules` 不会替换 L3 的运行时选择逻辑；它只是帮助你在 rollout 之前确认当前 YAML 规则面是否可加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
 
-更多 authoring 细节见：[CS-01 规则治理](../advanced/rule-governance.md)。
+更多 authoring 细节见：[规则治理](../advanced/rule-governance.md)。
 
 ---
 

@@ -521,10 +521,10 @@ L3 的触发由 `L3TriggerPolicy` 独立判断（详见 [L3 审查 Agent](l3-age
 - 会话累积风险分 >= 阈值（`cumulative_risk`）
 - 高危工具 + 复杂 payload（`high_risk_complex_payload`）
 
-!!! note "当前是 slice 2 编排"
+!!! note "当前装配方式"
     当通过 `build_analyzer_from_env()` 构建分析器且 `CS_L3_ENABLED=true` 时，工厂会返回嵌套结构：
     `CompositeAnalyzer([CompositeAnalyzer([RuleBasedAnalyzer, LLMAnalyzer]), AgentAnalyzer])`。
-    这意味着外层是否进入 L3，取决于内层**已经聚合好的 L2 结果**；L3 的触发判断仍然发生在 `AgentAnalyzer.analyze()` 内部。
+    这意味着是否进入 L3，取决于内层**已经聚合好的 L2 结果**；L3 的触发判断仍然发生在 `AgentAnalyzer.analyze()` 内部。
 
 ---
 

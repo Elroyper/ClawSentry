@@ -199,7 +199,7 @@ clawsentry rules dry-run --attack-patterns /opt/clawsentry/my_patterns.yaml \
   --events examples/sample-events.jsonl --json
 ```
 
-这一步不会修改运行时行为，但会给出当前 pattern surface 的 fingerprint、source summary、重复/冲突 findings 和 sample event 命中结果。完整治理面说明见：[CS-01 规则治理](rule-governance.md)。
+这一步不会修改运行时行为，但会给出当前 pattern surface 的 fingerprint、source summary、重复/冲突 findings 和 sample event 命中结果。完整治理面说明见：[规则治理](rule-governance.md)。
 
 ---
 

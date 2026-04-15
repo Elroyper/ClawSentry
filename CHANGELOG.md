@@ -14,8 +14,8 @@
 
 ### 文档
 
-- **企业 UI 对接材料补充到开发仓库** — 新增面向企业 UI 会议的说明材料，重点从“能提供什么信息、通过哪些接口获取、当前 WebUI 承载哪些信息结构、企业版额外多了什么”四个角度整理对接内容。
-- **公开版本口径同步到 `v0.4.5`** — 开发仓库导航、GitHub README、包内 README、在线安装页、首页和 changelog 已统一更新到当前发布版本与测试基线。
+- **公开文档补齐 enterprise reporting 与统一 LLM 配置说明** — 在线文档、README 与 changelog 已同步说明企业报表接口、TrinityGuard 风险映射，以及统一 `CS_LLM_*` 配置在 L2、L3 和 enterprise fallback 中的复用方式。
+- **公开版本口径同步到 `v0.4.5`** — GitHub README、包内 README、在线安装页、首页和 changelog 已统一更新到当前发布版本与测试基线。
 
 ### 测试与验证
 
@@ -28,18 +28,18 @@
 
 ### 改进
 
-- **CS-01 规则治理工具首版** — 新增 `clawsentry rules lint` 与 `clawsentry rules dry-run`，对现有 attack patterns / review skills 做作者期 `schema / duplicate / conflict` 校验，并支持用 sample canonical events 预演当前规则面的命中 pattern 与 skill 选择结果；`rules dry-run` 现在兼容 JSON object / JSON array / JSONL 输入，并把缺失或非法输入收成更清晰的命令级错误码；该能力刻意保持为窄范围治理层，不引入横跨 L1/L2/L3 的运行时 DSL。
-- **L3 operator telemetry 文档与 surfacing 对齐** — `l3_state`、`l3_reason_code`、`trigger_detail`、compact `evidence_summary`、`budget_exhaustion_event` 与 `decision_path_io` 的公开说明现已同步到在线文档、包内 README 和 GitHub README，避免公开文档继续停留在早期 L3 slice 语义。
+- **规则治理工具首版** — 新增 `clawsentry rules lint` 与 `clawsentry rules dry-run`，对现有 attack patterns / review skills 做上线前 `schema / duplicate / conflict` 校验，并支持用 sample canonical events 预演当前规则面的命中 pattern 与 skill 选择结果；`rules dry-run` 现在兼容 JSON object / JSON array / JSONL 输入，并把缺失或非法输入收成更清晰的命令级错误码；该能力刻意保持为窄范围治理层，不引入横跨 L1/L2/L3 的运行时 DSL。
+- **L3 可观测字段与展示路径对齐** — `l3_state`、`l3_reason_code`、`trigger_detail`、compact `evidence_summary`、`budget_exhaustion_event` 与 `decision_path_io` 的公开说明现已同步到在线文档、包内 README 和 GitHub README，避免公开文档继续停留在早期内部术语。
 
 ### 文档
 
-- **在线文档补齐 CS-01 与 L3 最新公开语义** — 新增 CS-01 规则治理页，CLI 参考现在覆盖 `clawsentry rules`，并补齐 custom skills / attack patterns 的作者期治理流程；L3 审查 Agent、Dashboard、Reporting API 与首页同步更新到当前 operator-facing telemetry 口径。
+- **在线文档补齐规则治理与 L3 最新公开语义** — 新增规则治理页，CLI 参考现在覆盖 `clawsentry rules`，并补齐 custom skills / attack patterns 的上线前治理流程；L3 审查 Agent、Dashboard、Reporting API 与首页同步更新到当前公开能力口径。
 
 ### 测试与验证
 
 - Python 回归：完整测试 `2812 passed, 3 skipped`
 - Focused rules / docs / L3 回归：`100 passed`
-- Broader safety slice：`440 passed`
+- 扩展安全回归：`440 passed`
 - `mkdocs build --strict`：PASS
 
 ## [0.4.3] — 2026-04-14
@@ -70,7 +70,7 @@
 
 ### 文档
 
-- **公开文档统一解释本轮开发主线** — GitHub README、PyPI README、在线首页、安装页、状态页、动态日志与 CHANGELOG 已同步到 `v0.4.2`，并把 slice 33~55 收敛成同一条用户可理解的能力线：L3 bounded Python launcher hardening。
+- **公开文档统一解释本轮能力边界** — GitHub README、PyPI README、在线首页、安装页与 CHANGELOG 已同步到 `v0.4.2`，并把这一轮变化统一解释为 L3 bounded Python launcher hardening。
 
 ### 测试与验证
 
@@ -85,13 +85,13 @@
 
 ### 改进
 
-- **L3 slice 1~32 正式收口** — `CS_L3_ENABLED=true` 时的默认 `multi_turn` 语义、显式 `trigger_reason`、基于聚合 L2 结果的 L3 装配、session transcript / risk 证据读取、`suspicious_pattern` 与 `trigger_detail` 观察链路现在已全部进入正式版本。
+- **L3 基础能力正式收口** — `CS_L3_ENABLED=true` 时的默认 `multi_turn` 语义、显式 `trigger_reason`、基于聚合 L2 结果的 L3 装配、session transcript / risk 证据读取、`suspicious_pattern` 与 `trigger_detail` 观察链路现在已全部进入正式版本。
 - **archive/export 边界继续收紧** — `secret_harvest_archive` 现在明确排除普通本地打包、`base64 -d`、extract/restore、archive inspection、zip/gzip validation、以及只是在 shell 文本中提到 archive 命令的负例，同时继续保留真实 shell wrapper 与 bounded `python -c` launcher 下的 archive/export 识别能力。
 - **Python launcher helper 覆盖补全** — bounded `python -c` 匹配路径现已覆盖 `subprocess.run/call/Popen/check_call/check_output/getoutput/getstatusoutput`、`os.system/popen`、`os.execl/execlp/execv/execve/execvp/execvpe`、`os.spawnl/spawnlp/spawnv/spawnve/spawnvp/spawnvpe` 等常见执行 helper，同时保持纯 `print('...')` 文本负例不触发。
 
 ### 文档
 
-- **发布口径与状态页同步** — 包内 README、开发仓库导航、在线安装页、首页、状态页、动态日志与 CHANGELOG 已统一更新到 `v0.4.1` 和当前完整回归基线。
+- **公开发布口径同步** — 包内 README、在线安装页、首页与 CHANGELOG 已统一更新到 `v0.4.1` 和当前完整回归基线。
 
 ### 测试与验证
 
