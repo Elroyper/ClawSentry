@@ -17,12 +17,12 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **25 built-in attack patterns (v1.1)**: OWASP ASI01–ASI05, covering supply chain, container escape, reverse shell, staged exfiltration
 - **Multi-step attack trajectory detection**: 5 built-in sequences with sliding-window analysis, SSE `trajectory_alert` broadcast
 - **Self-evolving pattern library (E-5)**: auto-extract candidates from high-risk events, CANDIDATE→EXPERIMENTAL→STABLE lifecycle, confidence scoring, REST API feedback loop
-- **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with 20 parameters, all overridable via `CS_` environment variables
+- **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with explicit `CS_` / project-level overrides, including high-level L3 routing and trigger controls
 - **Four-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher)
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2883+ tests**, ~40s full suite
+- **2888+ tests**, ~40s full suite
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.6
+## What's New in v0.4.7
 
-- **Web UI redesigned into a polished operator console**: the `/ui` surface now uses a light-first premium SaaS system across Dashboard, Sessions, Session Detail, Alerts, and DEFER, replacing the older dark-SOC mix with calmer hierarchy and clearer operator scanning.
-- **Dashboard hero now carries an operator brief**: the top of the console no longer wastes space on pure decoration; it summarizes coverage, posture, runtime pulse, and budget pulse directly in the hero so the first screen answers what matters.
-- **Empty, loading, and chart states now feel product-grade**: branded empty states, premium skeletons, and aligned chart surfaces/tooltips remove the remaining default-component feel without regressing into noisy motion.
+- **Opt-in easier-to-trigger L3 controls**: ClawSentry now exposes a narrow high-level config surface for L3 promotion with `l3_routing_mode`, `l3_trigger_profile`, and `l3_budget_tuning_enabled`, while keeping default behavior unchanged.
+- **True L2→local-L3 replacement semantics**: `replace_l2` is documented and released as route substitution for organic L2-entry cases, rather than a vague “force L3 follow-up” alias.
+- **Honest unsupported-local-L3 telemetry**: when a runtime is configured to prefer stronger L3 behavior but boots without local L3 capability, operator-facing surfaces now consistently report `l3_available=false`, `l3_state=skipped`, and `l3_reason_code=local_l3_unavailable`.
 
 ## Quick Start
 

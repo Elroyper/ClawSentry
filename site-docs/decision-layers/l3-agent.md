@@ -229,6 +229,32 @@ sequenceDiagram
 | `trigger_reason` | 稳定的大类触发原因 |
 | `trigger_detail` | `secret_plus_network` 之类更细的 bounded suspicious sequence 细节 |
 
+### PRD 2026-04-17 补充语义
+
+当前版本还支持一组窄配置面的 L3 触发增强：
+
+- `l3_routing_mode=replace_l2`：当请求满足 organic L2 入口条件时，直接用本地 L3 替换 L2。
+- `l3_trigger_profile=eager`：保持正常 routing，但让正常模式更容易升级到 L3。
+- `l3_budget_tuning_enabled=true`：只在显式开启时允许模式感知的更大默认预算；显式 env / 项目 `l3_budget_ms` 覆盖仍优先。
+
+这些能力都是**显式 opt-in**。默认配置下，L3 触发和预算行为保持原状。
+
+### 本地 L3 不可用时的诚实遥测
+
+如果项目或环境配置请求 `replace_l2` / `eager`，但网关启动时没有本地 L3 能力，则这些增强能力对该 runtime 视为 unsupported：
+
+- 路由不会假装已经执行 L3
+- 系统继续运行真实可用的回退层级（L1 或 L2）
+- 运行态字段必须诚实表达意图与实际执行结果：
+
+| 字段 | 值 |
+|------|----|
+| `l3_available` | `false` |
+| `effective_tier` | `L3` |
+| `actual_tier` | 实际执行的真实 tier |
+| `l3_state` | `skipped` |
+| `l3_reason_code` | `local_l3_unavailable` |
+
 ### 证据与预算读数
 
 | 字段 | 作用 |

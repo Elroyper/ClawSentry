@@ -29,6 +29,7 @@ class L3ReasonCode(str, enum.Enum):
     REQUESTED_NON_WHITELISTED_TOOL = "requested_non_whitelisted_tool"
     TOOL_CALL_BUDGET_EXHAUSTED = "tool_call_budget_exhausted"
     BUDGET_EXHAUSTED = "budget_exhausted"
+    LOCAL_L3_UNAVAILABLE = "local_l3_unavailable"
     LOCAL_L3_NOT_COMPLETED = "local_l3_not_completed"
     REQUESTED_BUT_NOT_RUN = "requested_but_not_run"
     UNKNOWN_DEGRADED = "unknown_degraded"
@@ -63,6 +64,8 @@ def infer_l3_reason_code(
         return L3ReasonCode.TOOL_CALL_BUDGET_EXHAUSTED.value
     if "budget exhausted" in normalized:
         return L3ReasonCode.BUDGET_EXHAUSTED.value
+    if "local l3 unavailable" in normalized:
+        return L3ReasonCode.LOCAL_L3_UNAVAILABLE.value
     if "local l3 review did not complete" in normalized:
         return L3ReasonCode.LOCAL_L3_NOT_COMPLETED.value
     if "analysis degraded" in normalized:

@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [0.4.7] — 2026-04-17
+
+### 改进
+
+- **L3 trigger controls 正式发布** — DetectionConfig 与项目级配置现在公开支持 `l3_routing_mode`、`l3_trigger_profile`、`l3_budget_tuning_enabled` 三个高层控制面，用于在不改变默认行为的前提下，让本地 L3 更容易触发或直接替换 organic L2-entry 路径。
+- **`replace_l2` 语义收口为真实路由替换** — 文档与运行态口径现已统一说明：`replace_l2` 不是模糊的 “force L3 follow-up”，而是命中 organic L2 入口后直接跳过 L2、改走本地 L3。
+- **无本地 L3 能力时的公开遥测更诚实** — `l3_runtime` 现在补齐稳定 reason code `local_l3_unavailable`，并把 unsupported-local-L3 情况统一收口为 `l3_available=false`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
+
+### 文档
+
+- **公开文档同步到 L3 trigger design 基线** — GitHub README、包内 README、在线文档的 concepts / detection config / env vars / L3 agent 页面，现已统一解释新的 L3 高层配置面与 unsupported-local-L3 运行态语义。
+- **开发入口与内部状态页同步到 `v0.4.7`** — 根 README、PROJECT_STATUS 与 DEVELOPMENT_DYNAMIC_LOG 已更新到当前正式发布口径与完整回归基线。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2888 passed, 3 skipped`
+- Focused L3 trigger PRD 回归：`5 passed`
+- Focused detection / project / trigger / risk 回归：`609 passed`
+- Focused agent / gateway 回归：`173 passed`
+- `mkdocs build --strict`：PASS
+- `python -m build`：PASS
+
 ## [0.4.6] — 2026-04-17
 
 ### 改进
@@ -828,6 +850,7 @@
 - 测试通过时间 ~6.5s
 
 [0.4.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.6
+[0.4.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.7
 [0.4.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.5
 [0.4.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.3

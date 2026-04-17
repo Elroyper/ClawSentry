@@ -41,6 +41,9 @@ class DetectionConfig:
     # --- L2 semantic analysis ---
     l2_budget_ms: float = 5000.0
     l3_budget_ms: Optional[float] = None  # Separate L3 budget; None = use l2_budget_ms
+    l3_routing_mode: str = "normal"  # "normal" or "replace_l2"
+    l3_trigger_profile: str = "default"  # "default" or "eager"
+    l3_budget_tuning_enabled: bool = False
     attack_patterns_path: Optional[str] = None  # None = built-in default
 
     # --- Post-action tier thresholds ---
@@ -102,6 +105,18 @@ class DetectionConfig:
             raise ValueError(f"l2_budget_ms must be > 0, got {self.l2_budget_ms}")
         if self.l3_budget_ms is not None and self.l3_budget_ms <= 0:
             raise ValueError(f"l3_budget_ms must be > 0, got {self.l3_budget_ms}")
+        if self.l3_routing_mode not in ("normal", "replace_l2"):
+            logger.warning(
+                "Invalid l3_routing_mode=%r, falling back to 'normal'",
+                self.l3_routing_mode,
+            )
+            object.__setattr__(self, "l3_routing_mode", "normal")
+        if self.l3_trigger_profile not in ("default", "eager"):
+            logger.warning(
+                "Invalid l3_trigger_profile=%r, falling back to 'default'",
+                self.l3_trigger_profile,
+            )
+            object.__setattr__(self, "l3_trigger_profile", "default")
         if not (self.post_action_monitor <= self.post_action_escalate <= self.post_action_emergency):
             raise ValueError(
                 f"post_action tier ordering violated: monitor={self.post_action_monitor} "
@@ -149,6 +164,8 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_D4_MID_THRESHOLD", "d4_mid_threshold", int),
     ("CS_L2_BUDGET_MS", "l2_budget_ms", float),
     ("CS_L3_BUDGET_MS", "l3_budget_ms", float),
+    ("CS_L3_ROUTING_MODE", "l3_routing_mode", str),
+    ("CS_L3_TRIGGER_PROFILE", "l3_trigger_profile", str),
     ("CS_ATTACK_PATTERNS_PATH", "attack_patterns_path", str),
     ("CS_POST_ACTION_EMERGENCY", "post_action_emergency", float),
     ("CS_POST_ACTION_ESCALATE", "post_action_escalate", float),
@@ -216,6 +233,7 @@ def build_detection_config_from_env() -> DetectionConfig:
     _parse_bool_env("CS_EVOLVING_ENABLED", "evolving_enabled")
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
     _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
+    _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
 
     try:
         return DetectionConfig(**overrides)
@@ -336,6 +354,7 @@ def build_detection_config_with_preset(
     _parse_bool_env("CS_EVOLVING_ENABLED", "evolving_enabled")
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
     _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
+    _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
 
     try:
         return DetectionConfig(**params)

@@ -375,6 +375,23 @@ DEFER 决策产生
 
 ---
 
+### L3 触发设计开关 {#l3-trigger-design}
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `l3_routing_mode` | `str` | `"normal"` | `CS_L3_ROUTING_MODE` | L3 路由模式：`normal` 保持现状，`replace_l2` 在命中 organic L2 入口时直接改走本地 L3 |
+| `l3_trigger_profile` | `str` | `"default"` | `CS_L3_TRIGGER_PROFILE` | 正常模式下的高层触发档位：`default` 保持现状，`eager` 让 L3 更容易被提升到 |
+| `l3_budget_tuning_enabled` | `bool` | `false` | `CS_L3_BUDGET_TUNING_ENABLED` | 是否允许基于 L3 模式启用更宽松的默认预算；关闭时默认预算行为不变 |
+
+约束：
+
+- **默认行为不变**：以上三个字段全部保持默认值时，L1/L2/L3 行为与旧版本一致。
+- **`replace_l2` 不等于强制 L3 follow-up**：它只在命中 organic L2 入口时改写路由，不会把所有请求都视为显式 `requested_tier=L3`。
+- **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `.clawsentry.toml [overrides].l3_budget_ms` 仍然优先。
+- **无本地 L3 能力时保持诚实回退**：如果网关启动时没有本地 L3 能力，`replace_l2` / `eager` 会被视为 unsupported runtime，现有 L1/L2 路径继续运行，但运行态会明确暴露 `l3_available=false`、`effective_tier=L3`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
+
+---
+
 ## 项目级配置 (.clawsentry.toml) {#project-config}
 
 通过项目根目录的 `.clawsentry.toml` 文件，可以为不同项目设置独立的安全预设和参数覆盖，无需修改全局环境变量。
@@ -390,6 +407,10 @@ preset = "medium"   # low / medium / high / strict
 # 可选：覆盖预设中的单个参数
 # threshold_critical = 2.0
 # d6_injection_multiplier = 0.7
+# l3_routing_mode = "replace_l2"
+# l3_trigger_profile = "eager"
+# l3_budget_tuning_enabled = true
+# l3_budget_ms = 20000
 ```
 
 ### 字段说明
