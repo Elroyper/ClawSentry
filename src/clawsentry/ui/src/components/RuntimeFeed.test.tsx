@@ -47,6 +47,9 @@ describe('RuntimeFeed', () => {
       </MemoryRouter>,
     )
 
+    expect(
+      screen.getByRole('region', { name: /live activity feed/i }),
+    ).toBeInTheDocument()
     expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
     expect(screen.getByText(/1\/1 events/i)).toBeInTheDocument()
     expect(screen.getByText('Budget Exhausted', { selector: 'span' })).toBeInTheDocument()

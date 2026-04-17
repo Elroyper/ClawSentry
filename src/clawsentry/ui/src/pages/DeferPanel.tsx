@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { ShieldAlert, ShieldCheck, Clock } from 'lucide-react'
 import { api, ApiError } from '../api/client'
 import { connectSSE } from '../api/sse'
-import { RiskBadge } from '../components/badges'
 import CountdownTimer from '../components/CountdownTimer'
 import EmptyState from '../components/EmptyState'
-import type { SSEDeferPendingEvent, SSEDeferResolvedEvent, RiskLevel } from '../api/types'
+import type { SSEDeferPendingEvent, SSEDeferResolvedEvent } from '../api/types'
 
 type DeferStatus = 'pending' | 'allowed' | 'denied' | 'expired'
 
@@ -17,8 +16,17 @@ interface DeferItem {
   reason: string
   timestamp: string
   expires_at?: number
-  risk_level?: RiskLevel
   status: DeferStatus
+}
+
+function formatResolveActionLabel(
+  action: 'Allow' | 'Deny',
+  item: Pick<DeferItem, 'approval_id' | 'tool_name' | 'session_id' | 'command'>,
+) {
+  const command = item.command.trim()
+  const commandLabel = command.length > 48 ? `${command.slice(0, 45)}...` : command
+  const detail = commandLabel ? ` for command ${commandLabel}` : ''
+  return `${action} approval ${item.tool_name} for session ${item.session_id}${detail} (${item.approval_id})`
 }
 
 export default function DeferPanel() {
@@ -80,30 +88,79 @@ export default function DeferPanel() {
   }, [])
 
   const handleExpired = useCallback((approvalId: string) => {
-    setItems(prev => prev.map(item =>
-      item.approval_id === approvalId && item.status === 'pending'
-        ? { ...item, status: 'expired' }
-        : item
-    ))
+    setItems(prev => prev.map(item => {
+      if (item.approval_id !== approvalId || item.status !== 'pending') return item
+
+      const expiredAt = item.expires_at
+        ? new Date(item.expires_at * 1000).toISOString()
+        : new Date().toISOString()
+
+      return { ...item, status: 'expired', timestamp: expiredAt }
+    }))
   }, [])
 
   const pendingItems = items.filter(i => i.status === 'pending')
-  const resolvedItems = items.filter(i => i.status !== 'pending')
+  const decisionItems = items.filter(i => i.status === 'allowed' || i.status === 'denied')
+  const outcomeItems = items.filter(i => i.status !== 'pending')
+  const expiredItems = items.filter(i => i.status === 'expired')
 
   return (
-    <div>
-      <h2 className="section-header">
-        <ShieldCheck size={18} style={{ color: 'var(--color-accent)' }} />
-        DEFER Interactive Panel
-        {pendingItems.length > 0 && (
-          <span className="badge badge-defer" style={{ marginLeft: 4 }}>
+    <div className="workbench-shell">
+      <section className="workbench-hero defer-hero" aria-labelledby="defer-approvals-title">
+        <div className="workbench-hero-copy">
+          <div className="eyebrow">Operator Approval Queue</div>
+          <h1 id="defer-approvals-title">
+            <ShieldCheck size={20} style={{ color: 'var(--color-accent)' }} />
+            Defer Approvals
+          </h1>
+          <p className="workbench-hero-text">
+            Review pending approvals with due-time pressure, operator actions, and approval outcomes in one queue surface.
+          </p>
+        </div>
+        <div className="workbench-hero-side">
+          <span className={`badge ${pendingItems.length > 0 ? 'badge-defer' : 'badge-allow'}`}>
             {pendingItems.length} pending
           </span>
-        )}
-      </h2>
+          <span className="workbench-hero-note">
+            {resolveAvailable ? 'Resolve endpoint connected' : 'Resolve endpoint unavailable'}
+          </span>
+        </div>
+      </section>
+
+      <section className="workbench-section" aria-label="Defer approvals overview">
+        <div className="section-card-header workbench-section-header">
+          <div>
+            <div className="section-kicker">Overview</div>
+            <h2>Queue posture</h2>
+          </div>
+          <div className="section-meta">Pending decisions stream in over SSE and stay local to the operator view.</div>
+        </div>
+        <div className="workbench-summary-grid">
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Pending</span>
+            <strong>{pendingItems.length} approvals waiting</strong>
+            <p>Requests that still need an allow or deny decision.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Operator decisions</span>
+            <strong>{decisionItems.length} operator decisions</strong>
+            <p>Approvals explicitly allowed or denied by an operator.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Expired</span>
+            <strong>{expiredItems.length} timed out</strong>
+            <p>Pending requests that aged out before an operator decision.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Operator channel</span>
+            <strong>{resolveAvailable ? 'Interactive' : 'Read only'}</strong>
+            <p>{resolveAvailable ? 'Actions are available for incoming approvals.' : 'Actions are disabled until enforcement reconnects.'}</p>
+          </div>
+        </div>
+      </section>
 
       {!resolveAvailable && (
-        <div className="card" style={{ marginBottom: 16, borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.05)' }}>
+        <div className="card workbench-banner">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-defer)', fontSize: '0.83rem' }}>
             <ShieldAlert size={15} />
             Resolve not available — OpenClaw enforcement is not connected
@@ -111,13 +168,16 @@ export default function DeferPanel() {
         </div>
       )}
 
-      {/* Pending */}
-      <div style={{ marginBottom: 24 }}>
-        <div className="text-muted mono" style={{ fontSize: '0.68rem', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          Pending ({pendingItems.length})
+      <section className="workbench-section" aria-label="Pending approvals queue">
+        <div className="section-card-header workbench-section-header">
+          <div>
+            <div className="section-kicker">Pending queue</div>
+            <h2>Pending approvals queue</h2>
+          </div>
+          <div className="section-meta">Due time, command scope, and operator actions are grouped per approval.</div>
         </div>
         {pendingItems.length === 0 ? (
-          <div className="card">
+          <div className="card workbench-empty-card">
             <EmptyState
               icon={<ShieldCheck size={20} />}
               title="No pending DEFER decisions"
@@ -125,36 +185,54 @@ export default function DeferPanel() {
             />
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="operator-list">
             {pendingItems.map(item => {
               const remaining = item.expires_at ? item.expires_at - Date.now() / 1000 : 999
               const isUrgent = remaining < 10
               return (
-                <div
+                <article
                   key={item.approval_id}
-                  className={`card fade-in ${isUrgent ? 'defer-card-critical' : 'defer-card-pending'}`}
-                  style={{ borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: isUrgent ? 'var(--color-block)' : 'var(--color-defer)' }}
+                  className={`operator-card defer-card ${isUrgent ? 'defer-card-critical' : 'defer-card-pending'}`}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <span className="mono" style={{ fontSize: '0.88rem', fontWeight: 600 }}>{item.tool_name}</span>
-                        {item.risk_level && <RiskBadge level={item.risk_level} />}
+                  <div className="operator-card-main">
+                    <div className="operator-card-topline">
+                      <div className="operator-card-tags">
+                        <span className="badge badge-defer">pending</span>
+                        <span className="badge badge-neutral">{item.tool_name}</span>
+                        {isUrgent && <span className="badge badge-block">due soon</span>}
                       </div>
-                      <div className="cmd-snippet" style={{ maxWidth: '100%', marginBottom: item.reason ? 6 : 0 }}>
-                        {item.command || '—'}
-                      </div>
-                      {item.reason && (
-                        <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 4 }}>
-                          {item.reason}
-                        </div>
-                      )}
+                      <div className="operator-time">{new Date(item.timestamp).toLocaleTimeString()}</div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, flexShrink: 0 }}>
+
+                    <h3 className="operator-card-title">{item.tool_name}</h3>
+                    <div className="cmd-snippet operator-command">{item.command || '—'}</div>
+                    {item.reason && (
+                      <p className="operator-card-description">{item.reason}</p>
+                    )}
+
+                    <div className="operator-card-meta">
+                      <div className="operator-meta-block">
+                        <span className="operator-meta-label">Session</span>
+                        <strong className="mono">{item.session_id}</strong>
+                      </div>
+                      <div className="operator-meta-block">
+                        <span className="operator-meta-label">Pending state</span>
+                        <strong>{resolveAvailable ? 'Operator decision required' : 'Awaiting reconnection'}</strong>
+                      </div>
+                      <div className="operator-meta-block">
+                        <span className="operator-meta-label">Command</span>
+                        <strong className="mono">{item.command || '—'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="operator-card-side">
+                    <div className="operator-side-panel">
+                      <span className="operator-meta-label">Due time</span>
                       {item.expires_at ? (
                         <CountdownTimer
                           expiresAt={item.expires_at}
-                          onExpired={() => handleExpired(item.approval_id!)}
+                          onExpired={() => handleExpired(item.approval_id)}
                         />
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -162,53 +240,70 @@ export default function DeferPanel() {
                           <span className="mono text-muted" style={{ fontSize: '0.72rem' }}>No timeout</span>
                         </div>
                       )}
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          className="btn btn-allow"
-                          onClick={() => handleResolve(item.approval_id!, 'allow-once')}
-                          disabled={!resolveAvailable}
-                        >
-                          Allow
-                        </button>
-                        <button
-                          className="btn btn-deny"
-                          onClick={() => handleResolve(item.approval_id!, 'deny')}
-                          disabled={!resolveAvailable}
-                        >
-                          Deny
-                        </button>
-                      </div>
+                    </div>
+
+                    <div className="operator-action-group">
+                      <button
+                        className="btn btn-allow"
+                        onClick={() => handleResolve(item.approval_id, 'allow-once')}
+                        disabled={!resolveAvailable}
+                        aria-label={formatResolveActionLabel('Allow', item)}
+                      >
+                        Allow
+                      </button>
+                      <button
+                        className="btn btn-deny"
+                        onClick={() => handleResolve(item.approval_id, 'deny')}
+                        disabled={!resolveAvailable}
+                        aria-label={formatResolveActionLabel('Deny', item)}
+                      >
+                        Deny
+                      </button>
                     </div>
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Resolved */}
-      {resolvedItems.length > 0 && (
-        <div>
-          <div className="text-muted mono" style={{ fontSize: '0.68rem', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Resolved ({resolvedItems.length})
+      <section className="workbench-section" aria-label="Approval outcomes history">
+          <div className="section-card-header workbench-section-header">
+            <div>
+              <div className="section-kicker">History</div>
+              <h2>Approval outcomes history</h2>
+            </div>
+            <div className="section-meta">Operator decisions and timed-out requests stay visible for quick operator audit.</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {resolvedItems.map(item => (
-              <div key={item.approval_id} className="card" style={{ opacity: 0.45, padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.78rem' }}>
-                <span className={`badge ${item.status === 'allowed' ? 'badge-allow' : item.status === 'denied' ? 'badge-block' : 'badge-defer'}`}>
-                  {item.status}
-                </span>
-                <span className="mono">{item.tool_name}</span>
-                <span className="cmd-snippet" style={{ flex: 1 }}>{item.command || '—'}</span>
-                <span className="text-muted mono" style={{ fontSize: '0.68rem' }}>
-                  {new Date(item.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+          {outcomeItems.length === 0 ? (
+            <div className="card workbench-empty-card">
+              <EmptyState
+                icon={<ShieldCheck size={20} />}
+                title="No approval outcomes yet"
+                subtitle="Operator decisions and timed-out requests will appear here once approvals leave the queue"
+              />
+            </div>
+          ) : (
+            <div className="operator-history-list">
+              {outcomeItems.map(item => (
+                <div key={item.approval_id} className="operator-history-card">
+                  <span className={`badge ${item.status === 'allowed' ? 'badge-allow' : item.status === 'denied' ? 'badge-block' : 'badge-defer'}`}>
+                    {item.status}
+                  </span>
+                  <span className="mono">{item.tool_name}</span>
+                  <span className="cmd-snippet" style={{ flex: 1 }}>{item.command || '—'}</span>
+                  {item.status === 'expired' && (
+                    <span className="text-muted">Timed out without an operator decision</span>
+                  )}
+                  <span className="text-muted mono" style={{ fontSize: '0.68rem' }}>
+                    {new Date(item.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
     </div>
   )
 }

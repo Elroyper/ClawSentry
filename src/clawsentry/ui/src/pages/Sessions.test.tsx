@@ -64,6 +64,10 @@ describe('Sessions inventory', () => {
   it('filters to budget-exhausted sessions without breaking framework, risk, or query filtering', async () => {
     renderSessions()
 
+    expect(screen.getByRole('region', { name: 'Session filters' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Framework Overview' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Session inventory' })).toBeInTheDocument()
+
     expect(await screen.findByText('sess-budget-codex')).toBeInTheDocument()
     expect(screen.getByText('sess-normal-codex')).toBeInTheDocument()
     expect(screen.getByText('sess-budget-openclaw')).toBeInTheDocument()
@@ -74,11 +78,13 @@ describe('Sessions inventory', () => {
     expect(screen.getByText('sess-budget-openclaw')).toBeInTheDocument()
     expect(screen.queryByText('sess-normal-codex')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'codex' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Framework filter' }), {
+      target: { value: 'codex' },
+    })
     expect(screen.getByText('sess-budget-codex')).toBeInTheDocument()
     expect(screen.queryByText('sess-budget-openclaw')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByPlaceholderText('Search session, framework, workspace, agent'), {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search sessions' }), {
       target: { value: 'agent-alpha' },
     })
     await waitFor(() => {
@@ -86,7 +92,9 @@ describe('Sessions inventory', () => {
       expect(screen.queryByText('sess-normal-codex')).not.toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'high' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Risk filter' }), {
+      target: { value: 'high' },
+    })
     await waitFor(() => {
       expect(vi.mocked(api.sessions)).toHaveBeenCalledWith(
         expect.objectContaining({ min_risk: 'high' }),

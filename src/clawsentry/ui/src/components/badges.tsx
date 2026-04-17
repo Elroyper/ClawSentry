@@ -1,11 +1,13 @@
 import type { RiskLevel, DecisionVerdict } from '../api/types'
 
+function BadgeShell({ className, children }: { className?: string; children: string }) {
+  return <span className={className}>{children}</span>
+}
+
 export function DecisionBadge({ decision }: { decision: DecisionVerdict }) {
-  const cls = `badge badge-${decision}`
-  return <span className={cls}>{decision}</span>
+  return <BadgeShell className={`badge badge-${decision}`}>{decision}</BadgeShell>
 }
 
 export function RiskBadge({ level }: { level: RiskLevel }) {
-  const cls = `badge badge-risk-${level}`
-  return <span className={cls}>{level}</span>
+  return <BadgeShell className={`badge badge-risk-${level}`}>{level}</BadgeShell>
 }

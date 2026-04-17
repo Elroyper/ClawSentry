@@ -13,14 +13,14 @@ interface MetricCardProps {
 export default function MetricCard({ label, value, accent = 'purple', icon, subtext }: MetricCardProps) {
   return (
     <div className={`card metric-card accent-${accent}`}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
+      <div className="metric-card-header">
+        <div className="metric-card-copy">
           <div className="metric-value">{value}</div>
           <div className="metric-label">{label}</div>
           {subtext && <div className="metric-subtext">{subtext}</div>}
         </div>
         {icon && (
-          <div style={{ color: 'var(--color-text-muted)', opacity: 0.6 }}>
+          <div className="metric-icon" aria-hidden="true">
             {icon}
           </div>
         )}

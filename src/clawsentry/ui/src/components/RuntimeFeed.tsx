@@ -505,7 +505,11 @@ export default function RuntimeFeed() {
   const filteredEvents = events.filter(event => matchesRuntimeFilters(event, eventTypeFilter, highPriorityOnly))
 
   return (
-    <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <section
+      className="card runtime-feed"
+      aria-label="Live activity feed"
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
       <div className="card-header">
         <Activity size={12} />
         Live Activity Feed
@@ -611,6 +615,6 @@ export default function RuntimeFeed() {
           ))
         )}
       </div>
-    </div>
+    </section>
   )
 }

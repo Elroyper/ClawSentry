@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.5
+## What's New in v0.4.6
 
-- **Enterprise compatibility reporting facade**: new `enterprise/*` reporting endpoints let enterprise security consoles reuse the existing WebUI data surface while adding enterprise-oriented summary, live, session, alert, replay, and SSE query paths.
-- **TrinityGuard-aware enterprise risk mapping**: enterprise payloads now include TrinityGuard tier/subtype classification, live risk rollups, and safe rule-first plus LLM-fallback mapping for unmapped long-tail observations.
-- **Unified LLM configuration path**: L2, L3, and enterprise semantic fallback now share the same provider/key/model/base-url configuration flow, reducing duplicated setup across features.
+- **Web UI redesigned into a polished operator console**: the `/ui` surface now uses a light-first premium SaaS system across Dashboard, Sessions, Session Detail, Alerts, and DEFER, replacing the older dark-SOC mix with calmer hierarchy and clearer operator scanning.
+- **Dashboard hero now carries an operator brief**: the top of the console no longer wastes space on pure decoration; it summarizes coverage, posture, runtime pulse, and budget pulse directly in the hero so the first screen answers what matters.
+- **Empty, loading, and chart states now feel product-grade**: branded empty states, premium skeletons, and aligned chart surfaces/tooltips remove the remaining default-component feel without regressing into noisy motion.
 
 ## Quick Start
 

@@ -329,11 +329,11 @@ flowchart LR
 
 ## Web 安全仪表板
 
-内置 **React 18 + TypeScript + Vite** 单页应用，暗色 SOC（安全运营中心）主题。
+内置 **React 18 + TypeScript + Vite** 单页应用，现已升级为浅色优先、面向值班人员扫描路径的 premium operator console。
 
 | 页面 | 功能 |
 |:---|:---|
-| **Dashboard** | 实时决策 feed、指标卡、饼图/柱状图 |
+| **Dashboard** | Operator Brief、实时决策 feed、指标卡、风险概览 |
 | **Sessions** | 会话列表、D1-D5 雷达图、风险曲线、决策时间线 |
 | **Alerts** | 告警表格、过滤、确认、SSE 自动推送 |
 | **DEFER Panel** | 审批倒计时、Allow/Deny 操作、503 降级提示 |

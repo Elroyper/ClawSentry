@@ -27,10 +27,10 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="sidebar-logo">CLAWSENTRY</div>
+          <div className="sidebar-logo">ClawSentry</div>
           <div className="subtitle">Security Operations Console</div>
         </div>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Primary">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
@@ -47,17 +47,20 @@ export default function Layout() {
           Framework / Workspace / Session
         </div>
       </aside>
-      <div className="main-content">
-        <div className="topbar">
-          <span className="topbar-title">{title}</span>
+      <section className="main-content">
+        <header className="topbar" role="banner">
+          <div className="topbar-heading">
+            <p className="topbar-kicker">Operator Console</p>
+            <span className="topbar-title">{title}</span>
+          </div>
           <StatusBar />
-        </div>
-        <div className="page-content fade-in">
+        </header>
+        <main className="page-content fade-in" role="main">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
-        </div>
-      </div>
+        </main>
+      </section>
     </div>
   )
 }

@@ -78,7 +78,7 @@ function renderBucketPanel(title: string, buckets: Record<string, LLMUsageBucket
 export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) {
   if (!hasUsageData(snapshot)) {
     return (
-      <section className="card section-card" style={{ marginBottom: 18 }}>
+      <section className="card section-card" aria-label="LLM usage drill-down" style={{ marginBottom: 18 }}>
         <div className="section-card-header">
           <div>
             <p className="section-kicker">LLM telemetry</p>
@@ -94,7 +94,7 @@ export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) 
   const totalTokens = snapshot.total_input_tokens + snapshot.total_output_tokens
 
   return (
-    <section className="card section-card" style={{ marginBottom: 18 }}>
+    <section className="card section-card" aria-label="LLM usage drill-down" style={{ marginBottom: 18 }}>
       <div className="section-card-header">
         <div>
           <p className="section-kicker">LLM telemetry</p>

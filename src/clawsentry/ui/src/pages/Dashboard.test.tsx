@@ -14,11 +14,12 @@ vi.mock('../api/client', () => ({
 }))
 
 vi.mock('../components/RuntimeFeed', () => ({
-  default: () => <div data-testid="runtime-feed" />,
-}))
-
-vi.mock('../components/LLMUsageDrilldown', () => ({
-  default: () => <div data-testid="llm-usage-drilldown" />,
+  default: () => (
+    <section aria-label="Live activity feed">
+      <h2>Live Activity Feed</h2>
+      <p data-testid="runtime-feed-stub">Streaming feed stub</p>
+    </section>
+  ),
 }))
 
 function makeSessionSummary(overrides: Record<string, unknown> = {}) {
@@ -122,9 +123,15 @@ describe('Dashboard', () => {
     vi.mocked(api.sessions).mockResolvedValue([makeSessionSummary()] as never)
   })
 
-  it('surfaces a toolkit evidence budget hotspot metric and session card', async () => {
+  it('composes the dashboard regions and key widgets', async () => {
     const { container } = renderDashboard()
 
+    expect(await screen.findByRole('region', { name: /global posture/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /operational scan/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /deep inspection/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /llm usage drill-down/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /live activity feed/i })).toBeInTheDocument()
+    expect(screen.getByText('Live Activity Feed')).toBeInTheDocument()
     expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
     expect(screen.getByText('Toolkit Evidence Budget')).toBeInTheDocument()
 
@@ -157,6 +164,9 @@ describe('Dashboard', () => {
 
     const { container } = renderDashboard()
 
+    expect(await screen.findByRole('region', { name: /global posture/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /operational scan/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /deep inspection/i })).toBeInTheDocument()
     expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
     const metricCard = Array.from(container.querySelectorAll('.metric-card')).find(card =>
       card.textContent?.includes('Toolkit Evidence Budget'),

@@ -71,9 +71,9 @@ export default function StatusBar() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.75rem' }}>
+    <div className="statusbar">
       {health && status === 'online' && (
-        <span className="text-muted mono" style={{ fontSize: '0.68rem' }}>
+        <span className="status-summary text-muted mono">
           {formatUptime(health.uptime_seconds)} uptime · {health.trajectory_count.toLocaleString()} events ·
           {llmUsageSummary && (
             <>
@@ -99,16 +99,15 @@ export default function StatusBar() {
           ) : 'Active'}
         </span>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span className={`status-dot ${status}`} />
-        <span className="mono" style={{
-          fontSize: '0.68rem',
-          fontWeight: 600,
-          color: status === 'online' ? 'var(--color-allow)' : status === 'offline' ? 'var(--color-block)' : 'var(--color-defer)',
-        }}>
-          {status === 'online' ? 'CONNECTED' : status === 'offline' ? 'DISCONNECTED' : 'CHECKING…'}
-        </span>
-      </div>
+      <span
+        className={`status-pill status-pill-${status}`}
+        aria-label="Gateway connection status"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {status === 'online' ? 'CONNECTED' : status === 'offline' ? 'DISCONNECTED' : 'CHECKING…'}
+      </span>
     </div>
   )
 }

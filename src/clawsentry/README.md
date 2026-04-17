@@ -395,11 +395,11 @@ All endpoints require `Authorization: Bearer <token>` (except `/health` and `/ui
 
 ## Web Dashboard
 
-Built-in React SPA security dashboard at `/ui`. Dark SOC theme with real-time SSE data.
+Built-in React SPA operator console at `/ui`. Light-first premium dashboard with real-time SSE data and a summary-first landing view.
 
 | Page | Features |
 |------|----------|
-| **Dashboard** | Live decision feed + 4 metric cards + risk distribution + decision source chart |
+| **Dashboard** | Operator brief + live decision feed + metric cards + risk overview |
 | **Sessions** | Active sessions + D1-D6 radar + risk curve + decision timeline |
 | **Alerts** | Alert table + severity filter + acknowledge + SSE auto-push |
 | **DEFER Panel** | Pending decisions + countdown + Allow/Deny buttons |

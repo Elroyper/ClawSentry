@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '../api/client'
 import { connectSSE } from '../api/sse'
+import { RiskBadge } from '../components/badges'
 import EmptyState from '../components/EmptyState'
 import type { Alert, AlertSeverity, SSEAlertEvent } from '../api/types'
 
@@ -27,6 +28,11 @@ function normalizeAlert(alert: Alert): Alert {
     ...alert,
     severity: normalizeAlertSeverity(alert.severity),
   }
+}
+
+function formatSessionId(sessionId: string | null | undefined) {
+  if (!sessionId) return '—'
+  return sessionId.length > 12 ? `${sessionId.slice(0, 12)}…` : sessionId
 }
 
 const matchesAlertFilters = (
@@ -90,106 +96,202 @@ export default function Alerts() {
   }
 
   const openCount = alerts.filter(a => !a.acknowledged).length
+  const acknowledgedCount = alerts.length - openCount
+  const priorityCount = alerts.filter(a => !a.acknowledged && (a.severity === 'high' || a.severity === 'critical')).length
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 className="section-header" style={{ marginBottom: 0 }}>
-          <AlertTriangle size={18} style={{ color: 'var(--color-defer)' }} />
-          Alerts Workbench
-          {openCount > 0 && (
-            <span className="badge badge-defer" style={{ marginLeft: 4 }}>{openCount} open</span>
-          )}
-        </h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select value={severity} onChange={e => setSeverity(e.target.value as AlertSeverity | '')}>
-            <option value="">All Severities</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-          <select
-            value={showAcknowledged === undefined ? '' : String(showAcknowledged)}
-            onChange={e => setShowAcknowledged(e.target.value === '' ? undefined : e.target.value === 'true')}
-          >
-            <option value="">All Status</option>
-            <option value="false">Unacknowledged</option>
-            <option value="true">Acknowledged</option>
-          </select>
-          <button className="btn" onClick={load} disabled={loading}>
+    <div className="workbench-shell">
+      <section className="workbench-hero alerts-hero" aria-labelledby="alerts-workbench-title">
+        <div className="workbench-hero-copy">
+          <div className="eyebrow">Incident Operations</div>
+          <h1 id="alerts-workbench-title">
+            <AlertTriangle size={20} style={{ color: 'var(--color-defer)' }} />
+            Alerts Workbench
+          </h1>
+          <p className="workbench-hero-text">
+            Triage live monitor signals with a tighter view of severity, session context, and operator action state.
+          </p>
+        </div>
+        <div className="workbench-hero-side">
+          <span className={`badge ${openCount > 0 ? 'badge-defer' : 'badge-allow'}`}>
+            {openCount} open
+          </span>
+          <span className="workbench-hero-note">
+            {priorityCount > 0 ? `${priorityCount} priority incidents need review` : 'No priority incidents pending'}
+          </span>
+        </div>
+      </section>
+
+      <section className="workbench-section" aria-label="Alerts overview">
+        <div className="section-card-header workbench-section-header">
+          <div>
+            <div className="section-kicker">Overview</div>
+            <h2>Alert posture</h2>
+          </div>
+          <div className="section-meta">Refreshes every 30 seconds and accepts live SSE inserts.</div>
+        </div>
+        <div className="workbench-summary-grid">
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Queue size</span>
+            <strong>{alerts.length} total alerts</strong>
+            <p>All alerts matching the current server-side filters.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Needs action</span>
+            <strong>{openCount} open</strong>
+            <p>Unacknowledged alerts waiting for operator triage.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Resolved state</span>
+            <strong>{acknowledgedCount} acknowledged</strong>
+            <p>Alerts already actioned inside this filtered view.</p>
+          </div>
+          <div className="workbench-summary-card">
+            <span className="workbench-summary-label">Priority load</span>
+            <strong>{priorityCount} high priority</strong>
+            <p>Open `high` or `critical` signals that should be reviewed first.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="workbench-section" aria-label="Alerts filters">
+        <div className="section-card-header workbench-section-header">
+          <div>
+            <div className="section-kicker">Filters</div>
+            <h2>Triage controls</h2>
+          </div>
+          <button className="btn" onClick={load} disabled={loading} aria-label="Refresh alerts">
             <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
+            Refresh
           </button>
         </div>
-      </div>
+        <div className="workbench-filter-grid">
+          <label className="workbench-field">
+            <span className="workbench-field-label">Severity</span>
+            <select
+              aria-label="Severity filter"
+              value={severity}
+              onChange={e => setSeverity(e.target.value as AlertSeverity | '')}
+            >
+              <option value="">All Severities</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </label>
+          <label className="workbench-field">
+            <span className="workbench-field-label">Status</span>
+            <select
+              aria-label="Alert status filter"
+              value={showAcknowledged === undefined ? '' : String(showAcknowledged)}
+              onChange={e => setShowAcknowledged(e.target.value === '' ? undefined : e.target.value === 'true')}
+            >
+              <option value="">All Status</option>
+              <option value="false">Unacknowledged</option>
+              <option value="true">Acknowledged</option>
+            </select>
+          </label>
+        </div>
+      </section>
 
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <table>
-          <thead>
-            <tr>
-              <th>Severity</th>
-              <th>Metric</th>
-              <th>Session</th>
-              <th>Message</th>
-              <th>Triggered</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+      <section className="workbench-section" aria-label="Alerts triage queue">
+        <div className="section-card-header workbench-section-header">
+          <div>
+            <div className="section-kicker">Queue</div>
+            <h2>Alerts triage queue</h2>
+          </div>
+          <div className="section-meta">Severity, session, and action state are grouped per alert.</div>
+        </div>
+
+        {alerts.length === 0 && !loading ? (
+          <div className="card workbench-empty-card">
+            <EmptyState
+              icon={<AlertTriangle size={20} />}
+              title="No alerts"
+              subtitle="Alerts will appear here when risk thresholds are exceeded"
+            />
+          </div>
+        ) : (
+          <div className="operator-list">
             {alerts.map(alert => (
-              <tr key={alert.alert_id} style={alert.acknowledged ? { opacity: 0.45 } : undefined}>
-                <td>
-                  <span className="mono" style={{ fontSize: '0.72rem', fontWeight: 700, color: SEVERITY_COLORS[alert.severity] || 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {alert.severity}
-                  </span>
-                </td>
-                <td className="mono" style={{ fontSize: '0.78rem' }}>{alert.metric}</td>
-                <td>
-                  <Link to={`/sessions/${alert.session_id}`} style={{ color: 'var(--color-accent)', textDecoration: 'none', fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
-                    {(alert.session_id ?? '').length > 12 ? (alert.session_id ?? '').slice(0, 12) + '…' : (alert.session_id ?? '—')}
-                  </Link>
-                </td>
-                <td className="text-secondary" style={{ fontSize: '0.78rem', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {alert.message}
-                </td>
-                <td className="mono text-muted" style={{ fontSize: '0.68rem' }}>
-                  {new Date(alert.triggered_at).toLocaleString()}
-                </td>
-                <td>
-                  {alert.acknowledged ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-allow)', fontSize: '0.72rem' }}>
-                      <CheckCircle size={13} /> ACK
+              <article
+                key={alert.alert_id}
+                className={`operator-card alert-card alert-card-${alert.severity}${alert.acknowledged ? ' alert-card-acknowledged' : ''}`}
+              >
+                <div className="operator-card-main">
+                  <div className="operator-card-topline">
+                    <div className="operator-card-tags">
+                      <RiskBadge level={alert.severity} />
+                      <span className={`badge ${alert.acknowledged ? 'badge-allow' : 'badge-defer'}`}>
+                        {alert.acknowledged ? (
+                          <>
+                            <CheckCircle size={12} />
+                            acknowledged
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={12} />
+                            open
+                          </>
+                        )}
+                      </span>
+                      <span className="badge badge-neutral">{alert.metric}</span>
+                    </div>
+                    <div className="operator-time">{new Date(alert.triggered_at).toLocaleString()}</div>
+                  </div>
+
+                  <h3 className="operator-card-title">{alert.message}</h3>
+
+                  <div className="operator-card-meta">
+                    <div className="operator-meta-block">
+                      <span className="operator-meta-label">Metric</span>
+                      <strong className="mono">{alert.metric}</strong>
+                    </div>
+                    <div className="operator-meta-block">
+                      <span className="operator-meta-label">Session</span>
+                      <Link to={`/sessions/${alert.session_id}`} className="operator-session-link">
+                        {formatSessionId(alert.session_id)}
+                      </Link>
+                    </div>
+                    <div className="operator-meta-block">
+                      <span className="operator-meta-label">State</span>
+                      <strong>{alert.acknowledged ? 'Acknowledged' : 'Needs acknowledgement'}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="operator-card-side">
+                  <div className="operator-side-panel">
+                    <span className="operator-meta-label">Severity</span>
+                    <strong style={{ color: SEVERITY_COLORS[alert.severity] || 'var(--color-text)' }}>
+                      {alert.severity}
+                    </strong>
+                    <span className="text-muted">
+                      {alert.acknowledged
+                        ? `Acknowledged by ${alert.acknowledged_by || 'dashboard'}`
+                        : 'Escalate or acknowledge to clear the queue'}
                     </span>
-                  ) : (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--color-defer)', fontSize: '0.72rem' }}>
-                      <XCircle size={13} /> OPEN
-                    </span>
-                  )}
-                </td>
-                <td>
-                  {!alert.acknowledged && (
-                    <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: '0.68rem' }} onClick={() => handleAcknowledge(alert.alert_id)}>
+                  </div>
+                  {!alert.acknowledged ? (
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleAcknowledge(alert.alert_id)}
+                      aria-label={`Acknowledge alert ${alert.message}`}
+                    >
                       Acknowledge
                     </button>
+                  ) : (
+                    <span className="operator-resolution-note">
+                      {alert.acknowledged_at ? `Closed ${new Date(alert.acknowledged_at).toLocaleString()}` : 'Closed'}
+                    </span>
                   )}
-                </td>
-              </tr>
+                </div>
+              </article>
             ))}
-            {alerts.length === 0 && !loading && (
-              <tr>
-                <td colSpan={7} style={{ padding: 0, border: 'none' }}>
-                  <EmptyState
-                    icon={<AlertTriangle size={20} />}
-                    title="No alerts"
-                    subtitle="Alerts will appear here when risk thresholds are exceeded"
-                  />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

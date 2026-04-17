@@ -28,6 +28,7 @@ describe('LLMUsageDrilldown', () => {
       />,
     )
 
+    expect(screen.getByRole('region', { name: /llm usage drill-down/i })).toBeInTheDocument()
     expect(screen.getByText('LLM usage drill-down')).toBeInTheDocument()
     expect(screen.getByText(/24 calls/i)).toBeInTheDocument()
     expect(screen.getByText('$12.34')).toBeInTheDocument()
@@ -45,6 +46,7 @@ describe('LLMUsageDrilldown', () => {
   it('renders an empty state when the snapshot is missing', () => {
     render(<LLMUsageDrilldown snapshot={null} />)
 
+    expect(screen.getByRole('region', { name: /llm usage drill-down/i })).toBeInTheDocument()
     expect(screen.getByText('LLM usage drill-down')).toBeInTheDocument()
     expect(screen.getByText('No LLM usage snapshot available.')).toBeInTheDocument()
   })

@@ -17,10 +17,15 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
   return (
     <div className="login-container">
       <div className="login-card">
+        <p className="eyebrow">Secure access</p>
         <h2>CLAWSENTRY</h2>
         <div className="subtitle">Enter your AHP auth token to connect</div>
-        <form onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={handleSubmit}>
+          <label className="login-label" htmlFor="auth-token">
+            Auth token
+          </label>
           <input
+            id="auth-token"
             type="password"
             className="login-input"
             placeholder="CS_AUTH_TOKEN"
@@ -30,8 +35,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
           />
           <button
             type="submit"
-            className="btn btn-primary"
-            style={{ width: '100%', marginTop: 16, padding: '10px 14px' }}
+            className="btn btn-primary login-button"
           >
             Connect
           </button>

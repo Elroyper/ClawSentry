@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.4.6] — 2026-04-17
+
+### 改进
+
+- **Web UI 升级为 light-first premium operator console** — Dashboard、Sessions、Session Detail、Alerts 与 DEFER Panel 现在共享同一套浅色优先、长时间可读、以 operator scanning 为中心的视觉系统；旧版黑白混杂与深色 SOC 残留被整体收口。
+- **Dashboard 首页补齐 operator brief** — `Security Console` hero 不再留出大片无信息空白，而是补上 coverage / posture / runtime pulse / budget pulse 四块低噪声摘要，让首页第一屏既完整又不喧宾夺主。
+- **空状态、loading 与图表表面完成产品化收口** — `EmptyState`、`SkeletonCard`、图表卡片与 Session Detail tooltip 统一进入新的品牌化系统，去掉默认组件感并保持克制的高级感。
+
+### 文档
+
+- **在线 Web UI 文档同步到新视觉基线** — `site-docs/dashboard/index.md` 与 `site-docs/index.md` 已更新到 light-first operator console 口径，明确 Dashboard 顶部现在包含 operator brief，整体视觉不再描述为暗色 SOC。
+- **开发入口与公开 release 文案同步到 `v0.4.6`** — 根 README、公开 README、PROJECT_STATUS 与 DEVELOPMENT_DYNAMIC_LOG 已同步说明这次 Web UI redesign + polish 已进入正式发布基线。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2883 passed, 3 skipped`
+- Web UI 回归：`28 passed`
+- Web UI 生产构建：PASS
+- `mkdocs build --strict`：待本次 release workflow 执行
+
 ## [0.4.5] — 2026-04-15
 
 ### 改进
@@ -807,6 +827,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.6
 [0.4.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.5
 [0.4.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.4
 [0.4.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.3

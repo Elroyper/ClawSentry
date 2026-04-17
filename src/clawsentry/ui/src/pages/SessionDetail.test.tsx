@@ -142,6 +142,38 @@ describe('SessionDetail', () => {
     vi.mocked(api.sessionReplayPage).mockResolvedValue(makeReplayPageResponse() as never)
   })
 
+  it('keeps analysis first while preserving supporting context and heading hierarchy', async () => {
+    renderSessionDetail()
+
+    const analysisRegion = await screen.findByRole('region', { name: 'Session analysis' })
+    const contextRegion = screen.getByRole('region', { name: 'Session context' })
+
+    expect(analysisRegion).toBeInTheDocument()
+    expect(contextRegion).toBeInTheDocument()
+    expect(analysisRegion.compareDocumentPosition(contextRegion) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Session analysis' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Session context' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Risk composition' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Risk score over time' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Decision timeline' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Workspace context' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Session provenance' })).toBeInTheDocument()
+
+    expect(within(contextRegion).getByText('Workspace root')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('/workspace/demo')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('Transcript path')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('/workspace/demo/session.jsonl')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('Framework')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('codex')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('Adapter')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('codex-http')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('Session ID')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('sess-123')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('Agent ID')).toBeInTheDocument()
+    expect(within(contextRegion).getByText('agent-1')).toBeInTheDocument()
+  })
+
   it('renders the current budget snapshot without an exhaustion warning when budget is active', async () => {
     renderSessionDetail()
 

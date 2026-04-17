@@ -122,34 +122,35 @@ export default function Sessions() {
 
   return (
     <div className="sessions-shell">
-      <section className="card sessions-toolbar">
+      <section className="card sessions-toolbar" aria-labelledby="session-filters-heading">
         <div>
-          <p className="section-kicker">Inventory</p>
-          <h2 className="section-header" style={{ marginBottom: 0 }}>
+          <p className="section-kicker">Workbench</p>
+          <h2 id="session-filters-heading" className="section-header" style={{ marginBottom: 0 }}>
             <Users size={18} style={{ color: 'var(--color-accent)' }} />
-            Framework Overview
+            Session filters
           </h2>
           <p className="toolbar-subtitle">
-            Grouped by framework and workspace so concurrent agent sessions stay distinguishable.
+            Search, framework, risk, and budget controls stay above the inventory so dense session rows remain easy to scan.
           </p>
         </div>
 
-        <div className="toolbar-controls">
+        <div className="toolbar-controls" role="group" aria-label="Session filters controls">
           <label className="search-box">
             <Search size={14} />
             <input
+              aria-label="Search sessions"
               value={query}
               onChange={event => setQuery(event.target.value)}
               placeholder="Search session, framework, workspace, agent"
             />
           </label>
-          <select value={framework} onChange={event => setFramework(event.target.value)}>
+          <select aria-label="Framework filter" value={framework} onChange={event => setFramework(event.target.value)}>
             <option value="">All Frameworks</option>
             {frameworks.map(item => (
               <option key={item} value={item}>{item}</option>
             ))}
           </select>
-          <select value={minRisk} onChange={event => setMinRisk(event.target.value)}>
+          <select aria-label="Risk filter" value={minRisk} onChange={event => setMinRisk(event.target.value)}>
             <option value="">All Risk Levels</option>
             <option value="medium">Medium+</option>
             <option value="high">High+</option>
@@ -170,130 +171,153 @@ export default function Sessions() {
         </div>
       </section>
 
-      <div className="framework-overview-grid">
-        {groupedSessions.map(group => (
-          <article key={group.framework} className="framework-overview-card">
-            <div className="framework-panel-top">
-              <div>
-                <h3>{group.framework}</h3>
-                <p>{group.workspaceCount} workspaces</p>
-              </div>
-              <RiskBadge level={group.highestRisk} />
-            </div>
-            <div className="framework-panel-metrics">
-              <div>
-                <span>Sessions</span>
-                <strong>{group.sessionCount}</strong>
-              </div>
-              <div>
-                <span>High risk</span>
-                <strong>{group.highRiskSessionCount}</strong>
-              </div>
-              <div>
-                <span>Events</span>
-                <strong>{group.totalEvents}</strong>
-              </div>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      <div className="framework-stack">
-        {groupedSessions.map(group => (
-          <section key={group.framework} className="card framework-section">
-            <div className="section-card-header">
-              <div>
-                <p className="section-kicker">Framework</p>
-                <h2>{group.framework}</h2>
-              </div>
-              <div className="framework-section-meta">
-                <span>{group.sessionCount} sessions</span>
-                <span>{group.workspaceCount} workspaces</span>
-                <span>{formatRelativeTime(group.latestActivityAt)}</span>
-              </div>
-            </div>
-
-            <div className="workspace-grid">
-              {group.workspaces.map(workspace => (
-                <article key={workspace.key} className="workspace-section">
-                  <div className="workspace-section-top">
-                    <div>
-                      <div className="workspace-section-title">
-                        <h3>{workspace.workspaceLabel}</h3>
-                        <RiskBadge level={workspace.highestRisk} />
-                      </div>
-                      <p className="workspace-root mono">
-                        {workspace.workspaceRoot || 'workspace_root unavailable'}
-                      </p>
-                    </div>
-                    <div className="workspace-section-meta">
-                      <span className={`activity-pill activity-pill-${activityState(workspace.latestActivityAt)}`}>
-                        {formatRelativeTime(workspace.latestActivityAt)}
-                      </span>
-                      <span>{workspace.sessionCount} sessions</span>
-                    </div>
-                  </div>
-
-                  <div className="workspace-summary-row">
-                    <span>{workspace.highRiskSessionCount} high-risk</span>
-                    <span>{workspace.totalEvents} events</span>
-                    <span>{workspace.callerAdapters.join(', ') || 'adapter n/a'}</span>
-                  </div>
-
-                  <div className="session-card-stack">
-                    {workspace.sessions.map(session => {
-                      const sessionL3Annotation = formatSessionL3Annotation(session)
-                      return (
-                        <Link
-                          key={session.session_id}
-                          to={`/sessions/${session.session_id}`}
-                          className="session-card-row"
-                        >
-                          <div className="session-card-main">
-                          <div className="session-card-head">
-                            <span className="mono session-card-id">{session.session_id}</span>
-                            <RiskBadge level={session.current_risk_level} />
-                          </div>
-                          <p className="session-card-meta">
-                            {session.agent_id || 'unknown agent'} · {session.caller_adapter}
-                          </p>
-                          {sessionL3Annotation && (
-                            <p className="session-card-meta mono" style={{ fontSize: '0.72rem' }}>
-                              {sessionL3Annotation}
-                            </p>
-                          )}
-                          <VerdictBar dist={session.decision_distribution} />
-                          </div>
-                          <div className="session-card-side">
-                            <ScoreBar score={session.cumulative_score} />
-                            <div className="session-card-statline">
-                              <span>{session.event_count} events</span>
-                              <span>{session.high_risk_event_count} high-risk</span>
-                            </div>
-                            <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
-                              {formatRelativeTime(session.last_event_at)}
-                            </span>
-                          </div>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {groupedSessions.length === 0 && !loading && (
-          <div className="card">
-            <EmptyState
-              icon={<Users size={20} />}
-              title="No sessions found"
-              subtitle="Sessions will appear here once frameworks start sending monitored activity."
-            />
+      <section className="card sessions-region" aria-labelledby="framework-overview-heading">
+        <div className="section-card-header">
+          <div>
+            <p className="section-kicker">Overview</p>
+            <h2 id="framework-overview-heading">Framework Overview</h2>
+            <p className="toolbar-subtitle">
+              Grouped by framework and workspace so concurrent agent sessions stay distinguishable.
+            </p>
           </div>
-        )}
-      </div>
+        </div>
+
+        <div className="framework-overview-grid">
+          {groupedSessions.map(group => (
+            <article key={group.framework} className="framework-overview-card">
+              <div className="framework-panel-top">
+                <div>
+                  <h3>{group.framework}</h3>
+                  <p>{group.workspaceCount} workspaces</p>
+                </div>
+                <RiskBadge level={group.highestRisk} />
+              </div>
+              <div className="framework-panel-metrics">
+                <div>
+                  <span>Sessions</span>
+                  <strong>{group.sessionCount}</strong>
+                </div>
+                <div>
+                  <span>High risk</span>
+                  <strong>{group.highRiskSessionCount}</strong>
+                </div>
+                <div>
+                  <span>Events</span>
+                  <strong>{group.totalEvents}</strong>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="card sessions-region" aria-labelledby="session-inventory-heading">
+        <div className="section-card-header">
+          <div>
+            <p className="section-kicker">Inventory</p>
+            <h2 id="session-inventory-heading">Session inventory</h2>
+            <p className="toolbar-subtitle">
+              Frameworks stay stacked by workspace and session so the working set remains high-density without collapsing the detail.
+            </p>
+          </div>
+        </div>
+
+        <div className="framework-stack">
+          {groupedSessions.map(group => (
+            <section key={group.framework} className="card framework-section">
+              <div className="section-card-header">
+                <div>
+                  <p className="section-kicker">Framework</p>
+                  <h2>{group.framework}</h2>
+                </div>
+                <div className="framework-section-meta">
+                  <span>{group.sessionCount} sessions</span>
+                  <span>{group.workspaceCount} workspaces</span>
+                  <span>{formatRelativeTime(group.latestActivityAt)}</span>
+                </div>
+              </div>
+
+              <div className="workspace-grid">
+                {group.workspaces.map(workspace => (
+                  <article key={workspace.key} className="workspace-section">
+                    <div className="workspace-section-top">
+                      <div>
+                        <div className="workspace-section-title">
+                          <h3>{workspace.workspaceLabel}</h3>
+                          <RiskBadge level={workspace.highestRisk} />
+                        </div>
+                        <p className="workspace-root mono">
+                          {workspace.workspaceRoot || 'workspace_root unavailable'}
+                        </p>
+                      </div>
+                      <div className="workspace-section-meta">
+                        <span className={`activity-pill activity-pill-${activityState(workspace.latestActivityAt)}`}>
+                          {formatRelativeTime(workspace.latestActivityAt)}
+                        </span>
+                        <span>{workspace.sessionCount} sessions</span>
+                      </div>
+                    </div>
+
+                    <div className="workspace-summary-row">
+                      <span>{workspace.highRiskSessionCount} high-risk</span>
+                      <span>{workspace.totalEvents} events</span>
+                      <span>{workspace.callerAdapters.join(', ') || 'adapter n/a'}</span>
+                    </div>
+
+                    <div className="session-card-stack">
+                      {workspace.sessions.map(session => {
+                        const sessionL3Annotation = formatSessionL3Annotation(session)
+                        return (
+                          <Link
+                            key={session.session_id}
+                            to={`/sessions/${session.session_id}`}
+                            className="session-card-row"
+                          >
+                            <div className="session-card-main">
+                              <div className="session-card-head">
+                                <span className="mono session-card-id">{session.session_id}</span>
+                                <RiskBadge level={session.current_risk_level} />
+                              </div>
+                              <p className="session-card-meta">
+                                {session.agent_id || 'unknown agent'} · {session.caller_adapter}
+                              </p>
+                              {sessionL3Annotation && (
+                                <p className="session-card-meta mono" style={{ fontSize: '0.72rem' }}>
+                                  {sessionL3Annotation}
+                                </p>
+                              )}
+                              <VerdictBar dist={session.decision_distribution} />
+                            </div>
+                            <div className="session-card-side">
+                              <ScoreBar score={session.cumulative_score} />
+                              <div className="session-card-statline">
+                                <span>{session.event_count} events</span>
+                                <span>{session.high_risk_event_count} high-risk</span>
+                              </div>
+                              <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
+                                {formatRelativeTime(session.last_event_at)}
+                              </span>
+                            </div>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+          {groupedSessions.length === 0 && !loading && (
+            <div className="card">
+              <EmptyState
+                icon={<Users size={20} />}
+                title="No sessions found"
+                subtitle="Sessions will appear here once frameworks start sending monitored activity."
+              />
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
