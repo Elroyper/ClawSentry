@@ -348,8 +348,8 @@ Gateway 在 `/ui` 路径自动挂载静态文件，无需额外配置。
 
 | 指标 | 数据 |
 |:---:|:---:|
-| 测试用例 | **2888+** |
-| 测试耗时 | **~40s** |
+| 测试用例 | **2891+** |
+| 测试耗时 | **~44s** |
 | 协议版本 | `sync_decision.1.0` |
 | Python 版本 | >= 3.11 |
 | 许可证 | MIT |
@@ -387,7 +387,7 @@ L1 规则 / L2 语义 / L3 Agent
 
 <div class="card" markdown>
 ### [:material-monitor-dashboard: Web 仪表板](dashboard/index.md)
-暗色主题安全运营仪表板
+浅色优先安全运营控制台
 </div>
 
 </div>

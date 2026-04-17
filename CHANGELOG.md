@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [0.4.8] — 2026-04-17
+
+### 修复
+
+- **重新构建并发布实际 shipped 的 Web UI dist** — `src/clawsentry/ui/src` 里的浅色 premium operator console 已重新打包进 `src/clawsentry/ui/dist`，安装后的 `/ui` 不再继续落回旧暗色界面。
+- **补齐 Web UI 构建契约测试** — 新增 dist 级别的浅色主题基线校验，防止源码已更新但发布资产仍停在旧 CSS/JS 哈希。
+- **补齐公开发布面核对护栏** — release checklist 与 public-doc contract 现在显式核对 PyPI、在线配置页、在线 changelog 与实际安装后的 `/ui`，避免再次出现“文案已更新、安装产物未更新”的漂移。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2891 passed, 3 skipped`
+- Focused UI build contract：`4 passed`
+- `npm run build` (`src/clawsentry/ui`)：PASS
+- `mkdocs build --strict`：PASS
+- `python -m build`：PASS
+
 ## [0.4.7] — 2026-04-17
 
 ### 改进
@@ -849,6 +865,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.4.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.8
 [0.4.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.6
 [0.4.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.7
 [0.4.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.5

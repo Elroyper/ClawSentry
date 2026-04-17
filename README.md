@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2888+ tests**, ~40s full suite
+- **2891+ tests**, ~44s full suite
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.7
+## What's New in v0.4.8
 
-- **Opt-in easier-to-trigger L3 controls**: ClawSentry now exposes a narrow high-level config surface for L3 promotion with `l3_routing_mode`, `l3_trigger_profile`, and `l3_budget_tuning_enabled`, while keeping default behavior unchanged.
-- **True L2→local-L3 replacement semantics**: `replace_l2` is documented and released as route substitution for organic L2-entry cases, rather than a vague “force L3 follow-up” alias.
-- **Honest unsupported-local-L3 telemetry**: when a runtime is configured to prefer stronger L3 behavior but boots without local L3 capability, operator-facing surfaces now consistently report `l3_available=false`, `l3_state=skipped`, and `l3_reason_code=local_l3_unavailable`.
+- **Light-first Web UI now actually ships in release artifacts**: ClawSentry rebuilds and ships the updated `/ui` asset bundle, so fresh installs no longer fall back to the older dark console after the light-theme redesign.
+- **Release guardrails now verify public surfaces**: the release checklist and public-doc contract tests now explicitly check packaged UI assets, PyPI/docs freshness, and the live configuration pages before calling a release done.
+- **No runtime policy change from v0.4.7**: this release is focused on making the already-documented operator console and release surface consistent with what users actually install.
 
 ## Quick Start
 
