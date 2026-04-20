@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-04-21
+
 ### 新增
 
 - **CS-01 rules reporting artifact** — `clawsentry rules report --output ...` 现在可以把规则治理 `lint` 与可选 `dry-run` 结果合并写入稳定 JSON 工件，提供 `status`、`exit_code`、per-check summary、deterministic fingerprint 与完整 payload，便于 CI / release checklist 保存 rollout 证据。
@@ -891,6 +893,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.1
 [0.5.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.0
 [0.4.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.8
 [0.4.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.6
