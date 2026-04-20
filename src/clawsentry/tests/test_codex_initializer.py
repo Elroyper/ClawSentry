@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -157,3 +158,135 @@ class TestCodexInitializerSessionDir:
         assert "curl" not in joined.lower()
         assert "POST" not in joined
         assert "codex" in joined.lower()
+
+
+class TestCodexNativeHooks:
+    def test_setup_codex_hooks_enables_feature_and_preserves_user_hooks(self, tmp_path):
+        codex_home = tmp_path / ".codex"
+        codex_home.mkdir()
+        (codex_home / "config.toml").write_text(
+            "[features]\njs_repl = true\n",
+            encoding="utf-8",
+        )
+        (codex_home / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Bash",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "echo user-pretool",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = CodexInitializer().setup_codex_hooks(codex_home=codex_home)
+
+        config_text = (codex_home / "config.toml").read_text(encoding="utf-8")
+        hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        pretool_entries = hooks_payload["hooks"]["PreToolUse"]
+
+        assert "codex_hooks = true" in config_text
+        assert "js_repl = true" in config_text
+        assert any("echo user-pretool" in str(entry) for entry in pretool_entries)
+        assert any("clawsentry harness --framework codex" in str(entry) for entry in pretool_entries)
+        assert "UserPromptSubmit" in hooks_payload["hooks"]
+        assert "PostToolUse" in hooks_payload["hooks"]
+        assert "Stop" in hooks_payload["hooks"]
+        assert codex_home / "config.toml" in result.files_modified
+        assert codex_home / "hooks.json" in result.files_modified
+
+    def test_setup_codex_hooks_is_idempotent(self, tmp_path):
+        codex_home = tmp_path / ".codex"
+        init = CodexInitializer()
+
+        init.setup_codex_hooks(codex_home=codex_home)
+        init.setup_codex_hooks(codex_home=codex_home)
+
+        hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        for entries in hooks_payload["hooks"].values():
+            managed = [
+                entry for entry in entries
+                if "clawsentry harness --framework codex" in str(entry)
+            ]
+            assert len(managed) == 1
+
+    def test_pretool_bash_hook_is_synchronous_and_other_hooks_are_async(self, tmp_path):
+        """Only verified PreToolUse(Bash) should be installed as blocking preflight."""
+        codex_home = tmp_path / ".codex"
+
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home)
+
+        hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        pretool_command = hooks_payload["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+        assert pretool_command == "clawsentry harness --framework codex"
+
+        for event_name in ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"):
+            command = hooks_payload["hooks"][event_name][0]["hooks"][0]["command"]
+            assert command == "clawsentry harness --framework codex --async"
+
+    def test_uninstall_codex_hooks_removes_only_clawsentry_entries(self, tmp_path):
+        codex_home = tmp_path / ".codex"
+        init = CodexInitializer()
+        init.setup_codex_hooks(codex_home=codex_home)
+
+        hooks_path = codex_home / "hooks.json"
+        hooks_payload = json.loads(hooks_path.read_text(encoding="utf-8"))
+        hooks_payload["hooks"]["PreToolUse"].insert(
+            0,
+            {
+                "matcher": "Bash",
+                "hooks": [{"type": "command", "command": "echo user-pretool"}],
+            },
+        )
+        hooks_path.write_text(json.dumps(hooks_payload, indent=2) + "\n", encoding="utf-8")
+
+        result = init.uninstall(codex_home=codex_home)
+
+        cleaned_payload = json.loads(hooks_path.read_text(encoding="utf-8"))
+        assert "echo user-pretool" in str(cleaned_payload)
+        assert "clawsentry harness --framework codex" not in str(cleaned_payload)
+        assert "removed" in " ".join(result.next_steps).lower()
+
+    def test_run_init_setup_installs_codex_hooks(self, tmp_path, capsys):
+        from clawsentry.cli.init_command import run_init
+
+        codex_home = tmp_path / ".codex"
+        exit_code = run_init(
+            framework="codex",
+            target_dir=tmp_path,
+            force=False,
+            setup=True,
+            codex_home=codex_home,
+        )
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert (codex_home / "config.toml").exists()
+        assert (codex_home / "hooks.json").exists()
+        assert "Codex native hooks updated" in captured.out
+
+    def test_run_uninstall_removes_codex_hooks(self, tmp_path):
+        from clawsentry.cli.init_command import run_uninstall
+
+        codex_home = tmp_path / ".codex"
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home)
+
+        exit_code = run_uninstall(
+            framework="codex",
+            target_dir=tmp_path,
+            codex_home=codex_home,
+        )
+
+        assert exit_code == 0
+        hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        assert "clawsentry harness --framework codex" not in str(hooks_payload)

@@ -5,7 +5,7 @@ Provides PatternMatcher — loads attack patterns from a YAML file and matches
 incoming events against them using boolean trigger logic, regex detection,
 and false-positive filtering.
 
-Design basis: docs/plans/archive/2026-03/2026-03-23-e4-phase1-design-v1.2.md section 4
+Design basis: internal E4 phase-1 design, section 4
 """
 
 from __future__ import annotations

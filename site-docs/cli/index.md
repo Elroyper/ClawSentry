@@ -48,11 +48,11 @@ clawsentry-stack     # 等价于 clawsentry stack
 | [`harness`](#clawsentry-harness) | stdio hook 处理器 | 由框架自动调用，通常无需手动使用 |
 | [`watch`](#clawsentry-watch) | 实时监控事件流 | `clawsentry watch --interactive` |
 | [`audit`](#clawsentry-audit) | 离线查询审计日志 | `clawsentry audit --risk high --since 1h` |
-| [`doctor`](#clawsentry-doctor) | 诊断配置和连接（19 项检查） | `clawsentry doctor` |
+| [`doctor`](#clawsentry-doctor) | 诊断配置和连接（20 项检查） | `clawsentry doctor` |
 | [`test-llm`](#clawsentry-test-llm) | 验证 L2/L3 连通性、时延与当前运行模式 | `clawsentry test-llm --json` |
 | [`service`](#clawsentry-service) | 安装或检查常驻服务（systemd/launchd） | `clawsentry service status` |
 | [`config`](#clawsentry-config) | 管理项目安全预设 | `clawsentry config init --preset high` |
-| [`rules`](#clawsentry-rules) | 规则治理（lint / dry-run） | `clawsentry rules lint --json` |
+| [`rules`](#clawsentry-rules) | 规则治理（lint / dry-run / report） | `clawsentry rules lint --json` |
 | [`latch`](#clawsentry-latch) | 管理 Latch 移动监控 | `clawsentry latch install` |
 
 > **新用户推荐路径：** 先运行 `clawsentry start --framework <你的框架>`。它会自动补齐项目配置、启动 Gateway，并在前台显示 `watch` 事件流；只有需要手动拆分步骤或排障时，再单独使用 `init`、`gateway`、`watch`。
@@ -215,6 +215,7 @@ Gateway 的 stdout/stderr 输出会写入临时日志文件：
 
 ```bash
 clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--dry-run]
+                             [--openclaw-home PATH] [--codex-home PATH]
                              [--uninstall] [--restore]
 ```
 
@@ -231,9 +232,11 @@ clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--
 | `--dir PATH` | `.`（当前目录） | 配置文件写入目录 |
 | `--force` | `false` | 覆盖已存在的配置文件；默认会增量合并 `.env.clawsentry` |
 | `--auto-detect` | `true` | 自动检测已有的框架配置（如 `~/.openclaw/` 中的 Gateway Token） |
-| `--setup` | `false` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`；目前主要用于 OpenClaw） |
+| `--setup` | `false` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`；OpenClaw 写宿主审批配置，Codex 写 managed native hooks） |
 | `--dry-run` | `false` | 预览 `--setup` 将要执行的配置变更，但不实际应用 |
-| `--uninstall` | `false` | 从项目 `.env.clawsentry` 中禁用该框架；`claude-code` 会同时移除 hooks |
+| `--uninstall` | `false` | 从项目 `.env.clawsentry` 中禁用该框架；`claude-code` / `codex` 会同时移除 ClawSentry 管理的 hooks |
+| `--openclaw-home PATH` | `~/.openclaw` | 指定 OpenClaw 配置目录（用于 `--setup` / `--restore`） |
+| `--codex-home PATH` | `$CODEX_HOME` 或 `~/.codex` | 指定 Codex 配置目录（用于 `--setup` / `--uninstall`） |
 | `--restore` | `false` | 从 ClawSentry 备份恢复框架设置（目前支持 `openclaw`） |
 
 !!! info "多框架增量合并"
@@ -321,6 +324,18 @@ clawsentry init openclaw --setup --dry-run
 !!! warning "备份机制"
     `--setup`（不带 `--dry-run`）会在修改前自动创建 `.bak` 备份文件。
 
+#### 自动配置 Codex native hooks
+
+```bash
+clawsentry init codex --setup
+```
+
+`--setup` 会启用 `$CODEX_HOME/config.toml`（或 `~/.codex/config.toml`）
+中的 `[features].codex_hooks = true`，并在 `$CODEX_HOME/hooks.json`（或 `~/.codex/hooks.json`）中追加
+ClawSentry 管理的 hook entries。已有用户 hooks 和 OMX hooks 会被保留；
+`clawsentry init codex --uninstall` 只移除 ClawSentry 管理的 entries。
+如需测试临时目录或非默认安装位置，可加 `--codex-home PATH`。
+
 #### 恢复 OpenClaw 配置
 
 ```bash
@@ -336,7 +351,7 @@ clawsentry init openclaw --restore
 #### 卸载某个框架
 
 ```bash
-# 只从当前项目 env 中禁用 Codex watcher；保留其他框架和共享 token
+# 只从当前项目 env 中禁用 Codex watcher，并移除 ClawSentry managed native hooks；保留其他框架和共享 token
 clawsentry init codex --uninstall
 
 # 移除 Claude Code hooks，并从当前项目 env 中移除 claude-code 启用标记
@@ -823,7 +838,7 @@ clawsentry audit --session sess-001 --tool bash
 
 ## clawsentry doctor
 
-离线检查 ClawSentry 配置安全性，共执行 19 项检查，涵盖认证、网络、LLM、Latch 等类别。
+离线检查 ClawSentry 配置安全性，共执行 20 项检查，涵盖认证、网络、LLM、Latch 等类别。
 
 ### 语法
 
@@ -878,7 +893,7 @@ clawsentry doctor
 
 ??? example "终端输出"
     ```
-    ClawSentry Doctor — 19 checks
+    ClawSentry Doctor — 20 checks
     ══════════════════════════════
 
     [PASS] AUTH_PRESENCE      CS_AUTH_TOKEN is set
@@ -895,6 +910,7 @@ clawsentry doctor
     [PASS] L2_BUDGET          CS_L2_BUDGET_MS is positive
     [PASS] TRAJECTORY_DB      Database directory is writable
     [PASS] CODEX_CONFIG       Codex config OK
+    [WARN] CODEX_NATIVE_HOOKS Codex native hooks not installed (optional)
     [WARN] LATCH_BINARY       Latch binary not installed
     [WARN] LATCH_HUB_HEALTH   Latch Hub not running
     [WARN] LATCH_TOKEN_SYNC   Latch not configured, skipped
@@ -902,7 +918,7 @@ clawsentry doctor
     [PASS] HUB_BRIDGE         Hub bridge not enabled, skipped
 
     ──────────────────────────────
-    Result: 14 PASS, 5 WARN, 0 FAIL
+    Result: 14 PASS, 6 WARN, 0 FAIL
     ```
 
 #### JSON 输出
@@ -1102,6 +1118,7 @@ preset = "high"
 ```bash
 clawsentry rules lint [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 ```
 
 ### 子命令
@@ -1110,11 +1127,13 @@ clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patte
 |--------|------|
 | `lint` | 加载当前规则资产，输出 schema / duplicate / conflict / source 问题 |
 | `dry-run` | 用 sample canonical events 预演 pattern 命中与 skill 选择结果 |
+| `report` | 写入组合 JSON 工件，便于 CI / release checklist 保存治理证据 |
 
 ### 输入与输出
 
 - `lint` 默认读取内置 `attack_patterns.yaml` 与 `skills/`，可额外叠加 `--evolved-patterns` 和 `--skills-dir`
 - `dry-run --events` 接受三种输入：单个 JSON object、JSON array、JSONL
+- `report --output` 会把 lint 结果与可选 dry-run 结果写成稳定 JSON 工件；加 `--json` 时也会输出到 stdout
 - `--json` 会返回 machine-readable 报告，包含 `fingerprint`、`source_summaries`、`version_summary`、`findings`
 
 ### 退出码
@@ -1130,6 +1149,7 @@ clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patte
 ```bash
 clawsentry rules lint --json
 clawsentry rules dry-run --events examples/sample-events.jsonl --json
+clawsentry rules report --output artifacts/rules-report.json --events examples/sample-events.jsonl
 clawsentry rules dry-run --events my-events.json --skills-dir /etc/clawsentry/skills
 ```
 

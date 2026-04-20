@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 
 try:
     from .a3s_adapter import A3SCodeAdapter
+    from .codex_adapter import CodexAdapter
     from ..gateway.models import CanonicalDecision, DecisionVerdict
     from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
@@ -25,6 +26,7 @@ except ImportError:
     if _SRC_ROOT not in sys.path:
         sys.path.insert(0, _SRC_ROOT)
     from clawsentry.adapters.a3s_adapter import A3SCodeAdapter  # type: ignore[no-redef]
+    from clawsentry.adapters.codex_adapter import CodexAdapter  # type: ignore[no-redef]
     from clawsentry.gateway.models import CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
     from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
 
@@ -298,6 +300,7 @@ class A3SGatewayHarness:
         default_session_id: str = "ahp-session",
         default_agent_id: str = "ahp-agent",
         async_mode: bool = False,
+        async_shutdown_grace_seconds: float = 0.1,
         compat_observation_window_seconds: float = 2.0,
         clock: Callable[[], float] | None = None,
     ) -> None:
@@ -308,6 +311,7 @@ class A3SGatewayHarness:
         self.default_session_id = default_session_id
         self.default_agent_id = default_agent_id
         self.async_mode = async_mode
+        self.async_shutdown_grace_seconds = max(0.0, float(async_shutdown_grace_seconds))
         self.compat_observation_window_seconds = max(
             0.0,
             float(compat_observation_window_seconds),
@@ -622,6 +626,37 @@ class A3SGatewayHarness:
 
         return params
 
+    async def _handle_codex_native_hook(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Normalize a Codex native hook then use the existing Gateway transport."""
+        evt = CodexAdapter(
+            source_framework=self.adapter.source_framework
+        ).normalize_native_hook_event(
+            msg,
+            agent_id=_resolve_string(
+                msg.get("agent_id"),
+                msg.get("agentId"),
+                self.default_agent_id,
+            ),
+        )
+        if evt is None:
+            return {
+                "action": "continue",
+                "decision": "allow",
+                "reason": "Event filtered: codex native hook",
+                "metadata": {"source": "clawsentry-gateway-harness"},
+            }
+
+        if project_meta and evt.payload is not None:
+            _merge_clawsentry_meta(evt.payload, project_meta)
+
+        decision = await self.adapter.request_decision(evt)
+        return _decision_to_ahp_result(decision)
+
     async def dispatch_async(self, msg: dict[str, Any]) -> Optional[dict[str, Any]]:
         req_id = msg.get("id")
         method = msg.get("method")
@@ -665,41 +700,103 @@ class A3SGatewayHarness:
                 "result": result,
             }
 
-        # --- Native hook path (Claude Code / direct hook command) ---
+        # --- Native hook path (host CLI / direct hook command) ---
         params = self._convert_native_hook(msg)
-        is_claude_code_hook = "hook_event_name" in msg
+        native_framework = str(getattr(self.adapter, "source_framework", "") or "").lower()
+        is_codex_native_hook = native_framework == "codex" and "hook_event_name" in msg
+        is_claude_code_hook = (
+            native_framework == "claude-code" and "hook_event_name" in msg
+        )
 
         # Check project config (.clawsentry.toml)
         cwd = msg.get("cwd") or msg.get("working_directory", "")
+        project_meta: dict[str, Any] = {}
         if cwd:
             project_cfg = _get_project_config(cwd)
             if not project_cfg.enabled:
                 _diag(f"project disabled via .clawsentry.toml at {cwd}")
-                if is_claude_code_hook:
+                if is_claude_code_hook or is_codex_native_hook:
                     return None  # exit 0 = allow
                 return {"result": {"action": "continue", "reason": "project monitoring disabled"}}
             # Attach preset info for Gateway to use
             if project_cfg.preset != "medium" or project_cfg.overrides:
                 params["_project_preset"] = project_cfg.preset
                 params["_project_overrides"] = project_cfg.overrides
+                if project_cfg.preset != "medium":
+                    project_meta["project_preset"] = project_cfg.preset
+                if project_cfg.overrides:
+                    project_meta["project_overrides"] = project_cfg.overrides
 
         if self.async_mode:
             # Dispatch in background — don't block the hook
-            asyncio.ensure_future(self._async_dispatch(params))
-            if is_claude_code_hook:
-                return None  # Claude Code: exit 0 = allow
+            if is_codex_native_hook:
+                asyncio.ensure_future(
+                    self._async_dispatch_codex_native(msg, project_meta=project_meta)
+                )
+            else:
+                asyncio.ensure_future(self._async_dispatch(params))
+            if is_claude_code_hook or is_codex_native_hook:
+                return None  # host native hook: empty stdout + exit 0 = allow
             return {"result": {"action": "continue", "reason": "async: event dispatched"}}
         try:
-            result = await self._handle_event(params)
+            if is_codex_native_hook:
+                result = await self._handle_codex_native_hook(
+                    msg,
+                    project_meta=project_meta,
+                )
+            else:
+                result = await self._handle_event(params)
         except Exception:  # noqa: BLE001
             logger.exception("Failed handling native hook event")
-            if is_claude_code_hook:
+            if is_claude_code_hook or is_codex_native_hook:
                 return None  # allow on error (fail-open for hooks)
             return {"result": {"action": "continue", "reason": "harness internal error"}}
 
+        if is_codex_native_hook:
+            return self._to_codex_hook_response(result, msg.get("hook_event_name", ""))
         if is_claude_code_hook:
             return self._to_claude_code_response(result, msg.get("hook_event_name", ""))
         return {"result": result}
+
+    def _to_codex_hook_response(
+        self, result: dict[str, Any], hook_event_name: str,
+    ) -> dict[str, Any] | None:
+        """Convert internal decision to Codex native hook response format.
+
+        The verified Codex CLI 0.121 PreToolUse blocking contract accepts
+        hookSpecificOutput.permissionDecision="deny". Other Codex native
+        hooks remain observation/advisory and never host-block.
+        """
+        if hook_event_name != "PreToolUse":
+            return None
+
+        action = result.get("action", "continue")
+        if action in ("continue", "allow"):
+            return None
+
+        metadata = result.get("metadata", {})
+        policy_id = metadata.get("policy_id", "")
+        if policy_id.startswith("fallback-"):
+            _log_stderr(
+                f"Gateway unreachable — fail-open for Codex {hook_event_name} "
+                f"(would have been: {action})"
+            )
+            return None
+
+        if action in ("block", "defer"):
+            reason = result.get("reason", "Blocked by ClawSentry security policy")
+            risk_level = metadata.get("risk_level", "unknown")
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": hook_event_name,
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": (
+                        f"[ClawSentry] {reason} (risk: {risk_level})"
+                    ),
+                },
+            }
+
+        return None
 
     def _to_claude_code_response(
         self, result: dict[str, Any], hook_event_name: str,
@@ -755,6 +852,18 @@ class A3SGatewayHarness:
         except Exception:  # noqa: BLE001
             logger.debug("Async dispatch failed (non-blocking)", exc_info=True)
 
+    async def _async_dispatch_codex_native(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> None:
+        """Background dispatch for Codex native hooks. Errors are non-blocking."""
+        try:
+            await self._handle_codex_native_hook(msg, project_meta=project_meta)
+        except Exception:  # noqa: BLE001
+            logger.debug("Codex async dispatch failed (non-blocking)", exc_info=True)
+
     def run_stdio(self) -> None:
         _log_stderr("harness started")
         _diag(f"harness started (async={self.async_mode}, uds={self.adapter.uds_path})")
@@ -789,8 +898,26 @@ class A3SGatewayHarness:
             # Wait for any --async background tasks to complete
             pending = asyncio.all_tasks(loop)
             if pending:
-                _diag(f"waiting for {len(pending)} async tasks")
-                loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
+                if self.async_mode:
+                    _diag(
+                        f"best-effort wait for {len(pending)} async tasks "
+                        f"({self.async_shutdown_grace_seconds:.3f}s)"
+                    )
+                    _done, still_pending = loop.run_until_complete(
+                        asyncio.wait(
+                            pending,
+                            timeout=self.async_shutdown_grace_seconds,
+                        )
+                    )
+                    for task in still_pending:
+                        task.cancel()
+                    if still_pending:
+                        loop.run_until_complete(
+                            asyncio.gather(*still_pending, return_exceptions=True)
+                        )
+                else:
+                    _diag(f"waiting for {len(pending)} async tasks")
+                    loop.run_until_complete(asyncio.wait(pending, timeout=5.0))
             loop.close()
             _diag("harness exited")
 

@@ -75,6 +75,61 @@ def run_rules_dry_run(
     return 1 if report.findings else 0
 
 
+def run_rules_report(
+    *,
+    output_path: str | Path,
+    events_path: str | Path | None = None,
+    patterns_path: str | Path | None = None,
+    evolved_patterns_path: str | Path | None = None,
+    skills_dir: str | Path | None = None,
+    as_json: bool = False,
+) -> int:
+    """Write a combined rule-governance report for CI/release artifacts."""
+    lint_report = load_rule_governance(
+        patterns_path=patterns_path,
+        evolved_patterns_path=evolved_patterns_path,
+        skills_dir=skills_dir,
+    )
+    dry_run_report: RuleDryRunReport | None = None
+    dry_run_input_error: str | None = None
+    if events_path is not None:
+        try:
+            normalized_events_path, cleanup_path = _normalize_dry_run_events_path(events_path)
+        except OSError as exc:
+            dry_run_input_error = f"unable to read events file {events_path}: {exc}"
+            cleanup_path = None
+        except ValueError as exc:
+            dry_run_input_error = str(exc)
+            cleanup_path = None
+        else:
+            try:
+                dry_run_report = dry_run_rule_governance(
+                    events_path=normalized_events_path,
+                    patterns_path=patterns_path,
+                    evolved_patterns_path=evolved_patterns_path,
+                    skills_dir=skills_dir,
+                )
+            finally:
+                if cleanup_path is not None:
+                    cleanup_path.unlink(missing_ok=True)
+
+    exit_code = _report_exit_code(lint_report, dry_run_report, dry_run_input_error)
+    payload = _report_json_payload(
+        lint_report=lint_report,
+        dry_run_report=dry_run_report,
+        dry_run_input_error=dry_run_input_error,
+        output_path=Path(output_path),
+        exit_code=exit_code,
+    )
+    _write_json_report(Path(output_path), payload)
+
+    if as_json:
+        print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    else:
+        print(_render_ci_report_summary(payload, Path(output_path)))
+    return exit_code
+
+
 def _render_lint_report(report: RuleGovernanceReport) -> str:
     lines = [
         "ClawSentry Rule Governance",
@@ -140,6 +195,102 @@ def _dry_run_json_payload(report: RuleDryRunReport) -> dict[str, Any]:
         "findings": _to_jsonable(report.findings),
         "cwd": os.getcwd(),
     }
+
+
+def _report_exit_code(
+    lint_report: RuleGovernanceReport,
+    dry_run_report: RuleDryRunReport | None,
+    dry_run_input_error: str | None,
+) -> int:
+    if dry_run_input_error is not None:
+        return 2
+    if lint_report.findings or (dry_run_report is not None and dry_run_report.findings):
+        return 1
+    return 0
+
+
+def _report_status(exit_code: int) -> str:
+    if exit_code == 0:
+        return "pass"
+    if exit_code == 1:
+        return "fail"
+    return "input_error"
+
+
+def _report_json_payload(
+    *,
+    lint_report: RuleGovernanceReport,
+    dry_run_report: RuleDryRunReport | None,
+    dry_run_input_error: str | None,
+    output_path: Path,
+    exit_code: int,
+) -> dict[str, Any]:
+    lint_payload = _lint_json_payload(lint_report)
+    dry_run_payload = _dry_run_json_payload(dry_run_report) if dry_run_report is not None else None
+    return {
+        "report_schema_version": "cs-01.rule-governance.ci-report.v1",
+        "status": _report_status(exit_code),
+        "exit_code": exit_code,
+        "fingerprint": lint_report.fingerprint,
+        "output_path": str(output_path),
+        "cwd": os.getcwd(),
+        "checks": {
+            "lint": {
+                "status": "fail" if lint_report.findings else "pass",
+                "finding_count": len(lint_report.findings),
+            },
+            "dry_run": {
+                "status": _dry_run_status(dry_run_report, dry_run_input_error),
+                "event_count": len(dry_run_report.events) if dry_run_report is not None else 0,
+                "finding_count": len(dry_run_report.findings) if dry_run_report is not None else 0,
+                "input_error": dry_run_input_error,
+            },
+        },
+        "lint": lint_payload,
+        "dry_run": dry_run_payload,
+    }
+
+
+def _dry_run_status(
+    dry_run_report: RuleDryRunReport | None,
+    input_error: str | None,
+) -> str:
+    if input_error is not None:
+        return "input_error"
+    if dry_run_report is None:
+        return "skipped"
+    return "fail" if dry_run_report.findings else "pass"
+
+
+def _write_json_report(output_path: Path, payload: dict[str, Any]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _render_ci_report_summary(payload: dict[str, Any], output_path: Path) -> str:
+    status = str(payload["status"]).upper()
+    checks = payload["checks"]
+    lines = [
+        f"{status}: wrote rules report {output_path}",
+        f"Fingerprint: {payload['fingerprint']}",
+        (
+            "Lint: "
+            f"{checks['lint']['status']} "
+            f"({checks['lint']['finding_count']} findings)"
+        ),
+        (
+            "Dry run: "
+            f"{checks['dry_run']['status']} "
+            f"({checks['dry_run']['event_count']} events, "
+            f"{checks['dry_run']['finding_count']} findings)"
+        ),
+    ]
+    if checks["dry_run"]["input_error"]:
+        lines.append(f"Input error: {checks['dry_run']['input_error']}")
+    return "\n".join(lines)
 
 
 def _normalize_dry_run_events_path(events_path: str | Path) -> tuple[Path, Path | None]:

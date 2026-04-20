@@ -63,6 +63,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Custom OpenClaw config directory (default: ~/.openclaw/).",
     )
     init_parser.add_argument(
+        "--codex-home",
+        type=Path,
+        default=None,
+        help="Custom Codex config directory (default: $CODEX_HOME or ~/.codex/).",
+    )
+    init_parser.add_argument(
         "--uninstall",
         action="store_true",
         default=False,
@@ -321,6 +327,14 @@ def _build_parser() -> argparse.ArgumentParser:
     rules_dry_run.add_argument("--skills-dir", default=None, help="Directory containing review skill YAML files.")
     rules_dry_run.add_argument("--json", action="store_true", default=False, help="Output dry-run report as JSON.")
 
+    rules_report = rules_sub.add_parser("report", help="Write a combined rule-governance CI report.")
+    rules_report.add_argument("--output", required=True, help="Path to write the JSON report artifact.")
+    rules_report.add_argument("--events", default=None, help="Optional JSON/JSONL file containing canonical sample events.")
+    rules_report.add_argument("--attack-patterns", default=None, help="Path to attack patterns YAML.")
+    rules_report.add_argument("--evolved-patterns", default=None, help="Path to evolved patterns YAML.")
+    rules_report.add_argument("--skills-dir", default=None, help="Directory containing review skill YAML files.")
+    rules_report.add_argument("--json", action="store_true", default=False, help="Also print report JSON to stdout.")
+
     # --- latch ---
     latch_parser = sub.add_parser(
         "latch",
@@ -512,6 +526,7 @@ def main(argv: list[str] | None = None) -> None:
             code = run_uninstall(
                 framework=args.framework,
                 target_dir=args.dir,
+                codex_home=getattr(args, "codex_home", None),
             )
             sys.exit(code)
 
@@ -525,6 +540,7 @@ def main(argv: list[str] | None = None) -> None:
             setup=getattr(args, "setup", False),
             dry_run=getattr(args, "dry_run", False),
             openclaw_home=getattr(args, "openclaw_home", None),
+            codex_home=getattr(args, "codex_home", None),
         )
         sys.exit(code)
 
@@ -628,7 +644,7 @@ def main(argv: list[str] | None = None) -> None:
             print("Usage: clawsentry config {init,show,set,disable,enable}")
 
     elif args.command == "rules":
-        from .rules_command import run_rules_dry_run, run_rules_lint
+        from .rules_command import run_rules_dry_run, run_rules_lint, run_rules_report
 
         if args.rules_command == "lint":
             sys.exit(
@@ -642,6 +658,17 @@ def main(argv: list[str] | None = None) -> None:
         elif args.rules_command == "dry-run":
             sys.exit(
                 run_rules_dry_run(
+                    events_path=args.events,
+                    patterns_path=args.attack_patterns,
+                    evolved_patterns_path=args.evolved_patterns,
+                    skills_dir=args.skills_dir,
+                    as_json=args.json,
+                )
+            )
+        elif args.rules_command == "report":
+            sys.exit(
+                run_rules_report(
+                    output_path=args.output,
                     events_path=args.events,
                     patterns_path=args.attack_patterns,
                     evolved_patterns_path=args.evolved_patterns,

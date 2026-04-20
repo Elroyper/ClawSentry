@@ -1,9 +1,9 @@
 # OpenAI Codex CLI 集成
 
-!!! warning "监控模式说明"
-    Codex 目前没有原生 Hook 系统。与 Claude Code 和 a3s-code 不同，ClawSentry **无法自动拦截** Codex 的工具调用。ClawSentry 通过监控 Codex 的 session 日志文件实现实时风险评估、审计记录和告警推送。建议配合 `--approval-policy untrusted` 使用，参考 `clawsentry watch` 的安全建议手动审批。
+!!! warning "默认仍是监控模式"
+    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，其他 native hook 事件仍为异步观察/建议，不承诺完整前置阻断。
 
-将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控实现工具调用的实时安全评估与审计。
+将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控和可选 `PreToolUse(Bash)` native hook preflight 实现工具调用的实时安全评估与审计。
 
 ---
 
@@ -38,8 +38,16 @@ clawsentry init codex
 2. 生成 `.env.clawsentry` 配置文件
 3. 提示监控模式使用方法
 
+如需同时安装 ClawSentry 管理的 Codex native hooks（保留已有用户 / OMX hooks），显式运行：
+
+```bash
+clawsentry init codex --setup
+```
+
+`--setup` 会启用 `.codex/config.toml` 中的 `[features].codex_hooks = true`，并在 `.codex/hooks.json` 中追加 ClawSentry 管理的 hook entries。`PreToolUse(Bash)` 使用同步 `clawsentry harness --framework codex` 以便 Gateway 可返回 `deny`；`PostToolUse`、`UserPromptSubmit`、`Stop`、`SessionStart` 使用 `--async` best-effort 后台观察（短暂 shutdown grace 后退出，绝不返回 host deny）。卸载时可用 `clawsentry init codex --uninstall` 移除 ClawSentry entries，而不删除其他 hook。
+
 !!! info "监控模式说明"
-    与 Claude Code 和 a3s-code 的拦截模式不同，Codex 集成为**纯监控模式**——ClawSentry 观察并评估所有操作，但不会阻止 Codex 执行。高风险操作通过 SSE 和告警通知运维人员。
+    默认 Codex 集成仍以**监控模式**为主——ClawSentry 观察并评估操作，高风险操作通过 SSE 和告警通知运维人员。Native hook 安装是可选增强：仅 `PreToolUse(Bash)` 可在 Gateway 可达且判决为 block/defer 时返回 host deny；Gateway 不可达时默认 fail-open 并输出 stderr 诊断，避免阻断所有开发操作。
 
 ### 2. 启动 Gateway
 
@@ -85,7 +93,7 @@ ClawSentry 的 `CodexSessionWatcher` 会自动监控 Codex 写入的 session 日
 
 ### Codex Session Watcher 架构
 
-由于 Codex 没有原生 Hook 系统，ClawSentry 通过 Session Watcher 实时监控 Codex 会话 JSONL 日志实现安全评估。
+默认路径通过 Session Watcher 实时监控 Codex 会话 JSONL 日志实现安全评估；如启用 `clawsentry init codex --setup`，ClawSentry 还会注册 managed native hooks 作为可选增强。
 
 ```
 Codex 写入 JSONL
@@ -109,6 +117,20 @@ SSE 广播 (决策/告警/风险变更)
 2. 检测到新 JSONL 条目时，通过 `CodexAdapter` 归一化为 AHP `CanonicalEvent`
 3. 发送到 Gateway 进行完整的 L1/L2/L3 安全评估
 4. 决策结果通过 SSE 广播，但**不会阻断 Codex 操作**（监控模式）
+
+### 可选 Native Hook Preflight
+
+`clawsentry init codex --setup` 会非破坏式合并 `.codex/hooks.json`：
+
+| Codex native hook | Matcher | ClawSentry 命令 | Host 阻断语义 |
+|-------------------|---------|-----------------|---------------|
+| `PreToolUse` | `Bash` | `clawsentry harness --framework codex` | Gateway 返回 block/defer 时输出 Codex `permissionDecision: "deny"` |
+| `PostToolUse` | `Bash` | `clawsentry harness --framework codex --async` | best-effort 观察/审计；短暂 shutdown grace 后退出，不返回 deny |
+| `UserPromptSubmit` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 观察/建议；短暂 shutdown grace 后退出，不返回 deny |
+| `Stop` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 会话收尾观察；不返回 deny |
+| `SessionStart` | `startup|resume` | `clawsentry harness --framework codex --async` | best-effort 会话启动观察；不返回 deny |
+
+Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。
 
 ### 配置变量
 
@@ -167,6 +189,16 @@ Codex 的 4 种事件类型映射到 AHP 规范事件：
 !!! info "Pre-action vs Post-action"
     - **`function_call`（pre_action）**：Codex 将工具调用写入 session 日志后，ClawSentry 将其归一化为内部 `pre_action` 事件以复用风险评估管线。该路径是**监控/告警**，不会阻断 Codex 操作。
     - **`function_call_output`（post_action）**：在工具执行完成后发送。ClawSentry 记录审计日志并进行 Post-action 分析（检测数据泄露、间接注入等）。
+
+Native hook 入口使用 Codex CLI 的 `hook_event_name` 字段映射：
+
+| Codex `hook_event_name` | AHP 事件类型 | 子类型 | 说明 |
+|-------------------------|--------------|--------|------|
+| `PreToolUse` | `pre_action` | `PreToolUse` | 仅 `Bash` matcher 安装为同步 preflight |
+| `PostToolUse` | `post_action` | `PostToolUse` | 异步观察 |
+| `UserPromptSubmit` | `pre_prompt` | `UserPromptSubmit` | 异步提示观察/建议 |
+| `SessionStart` | `session` | `session:start` | 异步会话启动观察 |
+| `Stop` | `session` | `session:stop` | 异步会话收尾观察 |
 
 ---
 
@@ -277,15 +309,16 @@ clawsentry doctor
 输出示例：
 
 ```
-ClawSentry Doctor — 13 checks
+ClawSentry Doctor — 20 checks
 ──────────────────────────────────
  [PASS] AUTH_PRESENCE      CS_AUTH_TOKEN is set.
  [PASS] AUTH_LENGTH        Token length (43) >= minimum (16).
  [PASS] AUTH_ENTROPY       Token entropy is acceptable.
  ...
  [PASS] CODEX_CONFIG       Codex configured: /ahp/codex on port 8080.
+ [WARN] CODEX_NATIVE_HOOKS Codex native hooks are not installed (optional).
 ──────────────────────────────────
-Summary: 13 PASS, 0 WARN, 0 FAIL
+Summary: 18 PASS, 2 WARN, 0 FAIL
 ```
 
 !!! tip "JSON 输出"
@@ -301,6 +334,8 @@ Codex 配置检查项：
 | `CODEX_CONFIG` | `CS_FRAMEWORK=codex` 且 `CS_AUTH_TOKEN` 已设置 | PASS |
 | `CODEX_CONFIG` | `CS_FRAMEWORK=codex` 但 `CS_AUTH_TOKEN` 未设置 | WARN |
 | `CODEX_CONFIG` | `CS_FRAMEWORK` 不是 `codex` | PASS（跳过检查） |
+| `CODEX_NATIVE_HOOKS` | `[features].codex_hooks = true`，且 ClawSentry managed `PreToolUse(Bash)` 为同步、其他 managed native hooks 为 `--async` | PASS |
+| `CODEX_NATIVE_HOOKS` | Codex 已启用但未安装 native hooks，或 sync/async 形态不符合 ClawSentry managed contract | WARN（可选增强，运行 `clawsentry init codex --setup` 修复） |
 
 ---
 
@@ -530,13 +565,13 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
 
 | 特性 | Codex | Claude Code | a3s-code | OpenClaw |
 |------|:-----:|:-----------:|:--------:|:--------:|
-| 集成方式 | Session 日志监控 | Hook 注入 | 显式 SDK Transport | WebSocket |
-| 自动拦截 | :x: 仅监控 | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| 需要修改 Codex 配置 | :x: 不需要 | — | — | — |
+| 集成方式 | Session 日志监控 + 可选 native hooks | Hook 注入 | 显式 SDK Transport | WebSocket |
+| 自动拦截 | :x: 默认仅监控；native hooks 为可选增强 | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| 需要修改 Codex 配置 | 默认不需要；`--setup` 会写 `.codex/config.toml` / `.codex/hooks.json` | — | — | — |
 | 审计记录 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | DEFER 审批 | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
-> Codex 目前不提供原生 Hook 系统。一旦 Codex 添加类似 Claude Code 的 Hook 机制，ClawSentry 将升级为完整拦截模式。
+> 当前 ClawSentry 已能非破坏式注册 Codex native hooks，但完整 blocking defense 仍处于后续收口阶段；生产上仍应保留 session watcher 与人工审批策略。
 
 ---
 

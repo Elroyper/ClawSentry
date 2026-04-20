@@ -65,6 +65,23 @@ class TestCLIParsing:
         assert proc.returncode == 0
         assert (tmp_path / ".env.clawsentry").exists()
 
+    def test_init_codex_setup_writes_native_hooks(self, tmp_path):
+        codex_home = tmp_path / ".codex"
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "clawsentry",
+                "init", "codex",
+                "--dir", str(tmp_path),
+                "--setup",
+                "--codex-home", str(codex_home),
+            ],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+        assert proc.returncode == 0
+        assert (codex_home / "config.toml").exists()
+        assert (codex_home / "hooks.json").exists()
+        assert "Codex native hooks updated" in proc.stdout
+
     def test_rules_subcommand_help(self):
         proc = subprocess.run(
             [sys.executable, "-m", "clawsentry", "rules", "--help"],
@@ -73,6 +90,7 @@ class TestCLIParsing:
         assert proc.returncode == 0
         assert "lint" in proc.stdout
         assert "dry-run" in proc.stdout
+        assert "report" in proc.stdout
 
     def test_rules_subcommand_requires_nested_command(self):
         proc = subprocess.run(
@@ -89,6 +107,23 @@ class TestCLIParsing:
         )
         assert proc.returncode != 0
         assert "--bogus" in (proc.stderr or proc.stdout)
+
+    def test_rules_report_writes_artifact_from_cli(self, tmp_path):
+        output_path = tmp_path / "rules-report.json"
+
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "clawsentry",
+                "rules", "report",
+                "--output", str(output_path),
+            ],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+
+        assert proc.returncode == 0
+        assert output_path.exists()
+        assert "PASS: wrote rules report" in proc.stdout
+
 
 
 class TestWatchDefaults:

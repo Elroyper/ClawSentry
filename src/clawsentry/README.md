@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **2936 tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **2962 tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -322,12 +322,12 @@ clawsentry watch
 |---------|-------------------|-------------------------|-------------------------|-----------------|----------|
 | `a3s-code` | Explicit SDK transport + `clawsentry-harness` | Yes | Yes | Agent code must wire `SessionOptions.ahp_transport` | High |
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks | Medium-high |
-| `codex` | Session JSONL watcher | No | Yes | Session logs must be reachable | Medium |
+| `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight | Yes | Session logs / optional `.codex/hooks.json` must be reachable | Medium |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed | Medium |
 
 Operational boundary notes:
 
-- `codex` is an observation path, not a pre-execution interception path.
+- `codex` remains an observation-first path by default; `clawsentry init codex --setup` can add managed native hooks without replacing user/OMX hooks. The tested host-blocking surface is intentionally narrow: `PreToolUse(Bash)` can deny when Gateway returns block/defer; other Codex native events stay async advisory/observational.
 - `a3s-code` should be documented as explicit SDK transport wiring, not `.a3s-code/settings.json` auto-loading.
 - `openclaw` and `claude-code` provide strong coverage only when host-side setup remains intact.
 
@@ -351,6 +351,7 @@ banner.
 | `clawsentry harness` | a3s-code stdio bridge subprocess |
 | `clawsentry rules lint` | Authoring-time validation for attack patterns + review skills (`--json`) |
 | `clawsentry rules dry-run` | Replay sample canonical events against current rule surfaces (`--events`, `--json`; accepts JSON object / array / JSONL) |
+| `clawsentry rules report` | Write a combined lint/dry-run JSON artifact for CI or release evidence (`--output`, optional `--events`) |
 
 ### Rule Governance
 
@@ -361,13 +362,16 @@ introducing a runtime DSL for L1/L2/L3 control flow.
 ```bash
 clawsentry rules lint --json
 clawsentry rules dry-run --events examples/sample-events.jsonl --json
+clawsentry rules report --output artifacts/rules-report.json --events examples/sample-events.jsonl
 ```
 
 `rules lint` reports schema / duplicate / conflict findings for attack
 patterns and review skills. `rules dry-run` replays sample canonical events
 from a JSON object, JSON array, or JSONL file through the current
 attack-pattern matcher and review-skill selector so authors can preview
-policy effects before rollout.
+policy effects before rollout. `rules report` combines those checks into a
+stable JSON artifact with `status`, `exit_code`, per-check summaries, the
+deterministic fingerprint, and optional dry-run results for CI/release records.
 
 ---
 
@@ -454,7 +458,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (2936 tests)
++-- tests/                             # Test suite (2962 tests)
 ```
 
 ---
@@ -532,7 +536,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 2936 passed, 3 skipped
+# Expected: 2962 passed, 3 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

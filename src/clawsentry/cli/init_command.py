@@ -32,6 +32,7 @@ def run_init(
     setup: bool = False,
     dry_run: bool = False,
     openclaw_home: Path | None = None,
+    codex_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Run init and print results. Returns exit code (0=ok, 1=error).
@@ -57,6 +58,8 @@ def run_init(
             kwargs["auto_detect"] = True
         if openclaw_home is not None:
             kwargs["openclaw_home"] = openclaw_home
+        if codex_home is not None:
+            kwargs["codex_home"] = codex_home
         result = initializer.generate_config(target_dir, **kwargs)
     except FileExistsError as exc:
         print(str(exc), file=sys.stderr)
@@ -110,6 +113,24 @@ def run_init(
                 print(f"  WARNING: {w}")
         print()
 
+    # --- Codex --setup ---
+    if setup and hasattr(initializer, "setup_codex_hooks"):
+        setup_kwargs = {"dry_run": dry_run}
+        if codex_home is not None:
+            setup_kwargs["codex_home"] = codex_home
+        setup_result = initializer.setup_codex_hooks(**setup_kwargs)
+
+        if setup_result.dry_run:
+            print("  [DRY RUN] The following Codex hook changes would be applied:")
+        else:
+            print("  Codex native hooks updated:")
+        for change in setup_result.changes_applied:
+            print(f"    - {change}")
+        if setup_result.warnings:
+            for w in setup_result.warnings:
+                print(f"  WARNING: {w}")
+        print()
+
     return 0
 
 
@@ -118,6 +139,7 @@ def run_uninstall(
     framework: str,
     target_dir: Path,
     claude_home: Path | None = None,
+    codex_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Disable one framework integration without disturbing other frameworks."""
@@ -134,6 +156,13 @@ def run_uninstall(
         uninstall_kwargs: dict[str, object] = {}
         if claude_home is not None:
             uninstall_kwargs["claude_home"] = claude_home
+        result = initializer.uninstall(**uninstall_kwargs)
+        warnings.extend(result.warnings)
+        next_steps.extend(result.next_steps)
+    elif framework == "codex" and hasattr(initializer, "uninstall"):
+        uninstall_kwargs = {}
+        if codex_home is not None:
+            uninstall_kwargs["codex_home"] = codex_home
         result = initializer.uninstall(**uninstall_kwargs)
         warnings.extend(result.warnings)
         next_steps.extend(result.next_steps)

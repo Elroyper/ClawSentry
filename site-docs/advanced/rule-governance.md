@@ -8,7 +8,7 @@ description: YAML 规则与技能的上线前治理：lint、dry-run、fingerpri
 规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的**上线前治理**补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
 
 !!! abstract "本页快速导航"
-    [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [典型工作流](#workflow) · [输出字段](#outputs)
+    [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [clawsentry rules report](#rules-report) · [典型工作流](#workflow) · [输出字段](#outputs)
 
 ## 作用边界 {#scope}
 
@@ -92,6 +92,35 @@ clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patte
 clawsentry rules dry-run --events examples/sample-events.jsonl --json
 ```
 
+## `clawsentry rules report` {#rules-report}
+
+```bash
+clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+```
+
+`report` 面向 CI 与 release checklist：它把 `lint` 结果和可选
+`dry-run` 结果写入一个稳定 JSON 工件，包含：
+
+- 顶层 `status` / `exit_code`
+- deterministic `fingerprint`
+- `checks.lint` 与 `checks.dry_run` 的状态、finding 数量和事件数量
+- 完整 `lint` payload
+- 可选的完整 `dry_run` payload
+
+如果同时传入 `--json`，报告也会输出到 stdout，便于流水线直接解析。
+
+仓库还提供了可同步到公开仓库的 GitHub Actions 示例：
+`examples/ci/rules-governance.yml`。公开仓库可将它复制到
+`.github/workflows/rules-governance.yml` 后按需调整触发条件。
+
+### 示例
+
+```bash
+clawsentry rules report \
+  --output artifacts/rules-report.json \
+  --events examples/sample-events.jsonl
+```
+
 ## 典型工作流 {#workflow}
 
 ### 调整 attack patterns 后
@@ -112,11 +141,14 @@ clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
 
 ### 与 release checklist 一起使用
 
-如果本次版本包含规则治理相关修改，发布前至少保留两条 smoke：
+如果本次版本包含规则治理相关修改，发布前至少保留三条 smoke：
 
 ```bash
 PYTHONPATH=src python -m clawsentry rules lint --json
 PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-events.jsonl --json
+PYTHONPATH=src python -m clawsentry rules report \
+  --output artifacts/rules-report.json \
+  --events examples/sample-events.jsonl
 ```
 
 ## 输出字段 {#outputs}

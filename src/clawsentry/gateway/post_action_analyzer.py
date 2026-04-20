@@ -8,7 +8,7 @@ Public API:
     - detect_obfuscation(text) → float
     - PostActionAnalyzer.analyze(tool_output, ...) → PostActionFinding
 
-Design basis: docs/plans/archive/2026-03/2026-03-23-e4-phase1-design-v1.2.md section 3
+Design basis: internal E4 phase-1 design, section 3
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
 """``clawsentry doctor`` — offline configuration security audit.
 
-Loads ``.env.clawsentry``, runs 19 checks, and outputs a PASS/WARN/FAIL report.
+Loads ``.env.clawsentry``, runs 20 checks, and outputs a PASS/WARN/FAIL report.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ import stat
 import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 
 
 @dataclass
@@ -263,6 +264,131 @@ def check_codex_config() -> DoctorCheck:
                        f"Codex configured: /ahp/codex on port {port}.")
 
 
+_CODEX_HOOK_MARKER = "clawsentry harness --framework codex"
+_CODEX_HOOK_SYNC_COMMAND = "clawsentry harness --framework codex"
+_CODEX_HOOK_ASYNC_COMMAND = "clawsentry harness --framework codex --async"
+_CODEX_REQUIRED_HOOK_SHAPES: tuple[tuple[str, str | None, str, str], ...] = (
+    ("PreToolUse", "Bash", _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
+    ("PostToolUse", "Bash", _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+    ("UserPromptSubmit", None, _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+    ("Stop", None, _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+    ("SessionStart", "startup|resume", _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+)
+
+
+def _codex_managed_hook_commands(
+    hooks_payload: dict[str, Any],
+    *,
+    event_name: str,
+    matcher: str | None,
+) -> list[str]:
+    hooks = hooks_payload.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    entries = hooks.get(event_name)
+    if not isinstance(entries, list):
+        return []
+
+    commands: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if matcher is None:
+            if "matcher" in entry:
+                continue
+        elif entry.get("matcher") != matcher:
+            continue
+        hook_specs = entry.get("hooks")
+        if not isinstance(hook_specs, list):
+            continue
+        for hook_spec in hook_specs:
+            if not isinstance(hook_spec, dict):
+                continue
+            command = hook_spec.get("command")
+            if isinstance(command, str) and _CODEX_HOOK_MARKER in command:
+                commands.append(command)
+    return commands
+
+
+def _codex_native_hook_shape_issues(
+    hooks_payload: dict[str, Any],
+) -> list[str]:
+    issues: list[str] = []
+    for event_name, matcher, expected_command, expected_mode in _CODEX_REQUIRED_HOOK_SHAPES:
+        commands = _codex_managed_hook_commands(
+            hooks_payload,
+            event_name=event_name,
+            matcher=matcher,
+        )
+        label = f"{event_name}({matcher})" if matcher else event_name
+        if not commands:
+            issues.append(f"{label}: missing ClawSentry managed entry")
+            continue
+        if expected_command not in commands:
+            issues.append(
+                f"{label}: expected {expected_mode} command "
+                f"'{expected_command}', found {commands!r}"
+            )
+    return issues
+
+
+def check_codex_native_hooks() -> DoctorCheck:
+    framework = _env("CS_FRAMEWORK")
+    enabled = {
+        item.strip()
+        for item in _env("CS_ENABLED_FRAMEWORKS").split(",")
+        if item.strip()
+    }
+    if framework != "codex" and "codex" not in enabled:
+        return DoctorCheck("CODEX_NATIVE_HOOKS", "PASS",
+                           "Codex is not enabled (native hooks check skipped).")
+
+    codex_home = Path(_env("CODEX_HOME") or "~/.codex").expanduser()
+    config_path = codex_home / "config.toml"
+    hooks_path = codex_home / "hooks.json"
+    if not config_path.exists() or not hooks_path.exists():
+        return DoctorCheck(
+            "CODEX_NATIVE_HOOKS",
+            "WARN",
+            "Codex native hooks are not installed.",
+            detail="Optional: run clawsentry init codex --setup",
+        )
+
+    try:
+        config_text = config_path.read_text(encoding="utf-8")
+        hooks_payload = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return DoctorCheck(
+            "CODEX_NATIVE_HOOKS",
+            "WARN",
+            f"Could not inspect Codex native hooks: {exc}",
+            detail="Run clawsentry init codex --setup to repair managed hook entries.",
+        )
+
+    has_feature = "codex_hooks = true" in config_text
+    shape_issues = _codex_native_hook_shape_issues(hooks_payload)
+    if has_feature and not shape_issues:
+        return DoctorCheck(
+            "CODEX_NATIVE_HOOKS",
+            "PASS",
+            (
+                f"Codex native hooks installed: {hooks_path}; "
+                "PreToolUse(Bash) sync + advisory hooks async."
+            ),
+        )
+
+    missing: list[str] = []
+    if not has_feature:
+        missing.append("[features].codex_hooks = true")
+    missing.extend(shape_issues)
+    return DoctorCheck(
+        "CODEX_NATIVE_HOOKS",
+        "WARN",
+        "Codex native hooks are incomplete.",
+        detail=f"Missing: {', '.join(missing)}. Run clawsentry init codex --setup.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Latch checks
 # ---------------------------------------------------------------------------
@@ -403,6 +529,7 @@ ALL_CHECKS = [
     check_l2_budget,
     check_trajectory_db,
     check_codex_config,
+    check_codex_native_hooks,
     check_latch_binary,
     check_latch_hub_health,
     check_latch_token_sync,

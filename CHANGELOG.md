@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **CS-01 rules reporting artifact** — `clawsentry rules report --output ...` 现在可以把规则治理 `lint` 与可选 `dry-run` 结果合并写入稳定 JSON 工件，提供 `status`、`exit_code`、per-check summary、deterministic fingerprint 与完整 payload，便于 CI / release checklist 保存 rollout 证据。
+- **Rules governance CI template** — 新增可同步的 `examples/ci/rules-governance.yml` GitHub Actions 示例，运行 `rules lint` / `rules dry-run` / `rules report` 并上传 `artifacts/rules-report.json`，方便公开仓库启用规则治理 artifact。
+- **Codex native hook PreToolUse 防护收口** — `clawsentry init codex --setup` 现在将 `PreToolUse(Bash)` 安装为同步 `clawsentry harness --framework codex` preflight，其他 Codex native events 保持 `--async` 观察；harness 使用 Codex-native normalization，经 Gateway block/defer 后返回已验证的 `permissionDecision: "deny"` 响应，fallback policy 默认 fail-open 并输出诊断。安装/卸载仍保留用户 / OMX hooks，`doctor` 会校验 managed hooks 的 sync/async 形态，并已补充真实 Codex CLI native hook smoke 记录。
+
 ## [0.5.0] — 2026-04-20
 
 ### 新增
@@ -21,7 +27,7 @@
 
 ### 测试与验证
 
-- Python 回归：完整测试 `2936 passed, 3 skipped`
+- Python 回归：完整测试 `2962 passed, 3 skipped`
 - Focused AHP v2.3 compatibility / bridge / analysis 回归：`590 passed`
 
 ## [0.4.8] — 2026-04-17
@@ -232,7 +238,7 @@
 - **在线文档重写 Web UI 说明** — `site-docs/dashboard/index.md` 现在先解释 Web UI 的使用模型，再解释页面职责，明确 Dashboard / Sessions / Session Detail / Alerts / DEFER Panel 各自回答什么问题。
 - **快速开始补充 Web UI 导读** — `site-docs/getting-started/quickstart.md` 新增“第一次打开 Web UI 先看什么”的说明，帮助用户用正确的视角理解监控台。
 - **报表 API 文档对齐新字段** — `site-docs/api/reporting.md` 更新会话列表与会话风险详情的响应示例，补充 `workspace_root` / `transcript_path` 等字段说明。
-- **进度文档同步收口** — `docs/plans/archive/2026-04/2026-04-09-issue-followups-ux-risk-l3-evolution.md` 已更新为包含本轮 Web UI 重构、浏览器验收与后续发布建议。
+- **进度文档同步收口** — 内部进度记录已更新为包含本轮 Web UI 重构、浏览器验收与后续发布建议。
 
 ### 验证
 

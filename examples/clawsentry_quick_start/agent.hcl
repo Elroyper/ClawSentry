@@ -4,8 +4,8 @@ default_model = "openai/kimi-k2.5"
 
 providers {
   name     = "openai"
-  api_key  = "sk-VGHHzixouYsblfxnittozrK40u8gaQa9wqRwAsXIGaMi7fzl"
-  base_url = "http://35.220.164.252:3888/v1/"
+  api_key  = "YOUR_OPENAI_API_KEY"
+  base_url = "https://api.openai.com/v1"
 
   models {
     id        = "kimi-k2.5"

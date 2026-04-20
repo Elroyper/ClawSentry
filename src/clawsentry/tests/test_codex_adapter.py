@@ -170,3 +170,52 @@ class TestCodexAdapter:
         )
         assert event is not None
         assert event.trace_id == "my-call-id"
+
+    def test_normalize_native_pretooluse_bash_fixture(self):
+        """Codex CLI 0.121 native PreToolUse(Bash) stdin fixture normalizes to AHP."""
+        adapter = CodexAdapter()
+
+        event = adapter.normalize_native_hook_event(
+            {
+                "session_id": "sess-codex-native",
+                "turn_id": "turn-123",
+                "transcript_path": "/tmp/codex/session.jsonl",
+                "cwd": "/workspace/project",
+                "hook_event_name": "PreToolUse",
+                "model": "gpt-5.4",
+                "permission_mode": "workspace-write",
+                "tool_name": "Bash",
+                "tool_input": {"command": "rm -rf /tmp/unsafe"},
+                "tool_use_id": "toolu_123",
+            }
+        )
+
+        assert event is not None
+        assert event.event_type.value == "pre_action"
+        assert event.event_subtype == "PreToolUse"
+        assert event.source_framework == "codex"
+        assert event.tool_name == "bash"
+        assert event.session_id == "sess-codex-native"
+        assert event.trace_id == "toolu_123"
+        assert event.payload["arguments"]["command"] == "rm -rf /tmp/unsafe"
+        assert event.payload["command"] == "rm -rf /tmp/unsafe"
+        assert event.framework_meta.normalization.raw_event_type == "PreToolUse"
+
+    def test_normalize_native_user_prompt_submit_is_observation_only_prompt_event(self):
+        adapter = CodexAdapter()
+
+        event = adapter.normalize_native_hook_event(
+            {
+                "session_id": "sess-codex-prompt",
+                "turn_id": "turn-456",
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": "/workspace/project",
+                "prompt": "please run tests",
+            }
+        )
+
+        assert event is not None
+        assert event.event_type.value == "pre_prompt"
+        assert event.event_subtype == "UserPromptSubmit"
+        assert event.source_framework == "codex"
+        assert event.payload["prompt"] == "please run tests"

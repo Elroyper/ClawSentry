@@ -1,7 +1,11 @@
 """Tests for standard a3s-code gateway bridge harness (P1-2)."""
 
 import asyncio
+import io
+import json
 import os
+import sys
+import time
 import pytest
 import pytest_asyncio
 from clawsentry.adapters.a3s_adapter import A3SCodeAdapter
@@ -965,6 +969,148 @@ class TestFrameworkArgument:
         assert harness.adapter.source_framework == "claude-code"
 
 
+class TestCodexNativeHookDispatch:
+    """Codex native hooks use Codex normalization and Codex response semantics."""
+
+    @staticmethod
+    def _decision(
+        decision: DecisionVerdict,
+        *,
+        policy_id: str = "test-policy",
+        reason: str = "test decision",
+        risk_level: RiskLevel = RiskLevel.HIGH,
+    ) -> CanonicalDecision:
+        return CanonicalDecision(
+            decision=decision,
+            reason=reason,
+            policy_id=policy_id,
+            risk_level=risk_level,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+
+    @pytest.mark.asyncio
+    async def test_codex_pretooluse_uses_codex_adapter_then_gateway_transport(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.ALLOW,
+                reason="allowed",
+                risk_level=RiskLevel.LOW,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-native-codex",
+                "turn_id": "turn-native-codex",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "echo ok"},
+                "tool_use_id": "tool-native-codex",
+                "cwd": "/workspace/project",
+            }
+        )
+
+        assert response is None
+        event = adapter.request_decision.await_args.args[0]
+        assert event.source_framework == "codex"
+        assert event.event_type == EventType.PRE_ACTION
+        assert event.event_subtype == "PreToolUse"
+        assert event.tool_name == "bash"
+        assert event.trace_id == "tool-native-codex"
+        assert event.payload["turn_id"] == "turn-native-codex"
+        assert event.payload["arguments"]["command"] == "echo ok"
+
+    @pytest.mark.asyncio
+    async def test_codex_pretooluse_block_returns_verified_deny_shape(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="dangerous command",
+                risk_level=RiskLevel.CRITICAL,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-block-codex",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "rm -rf /"},
+                "tool_use_id": "tool-block-codex",
+            }
+        )
+
+        assert response == {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": (
+                    "[ClawSentry] dangerous command (risk: critical)"
+                ),
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_non_pretooluse_never_returns_host_block(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="observation-only event",
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-post-codex",
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "rm -rf /"},
+                "tool_response": {"exit_code": 0},
+            }
+        )
+
+        assert response is None
+
+    @pytest.mark.asyncio
+    async def test_codex_fallback_policy_fails_open_with_diagnostic(self, capsys):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                policy_id="fallback-fail-closed",
+                reason="gateway unreachable fallback",
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-fallback-codex",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "rm -rf /tmp/x"},
+            }
+        )
+
+        assert response is None
+        assert "Gateway unreachable" in capsys.readouterr().err
+
+
 class TestCamelToSnake:
     """Test the _camel_to_snake helper."""
 
@@ -1096,3 +1242,39 @@ class TestAsyncBackgroundDispatch:
             result = await harness.dispatch_async(msg)
 
         assert "dispatched" in result["result"]["reason"]
+
+    def test_async_run_stdio_uses_bounded_shutdown_grace_for_codex_hooks(
+        self,
+        monkeypatch,
+    ):
+        """Short-lived Codex --async hook command should not wait for gateway timeout."""
+        from unittest.mock import patch
+
+        async def slow_dispatch(*_args, **_kwargs):
+            await asyncio.sleep(10)
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        harness = A3SGatewayHarness(
+            adapter,
+            async_mode=True,
+            async_shutdown_grace_seconds=0.01,
+        )
+        msg = {
+            "session_id": "sess-async-stdio",
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo observed"},
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(msg) + "\n"))
+        monkeypatch.setattr(sys, "stderr", io.StringIO())
+
+        start = time.monotonic()
+        with patch.object(
+            harness,
+            "_async_dispatch_codex_native",
+            side_effect=slow_dispatch,
+        ) as dispatch:
+            harness.run_stdio()
+
+        assert dispatch.called
+        assert time.monotonic() - start < 0.5

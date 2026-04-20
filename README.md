@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2936+ tests**, ~45s full suite
+- **2962+ tests**, ~45s full suite
 
 ## Installation
 
@@ -134,10 +134,10 @@ clawsentry init openclaw --restore
 |---|---|---|---|---|
 | `a3s-code` | Explicit SDK transport + `clawsentry-harness` | Yes | Yes | Agent code must wire `SessionOptions.ahp_transport` |
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks |
-| `codex` | Session JSONL watcher | No | Yes | Session logs must be reachable |
+| `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight | Yes | Session logs / optional `.codex/hooks.json` must be reachable |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed |
 
-`codex` should be understood as an observation path, not a blocking path. `a3s-code`
+`codex` should be understood as observation-first by default; optional managed native hooks now provide a narrow tested `PreToolUse(Bash)` deny path, while `PostToolUse`, `UserPromptSubmit`, `Stop`, and `SessionStart` remain advisory/observational. `a3s-code`
 should be understood as explicit transport wiring, not `.a3s-code/settings.json`
 auto-loading. `claude-code` and `openclaw` remain more host-config-dependent than
 `a3s-code`.
