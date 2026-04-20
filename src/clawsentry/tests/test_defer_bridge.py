@@ -92,6 +92,71 @@ def _force_defer(gw: SupervisionGateway, risk_level=RiskLevel.MEDIUM):
     )
 
 
+def _force_allow(gw: SupervisionGateway, risk_level=RiskLevel.MEDIUM):
+    """Mock policy_engine.evaluate to return ALLOW so confirmation fast-lane can override it."""
+    allow_decision = CanonicalDecision(
+        decision=DecisionVerdict.ALLOW,
+        reason="confirmation observed",
+        policy_id="test",
+        risk_level=risk_level,
+        decision_source=DecisionSource.POLICY,
+        final=True,
+    )
+    snapshot = _make_snapshot(risk_level)
+    gw.policy_engine.evaluate = MagicMock(
+        return_value=(allow_decision, snapshot, DecisionTier.L1)
+    )
+
+
+def _confirmation_jsonrpc_request(
+    *,
+    approval_id="approval-confirm-001",
+    session_id="test-confirm-session-1",
+    event_id=None,
+    deadline_ms=60000,
+) -> bytes:
+    """Build a confirmation compat event routed through canonical SESSION."""
+    eid = event_id or f"evt-{uuid.uuid4().hex[:8]}"
+    return json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "ahp/sync_decision",
+        "params": {
+            "rpc_version": RPC_VERSION,
+            "request_id": f"req-{eid}",
+            "deadline_ms": deadline_ms,
+            "decision_tier": "L1",
+            "event": {
+                "event_id": eid,
+                "trace_id": f"tr-{uuid.uuid4().hex[:8]}",
+                "event_type": "session",
+                "event_subtype": "compat:confirmation",
+                "session_id": session_id,
+                "agent_id": "test-agent",
+                "source_framework": "a3s-code",
+                "occurred_at": utc_now_iso(),
+                "approval_id": approval_id,
+                "tool_name": "Bash",
+                "payload": {
+                    "command": "sudo rm -rf /tmp/test",
+                    "_clawsentry_meta": {
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": "confirmation",
+                            "identity": {
+                                "event_id": eid,
+                                "session_id": session_id,
+                                "agent_id": "test-agent",
+                                "approval_id": approval_id,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }).encode()
+
+
 # ---------------------------------------------------------------------------
 # Test 1: DEFER + bridge enabled -> registers and waits (timeout -> block)
 # ---------------------------------------------------------------------------
@@ -115,9 +180,12 @@ class TestDeferBridge:
 
         assert "result" in resp, f"Expected success, got: {resp}"
         decision = resp["result"]["decision"]
-        # Timeout -> block
+        # Timeout -> block (system auto-resolution, not operator)
         assert decision["decision"] == "block"
-        assert decision["decision_source"] == "operator"
+        assert decision["decision_source"] == "system"
+        assert decision["failure_class"] == "approval_timeout"
+        assert "Operator denied" not in decision["reason"]
+        assert "timeout" in decision["reason"].lower()
 
     # ---------------------------------------------------------------------------
     # Test 2: resolve allow-once -> ALLOW
@@ -197,6 +265,8 @@ class TestDeferBridge:
 
         assert "result" in resp, f"Expected success, got: {resp}"
         assert resp["result"]["decision"]["decision"] == "block"
+        assert resp["result"]["decision"]["failure_class"] == "approval_timeout"
+        assert resp["result"]["decision"]["failure_class"] == "approval_timeout"
 
     # ---------------------------------------------------------------------------
     # Test 5: timeout action=allow -> ALLOW
@@ -218,6 +288,9 @@ class TestDeferBridge:
 
         assert "result" in resp, f"Expected success, got: {resp}"
         assert resp["result"]["decision"]["decision"] == "allow"
+        assert resp["result"]["decision"]["failure_class"] == "approval_timeout"
+        assert "Operator approved" not in resp["result"]["decision"]["reason"]
+        assert "timeout" in resp["result"]["decision"]["reason"].lower()
 
     # ---------------------------------------------------------------------------
     # Test 6: only PRE_ACTION triggers bridge
@@ -414,3 +487,174 @@ class TestDeferBridge:
         resolution = resolution_rows[-1]
         assert resolution["decision"]["decision"] == "block"
         assert resolution["decision"]["decision_source"] == "policy"
+        assert resolution["decision"]["failure_class"] == "approval_queue_full"
+
+    @pytest.mark.asyncio
+    async def test_confirmation_fast_lane_reuses_approval_id_and_emits_telemetry(self):
+        """Confirmation compat events should enter approval bridge and emit approval telemetry."""
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=10.0,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_allow(gw, RiskLevel.HIGH)
+
+        sub_id, queue = gw.event_bus.subscribe(
+            event_types={"defer_pending", "defer_resolved"}
+        )
+        approval_id = "approval-confirm-telemetry-001"
+        body = _confirmation_jsonrpc_request(
+            approval_id=approval_id,
+            session_id="sess-confirm-telemetry",
+            event_id="evt-confirm-telemetry",
+        )
+
+        async def resolve_soon():
+            await asyncio.sleep(0.1)
+            gw.defer_manager.resolve_approval(
+                approval_id,
+                "allow-once",
+                "operator approved confirmation",
+            )
+
+        asyncio.create_task(resolve_soon())
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "allow"
+        assert resp["result"]["decision"]["decision_source"] == "operator"
+
+        events = []
+        while not queue.empty():
+            events.append(queue.get_nowait())
+        gw.event_bus.unsubscribe(sub_id)
+
+        pending = next(evt for evt in events if evt["type"] == "defer_pending")
+        assert pending["approval_id"] == approval_id
+        assert pending["approval_kind"] == "confirmation"
+        assert pending["approval_state"] == "pending"
+        assert pending["approval_reason"] == "confirmation observed"
+        assert pending["approval_reason_code"] == "approval_pending"
+        assert pending["approval_timeout_s"] == 10.0
+
+        resolved = next(evt for evt in events if evt["type"] == "defer_resolved")
+        assert resolved["approval_id"] == approval_id
+        assert resolved["approval_kind"] == "confirmation"
+        assert resolved["approval_state"] == "resolved"
+        assert resolved["approval_reason"] == "operator approved confirmation"
+        assert resolved["approval_reason_code"] == "approval_allowed"
+        assert resolved["approval_timeout_s"] == 10.0
+        assert resolved["resolved_decision"] == "allow"
+
+        rows = gw.trajectory_store.replay_session("sess-confirm-telemetry")
+        resolution_rows = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ]
+        assert resolution_rows
+        resolution = resolution_rows[-1]
+        assert resolution["meta"]["approval_id"] == approval_id
+        assert resolution["meta"]["approval_kind"] == "confirmation"
+        assert resolution["meta"]["approval_state"] == "resolved"
+        assert resolution["meta"]["approval_reason"] == "operator approved confirmation"
+        assert resolution["meta"]["approval_reason_code"] == "approval_allowed"
+        assert resolution["meta"]["approval_timeout_s"] == 10.0
+
+        session_risk = gw.report_session_risk("sess-confirm-telemetry")
+        assert session_risk["approval_id"] == approval_id
+        assert session_risk["approval_kind"] == "confirmation"
+        assert session_risk["approval_state"] == "resolved"
+        assert session_risk["approval_reason"] == "operator approved confirmation"
+        assert session_risk["approval_reason_code"] == "approval_allowed"
+        assert session_risk["approval_timeout_s"] == 10.0
+        assert session_risk["risk_timeline"][-1]["approval_state"] == "resolved"
+        assert session_risk["risk_timeline"][-1]["approval_reason_code"] == "approval_allowed"
+
+    @pytest.mark.asyncio
+    async def test_confirmation_fast_lane_timeout_has_explicit_terminal_reason_code(self):
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=0.05,
+            defer_timeout_action="block",
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_allow(gw, RiskLevel.MEDIUM)
+
+        body = _confirmation_jsonrpc_request(
+            approval_id="approval-confirm-timeout-001",
+            session_id="sess-confirm-timeout",
+            event_id="evt-confirm-timeout",
+        )
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "block"
+
+        rows = gw.trajectory_store.replay_session("sess-confirm-timeout")
+        resolution = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ][-1]
+        assert resolution["meta"]["approval_kind"] == "confirmation"
+        assert resolution["meta"]["approval_state"] == "timeout"
+        assert resolution["meta"]["approval_reason_code"] == "approval_timeout"
+        assert resolution["meta"]["approval_timeout_s"] == 0.05
+        assert "timeout" in resolution["meta"]["approval_reason"].lower()
+
+    @pytest.mark.asyncio
+    async def test_confirmation_fast_lane_queue_full_is_explicit_terminal_state(self):
+        config = DetectionConfig(
+            defer_bridge_enabled=True,
+            defer_timeout_s=10.0,
+            defer_max_pending=1,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_allow(gw, RiskLevel.HIGH)
+        assert gw.defer_manager.register_defer("existing-pending") is True
+
+        body = _confirmation_jsonrpc_request(
+            approval_id="approval-confirm-queue-full-001",
+            session_id="sess-confirm-queue-full",
+            event_id="evt-confirm-queue-full",
+        )
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "block"
+        assert resp["result"]["decision"]["failure_class"] == "approval_queue_full"
+
+        rows = gw.trajectory_store.replay_session("sess-confirm-queue-full")
+        resolution = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ][-1]
+        assert resolution["meta"]["approval_kind"] == "confirmation"
+        assert resolution["meta"]["approval_state"] == "queue_full"
+        assert resolution["meta"]["approval_reason_code"] == "approval_queue_full"
+        assert "queue full" in resolution["meta"]["approval_reason"].lower()
+
+    @pytest.mark.asyncio
+    async def test_confirmation_fast_lane_no_route_is_explicit_terminal_state(self):
+        config = DetectionConfig(
+            defer_bridge_enabled=False,
+            defer_timeout_s=10.0,
+        )
+        gw = SupervisionGateway(detection_config=config)
+        _force_allow(gw, RiskLevel.MEDIUM)
+
+        body = _confirmation_jsonrpc_request(
+            approval_id="approval-confirm-no-route-001",
+            session_id="sess-confirm-no-route",
+            event_id="evt-confirm-no-route",
+        )
+        resp = await gw.handle_jsonrpc(body)
+
+        assert resp["result"]["decision"]["decision"] == "block"
+        assert resp["result"]["decision"]["failure_class"] == "approval_no_route"
+
+        rows = gw.trajectory_store.replay_session("sess-confirm-no-route")
+        resolution = [
+            row for row in rows
+            if row["meta"].get("record_type") == "decision_resolution"
+        ][-1]
+        assert resolution["meta"]["approval_kind"] == "confirmation"
+        assert resolution["meta"]["approval_state"] == "no_route"
+        assert resolution["meta"]["approval_reason_code"] == "approval_no_route"
+        assert "no route" in resolution["meta"]["approval_reason"].lower()

@@ -325,6 +325,104 @@ class TestLLMAnalyzer:
         assert "bash" in user_msg
         assert "ls" in user_msg
 
+    def test_prompt_includes_compact_context_memory_signals(self):
+        provider = MagicMock()
+        provider.provider_id = "mock"
+        provider.complete = AsyncMock(return_value='{"risk_assessment":"low","reasons":[],"confidence":0.5}')
+        a = LLMAnalyzer(provider=provider)
+        snap = _snap(RiskLevel.MEDIUM)
+        context = DecisionContext(
+            recent_facts=["prod deploy failed", "customer data export requested"],
+            memory_summary="Session previously touched credential material.",
+            current_task="debug production export workflow",
+            context_hints=["prod", "customer-impact", "credentials"],
+        )
+
+        asyncio.run(
+            a.analyze(
+                _evt(tool_name="bash", payload={"command": "python export.py"}),
+                context,
+                snap,
+                3000,
+            )
+        )
+
+        call_args = provider.complete.call_args
+        user_msg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("user_message", "")
+        assert "Current task: debug production export workflow" in user_msg
+        assert "Memory summary: Session previously touched credential material." in user_msg
+        assert "Recent facts: prod deploy failed | customer data export requested" in user_msg
+        assert "Context hints: prod, customer-impact, credentials" in user_msg
+
+    def test_prompt_handles_missing_compact_context_fields_without_regression(self):
+        provider = MagicMock()
+        provider.provider_id = "mock"
+        provider.complete = AsyncMock(return_value='{"risk_assessment":"low","reasons":[],"confidence":0.5}')
+        a = LLMAnalyzer(provider=provider)
+        snap = _snap(RiskLevel.MEDIUM)
+
+        asyncio.run(
+            a.analyze(
+                _evt(tool_name="read_file", payload={"path": "notes.txt"}),
+                DecisionContext(),
+                snap,
+                3000,
+            )
+        )
+
+        call_args = provider.complete.call_args
+        user_msg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("user_message", "")
+        assert "Tool: read_file" in user_msg
+        assert "Payload:" in user_msg
+        assert "Current task:" not in user_msg
+        assert "Memory summary:" not in user_msg
+        assert "Recent facts:" not in user_msg
+        assert "Context hints:" not in user_msg
+        assert "Intent summary:" not in user_msg
+        assert "Planning summary:" not in user_msg
+        assert "Reasoning summary:" not in user_msg
+        assert "Cognition hints:" not in user_msg
+
+    def test_prompt_includes_compact_cognition_signals(self):
+        provider = MagicMock()
+        provider.provider_id = "mock"
+        provider.complete = AsyncMock(return_value='{"risk_assessment":"low","reasons":[],"confidence":0.5}')
+        a = LLMAnalyzer(provider=provider)
+        snap = _snap(RiskLevel.MEDIUM)
+        context = DecisionContext(
+            intent_summary="User intends to inspect the export path before changing anything.",
+            planning_summary="Plan is to read config, run a narrow test, then decide next step.",
+            reasoning_summary="Reasoning considered SECRET_TOKEN=supersecret but should not leak it.",
+            cognition_hints=[
+                "needs cautious analysis",
+                "production-adjacent",
+                "prefer read-only first",
+                "summarize uncertainty",
+                "fifth hint should be counted but not shown",
+            ],
+        )
+
+        asyncio.run(
+            a.analyze(
+                _evt(tool_name="bash", payload={"command": "python export.py --dry-run"}),
+                context,
+                snap,
+                3000,
+            )
+        )
+
+        call_args = provider.complete.call_args
+        user_msg = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("user_message", "")
+        assert "Intent summary: User intends to inspect the export path before changing anything." in user_msg
+        assert "Planning summary: Plan is to read config, run a narrow test, then decide next step." in user_msg
+        assert "Reasoning summary: Reasoning considered [REDACTED] but should not leak it." in user_msg
+        assert (
+            "Cognition hints: needs cautious analysis, production-adjacent, "
+            "prefer read-only first, summarize uncertainty (+1 more)"
+        ) in user_msg
+        assert "supersecret" not in user_msg
+        assert "fifth hint should be counted but not shown" not in user_msg
+
     def test_invalid_risk_level_in_response(self):
         """Unknown risk_assessment value degrades to L1."""
         response = '{"risk_assessment": "unknown_level", "reasons": [], "confidence": 0.5}'

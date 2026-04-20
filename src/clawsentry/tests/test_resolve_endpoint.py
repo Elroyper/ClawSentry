@@ -164,11 +164,13 @@ class TestResolveDeferManager:
         return client
 
     @pytest.mark.asyncio
-    async def test_resolve_defer_manager_pending(self, gateway, defer_manager):
+    async def test_resolve_defer_manager_pending(
+        self, gateway, defer_manager, mock_approval_client,
+    ):
         """When DeferManager has a pending request, resolving it returns ok."""
         defer_manager.register_defer("cs-defer-001")
         app = create_http_app(gateway)
-        add_resolve_endpoint(app, None, defer_manager=defer_manager)
+        add_resolve_endpoint(app, mock_approval_client, defer_manager=defer_manager)
 
         async with AsyncClient(
             transport=ASGITransport(app=app),
@@ -185,6 +187,36 @@ class TestResolveDeferManager:
         assert body["approval_id"] == "cs-defer-001"
         # Should no longer be pending
         assert not defer_manager.is_pending("cs-defer-001")
+        mock_approval_client.resolve.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_resolve_confirmation_pending_prefers_local_bridge(
+        self, gateway, defer_manager, mock_approval_client,
+    ):
+        """Confirmation-kind pending approvals should resolve locally before fallback."""
+        assert defer_manager.register_approval(
+            "approval-confirm-001",
+            approval_kind="confirmation",
+            session_id="sess-1",
+            tool_name="delete_file",
+            summary="Delete a sensitive file",
+        ) is True
+        app = create_http_app(gateway)
+        add_resolve_endpoint(app, mock_approval_client, defer_manager=defer_manager)
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.post("/ahp/resolve", json={
+                "approval_id": "approval-confirm-001",
+                "decision": "allow-once",
+                "reason": "operator approved confirmation",
+            })
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "approval_id": "approval-confirm-001"}
+        assert defer_manager.get_approval("approval-confirm-001").approval_state == "resolved"
+        mock_approval_client.resolve.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_resolve_defer_manager_not_pending_fallback(

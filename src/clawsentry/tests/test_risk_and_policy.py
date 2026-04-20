@@ -349,6 +349,15 @@ class TestL1PolicyEngine:
         decision, snap, tier = engine.evaluate(evt, _ctx(AgentTrustLevel.STANDARD))
         assert decision.decision == DecisionVerdict.ALLOW
 
+    def test_post_response_always_allow(self):
+        engine = L1PolicyEngine()
+        evt = _evt(
+            payload={"response_text": "finished", "duration_ms": 8},
+            event_type="post_response",
+        )
+        decision, snap, tier = engine.evaluate(evt, _ctx(AgentTrustLevel.STANDARD))
+        assert decision.decision == DecisionVerdict.ALLOW
+
     def test_pre_prompt_always_allow(self):
         engine = L1PolicyEngine()
         evt = _evt(tool_name="bash", payload={"command": "dangerous"}, event_type="pre_prompt")
@@ -746,6 +755,11 @@ class TestFallbackDecision:
 
     def test_post_action_allow(self):
         evt = _evt(event_type="post_action")
+        d = make_fallback_decision(evt)
+        assert d.decision == DecisionVerdict.ALLOW
+
+    def test_post_response_allow(self):
+        evt = _evt(event_type="post_response")
         d = make_fallback_decision(evt)
         assert d.decision == DecisionVerdict.ALLOW
 

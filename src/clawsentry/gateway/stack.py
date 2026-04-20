@@ -193,8 +193,8 @@ VALID_RESOLVE_DECISIONS = {"allow-once", "deny"}
 def add_resolve_endpoint(app, approval_client, defer_manager=None):
     """Register POST /ahp/resolve on an existing FastAPI app.
 
-    Checks DeferManager first for pending cs-defer-* IDs, then falls back
-    to the OpenClaw approval_client.
+    Checks the local bridge manager first for any pending approval ID, then
+    falls back to the OpenClaw approval_client.
     """
     from .server import _make_auth_dependency, _read_auth_token
 
@@ -228,10 +228,12 @@ def add_resolve_endpoint(app, approval_client, defer_manager=None):
                 status_code=400,
             )
 
-        # --- P1: Try DeferManager first (cs-defer-* IDs) ---
-        if defer_manager is not None and defer_manager.is_pending(approval_id):
-            defer_manager.resolve_defer(approval_id, decision, reason)
-            return JSONResponse({"status": "ok", "approval_id": approval_id})
+        # --- P1: Try local bridge first for any pending approval ---
+        if defer_manager is not None:
+            approval = defer_manager.get_approval(approval_id)
+            if approval.approval_state == "pending":
+                defer_manager.resolve_approval(approval_id, decision, reason)
+                return JSONResponse({"status": "ok", "approval_id": approval_id})
 
         # --- Fallback to OpenClaw approval client ---
         if approval_client is None:

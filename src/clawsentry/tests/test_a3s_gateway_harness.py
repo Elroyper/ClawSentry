@@ -5,6 +5,13 @@ import os
 import pytest
 import pytest_asyncio
 from clawsentry.adapters.a3s_adapter import A3SCodeAdapter
+from clawsentry.gateway.models import (
+    CanonicalDecision,
+    DecisionSource,
+    DecisionVerdict,
+    EventType,
+    RiskLevel,
+)
 from clawsentry.gateway.server import SupervisionGateway, start_uds_server
 from clawsentry.adapters.a3s_gateway_harness import A3SGatewayHarness
 
@@ -40,7 +47,647 @@ async def test_handshake_returns_capabilities(harness_with_gateway):
     assert resp["id"] == 1
     assert resp["result"]["protocol_version"] == "2.0"
     assert "pre_action" in resp["result"]["harness_info"]["capabilities"]
+    assert "post_response" in resp["result"]["harness_info"]["capabilities"]
+    assert "confirmation" in resp["result"]["harness_info"]["capabilities"]
+    assert "context_perception" in resp["result"]["harness_info"]["capabilities"]
+    assert "memory_recall" in resp["result"]["harness_info"]["capabilities"]
+    assert "planning" in resp["result"]["harness_info"]["capabilities"]
+    assert "reasoning" in resp["result"]["harness_info"]["capabilities"]
+    assert "intent_detection" in resp["result"]["harness_info"]["capabilities"]
 
+
+@pytest.mark.asyncio
+async def test_jsonrpc_post_response_literal_normalizes_to_post_response():
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="post_response is observation-only",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 101,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "post_response",
+                "session_id": "sess-post-response",
+                "agent_id": "agent-post-response",
+                "payload": {
+                    "response_text": "done",
+                    "tool_calls_count": 0,
+                    "duration_ms": 12,
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+    assert resp["result"]["action"] == "continue"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.POST_RESPONSE
+    assert event.framework_meta is not None
+    assert event.framework_meta.normalization is not None
+    assert event.framework_meta.normalization.raw_event_type == "PostResponse"
+
+
+@pytest.mark.asyncio
+async def test_jsonrpc_top_level_context_and_metadata_are_carried():
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="compat metadata carried",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 102,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "pre_action",
+                "event_id": "evt-rich-001",
+                "trace_id": "trace-rich-001",
+                "session_id": "sess-rich-001",
+                "agent_id": "agent-rich-001",
+                "context": {
+                    "session": {"mode": "supervised"},
+                    "agent": {"role": "implementer"},
+                },
+                "metadata": {
+                    "event_family": "ahp.v2.3",
+                    "labels": ["compat", "rich"],
+                },
+                "payload": {
+                    "tool": "read_file",
+                    "arguments": {"path": "/tmp/x"},
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.trace_id == "trace-rich-001"
+    compat = event.payload["_clawsentry_meta"]["ahp_compat"]
+    assert compat["preservation_mode"] == "compatibility-carrying"
+    assert compat["raw_event_type"] == "pre_action"
+    assert compat["context_present"] is True
+    assert compat["metadata_present"] is True
+    assert compat["context"]["session"]["mode"] == "supervised"
+    assert compat["metadata"]["event_family"] == "ahp.v2.3"
+    assert compat["identity"]["event_id"] == "evt-rich-001"
+    assert compat["identity"]["session_id"] == "sess-rich-001"
+    assert compat["identity"]["agent_id"] == "agent-rich-001"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["idle", "heartbeat", "success", "rate_limit"])
+async def test_jsonrpc_compat_literals_normalize_to_observation_only_session_events(event_type):
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason=f"{event_type} observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 103,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "session_id": f"sess-{event_type}",
+                "agent_id": f"agent-{event_type}",
+                "payload": {
+                    "message": f"{event_type} compat event",
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+    assert resp["result"]["action"] == "continue"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.SESSION
+    assert event.event_subtype == f"compat:{event_type}"
+    assert event.payload["_clawsentry_meta"]["ahp_compat"]["raw_event_type"] == event_type
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["context_perception", "memory_recall"])
+async def test_jsonrpc_context_memory_literals_preserve_compat_identity_and_fields(event_type):
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason=f"{event_type} observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 1031,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "event_id": f"evt-{event_type}",
+                "trace_id": f"trace-{event_type}",
+                "session_id": f"sess-{event_type}",
+                "agent_id": f"agent-{event_type}",
+                "context": {
+                    "window": "recent_messages",
+                    "confidence": "high",
+                },
+                "query": {
+                    "text": "What happened before this step?",
+                    "kind": event_type,
+                },
+                "target": {
+                    "scope": "active_task",
+                    "id": "target-001",
+                },
+                "summary": {
+                    "text": "condensed state snapshot",
+                    "tokens": 24,
+                },
+                "payload": {
+                    "message": f"{event_type} compat event",
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+    assert resp["result"]["action"] == "continue"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.SESSION
+    assert event.event_subtype == f"compat:{event_type}"
+
+    compat = event.payload["_clawsentry_meta"]["ahp_compat"]
+    assert compat["preservation_mode"] == "compatibility-carrying"
+    assert compat["raw_event_type"] == event_type
+    assert compat["identity"]["event_id"] == f"evt-{event_type}"
+    assert compat["identity"]["trace_id"] == f"trace-{event_type}"
+    assert compat["identity"]["session_id"] == f"sess-{event_type}"
+    assert compat["identity"]["agent_id"] == f"agent-{event_type}"
+    assert compat["context"]["window"] == "recent_messages"
+    assert compat["query"]["kind"] == event_type
+    assert compat["target"]["id"] == "target-001"
+    assert compat["summary"]["text"] == "condensed state snapshot"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("event_type", "compat_fields"),
+    [
+        (
+            "planning",
+            {
+                "task": "route cognition-signal compat events through ingress",
+                "strategy": {
+                    "mode": "compatibility-carrying",
+                    "preserve_raw_type": True,
+                },
+                "constraints": [
+                    "no new canonical EventType",
+                    "observation-safe bucket only",
+                ],
+            },
+        ),
+        (
+            "reasoning",
+            {
+                "reasoning_type": "deliberate",
+                "problem_statement": "Preserve reasoning payload safely",
+                "hints": [
+                    "keep canonical surface unchanged",
+                    "retain ingress identity",
+                ],
+            },
+        ),
+        (
+            "intent_detection",
+            {
+                "prompt": "识别当前请求属于哪种认知信号",
+                "language_hint": "zh-CN",
+                "detected_intent": "compatibility_carrying",
+                "target_hints": {
+                    "surface": "a3s-ingress",
+                    "bucket": "observation-safe",
+                },
+            },
+        ),
+    ],
+)
+async def test_jsonrpc_cognition_signal_literals_preserve_raw_type_identity_and_fields(
+    event_type,
+    compat_fields,
+):
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason=f"{event_type} observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 1032,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "event_id": f"evt-{event_type}",
+                "trace_id": f"trace-{event_type}",
+                "session_id": f"sess-{event_type}",
+                "agent_id": f"agent-{event_type}",
+                **compat_fields,
+                "payload": {
+                    "message": f"{event_type} compat event",
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+    assert resp["result"]["action"] == "continue"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.SESSION
+    assert event.event_subtype == f"compat:{event_type}"
+
+    compat = event.payload["_clawsentry_meta"]["ahp_compat"]
+    assert compat["preservation_mode"] == "compatibility-carrying"
+    assert compat["raw_event_type"] == event_type
+    assert compat["identity"]["event_id"] == f"evt-{event_type}"
+    assert compat["identity"]["trace_id"] == f"trace-{event_type}"
+    assert compat["identity"]["session_id"] == f"sess-{event_type}"
+    assert compat["identity"]["agent_id"] == f"agent-{event_type}"
+
+    for key, value in compat_fields.items():
+        assert compat[key] == value
+
+
+@pytest.mark.asyncio
+async def test_jsonrpc_camelcase_intent_detection_preserves_compat_fields_without_identity():
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="intent detection observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 1033,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "IntentDetection",
+                "session_id": "sess-camel-intent",
+                "agent_id": "agent-camel-intent",
+                "detected_intent": "inspect_runtime_context",
+                "language_hint": "en-US",
+                "target_hints": {"surface": "gateway"},
+                "payload": {"message": "camelcase intent detection compat event"},
+            },
+        }
+    )
+
+    assert resp is not None
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.SESSION
+    assert event.event_subtype == "compat:intent_detection"
+
+    compat = event.payload["_clawsentry_meta"]["ahp_compat"]
+    assert compat["raw_event_type"] == "IntentDetection"
+    assert compat["identity"]["event_type"] == "IntentDetection"
+    assert compat["identity"]["normalized_event_type"] == "intent_detection"
+    assert compat["identity"]["session_id"] == "sess-camel-intent"
+    assert compat["identity"]["agent_id"] == "agent-camel-intent"
+    assert compat["detected_intent"] == "inspect_runtime_context"
+    assert compat["language_hint"] == "en-US"
+    assert compat["target_hints"] == {"surface": "gateway"}
+
+
+@pytest.mark.asyncio
+async def test_jsonrpc_confirmation_literal_preserves_raw_type_and_approval_id():
+    from unittest.mock import AsyncMock
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(adapter=adapter)
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="confirmation resolved",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 104,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "confirmation",
+                "approval_id": "approval-confirm-123",
+                "session_id": "sess-confirmation",
+                "agent_id": "agent-confirmation",
+                "payload": {
+                    "tool": "bash",
+                    "arguments": {"command": "sudo rm -rf /tmp/test"},
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+    assert resp["result"]["action"] == "continue"
+
+    event = adapter.request_decision.await_args.args[0]
+    assert event.event_type == EventType.SESSION
+    assert event.event_subtype == "compat:confirmation"
+    assert event.approval_id == "approval-confirm-123"
+    assert event.payload["_clawsentry_meta"]["ahp_compat"]["raw_event_type"] == "confirmation"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["idle", "heartbeat"])
+async def test_compat_high_frequency_events_are_interval_limited(event_type):
+    from unittest.mock import AsyncMock
+
+    now = 1000.0
+
+    def fake_clock() -> float:
+        return now
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(
+        adapter=adapter,
+        compat_observation_window_seconds=2.0,
+        clock=fake_clock,
+    )
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason=f"{event_type} observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    first = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 201,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "session_id": "sess-sampled",
+                "agent_id": "agent-sampled",
+                "payload": {"message": "first"},
+            },
+        }
+    )
+    assert first is not None
+    assert first["result"]["decision"] == "allow"
+    assert adapter.request_decision.await_count == 1
+
+    second = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 202,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "session_id": "sess-sampled",
+                "agent_id": "agent-sampled",
+                "payload": {"message": "second"},
+            },
+        }
+    )
+    assert second is not None
+    assert second["result"]["decision"] == "allow"
+    assert "sampled" in second["result"]["reason"]
+    assert adapter.request_decision.await_count == 1
+
+    now += 2.1
+    third = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 203,
+            "method": "ahp/event",
+            "params": {
+                "event_type": event_type,
+                "session_id": "sess-sampled",
+                "agent_id": "agent-sampled",
+                "payload": {"message": "third"},
+            },
+        }
+    )
+    assert third is not None
+    assert third["result"]["decision"] == "allow"
+    assert adapter.request_decision.await_count == 2
+
+    event = adapter.request_decision.await_args.args[0]
+    compat_meta = event.payload["_clawsentry_meta"]
+    assert compat_meta["ahp_compat"]["raw_event_type"] == event_type
+    assert compat_meta["compat_observation"]["strategy"] == "interval_limit"
+    assert compat_meta["compat_observation"]["window_seconds"] == 2.0
+    assert compat_meta["compat_observation"]["suppressed_since_last_emit"] == 1
+
+
+@pytest.mark.asyncio
+async def test_session_end_clears_matching_compat_observation_state():
+    from unittest.mock import AsyncMock
+
+    now = 1000.0
+
+    def fake_clock() -> float:
+        return now
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(
+        adapter=adapter,
+        compat_observation_window_seconds=10.0,
+        clock=fake_clock,
+    )
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="session observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    async def emit(event_type: str, session_id: str, agent_id: str) -> None:
+        response = await harness.dispatch_async(
+            {
+                "jsonrpc": "2.0",
+                "id": f"{event_type}-{session_id}-{agent_id}",
+                "method": "ahp/event",
+                "params": {
+                    "event_type": event_type,
+                    "session_id": session_id,
+                    "agent_id": agent_id,
+                    "payload": {"message": f"{event_type} event"},
+                },
+            }
+        )
+        assert response is not None
+        assert response["result"]["decision"] == "allow"
+
+    await emit("idle", "sess-ended", "agent-ended")
+    await emit("heartbeat", "sess-ended", "agent-ended")
+    await emit("idle", "sess-active", "agent-active")
+
+    assert set(harness._compat_observation_state) == {
+        ("idle", "sess-ended", "agent-ended"),
+        ("heartbeat", "sess-ended", "agent-ended"),
+        ("idle", "sess-active", "agent-active"),
+    }
+
+    session_end = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 204,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "session_end",
+                "session_id": "sess-ended",
+                "agent_id": "agent-ended",
+                "payload": {"message": "session done"},
+            },
+        }
+    )
+
+    assert session_end is not None
+    assert session_end["result"]["decision"] == "allow"
+    assert ("idle", "sess-ended", "agent-ended") not in harness._compat_observation_state
+    assert ("heartbeat", "sess-ended", "agent-ended") not in harness._compat_observation_state
+    assert ("idle", "sess-active", "agent-active") in harness._compat_observation_state
+
+
+@pytest.mark.asyncio
+async def test_compat_observation_state_prunes_stale_sessions_during_sampling():
+    from unittest.mock import AsyncMock
+
+    now = 1000.0
+
+    def fake_clock() -> float:
+        return now
+
+    adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent-a3s-harness.sock")
+    harness = A3SGatewayHarness(
+        adapter=adapter,
+        compat_observation_window_seconds=2.0,
+        clock=fake_clock,
+    )
+    adapter.request_decision = AsyncMock(
+        return_value=CanonicalDecision(
+            decision=DecisionVerdict.ALLOW,
+            reason="compat event observed",
+            policy_id="test-policy",
+            risk_level=RiskLevel.LOW,
+            decision_source=DecisionSource.POLICY,
+            final=True,
+        )
+    )
+
+    for index in range(5):
+        session_id = f"sess-{index}"
+        response = await harness.dispatch_async(
+            {
+                "jsonrpc": "2.0",
+                "id": 300 + index,
+                "method": "ahp/event",
+                "params": {
+                    "event_type": "idle",
+                    "session_id": session_id,
+                    "agent_id": "agent-pruned",
+                    "payload": {"message": f"idle {index}"},
+                },
+            }
+        )
+
+        assert response is not None
+        assert response["result"]["decision"] == "allow"
+        assert set(harness._compat_observation_state) == {
+            ("idle", session_id, "agent-pruned"),
+        }
+
+        now += 3.0
 
 @pytest.mark.asyncio
 async def test_pre_action_safe_command_allowed(harness_with_gateway):

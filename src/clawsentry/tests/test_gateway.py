@@ -149,6 +149,362 @@ class TestGatewayCore:
         assert rec["meta"]["caller_adapter"] == "openclaw-adapter.v1"
 
     @pytest.mark.asyncio
+    async def test_replay_session_preserves_nested_payload_compat_metadata(self, gw):
+        params = _sync_decision_params(
+            request_id="req-traj-compat-001",
+            event={
+                "event_id": "evt-traj-compat-001",
+                "trace_id": "trace-traj-compat-001",
+                "event_type": "pre_action",
+                "session_id": "sess-traj-compat-001",
+                "agent_id": "agent-traj-compat-001",
+                "source_framework": "a3s-code",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "event_subtype": "PreToolUse",
+                "payload": {
+                    "tool": "read_file",
+                    "path": "/tmp/readme.txt",
+                    "_clawsentry_meta": {
+                        "content_origin": "user",
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": "pre_action",
+                            "context_present": True,
+                            "metadata_present": True,
+                            "context": {"session": {"workspace": "/repo"}},
+                            "metadata": {"origin": "gateway-test"},
+                            "identity": {
+                                "event_id": "evt-traj-compat-001",
+                                "session_id": "sess-traj-compat-001",
+                                "agent_id": "agent-traj-compat-001",
+                            },
+                        },
+                    },
+                },
+                "tool_name": "read_file",
+            },
+        )
+        body = _jsonrpc_request("ahp/sync_decision", params)
+        await gw.handle_jsonrpc(body)
+
+        replay = gw.replay_session("sess-traj-compat-001")
+        compat = replay["records"][-1]["event"]["payload"]["_clawsentry_meta"]["ahp_compat"]
+        assert compat["raw_event_type"] == "pre_action"
+        assert compat["context"]["session"]["workspace"] == "/repo"
+        assert compat["metadata"]["origin"] == "gateway-test"
+        assert compat["identity"]["event_id"] == "evt-traj-compat-001"
+
+    @pytest.mark.asyncio
+    async def test_replay_session_records_compact_context_perception_evidence_summary(self, gw):
+        params = _sync_decision_params(
+            request_id="req-context-evidence-001",
+            event={
+                "event_id": "evt-context-evidence-001",
+                "trace_id": "trace-context-evidence-001",
+                "event_type": "session",
+                "session_id": "sess-context-evidence-001",
+                "agent_id": "agent-context-evidence-001",
+                "source_framework": "a3s-code",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "event_subtype": "compat:context_perception",
+                "payload": {
+                    "cwd": "/repo",
+                    "query": "recent changes",
+                    "target": "repo status",
+                    "intent": "inspect git changes",
+                    "_clawsentry_meta": {
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": "context_perception",
+                            "context_present": True,
+                            "metadata_present": False,
+                            "context": {
+                                "intent": "inspect git changes",
+                                "session": {"workspace": "/repo"},
+                            },
+                            "query": "recent changes",
+                            "target": "repo status",
+                            "identity": {
+                                "event_id": "evt-context-evidence-001",
+                                "session_id": "sess-context-evidence-001",
+                                "agent_id": "agent-context-evidence-001",
+                            },
+                        },
+                    },
+                },
+                "tool_name": "session_event",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        replay = gw.replay_session("sess-context-evidence-001")
+        assert replay["records"][-1]["meta"]["evidence_summary"] == {
+            "compat_event_type": "context_perception",
+            "compat_summary": {
+                "intent": "inspect git changes",
+                "target": "repo status",
+                "workspace": "/repo",
+                "query": "recent changes",
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_report_session_risk_surfaces_compact_memory_recall_evidence_summary(self, gw):
+        params = _sync_decision_params(
+            request_id="req-memory-evidence-001",
+            event={
+                "event_id": "evt-memory-evidence-001",
+                "trace_id": "trace-memory-evidence-001",
+                "event_type": "session",
+                "session_id": "sess-memory-evidence-001",
+                "agent_id": "agent-memory-evidence-001",
+                "source_framework": "a3s-code",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "event_subtype": "compat:memory_recall",
+                "payload": {
+                    "working_directory": "/repo",
+                    "arguments": {
+                        "query": "approval policy",
+                        "memory_type": "project",
+                        "max_results": 3,
+                        "working_directory": "/repo",
+                    },
+                    "_clawsentry_meta": {
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": "memory_recall",
+                            "context_present": False,
+                            "metadata_present": False,
+                            "query": "approval policy",
+                            "identity": {
+                                "event_id": "evt-memory-evidence-001",
+                                "session_id": "sess-memory-evidence-001",
+                                "agent_id": "agent-memory-evidence-001",
+                            },
+                        },
+                    },
+                },
+                "tool_name": "session_event",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        session_risk = gw.report_session_risk("sess-memory-evidence-001")
+        assert session_risk["evidence_summary"] == {
+            "compat_event_type": "memory_recall",
+            "compat_summary": {
+                "query": "approval policy",
+                "memory_type": "project",
+                "max_results": 3,
+                "working_directory": "/repo",
+            },
+        }
+        assert session_risk["risk_timeline"][0]["evidence_summary"] == {
+            "compat_event_type": "memory_recall",
+            "compat_summary": {
+                "query": "approval policy",
+                "memory_type": "project",
+                "max_results": 3,
+                "working_directory": "/repo",
+            },
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("compat_event_type", "payload_fields", "expected_summary"),
+        [
+            (
+                "planning",
+                {
+                    "task": "compact cognition summaries into reports",
+                    "strategy": {
+                        "mode": "tdd",
+                        "surfaces": ["replay", "session_risk", "session_list"],
+                    },
+                    "constraints": [
+                        "do not change DecisionContext",
+                        "operator-facing evidence only",
+                    ],
+                    "raw_planning_notes": {
+                        "large": "not part of compact summary",
+                    },
+                },
+                {
+                    "compat_event_type": "planning",
+                    "planning_summary": {
+                        "task": "compact cognition summaries into reports",
+                        "strategy": {
+                            "mode": "tdd",
+                            "surfaces": ["replay", "session_risk", "session_list"],
+                        },
+                        "constraints": [
+                            "do not change DecisionContext",
+                            "operator-facing evidence only",
+                        ],
+                    },
+                },
+            ),
+            (
+                "reasoning",
+                {
+                    "reasoning_type": "deliberate",
+                    "problem_statement": "Summarize reasoning compatibility signals safely",
+                    "hints": [
+                        "preserve canonical decision source",
+                        "show compact operator evidence",
+                    ],
+                    "trace": {"raw_steps": ["not", "summarized"]},
+                },
+                {
+                    "compat_event_type": "reasoning",
+                    "reasoning_summary": {
+                        "reasoning_type": "deliberate",
+                        "problem_statement": "Summarize reasoning compatibility signals safely",
+                        "hints": [
+                            "preserve canonical decision source",
+                            "show compact operator evidence",
+                        ],
+                    },
+                },
+            ),
+            (
+                "intent_detection",
+                {
+                    "prompt": "识别当前任务意图",
+                    "language_hint": "zh-CN",
+                    "detected_intent": "implement_cognition_summaries",
+                    "target_hints": {
+                        "surface": "gateway reports",
+                        "audience": "operator",
+                    },
+                    "alternatives": ["not part of compact summary"],
+                },
+                {
+                    "compat_event_type": "intent_detection",
+                    "intent_summary": {
+                        "detected_intent": "implement_cognition_summaries",
+                        "target_hints": {
+                            "surface": "gateway reports",
+                            "audience": "operator",
+                        },
+                        "language_hint": "zh-CN",
+                    },
+                },
+            ),
+        ],
+    )
+    async def test_cognition_signal_compat_events_surface_compact_summaries(
+        self,
+        gw,
+        compat_event_type,
+        payload_fields,
+        expected_summary,
+    ):
+        session_id = f"sess-cognition-{compat_event_type}"
+        event_id = f"evt-cognition-{compat_event_type}"
+        params = _sync_decision_params(
+            request_id=f"req-cognition-{compat_event_type}",
+            event={
+                "event_id": event_id,
+                "trace_id": f"trace-cognition-{compat_event_type}",
+                "event_type": "session",
+                "session_id": session_id,
+                "agent_id": f"agent-cognition-{compat_event_type}",
+                "source_framework": "a3s-code",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "event_subtype": f"compat:{compat_event_type}",
+                "payload": {
+                    **payload_fields,
+                    "_clawsentry_meta": {
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": compat_event_type,
+                            "context_present": False,
+                            "metadata_present": False,
+                            "identity": {
+                                "event_id": event_id,
+                                "session_id": session_id,
+                                "agent_id": f"agent-cognition-{compat_event_type}",
+                            },
+                            **payload_fields,
+                        },
+                    },
+                },
+                "tool_name": "session_event",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        replay = gw.replay_session(session_id)
+        assert replay["records"][-1]["meta"]["evidence_summary"] == expected_summary
+        assert gw.trajectory_store.records[-1]["meta"]["evidence_summary"] == expected_summary
+
+        session_risk = gw.report_session_risk(session_id)
+        assert session_risk["evidence_summary"] == expected_summary
+        assert session_risk["risk_timeline"][-1]["evidence_summary"] == expected_summary
+
+        sessions = gw.report_sessions(limit=10, sort="last_event")
+        session = next(item for item in sessions["sessions"] if item["session_id"] == session_id)
+        assert session["evidence_summary"] == expected_summary
+
+    @pytest.mark.asyncio
+    async def test_report_sessions_surfaces_latest_compact_context_perception_annotation(self, gw):
+        params = _sync_decision_params(
+            request_id="req-context-list-001",
+            event={
+                "event_id": "evt-context-list-001",
+                "trace_id": "trace-context-list-001",
+                "event_type": "session",
+                "session_id": "sess-context-list-001",
+                "agent_id": "agent-context-list-001",
+                "source_framework": "a3s-code",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "event_subtype": "compat:context_perception",
+                "payload": {
+                    "workspace_root": "/repo-alpha",
+                    "query": "workspace status",
+                    "target": "planner notes",
+                    "_clawsentry_meta": {
+                        "ahp_compat": {
+                            "preservation_mode": "compatibility-carrying",
+                            "raw_event_type": "context_perception",
+                            "context_present": True,
+                            "metadata_present": False,
+                            "context": {
+                                "intent": "collect context",
+                                "workspace": "/repo-alpha",
+                            },
+                            "query": "workspace status",
+                            "target": "planner notes",
+                            "identity": {
+                                "event_id": "evt-context-list-001",
+                                "session_id": "sess-context-list-001",
+                                "agent_id": "agent-context-list-001",
+                            },
+                        },
+                    },
+                },
+                "tool_name": "session_event",
+            },
+        )
+        await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        sessions = gw.report_sessions(limit=10)
+        session = next(
+            item for item in sessions["sessions"]
+            if item["session_id"] == "sess-context-list-001"
+        )
+        assert session["evidence_summary"] == {
+            "compat_event_type": "context_perception",
+            "compat_summary": {
+                "intent": "collect context",
+                "target": "planner notes",
+                "workspace": "/repo-alpha",
+                "query": "workspace status",
+            },
+        }
+
+    @pytest.mark.asyncio
     async def test_infers_source_framework_from_caller_adapter_when_missing(self, gw):
         params = _sync_decision_params(
             request_id="req-fw-infer-001",
@@ -2751,6 +3107,58 @@ class TestSseStream:
         assert decision_evt["approval_id"] == "appr-999"
         # expires_at: not set in this request, so should be None
         assert "expires_at" in decision_evt
+        gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_decision_broadcast_includes_compat_event_fields_when_present(self, gw, app):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            body = _jsonrpc_request("ahp/sync_decision", _sync_decision_params(
+                request_id="req-sse-compat-1",
+                event={
+                    "event_id": "evt-sse-compat-1",
+                    "trace_id": "trace-sse-compat-1",
+                    "event_type": "session",
+                    "session_id": "sess-sse-compat",
+                    "agent_id": "agent-sse-compat",
+                    "source_framework": "a3s-code",
+                    "occurred_at": "2026-03-22T10:00:00+00:00",
+                    "event_subtype": "compat:heartbeat",
+                    "payload": {
+                        "_clawsentry_meta": {
+                            "ahp_compat": {
+                                "preservation_mode": "compatibility-carrying",
+                                "raw_event_type": "heartbeat",
+                                "identity": {
+                                    "event_id": "evt-sse-compat-1",
+                                    "session_id": "sess-sse-compat",
+                                    "agent_id": "agent-sse-compat",
+                                },
+                            },
+                            "compat_observation": {
+                                "strategy": "interval_limit",
+                                "window_seconds": 2.0,
+                                "suppressed_since_last_emit": 3,
+                            },
+                        },
+                    },
+                },
+            ))
+            resp = await client.post("/ahp", content=body)
+            assert resp.status_code == 200
+
+        decision_evt = None
+        while not queue.empty():
+            evt = queue.get_nowait()
+            if evt.get("type") == "decision" and evt.get("compat_event_type") == "heartbeat":
+                decision_evt = evt
+                break
+
+        assert decision_evt is not None, "No compat decision event broadcast received"
+        assert decision_evt["compat_event_type"] == "heartbeat"
+        assert decision_evt["compat_observation"]["strategy"] == "interval_limit"
+        assert decision_evt["compat_observation"]["suppressed_since_last_emit"] == 3
         gw.event_bus.unsubscribe(sub_id)
 
     @pytest.mark.asyncio

@@ -35,7 +35,7 @@ from pydantic import ValidationError
 from .alert_registry import AlertRegistry
 from .event_bus import EventBus
 from .idempotency import IdempotencyCache, periodic_cleanup
-from .session_registry import SessionRegistry
+from .session_registry import SessionRegistry, build_compatibility_evidence_summary
 from .trajectory_store import (
     TrajectoryStore,
     _parse_iso_timestamp,
@@ -279,6 +279,113 @@ def _infer_source_framework(
         return inferred
 
     return "unknown"
+
+
+def _extract_compat_event_fields(
+    event: dict[str, Any],
+) -> tuple[Optional[str], Optional[dict[str, Any]]]:
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return None, None
+
+    meta = payload.get("_clawsentry_meta")
+    if not isinstance(meta, dict):
+        return None, None
+
+    compat_event_type: Optional[str] = None
+    ahp_compat = meta.get("ahp_compat")
+    if isinstance(ahp_compat, dict):
+        raw_event_type = str(ahp_compat.get("raw_event_type") or "").strip()
+        canonical_event_type = str(event.get("event_type") or "").strip()
+        if raw_event_type and raw_event_type != canonical_event_type:
+            compat_event_type = raw_event_type
+
+    compat_observation = meta.get("compat_observation")
+    if isinstance(compat_observation, dict):
+        compat_observation = dict(compat_observation)
+    else:
+        compat_observation = None
+
+    return compat_event_type, compat_observation
+
+
+_APPROVAL_PENDING_REASON_CODE = "approval_pending"
+_APPROVAL_ALLOWED_REASON_CODE = "approval_allowed"
+_APPROVAL_DENIED_REASON_CODE = "approval_denied"
+_APPROVAL_TIMEOUT_REASON_CODE = "approval_timeout"
+_APPROVAL_NO_ROUTE_REASON_CODE = "approval_no_route"
+_APPROVAL_QUEUE_FULL_REASON_CODE = "approval_queue_full"
+
+
+def _is_confirmation_fast_lane(
+    event: dict[str, Any],
+    compat_event_type: Optional[str],
+) -> bool:
+    if str(compat_event_type or "").strip().lower() == "confirmation":
+        return True
+    return str(event.get("event_subtype") or "").strip().lower() == "compat:confirmation"
+
+
+def _resolve_confirmation_approval_id(event: dict[str, Any]) -> str:
+    explicit = str(event.get("approval_id") or "").strip()
+    if explicit:
+        return explicit
+
+    payload = event.get("payload")
+    if isinstance(payload, dict):
+        payload_explicit = str(payload.get("approval_id") or "").strip()
+        if payload_explicit:
+            return payload_explicit
+        meta = payload.get("_clawsentry_meta")
+        if isinstance(meta, dict):
+            compat_meta = meta.get("ahp_compat")
+            if isinstance(compat_meta, dict):
+                identity = compat_meta.get("identity")
+                if isinstance(identity, dict):
+                    compat_explicit = str(identity.get("approval_id") or "").strip()
+                    if compat_explicit:
+                        return compat_explicit
+
+    event_id = str(event.get("event_id") or "").strip()
+    if event_id:
+        return f"bridge-confirm-{event_id}"
+    return f"bridge-confirm-{uuid.uuid4().hex[:12]}"
+
+
+def _approval_pending_meta(
+    *,
+    approval_id: str,
+    approval_kind: str,
+    approval_reason: str,
+    approval_timeout_s: float,
+) -> dict[str, Any]:
+    return {
+        "approval_id": approval_id,
+        "approval_kind": approval_kind,
+        "approval_state": "pending",
+        "approval_reason": approval_reason,
+        "approval_reason_code": _APPROVAL_PENDING_REASON_CODE,
+        "approval_timeout_s": approval_timeout_s,
+    }
+
+
+def _approval_resolution_meta(
+    *,
+    approval_id: str,
+    approval_kind: str,
+    approval_state: str,
+    approval_reason: str,
+    approval_reason_code: str,
+    approval_timeout_s: float,
+) -> dict[str, Any]:
+    return {
+        "approval_id": approval_id,
+        "approval_kind": approval_kind,
+        "approval_state": approval_state,
+        "approval_reason": approval_reason,
+        "approval_reason_code": approval_reason_code,
+        "approval_timeout_s": approval_timeout_s,
+    }
 
 # ---------------------------------------------------------------------------
 # Authentication
@@ -828,6 +935,7 @@ class SupervisionGateway:
         event_dict = req.event.model_dump(mode="json")
         decision_dict = decision.model_dump(mode="json")
         snapshot_dict = snapshot.model_dump(mode="json")
+        compat_event_type, compat_observation = _extract_compat_event_fields(event_dict)
         l3_trace = snapshot.l3_trace
         l3_available = _analyzer_supports_l3(self.policy_engine.analyzer)
         if actual_tier == DecisionTier.L3 or l3_trace is not None:
@@ -853,11 +961,46 @@ class SupervisionGateway:
                 else "unknown"
             ),
         }
+        compat_evidence_summary = build_compatibility_evidence_summary(event_dict)
+        if compat_evidence_summary is not None:
+            # Operator-facing replay/session summaries only; not a canonical
+            # decision source and intentionally compact.
+            meta_dict["evidence_summary"] = compat_evidence_summary
         # CS-024: Keep stream/session framework consistent for HTTP adapters.
         event_dict["source_framework"] = _infer_source_framework(
             event_dict.get("source_framework"),
             meta_dict.get("caller_adapter"),
         )
+        approval_bridge_kind: str | None = None
+        approval_bridge_id: str | None = None
+        approval_bridge_timeout_s: float | None = None
+        approval_bridge_enabled = False
+        if _is_confirmation_fast_lane(event_dict, compat_event_type):
+            approval_bridge_kind = "confirmation"
+            approval_bridge_id = _resolve_confirmation_approval_id(event_dict)
+            approval_bridge_timeout_s = float((project_config or self._detection_config).defer_timeout_s)
+            approval_bridge_enabled = bool(
+                self._detection_config.defer_bridge_enabled
+                and (project_config is None or project_config.defer_bridge_enabled)
+            )
+            event_dict["approval_id"] = approval_bridge_id
+            decision = CanonicalDecision(
+                decision=DecisionVerdict.DEFER,
+                reason="confirmation observed",
+                policy_id="confirmation-bridge",
+                risk_level=decision.risk_level,
+                decision_source=DecisionSource.POLICY,
+                final=False,
+            )
+            decision_dict = decision.model_dump(mode="json")
+            meta_dict.update(
+                _approval_pending_meta(
+                    approval_id=approval_bridge_id,
+                    approval_kind=approval_bridge_kind,
+                    approval_reason=str(decision_dict.get("reason") or "confirmation observed"),
+                    approval_timeout_s=approval_bridge_timeout_s,
+                )
+            )
         _sid = str(event_dict.get("session_id") or "")
         previous_risk_level = self.session_registry.get_current_risk(_sid)
         pending_trajectory_alerts: list[dict[str, Any]] = []
@@ -997,6 +1140,19 @@ class SupervisionGateway:
             "approval_id": event_dict.get("approval_id"),
             "expires_at": event_dict.get("payload", {}).get("expiresAtMs"),
         }
+        if compat_event_type:
+            decision_event["compat_event_type"] = compat_event_type
+        if compat_observation is not None:
+            decision_event["compat_observation"] = compat_observation
+        for key in (
+            "approval_kind",
+            "approval_state",
+            "approval_reason",
+            "approval_reason_code",
+            "approval_timeout_s",
+        ):
+            if meta_dict.get(key) is not None:
+                decision_event[key] = meta_dict.get(key)
         decision_event.update(self._reporting_state())
         evidence_summary = _compact_l3_evidence_summary(l3_trace)
         if evidence_summary is not None:
@@ -1113,6 +1269,214 @@ class SupervisionGateway:
             except Exception:
                 logger.warning("evolved pattern extraction failed", exc_info=True)
 
+        if approval_bridge_kind == "confirmation":
+            approval_id = approval_bridge_id or _resolve_confirmation_approval_id(event_dict)
+            approval_timeout_s = float(approval_bridge_timeout_s or (project_config or self._detection_config).defer_timeout_s)
+            resolution_recorded_at = utc_now_iso()
+            resolution_event = dict(event_dict)
+            resolution_event["occurred_at"] = resolution_recorded_at
+            resolution_event["approval_id"] = approval_id
+            resolution_meta = {
+                **meta_dict,
+                "approval_id": approval_id,
+            }
+
+            if not approval_bridge_enabled:
+                decision = CanonicalDecision(
+                    decision=DecisionVerdict.BLOCK,
+                    reason="Confirmation approval has no route; blocking",
+                    policy_id="confirmation-bridge",
+                    risk_level=decision.risk_level,
+                    decision_source=DecisionSource.SYSTEM,
+                    failure_class=FailureClass.APPROVAL_NO_ROUTE,
+                    final=True,
+                )
+                decision_dict = decision.model_dump(mode="json")
+                resolution_approval = _approval_resolution_meta(
+                    approval_id=approval_id,
+                    approval_kind=approval_bridge_kind,
+                    approval_state="no_route",
+                    approval_reason="Confirmation approval has no route; blocking",
+                    approval_reason_code=_APPROVAL_NO_ROUTE_REASON_CODE,
+                    approval_timeout_s=approval_timeout_s,
+                )
+                self._record_decision_path(
+                    event=resolution_event,
+                    decision=decision_dict,
+                    snapshot=snapshot_dict,
+                    meta={
+                        **resolution_meta,
+                        **resolution_approval,
+                        "record_type": "decision_resolution",
+                    },
+                    l3_trace=l3_trace,
+                )
+                self.event_bus.broadcast({
+                    "type": "defer_resolved",
+                    "session_id": session_id,
+                    **resolution_approval,
+                    "resolved_decision": decision_dict["decision"],
+                    "resolved_reason": decision_dict["reason"],
+                    "timestamp": resolution_recorded_at,
+                })
+            elif not self.defer_manager.register_approval(
+                approval_id,
+                approval_kind=approval_bridge_kind,
+                session_id=session_id,
+                tool_name=req.event.tool_name or "",
+                summary=str(req.event.payload.get("command", "") if req.event.payload else "") or None,
+            ):
+                decision = CanonicalDecision(
+                    decision=DecisionVerdict.BLOCK,
+                    reason=f"Confirmation approval queue full ({self.defer_manager.max_pending}), blocking",
+                    policy_id="confirmation-bridge",
+                    risk_level=decision.risk_level,
+                    decision_source=DecisionSource.SYSTEM,
+                    failure_class=FailureClass.APPROVAL_QUEUE_FULL,
+                    final=True,
+                )
+                decision_dict = decision.model_dump(mode="json")
+                resolution_approval = _approval_resolution_meta(
+                    approval_id=approval_id,
+                    approval_kind=approval_bridge_kind,
+                    approval_state="queue_full",
+                    approval_reason=f"Confirmation approval queue full ({self.defer_manager.max_pending}), blocking",
+                    approval_reason_code=_APPROVAL_QUEUE_FULL_REASON_CODE,
+                    approval_timeout_s=approval_timeout_s,
+                )
+                self._record_decision_path(
+                    event=resolution_event,
+                    decision=decision_dict,
+                    snapshot=snapshot_dict,
+                    meta={
+                        **resolution_meta,
+                        **resolution_approval,
+                        "record_type": "decision_resolution",
+                    },
+                    l3_trace=l3_trace,
+                )
+                self.event_bus.broadcast({
+                    "type": "defer_resolved",
+                    "session_id": session_id,
+                    **resolution_approval,
+                    "resolved_decision": decision_dict["decision"],
+                    "resolved_reason": decision_dict["reason"],
+                    "timestamp": resolution_recorded_at,
+                })
+            else:
+                self.metrics.defer_registered()
+                pending_approval = _approval_pending_meta(
+                    approval_id=approval_id,
+                    approval_kind=approval_bridge_kind,
+                    approval_reason=str(meta_dict.get("approval_reason") or decision_dict.get("reason") or "confirmation observed"),
+                    approval_timeout_s=approval_timeout_s,
+                )
+                self.event_bus.broadcast({
+                    "type": "defer_pending",
+                    "session_id": session_id,
+                    **pending_approval,
+                    "tool_name": req.event.tool_name or "",
+                    "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
+                    "reason": str(decision_dict.get("reason") or ""),
+                    "timeout_s": approval_timeout_s,
+                    "timestamp": occurred_at,
+                })
+
+                _resolved_decision, _resolved_reason = await self.defer_manager.wait_for_resolution(approval_id)
+                approval_record = self.defer_manager.get_approval(approval_id)
+                approval_state = approval_record.approval_state or "resolved"
+                approval_reason = approval_record.reason or _resolved_reason
+                approval_reason_code = approval_record.reason_code or (
+                    _APPROVAL_ALLOWED_REASON_CODE
+                    if _resolved_decision in ("allow", "allow-once", "allow-always")
+                    else _APPROVAL_DENIED_REASON_CODE
+                )
+
+                if _resolved_decision in ("allow", "allow-once", "allow-always"):
+                    decision_source = (
+                        DecisionSource.OPERATOR
+                        if approval_state == "resolved"
+                        else DecisionSource.SYSTEM
+                    )
+                    decision = CanonicalDecision(
+                        decision=DecisionVerdict.ALLOW,
+                        reason=(
+                            f"Operator approved: {approval_reason}"
+                            if approval_state == "resolved" and approval_reason
+                            else "Operator approved"
+                            if approval_state == "resolved"
+                            else approval_reason or "Approval timeout auto-allow"
+                        ),
+                        policy_id="confirmation-bridge",
+                        risk_level=decision.risk_level,
+                        decision_source=decision_source,
+                        failure_class=(
+                            FailureClass.APPROVAL_TIMEOUT
+                            if approval_state == "timeout"
+                            else FailureClass.NONE
+                        ),
+                        final=True,
+                    )
+                else:
+                    decision_source = (
+                        DecisionSource.OPERATOR
+                        if approval_state == "resolved"
+                        else DecisionSource.SYSTEM
+                    )
+                    decision = CanonicalDecision(
+                        decision=DecisionVerdict.BLOCK,
+                        reason=(
+                            f"Operator denied: {approval_reason}"
+                            if approval_state == "resolved" and approval_reason
+                            else "Operator denied"
+                            if approval_state == "resolved"
+                            else approval_reason or "Approval denied"
+                        ),
+                        policy_id="confirmation-bridge",
+                        risk_level=decision.risk_level,
+                        decision_source=decision_source,
+                        failure_class=(
+                            FailureClass.APPROVAL_TIMEOUT
+                            if approval_state == "timeout"
+                            else FailureClass.NONE
+                        ),
+                        final=True,
+                    )
+
+                decision_dict = decision.model_dump(mode="json")
+                resolution_recorded_at = utc_now_iso()
+                resolution_event = dict(event_dict)
+                resolution_event["occurred_at"] = resolution_recorded_at
+                resolution_event["approval_id"] = approval_id
+                resolution_approval = _approval_resolution_meta(
+                    approval_id=approval_id,
+                    approval_kind=approval_bridge_kind,
+                    approval_state=approval_state,
+                    approval_reason=approval_reason,
+                    approval_reason_code=approval_reason_code,
+                    approval_timeout_s=float(approval_record.timeout_s or approval_timeout_s),
+                )
+                self._record_decision_path(
+                    event=resolution_event,
+                    decision=decision_dict,
+                    snapshot=snapshot_dict,
+                    meta={
+                        **resolution_meta,
+                        **resolution_approval,
+                        "record_type": "decision_resolution",
+                    },
+                    l3_trace=l3_trace,
+                )
+                self.metrics.defer_resolved()
+                self.event_bus.broadcast({
+                    "type": "defer_resolved",
+                    "session_id": session_id,
+                    **resolution_approval,
+                    "resolved_decision": decision_dict["decision"],
+                    "resolved_reason": decision_dict["reason"],
+                    "timestamp": resolution_recorded_at,
+                })
+
         # --- P1: DEFER bridge — wait for operator approval ---
         if (
             self._detection_config.defer_bridge_enabled
@@ -1130,6 +1494,7 @@ class SupervisionGateway:
                     policy_id="defer-bridge",
                     risk_level=decision.risk_level,
                     decision_source=DecisionSource.POLICY,
+                    failure_class=FailureClass.APPROVAL_QUEUE_FULL,
                     final=True,
                 )
                 decision_dict = decision.model_dump(mode="json")
@@ -1137,9 +1502,17 @@ class SupervisionGateway:
                 resolution_event = dict(event_dict)
                 resolution_event["occurred_at"] = resolution_recorded_at
                 resolution_event["approval_id"] = defer_id
+                resolution_approval = _approval_resolution_meta(
+                    approval_id=defer_id,
+                    approval_kind="defer",
+                    approval_state="queue_full",
+                    approval_reason=f"DEFER queue full ({self.defer_manager.max_pending}), blocking",
+                    approval_reason_code=_APPROVAL_QUEUE_FULL_REASON_CODE,
+                    approval_timeout_s=float((project_config or self._detection_config).defer_timeout_s),
+                )
                 resolution_meta = {
                     **meta_dict,
-                    "approval_id": defer_id,
+                    **resolution_approval,
                 }
                 self._record_decision_path(
                     event=resolution_event,
@@ -1151,15 +1524,29 @@ class SupervisionGateway:
                     },
                     l3_trace=l3_trace,
                 )
+                self.event_bus.broadcast({
+                    "type": "defer_resolved",
+                    "session_id": session_id,
+                    **resolution_approval,
+                    "resolved_decision": decision_dict["decision"],
+                    "resolved_reason": decision_dict["reason"],
+                    "timestamp": resolution_recorded_at,
+                })
             else:
                 self.metrics.defer_registered()
 
                 # Broadcast defer_pending event
                 _defer_timeout = (project_config or self._detection_config).defer_timeout_s
+                pending_approval = _approval_pending_meta(
+                    approval_id=defer_id,
+                    approval_kind="defer",
+                    approval_reason=str(decision_dict.get("reason") or ""),
+                    approval_timeout_s=float(_defer_timeout),
+                )
                 self.event_bus.broadcast({
                     "type": "defer_pending",
                     "session_id": session_id,
-                    "approval_id": defer_id,
+                    **pending_approval,
                     "tool_name": req.event.tool_name or "",
                     "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
                     "reason": str(decision_dict.get("reason") or ""),
@@ -1169,24 +1556,55 @@ class SupervisionGateway:
 
                 # Wait for operator resolution
                 _resolved_decision, _resolved_reason = await self.defer_manager.wait_for_resolution(defer_id)
+                approval_record = self.defer_manager.get_approval(defer_id)
 
                 # Convert to final CanonicalDecision
                 if _resolved_decision in ("allow", "allow-once"):
                     decision = CanonicalDecision(
                         decision=DecisionVerdict.ALLOW,
-                        reason=f"Operator approved: {_resolved_reason}" if _resolved_reason else "Operator approved",
+                        reason=(
+                            f"Operator approved: {_resolved_reason}"
+                            if (approval_record.approval_state or "resolved") == "resolved" and _resolved_reason
+                            else "Operator approved"
+                            if (approval_record.approval_state or "resolved") == "resolved"
+                            else _resolved_reason or "Approval timeout auto-allow"
+                        ),
                         policy_id="defer-bridge",
                         risk_level=decision.risk_level,
-                        decision_source=DecisionSource.OPERATOR,
+                        decision_source=(
+                            DecisionSource.OPERATOR
+                            if (approval_record.approval_state or "resolved") == "resolved"
+                            else DecisionSource.SYSTEM
+                        ),
+                        failure_class=(
+                            FailureClass.APPROVAL_TIMEOUT
+                            if (approval_record.approval_state or "resolved") == "timeout"
+                            else FailureClass.NONE
+                        ),
                         final=True,
                     )
                 else:
                     decision = CanonicalDecision(
                         decision=DecisionVerdict.BLOCK,
-                        reason=f"Operator denied: {_resolved_reason}" if _resolved_reason else "Operator denied",
+                        reason=(
+                            f"Operator denied: {_resolved_reason}"
+                            if (approval_record.approval_state or "resolved") == "resolved" and _resolved_reason
+                            else "Operator denied"
+                            if (approval_record.approval_state or "resolved") == "resolved"
+                            else _resolved_reason or "Approval timeout auto-block"
+                        ),
                         policy_id="defer-bridge",
                         risk_level=decision.risk_level,
-                        decision_source=DecisionSource.OPERATOR,
+                        decision_source=(
+                            DecisionSource.OPERATOR
+                            if (approval_record.approval_state or "resolved") == "resolved"
+                            else DecisionSource.SYSTEM
+                        ),
+                        failure_class=(
+                            FailureClass.APPROVAL_TIMEOUT
+                            if (approval_record.approval_state or "resolved") == "timeout"
+                            else FailureClass.NONE
+                        ),
                         final=True,
                     )
 
@@ -1197,9 +1615,21 @@ class SupervisionGateway:
                 resolution_event = dict(event_dict)
                 resolution_event["occurred_at"] = resolution_recorded_at
                 resolution_event["approval_id"] = defer_id
+                resolution_approval = _approval_resolution_meta(
+                    approval_id=defer_id,
+                    approval_kind="defer",
+                    approval_state=approval_record.approval_state or "resolved",
+                    approval_reason=approval_record.reason or _resolved_reason,
+                    approval_reason_code=approval_record.reason_code or (
+                        _APPROVAL_ALLOWED_REASON_CODE
+                        if _resolved_decision in ("allow", "allow-once", "allow-always")
+                        else _APPROVAL_DENIED_REASON_CODE
+                    ),
+                    approval_timeout_s=float(approval_record.timeout_s or _defer_timeout),
+                )
                 resolution_meta = {
                     **meta_dict,
-                    "approval_id": defer_id,
+                    **resolution_approval,
                 }
                 self._record_decision_path(
                     event=resolution_event,
@@ -1218,7 +1648,7 @@ class SupervisionGateway:
                 self.event_bus.broadcast({
                     "type": "defer_resolved",
                     "session_id": session_id,
-                    "approval_id": defer_id,
+                    **resolution_approval,
                     "resolved_decision": decision_dict["decision"],
                     "resolved_reason": decision_dict["reason"],
                     "timestamp": resolution_recorded_at,

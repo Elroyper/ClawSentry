@@ -90,6 +90,10 @@ _SECRET_RE = re.compile(
 )
 _MAX_PROMPT_PAYLOAD_LEN = 4096
 _MAX_EVENT_TEXT_LEN = 65_536  # 64KB cap for regex scanning
+_MAX_CONTEXT_TEXT_LEN = 160
+_MAX_CONTEXT_FACTS = 3
+_MAX_CONTEXT_HINTS = 4
+_MAX_COGNITION_HINTS = 4
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -121,6 +125,103 @@ def should_force_l3_follow_up(context: Optional[DecisionContext]) -> bool:
         return False
     flags = ("force_l3", "l3_escalate", "force_deep_review", "manual_l3_escalation")
     return any(bool(context.session_risk_summary.get(flag)) for flag in flags)
+
+
+def _compact_prompt_text(value: Optional[str], *, max_len: int = _MAX_CONTEXT_TEXT_LEN) -> Optional[str]:
+    if not value:
+        return None
+    compact = " ".join(str(value).split())
+    if not compact:
+        return None
+    compact = _SECRET_RE.sub("[REDACTED]", compact)
+    if len(compact) > max_len:
+        compact = compact[: max_len - 14].rstrip() + "...[truncated]"
+    return compact
+
+
+def _compact_prompt_list(
+    values: Optional[list[str]],
+    *,
+    max_items: int,
+    max_item_len: int = _MAX_CONTEXT_TEXT_LEN,
+    separator: str,
+) -> Optional[str]:
+    if not values:
+        return None
+
+    compact_items: list[str] = []
+    total_items = 0
+    for value in values:
+        item = _compact_prompt_text(value, max_len=max_item_len)
+        if not item:
+            continue
+        total_items += 1
+        if len(compact_items) < max_items:
+            compact_items.append(item)
+
+    if not compact_items:
+        return None
+
+    suffix = ""
+    if total_items > len(compact_items):
+        suffix = f" (+{total_items - len(compact_items)} more)"
+    return separator.join(compact_items) + suffix
+
+
+def _context_prompt_lines(context: Optional[DecisionContext]) -> list[str]:
+    if context is None:
+        return []
+
+    lines: list[str] = []
+
+    current_task = _compact_prompt_text(getattr(context, "current_task", None))
+    if current_task:
+        lines.append(f"Current task: {current_task}")
+
+    memory_summary = _compact_prompt_text(getattr(context, "memory_summary", None))
+    if memory_summary:
+        lines.append(f"Memory summary: {memory_summary}")
+
+    recent_facts = _compact_prompt_list(
+        getattr(context, "recent_facts", None),
+        max_items=_MAX_CONTEXT_FACTS,
+        max_item_len=96,
+        separator=" | ",
+    )
+    if recent_facts:
+        lines.append(f"Recent facts: {recent_facts}")
+
+    context_hints = _compact_prompt_list(
+        getattr(context, "context_hints", None),
+        max_items=_MAX_CONTEXT_HINTS,
+        max_item_len=48,
+        separator=", ",
+    )
+    if context_hints:
+        lines.append(f"Context hints: {context_hints}")
+
+    intent_summary = _compact_prompt_text(getattr(context, "intent_summary", None))
+    if intent_summary:
+        lines.append(f"Intent summary: {intent_summary}")
+
+    planning_summary = _compact_prompt_text(getattr(context, "planning_summary", None))
+    if planning_summary:
+        lines.append(f"Planning summary: {planning_summary}")
+
+    reasoning_summary = _compact_prompt_text(getattr(context, "reasoning_summary", None))
+    if reasoning_summary:
+        lines.append(f"Reasoning summary: {reasoning_summary}")
+
+    cognition_hints = _compact_prompt_list(
+        getattr(context, "cognition_hints", None),
+        max_items=_MAX_COGNITION_HINTS,
+        max_item_len=64,
+        separator=", ",
+    )
+    if cognition_hints:
+        lines.append(f"Cognition hints: {cognition_hints}")
+
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +416,7 @@ class LLMAnalyzer:
         ]
         if l1_snapshot.short_circuit_rule:
             parts.append(f"Short-circuit: {l1_snapshot.short_circuit_rule}")
+        parts.extend(_context_prompt_lines(context))
         return "\n".join(parts)
 
     def _parse_response(

@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2891+ tests**, ~44s full suite
+- **2936+ tests**, ~45s full suite
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.4.8
+## What's New in v0.5.0
 
-- **Light-first Web UI now actually ships in release artifacts**: ClawSentry rebuilds and ships the updated `/ui` asset bundle, so fresh installs no longer fall back to the older dark console after the light-theme redesign.
-- **Release guardrails now verify public surfaces**: the release checklist and public-doc contract tests now explicitly check packaged UI assets, PyPI/docs freshness, and the live configuration pages before calling a release done.
-- **No runtime policy change from v0.4.7**: this release is focused on making the already-documented operator console and release surface consistent with what users actually install.
+- **AHP v2.3 compatibility foundation**: ClawSentry now recognizes the latest AHP observation surfaces while keeping the stable canonical event core intact.
+- **Confirmation bridge**: AHP `confirmation` events reuse the existing operator approval lifecycle, including `/ahp/resolve`, replay, SSE, session risk, and explicit timeout/no-route failure classes.
+- **Analysis-consumption signals**: `context_perception`, `memory_recall`, `planning`, `reasoning`, and `intent_detection` now feed compact evidence into replay, session views, and semantic analysis without becoming new blocking surfaces.
 
 ## Quick Start
 

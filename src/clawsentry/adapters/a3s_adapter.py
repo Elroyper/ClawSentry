@@ -87,6 +87,16 @@ _HOOK_MAPPING: dict[str, tuple[EventType, bool]] = {
     "PrePrompt":     (EventType.PRE_PROMPT, True),
     "GenerateStart": (EventType.PRE_PROMPT, True),
     "PostResponse":  (EventType.POST_RESPONSE, False),  # After payload reclassify
+    "Idle":          (EventType.SESSION, False),
+    "Heartbeat":     (EventType.SESSION, False),
+    "Success":       (EventType.SESSION, False),
+    "RateLimit":     (EventType.SESSION, False),
+    "Confirmation":  (EventType.SESSION, False),
+    "ContextPerception": (EventType.SESSION, False),
+    "MemoryRecall":      (EventType.SESSION, False),
+    "Planning":      (EventType.SESSION, False),
+    "Reasoning":     (EventType.SESSION, False),
+    "IntentDetection": (EventType.SESSION, False),
     "SessionStart":  (EventType.SESSION, False),
     "SessionEnd":    (EventType.SESSION, False),
     "OnError":       (EventType.ERROR, False),
@@ -99,6 +109,16 @@ _UNMAPPED_HOOKS = frozenset({"GenerateEnd", "SkillLoad", "SkillUnload"})
 _SESSION_SUBTYPES = {
     "SessionStart": "session:start",
     "SessionEnd": "session:end",
+    "Idle": "compat:idle",
+    "Heartbeat": "compat:heartbeat",
+    "Success": "compat:success",
+    "RateLimit": "compat:rate_limit",
+    "Confirmation": "compat:confirmation",
+    "ContextPerception": "compat:context_perception",
+    "MemoryRecall": "compat:memory_recall",
+    "Planning": "compat:planning",
+    "Reasoning": "compat:reasoning",
+    "IntentDetection": "compat:intent_detection",
 }
 
 
@@ -239,6 +259,14 @@ class A3SCodeAdapter:
 
         # Extract tool_name from payload
         tool_name = payload.get("tool") or payload.get("tool_name")
+        payload_meta = payload.get("_clawsentry_meta")
+        approval_id = payload.get("approval_id")
+        if approval_id is None and isinstance(payload_meta, dict):
+            compat_meta = payload_meta.get("ahp_compat")
+            if isinstance(compat_meta, dict):
+                identity = compat_meta.get("identity")
+                if isinstance(identity, dict):
+                    approval_id = identity.get("approval_id")
 
         # Generate stable event_id
         event_id = _generate_event_id(
@@ -257,7 +285,10 @@ class A3SCodeAdapter:
         # E-8: Inject content origin metadata
         origin = infer_content_origin(tool_name, payload)
         enriched_payload = dict(payload)
-        enriched_payload["_clawsentry_meta"] = {"content_origin": origin}
+        existing_meta = enriched_payload.get("_clawsentry_meta")
+        merged_meta = dict(existing_meta) if isinstance(existing_meta, dict) else {}
+        merged_meta["content_origin"] = origin
+        enriched_payload["_clawsentry_meta"] = merged_meta
 
         return CanonicalEvent(
             event_id=event_id,
@@ -272,6 +303,7 @@ class A3SCodeAdapter:
             tool_name=tool_name,
             risk_hints=risk_hints,
             framework_meta=framework_meta,
+            approval_id=str(approval_id) if approval_id not in (None, "") else None,
         )
 
     def is_blocking(self, hook_type: str) -> bool:

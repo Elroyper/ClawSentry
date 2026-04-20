@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-20
+
+### 新增
+
+- **AHP v2.3 compatibility foundation** — ClawSentry 现在可以识别并保留 `post_response`、`idle`、`heartbeat`、`success`、`rate_limit` 等上游 AHP v2.3 observation surfaces，同时保持 `pre_action/post_action/pre_prompt/post_response/error/session` 这 6 类 stable core 不扩枚举。
+- **Confirmation bridge** — `confirmation` 事件现在复用现有 operator approval lifecycle：pending / resolve / timeout / no-route / queue-full 均有统一 `approval_*` telemetry，并兼容 `/ahp/resolve` 与既有 DEFER bridge。
+- **Context 与 memory analysis-consumption** — `context_perception` 与 `memory_recall` 现在会生成 compact evidence summary，进入 replay、session risk、session list 与 `DecisionContext` / `semantic_analyzer` 的解释性分析路径。
+- **Cognition research-to-runtime signals** — `planning`、`reasoning`、`intent_detection` 现在作为 compact runtime evidence 进入 replay、session 视图与语义分析，但不成为新的 blocking surface，也不暴露完整 chain-of-thought。
+
+### 改进
+
+- **能力分层口径收口** — 设计文档现已统一区分 stable core、compatibility support、bridge semantics 与 analysis-consumption，避免把兼容识别误读为 canonical enforcement。
+- **Operator-facing evidence 更完整** — replay、session risk 与 session list 现在能展示 approval、context/memory 与 cognition summaries，帮助 operator 理解运行时上下文而不污染 canonical decision 字段。
+- **发布目标升级为 0.5.0** — 本版本聚合 AHP v2.3 协议跟进、兼容层、审批桥接与分析消费链路，作为 0.5 系列基线。
+
+### 测试与验证
+
+- Python 回归：完整测试 `2936 passed, 3 skipped`
+- Focused AHP v2.3 compatibility / bridge / analysis 回归：`590 passed`
+
 ## [0.4.8] — 2026-04-17
 
 ### 修复
@@ -865,6 +885,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.0
 [0.4.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.8
 [0.4.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.6
 [0.4.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.7

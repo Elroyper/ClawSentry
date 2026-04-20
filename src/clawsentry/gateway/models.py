@@ -80,6 +80,7 @@ class FailureClass(str, enum.Enum):
     INPUT_INVALID = "input_invalid"
     APPROVAL_TIMEOUT = "approval_timeout"
     APPROVAL_NO_ROUTE = "approval_no_route"
+    APPROVAL_QUEUE_FULL = "approval_queue_full"
     AUTH_INVALID_TOKEN = "auth_invalid_token"
     AUTH_RATE_LIMITED = "auth_rate_limited"
     AUTH_INVALID_SIGNATURE = "auth_invalid_signature"
@@ -395,6 +396,14 @@ class DecisionContext(BaseModel):
     agent_trust_level: Optional[AgentTrustLevel] = None
     workspace_id: Optional[str] = None
     caller_adapter: Optional[str] = None
+    recent_facts: Optional[list[str]] = None
+    memory_summary: Optional[str] = None
+    current_task: Optional[str] = None
+    context_hints: Optional[list[str]] = None
+    intent_summary: Optional[str] = None
+    planning_summary: Optional[str] = None
+    reasoning_summary: Optional[str] = None
+    cognition_hints: Optional[list[str]] = None
 
 
 class SyncDecisionRequest(BaseModel):

@@ -281,6 +281,112 @@ async def test_session_start_event_broadcast(e2e_harness):
 
 
 # ---------------------------------------------------------------------------
+# Test 7: richer context/metadata survive to trajectory + replay
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_richer_event_fields_survive_to_trajectory_and_replay(e2e_harness):
+    harness, gw = e2e_harness
+    session_id = "e2e-rich-trajectory-1"
+
+    resp = await harness.dispatch_async(
+        {
+            "jsonrpc": "2.0",
+            "id": 65,
+            "method": "ahp/event",
+            "params": {
+                "event_type": "pre_action",
+                "event_id": "evt-rich-e2e-001",
+                "trace_id": "trace-rich-e2e-001",
+                "session_id": session_id,
+                "agent_id": "e2e-agent-rich-1",
+                "context": {
+                    "session": {"workspace": "/repo"},
+                    "agent": {"role": "implementer"},
+                },
+                "metadata": {
+                    "labels": ["compat", "rich"],
+                    "origin": "harness-test",
+                },
+                "payload": {
+                    "tool": "read_file",
+                    "arguments": {"path": "/tmp/rich.txt"},
+                },
+            },
+        }
+    )
+
+    assert resp is not None
+    assert resp["result"]["decision"] == "allow"
+
+    record = gw.trajectory_store.records[-1]
+    compat = record["event"]["payload"]["_clawsentry_meta"]["ahp_compat"]
+    assert record["event"]["trace_id"] == "trace-rich-e2e-001"
+    assert compat["raw_event_type"] == "pre_action"
+    assert compat["context_present"] is True
+    assert compat["metadata_present"] is True
+    assert compat["context"]["session"]["workspace"] == "/repo"
+    assert compat["metadata"]["origin"] == "harness-test"
+    assert compat["identity"]["event_id"] == "evt-rich-e2e-001"
+    assert compat["identity"]["session_id"] == session_id
+    assert compat["identity"]["agent_id"] == "e2e-agent-rich-1"
+
+    replay = gw.replay_session(session_id)
+    replay_compat = replay["records"][-1]["event"]["payload"]["_clawsentry_meta"]["ahp_compat"]
+    assert replay_compat == compat
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["success", "rate_limit"])
+async def test_compat_observation_events_reach_stream_and_trajectory_without_blocking(
+    e2e_harness,
+    event_type,
+):
+    harness, gw = e2e_harness
+    session_id = f"e2e-compat-{event_type}"
+
+    sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+    try:
+        resp = await harness.dispatch_async(
+            {
+                "jsonrpc": "2.0",
+                "id": 66,
+                "method": "ahp/event",
+                "params": {
+                    "event_type": event_type,
+                    "session_id": session_id,
+                    "agent_id": "e2e-agent-compat",
+                    "payload": {
+                        "message": f"{event_type} compat event",
+                    },
+                },
+            }
+        )
+
+        assert resp is not None
+        assert resp["result"]["decision"] == "allow"
+        assert resp["result"]["action"] == "continue"
+
+        record = gw.trajectory_store.records[-1]
+        assert record["event"]["event_type"] == "session"
+        compat = record["event"]["payload"]["_clawsentry_meta"]["ahp_compat"]
+        assert compat["raw_event_type"] == event_type
+
+        decision_evt = None
+        while not queue.empty():
+            evt = queue.get_nowait()
+            if evt.get("type") == "decision" and evt.get("compat_event_type") == event_type:
+                decision_evt = evt
+                break
+
+        assert decision_evt is not None
+        assert decision_evt["session_id"] == session_id
+        assert decision_evt["decision"] == "allow"
+    finally:
+        gw.event_bus.unsubscribe(sub_id)
+
+
+# ---------------------------------------------------------------------------
 # Test 7: reason field in harness response
 # ---------------------------------------------------------------------------
 

@@ -77,6 +77,98 @@ class TestDeferManager:
         assert decision == "block"
         assert "not found" in reason
 
+    def test_register_approval_tracks_pending_metadata(self):
+        dm = DeferManager()
+
+        assert dm.register_approval(
+            "approval-1",
+            approval_kind="confirmation",
+            session_id="sess-1",
+            tool_name="bash",
+            summary="confirm destructive command",
+        ) is True
+
+        approval = dm.get_approval("approval-1")
+        assert approval.approval_id == "approval-1"
+        assert approval.approval_kind == "confirmation"
+        assert approval.approval_state == "pending"
+        assert approval.session_id == "sess-1"
+        assert approval.tool_name == "bash"
+        assert approval.summary == "confirm destructive command"
+
+    def test_register_defer_populates_defer_kind(self):
+        dm = DeferManager()
+
+        assert dm.register_defer("req-defer-1") is True
+
+        approval = dm.get_approval("req-defer-1")
+        assert approval.approval_kind == "defer"
+        assert approval.approval_state == "pending"
+
+    def test_register_approval_rejects_duplicate_pending_id(self):
+        dm = DeferManager()
+
+        assert dm.register_approval("approval-dup", approval_kind="confirmation") is True
+        assert dm.register_approval("approval-dup", approval_kind="confirmation") is False
+        assert dm.pending_count == 1
+
+    def test_get_approval_returns_not_found_state_for_unknown_id(self):
+        dm = DeferManager()
+
+        approval = dm.get_approval("missing-approval")
+
+        assert approval.approval_id == "missing-approval"
+        assert approval.approval_state == "not_found"
+        assert approval.approval_kind is None
+
+    @pytest.mark.asyncio
+    async def test_resolved_approval_state_is_queryable_after_resolution(self):
+        dm = DeferManager(timeout_s=5.0)
+        assert dm.register_approval(
+            "approval-resolved",
+            approval_kind="confirmation",
+            tool_name="edit_file",
+        ) is True
+
+        wait_task = asyncio.create_task(dm.wait_for_resolution("approval-resolved"))
+        await asyncio.sleep(0)
+        dm.resolve_approval("approval-resolved", "allow", "confirmed")
+        decision, reason = await wait_task
+
+        approval = dm.get_approval("approval-resolved")
+        assert decision == "allow"
+        assert reason == "confirmed"
+        assert approval.approval_state == "resolved"
+        assert approval.approval_kind == "confirmation"
+        assert approval.tool_name == "edit_file"
+
+    @pytest.mark.asyncio
+    async def test_timeout_approval_state_is_queryable_after_timeout(self):
+        dm = DeferManager(timeout_action="allow", timeout_s=0.01)
+        assert dm.register_approval("approval-timeout", approval_kind="confirmation") is True
+
+        decision, reason = await dm.wait_for_resolution("approval-timeout")
+
+        approval = dm.get_approval("approval-timeout")
+        assert decision == "allow"
+        assert "timeout" in reason.lower()
+        assert approval.approval_state == "timeout"
+        assert approval.approval_kind == "confirmation"
+
+    def test_finalized_records_evict_oldest_when_over_limit(self):
+        dm = DeferManager(max_finalized=2)
+
+        assert dm.register_approval("approval-1", approval_kind="confirmation") is True
+        dm.resolve_approval("approval-1", "allow", "ok-1")
+        assert dm.register_approval("approval-2", approval_kind="confirmation") is True
+        dm.resolve_approval("approval-2", "allow", "ok-2")
+        assert dm.register_approval("approval-3", approval_kind="confirmation") is True
+        dm.resolve_approval("approval-3", "allow", "ok-3")
+
+        assert dm.get_approval("approval-1").approval_state == "not_found"
+        assert dm.get_approval("approval-2").approval_state == "resolved"
+        assert dm.get_approval("approval-3").approval_state == "resolved"
+
 
 class TestDeferMaxPending:
     """P1-5: DEFER must have a max pending limit."""

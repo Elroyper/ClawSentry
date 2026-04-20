@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
 import logging
 import os
 import sys
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 try:
     from .a3s_adapter import A3SCodeAdapter
@@ -58,11 +59,36 @@ _EVENT_TO_HOOK: dict[str, str] = {
     "post_action": "PostToolUse",
     "post_tool_use": "PostToolUse",
     "pre_prompt": "PrePrompt",
+    "post_response": "PostResponse",
+    "idle": "Idle",
+    "heartbeat": "Heartbeat",
+    "success": "Success",
+    "rate_limit": "RateLimit",
+    "confirmation": "Confirmation",
+    "context_perception": "ContextPerception",
+    "memory_recall": "MemoryRecall",
+    "planning": "Planning",
+    "reasoning": "Reasoning",
+    "intent_detection": "IntentDetection",
     "generate_start": "GenerateStart",
     "session_start": "SessionStart",
     "session_end": "SessionEnd",
     "error": "OnError",
 }
+
+_OBSERVABILITY_COMPAT_EVENT_TYPES = frozenset({
+    "idle",
+    "heartbeat",
+    "success",
+    "rate_limit",
+    "confirmation",
+    "context_perception",
+    "memory_recall",
+    "planning",
+    "reasoning",
+    "intent_detection",
+})
+_COMPAT_INTERVAL_LIMITED_EVENT_TYPES = frozenset({"idle", "heartbeat"})
 
 
 import re as _re
@@ -138,6 +164,98 @@ def _resolve_string(*values: Any) -> Optional[str]:
     return None
 
 
+_AHP_COMPAT_IDENTITY_FIELDS = (
+    "event_id",
+    "trace_id",
+    "parent_event_id",
+    "depth",
+    "run_id",
+    "approval_id",
+    "source_seq",
+    "source_protocol_version",
+    "mapping_profile",
+    "occurred_at",
+)
+
+_AHP_COMPAT_CARRIED_FIELDS = (
+    "context",
+    "metadata",
+    "query",
+    "target",
+    "summary",
+    "task",
+    "strategy",
+    "constraints",
+    "reasoning_type",
+    "problem_statement",
+    "hints",
+    "prompt",
+    "language_hint",
+    "detected_intent",
+    "target_hints",
+)
+
+
+def _merge_clawsentry_meta(payload: dict[str, Any], extra: dict[str, Any]) -> None:
+    meta = payload.get("_clawsentry_meta")
+    if not isinstance(meta, dict):
+        meta = {}
+        payload["_clawsentry_meta"] = meta
+    meta.update(extra)
+
+
+def _build_ahp_compat_meta(
+    params: dict[str, Any],
+    *,
+    raw_event_type: str,
+    normalized_event_type: str,
+    session_id: Optional[str],
+    agent_id: Optional[str],
+) -> Optional[dict[str, Any]]:
+    preserved_fields = {
+        key: copy.deepcopy(params[key])
+        for key in _AHP_COMPAT_CARRIED_FIELDS
+        if key in params
+    }
+    context_present = "context" in preserved_fields
+    metadata_present = "metadata" in preserved_fields
+
+    identity: dict[str, Any] = {}
+    if raw_event_type:
+        identity["event_type"] = raw_event_type
+    if normalized_event_type and normalized_event_type != raw_event_type:
+        identity["normalized_event_type"] = normalized_event_type
+    if session_id:
+        identity["session_id"] = session_id
+    if agent_id:
+        identity["agent_id"] = agent_id
+
+    for key in _AHP_COMPAT_IDENTITY_FIELDS:
+        value = params.get(key)
+        if value is not None:
+            identity[key] = copy.deepcopy(value)
+
+    compat_event_type = _normalize_event_type(raw_event_type) or _normalize_event_type(normalized_event_type)
+    if (
+        compat_event_type not in _OBSERVABILITY_COMPAT_EVENT_TYPES
+        and not context_present
+        and not metadata_present
+        and len(identity) <= 4
+    ):
+        return None
+
+    compat: dict[str, Any] = {
+        "preservation_mode": "compatibility-carrying",
+        "source": "a3s-ingress",
+        "raw_event_type": raw_event_type or normalized_event_type,
+        "context_present": context_present,
+        "metadata_present": metadata_present,
+        "identity": identity,
+    }
+    compat.update(preserved_fields)
+    return compat
+
+
 def _decision_to_ahp_result(decision: CanonicalDecision) -> dict[str, Any]:
     action = "continue"
     if decision.decision == DecisionVerdict.BLOCK:
@@ -180,6 +298,8 @@ class A3SGatewayHarness:
         default_session_id: str = "ahp-session",
         default_agent_id: str = "ahp-agent",
         async_mode: bool = False,
+        compat_observation_window_seconds: float = 2.0,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         self.adapter = adapter
         self.protocol_version = protocol_version
@@ -188,6 +308,51 @@ class A3SGatewayHarness:
         self.default_session_id = default_session_id
         self.default_agent_id = default_agent_id
         self.async_mode = async_mode
+        self.compat_observation_window_seconds = max(
+            0.0,
+            float(compat_observation_window_seconds),
+        )
+        self._clock = clock or _time.monotonic
+        self._compat_observation_state: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    def _clear_compat_observation_state(
+        self,
+        *,
+        session_id: str,
+        agent_id: Optional[str] = None,
+    ) -> None:
+        if not self._compat_observation_state:
+            return
+
+        stale_keys = [
+            key
+            for key in self._compat_observation_state
+            if key[1] == session_id and (agent_id is None or key[2] == agent_id)
+        ]
+        for key in stale_keys:
+            self._compat_observation_state.pop(key, None)
+
+    def _prune_compat_observation_state(
+        self,
+        *,
+        now: float,
+        exclude_key: tuple[str, str, str] | None = None,
+    ) -> None:
+        if (
+            self.compat_observation_window_seconds <= 0
+            or not self._compat_observation_state
+        ):
+            return
+
+        stale_keys = [
+            key
+            for key, state in self._compat_observation_state.items()
+            if key != exclude_key
+            and (now - float(state.get("last_emit_at") or 0.0))
+            >= self.compat_observation_window_seconds
+        ]
+        for key in stale_keys:
+            self._compat_observation_state.pop(key, None)
 
     def _handshake_result(self) -> dict[str, Any]:
         return {
@@ -199,37 +364,74 @@ class A3SGatewayHarness:
                     "pre_action",
                     "post_action",
                     "pre_prompt",
+                    "post_response",
+                    "idle",
+                    "heartbeat",
+                    "success",
+                    "rate_limit",
+                    "confirmation",
+                    "context_perception",
+                    "memory_recall",
+                    "planning",
+                    "reasoning",
+                    "intent_detection",
                     "session",
                     "error",
                 ],
             },
         }
 
-    async def _handle_event(self, params: dict[str, Any]) -> dict[str, Any]:
-        event_type_raw = _normalize_event_type(params.get("event_type"))
-        payload = _resolve_payload(params.get("payload"))
+    def _sample_compat_event(
+        self,
+        *,
+        event_type: str,
+        session_id: str,
+        agent_id: str,
+    ) -> tuple[bool, Optional[dict[str, Any]]]:
+        now = self._clock()
+        key = (event_type, session_id, agent_id)
+        self._prune_compat_observation_state(now=now, exclude_key=key)
 
-        # Check project config from payload cwd (covers JSON-RPC path)
-        cwd = payload.get("cwd") or payload.get("working_directory", "")
-        if cwd:
-            project_cfg = _get_project_config(cwd)
-            if not project_cfg.enabled:
-                return {
-                    "action": "continue",
-                    "decision": "allow",
-                    "reason": "project monitoring disabled via .clawsentry.toml",
-                    "metadata": {"source": "clawsentry-gateway-harness"},
+        if (
+            event_type not in _COMPAT_INTERVAL_LIMITED_EVENT_TYPES
+            or self.compat_observation_window_seconds <= 0
+        ):
+            return True, None
+
+        state = self._compat_observation_state.get(key)
+
+        if state is not None:
+            elapsed = now - float(state.get("last_emit_at") or 0.0)
+            if elapsed < self.compat_observation_window_seconds:
+                state["suppressed_count"] = int(state.get("suppressed_count") or 0) + 1
+                self._compat_observation_state[key] = state
+                return False, {
+                    "strategy": "interval_limit",
+                    "window_seconds": self.compat_observation_window_seconds,
+                    "sampled_out": True,
                 }
 
-        hook_type = _EVENT_TO_HOOK.get(event_type_raw)
-        if hook_type is None:
-            return {
-                "action": "continue",
-                "decision": "allow",
-                "reason": f"Unmapped event_type: {event_type_raw or 'unknown'}",
-                "metadata": {"source": "clawsentry-gateway-harness"},
-            }
+        suppressed_since_last_emit = 0
+        if state is not None:
+            suppressed_since_last_emit = int(state.get("suppressed_count") or 0)
 
+        self._compat_observation_state[key] = {
+            "last_emit_at": now,
+            "suppressed_count": 0,
+        }
+
+        compat_observation: dict[str, Any] = {
+            "strategy": "interval_limit",
+            "window_seconds": self.compat_observation_window_seconds,
+        }
+        if suppressed_since_last_emit > 0:
+            compat_observation["suppressed_since_last_emit"] = suppressed_since_last_emit
+        return True, compat_observation
+
+    async def _handle_event(self, params: dict[str, Any]) -> dict[str, Any]:
+        raw_event_type = str(params.get("event_type") or "")
+        event_type_raw = _normalize_event_type(raw_event_type)
+        payload = _resolve_payload(params.get("payload"))
         session_id = _resolve_string(
             params.get("session_id"),
             params.get("sessionKey"),
@@ -244,42 +446,119 @@ class A3SGatewayHarness:
             payload.get("agentId"),
             self.default_agent_id,
         )
-
-        # Inject project preset info into payload before normalization
-        project_preset = params.get("_project_preset")
-        project_overrides = params.get("_project_overrides")
-        if project_preset or project_overrides:
-            meta = payload.setdefault("_clawsentry_meta", {})
-            if project_preset:
-                meta["project_preset"] = project_preset
-            if project_overrides:
-                meta["project_overrides"] = project_overrides
-
-        evt = self.adapter.normalize_hook_event(
-            hook_type,
-            payload,
-            session_id=session_id,
-            agent_id=agent_id,
+        compat_cleanup_agent_id = _resolve_string(
+            params.get("agent_id"),
+            params.get("agentId"),
+            payload.get("agent_id"),
+            payload.get("agentId"),
         )
-        if evt is None:
-            return {
-                "action": "continue",
-                "decision": "allow",
-                "reason": f"Event filtered: hook_type={hook_type}",
-                "metadata": {"source": "clawsentry-gateway-harness"},
-            }
 
-        # Ensure project preset info survives normalization (adapter may
-        # rebuild _clawsentry_meta, so merge it into the event payload).
-        if (project_preset or project_overrides) and evt.payload is not None:
-            meta = evt.payload.setdefault("_clawsentry_meta", {})
-            if project_preset:
-                meta["project_preset"] = project_preset
-            if project_overrides:
-                meta["project_overrides"] = project_overrides
+        try:
+            # Check project config from payload cwd (covers JSON-RPC path)
+            cwd = payload.get("cwd") or payload.get("working_directory", "")
+            if cwd:
+                project_cfg = _get_project_config(cwd)
+                if not project_cfg.enabled:
+                    return {
+                        "action": "continue",
+                        "decision": "allow",
+                        "reason": "project monitoring disabled via .clawsentry.toml",
+                        "metadata": {"source": "clawsentry-gateway-harness"},
+                    }
 
-        decision = await self.adapter.request_decision(evt)
-        return _decision_to_ahp_result(decision)
+            hook_type = _EVENT_TO_HOOK.get(event_type_raw)
+            if hook_type is None:
+                return {
+                    "action": "continue",
+                    "decision": "allow",
+                    "reason": f"Unmapped event_type: {event_type_raw or 'unknown'}",
+                    "metadata": {"source": "clawsentry-gateway-harness"},
+                }
+
+            trace_id = _resolve_string(
+                params.get("trace_id"),
+                payload.get("trace_id"),
+            )
+
+            should_emit_event, compat_observation = self._sample_compat_event(
+                event_type=event_type_raw,
+                session_id=session_id or self.default_session_id,
+                agent_id=agent_id or self.default_agent_id,
+            )
+            if compat_observation is not None:
+                _merge_clawsentry_meta(payload, {"compat_observation": compat_observation})
+            if not should_emit_event:
+                return {
+                    "action": "continue",
+                    "decision": "allow",
+                    "reason": (
+                        f"Compatibility observation event '{event_type_raw}' sampled out "
+                        f"within {self.compat_observation_window_seconds:.1f}s window"
+                    ),
+                    "metadata": {
+                        "source": "clawsentry-gateway-harness",
+                        "compat_event_type": event_type_raw,
+                        "compat_observation": compat_observation,
+                    },
+                }
+
+            ahp_compat = _build_ahp_compat_meta(
+                params,
+                raw_event_type=raw_event_type,
+                normalized_event_type=event_type_raw,
+                session_id=session_id,
+                agent_id=agent_id,
+            )
+            if ahp_compat is not None:
+                _merge_clawsentry_meta(payload, {"ahp_compat": ahp_compat})
+
+            # Inject project preset info into payload before normalization
+            project_preset = params.get("_project_preset")
+            project_overrides = params.get("_project_overrides")
+            if project_preset or project_overrides:
+                project_meta: dict[str, Any] = {}
+                if project_preset:
+                    project_meta["project_preset"] = project_preset
+                if project_overrides:
+                    project_meta["project_overrides"] = project_overrides
+                _merge_clawsentry_meta(payload, project_meta)
+
+            evt = self.adapter.normalize_hook_event(
+                hook_type,
+                payload,
+                session_id=session_id,
+                agent_id=agent_id,
+                trace_id=trace_id,
+            )
+            if evt is None:
+                return {
+                    "action": "continue",
+                    "decision": "allow",
+                    "reason": f"Event filtered: hook_type={hook_type}",
+                    "metadata": {"source": "clawsentry-gateway-harness"},
+                }
+
+            # Ensure project preset info survives normalization (adapter may
+            # rebuild _clawsentry_meta, so merge it into the event payload).
+            if evt.payload is not None:
+                preserved_meta: dict[str, Any] = {}
+                if ahp_compat is not None:
+                    preserved_meta["ahp_compat"] = ahp_compat
+                if project_preset:
+                    preserved_meta["project_preset"] = project_preset
+                if project_overrides:
+                    preserved_meta["project_overrides"] = project_overrides
+                if preserved_meta:
+                    _merge_clawsentry_meta(evt.payload, preserved_meta)
+
+            decision = await self.adapter.request_decision(evt)
+            return _decision_to_ahp_result(decision)
+        finally:
+            if event_type_raw == "session_end" and session_id is not None:
+                self._clear_compat_observation_state(
+                    session_id=session_id,
+                    agent_id=compat_cleanup_agent_id,
+                )
 
     def _convert_native_hook(self, msg: dict[str, Any]) -> dict[str, Any]:
         """Convert native Claude Code hook JSON to harness event params.
