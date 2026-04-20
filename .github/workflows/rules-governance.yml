@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -45,8 +45,9 @@ jobs:
         run: python -m clawsentry rules report --output artifacts/rules-report.json --events examples/sample-events.jsonl --json
 
       - name: Upload rules governance artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: rules-governance-report
           path: artifacts/rules-report.json
           if-no-files-found: error
+          retention-days: 30
