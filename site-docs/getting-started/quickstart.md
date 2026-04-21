@@ -20,7 +20,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 | 集成方式 | Hook 注入 | 显式 AHP Transport | WebSocket | Session 日志监控 |
 
 !!! info "为什么 Codex 默认仍按监控模式使用？"
-    ClawSentry 默认通过监控 Codex session 日志实现实时评估和推荐。当前版本可用 `clawsentry init codex --setup` 非破坏式安装 managed native hooks，但完整 blocking defense 仍在后续收口；生产上建议继续配合 `--approval-policy untrusted` 使用。
+    ClawSentry 默认通过监控 Codex session 日志实现实时评估和推荐。当前版本可用 `clawsentry init codex --setup` 非破坏式安装 managed native hooks，并已验证 `PreToolUse(Bash)` 可经 Gateway 返回 host deny；其他 native events 仍是异步观察，生产上建议继续配合 `--approval-policy untrusted` 使用。
 
 ## 第一次打开 Web UI，先看什么？
 
@@ -326,7 +326,7 @@ Dashboard -> Sessions -> Session Detail
 === "Codex"
 
     !!! warning "默认监控模式"
-        ClawSentry 默认通过监控 Codex session 日志实现**实时风险评估和推荐**。可选的 `clawsentry init codex --setup` 会安装 managed native hooks；当前已测试的同步防护范围仅限 `PreToolUse(Bash)`，其他 Codex native events 仍为异步观察/建议。建议配合 `--approval-policy untrusted` 使用。
+        ClawSentry 默认通过监控 Codex session 日志实现**实时风险评估和推荐**。可选的 `clawsentry init codex --setup` 会安装 managed native hooks；当前已测试并做过真实 Gateway daemon smoke 的同步防护范围仅限 `PreToolUse(Bash)`，其他 Codex native events 仍为异步观察/建议。建议配合 `--approval-policy untrusted` 使用。
 
     **前置条件**
 

@@ -735,6 +735,17 @@ def _payload_complexity(self, payload) -> bool:
 |----------|------|:------:|
 | `CS_L3_ENABLED` | 启用 L3 审查 Agent | `false` |
 | `CS_L3_MULTI_TURN` | 运行模式开关；`false` 强制单轮 | `true`（L3 启用时） |
+| `CS_L3_ADVISORY_ASYNC_ENABLED` | 在 high/critical decision 或 high+ trajectory alert 后自动创建 frozen advisory snapshot；当前不启动真实 review scheduler | `false` |
+| `CS_L3_HEARTBEAT_REVIEW_ENABLED` | 预留 heartbeat/idle 聚合后的 advisory snapshot review 开关；不启用 timer-only full review | `false` |
+| `CS_L3_ADVISORY_PROVIDER_ENABLED` | 显式启用 advisory provider worker shell；当前未启用/缺 key/缺 model/不支持/未实现都降级为 advisory `degraded` | `false` |
+| `CS_L3_ADVISORY_PROVIDER` | advisory provider shell，支持 `openai` / `anthropic`，不继承 `CS_LLM_PROVIDER` | — |
+| `CS_L3_ADVISORY_MODEL` | advisory worker model 标签，不继承 `CS_LLM_MODEL` | — |
+| `CS_L3_ADVISORY_BASE_URL` | advisory worker OpenAI-compatible endpoint 标签，预留给未来真实 provider execution | — |
+| `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | advisory provider worker dry-run 安全闸门；只有显式 `false` 才允许桥接真实 LLM provider | `true` |
+| `CS_L3_ADVISORY_TEMPERATURE` | advisory provider 独立 temperature；部分 OpenAI-compatible 端点要求 `1` | `1.0` |
+| `CS_L3_ADVISORY_DEADLINE_MS` | advisory provider 单次 completion deadline（毫秒） | `30000` |
+| `CS_L3_ADVISORY_RUN_REAL_SMOKE` | pytest real-provider smoke gate；未显式启用时真实网络 smoke 默认 skip | `false` |
+| `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | manual smoke 默认剥离 proxy 环境变量，避免 SOCKS proxy 缺依赖污染 provider client | `true` |
 | `CS_LLM_PROVIDER` | LLM 提供商 (L3 必须) | — |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | 对应 Provider 的 API 密钥 | — |
 | `CS_LLM_MODEL` | 覆盖模型名称 | 按 Provider 默认 |
@@ -758,6 +769,70 @@ clawsentry gateway
 
 !!! tip "L3 初始化失败不影响 L1+L2"
     如果 L3 初始化失败（例如技能目录不存在、YAML 解析错误），ClawSentry 会记录警告日志并继续以 L1+L2 模式运行。L3 的故障不会影响其他层级的正常工作。
+
+## Advisory snapshot foundation {#advisory-snapshot-foundation}
+
+Rank2 foundation adds an advisory evidence plane next to synchronous L3:
+
+- `l3_evidence_snapshot` freezes a bounded trajectory record range
+  (`from_record_id` / `to_record_id`) plus trigger metadata and compact risk
+  summary.
+- `l3_advisory_review` attaches a result to that snapshot with
+  `advisory_only=true`.
+- Advisory reviews have explicit lifecycle states:
+  `pending`, `running`, `completed`, `failed`, and `degraded`; terminal states
+  carry `completed_at`.
+- `POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review` runs a
+  deterministic local review over the frozen snapshot only. It is a contract
+  test runner, not an LLM worker.
+- `POST /report/l3-advisory/snapshot/{snapshot_id}/jobs` creates a queued
+  advisory job, and `POST /report/l3-advisory/job/{job_id}/run-local` advances
+  that job through the deterministic local runner.
+- `POST /report/l3-advisory/job/{job_id}/run-worker` runs an explicit worker
+  adapter. The current `fake_llm` adapter is a dry-run backend that validates
+  the worker contract without calling a real model.
+- `POST /report/session/{session_id}/l3-advisory/full-review` is the
+  operator-triggered full-review entry point. It freezes an
+  `operator_full_review` snapshot, queues one advisory job, and can either leave
+  it queued (`run=false`) or execute exactly one explicit runner
+  (`deterministic_local`, `fake_llm`, or gated `llm_provider`). The response
+  keeps `advisory_only=true` and `canonical_decision_mutated=false`.
+- `clawsentry l3 full-review --session <session-id>` is the CLI wrapper for the
+  same operator action. It supports `--queue-only`, `--runner`, record bounds,
+  JSON output, and bearer auth.
+- Provider-neutral request / response schemas
+  (`cs.l3_advisory.worker_request.v1` and
+  `cs.l3_advisory.worker_response.v1`) define the future LLM worker boundary.
+  OpenAI and Anthropic provider shells currently degrade safely instead of
+  making real network calls.
+- The `llm_provider` worker runner is guarded by independent
+  `CS_L3_ADVISORY_PROVIDER_*` settings. It does not inherit synchronous
+  `CS_LLM_*` config; disabled, missing-key, missing-model, unsupported-provider, and
+  not-yet-implemented paths all produce `l3_state=degraded` advisory results.
+- With `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`, valid `openai` / `anthropic`
+  config can bridge to the existing LLM provider abstraction. This path remains
+  manual and explicit; default tests use mock providers and do not make network
+  calls.
+- The real-network pytest smoke additionally requires
+  `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`; otherwise it is skipped by default.
+- One OpenAI-compatible real smoke has completed against `kimi-k2.5` with
+  `--require-completed`; the evidence artifact is stored under
+  `docs/validation/l3-advisory-provider-real-smoke-2026-04-21.md`.
+- `scripts/run_l3_advisory_provider_smoke.py` is a manual readiness helper for
+  this path. With explicit env opt-in, it creates one frozen snapshot, queues one
+  `llm_provider` job, executes it once, and can write a markdown evidence
+  artifact. Dry-run smoke still returns `l3_reason_code=provider_not_implemented`;
+  `--require-completed` is the manual real-provider gate.
+- When `CS_L3_ADVISORY_ASYNC_ENABLED=true`, high/critical decisions and high+
+  trajectory alerts automatically create frozen advisory snapshots and queued
+  jobs, but do not execute them in the background.
+- Report/session/replay payloads and SSE events expose
+  `l3_advisory_snapshot` / `l3_advisory_review` metadata.
+
+This foundation intentionally does **not** run real async L3 review, does
+**not** start timer-only heartbeat review, and does **not** retroactively
+change the original canonical decision. It exists so future async review can
+read frozen evidence instead of live moving session state.
 
 ---
 

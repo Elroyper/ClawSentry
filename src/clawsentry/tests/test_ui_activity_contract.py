@@ -124,6 +124,24 @@ def test_ui_types_expose_l3_reason_code_for_operator_surfaces() -> None:
     assert "l3_reason_code?: string" in source
 
 
+def test_ui_types_expose_l3_advisory_surfaces() -> None:
+    source = _read_ui_file("api/types.ts")
+    feed_source = _read_ui_file("components/RuntimeFeed.tsx")
+
+    assert "export interface L3EvidenceSnapshot" in source
+    assert "export interface L3AdvisoryReview" in source
+    assert "export interface L3AdvisoryJob" in source
+    assert "l3_advisory?: L3AdvisoryPayload" in source
+    assert "l3_advisory_latest?: L3AdvisoryReview | null" in source
+    assert "'l3_advisory_snapshot'" in source
+    assert "'l3_advisory_review'" in source
+    assert "'l3_advisory_job'" in source
+    assert "l3_state: string" in source
+    assert "L3 Snapshot" in feed_source
+    assert "L3 Advisory" in feed_source
+    assert "L3 Job" in feed_source
+
+
 def test_session_summary_types_expose_l3_metadata_and_evidence_for_lists() -> None:
     source = _read_ui_file("api/types.ts")
 

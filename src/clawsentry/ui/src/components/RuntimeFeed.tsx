@@ -21,6 +21,9 @@ const RUNTIME_EVENT_TYPES: RuntimeEventType[] = [
   'defer_resolved',
   'budget_exhausted',
   'session_enforcement_change',
+  'l3_advisory_snapshot',
+  'l3_advisory_review',
+  'l3_advisory_job',
 ]
 
 const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
@@ -31,6 +34,8 @@ const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
   'defer_resolved',
   'budget_exhausted',
   'session_enforcement_change',
+  'l3_advisory_review',
+  'l3_advisory_job',
 ]
 
 const FEED_MAX_EVENTS = 80
@@ -46,6 +51,9 @@ const EVENT_LABELS: Record<RuntimeEventType, string> = {
   defer_resolved: 'Defer Resolved',
   budget_exhausted: 'Budget Exhausted',
   session_enforcement_change: 'Enforcement',
+  l3_advisory_snapshot: 'L3 Snapshot',
+  l3_advisory_review: 'L3 Advisory',
+  l3_advisory_job: 'L3 Job',
 }
 
 const EVENT_TONES: Record<RuntimeEventType, { color: string; bg: string; border: string }> = {
@@ -98,6 +106,21 @@ const EVENT_TONES: Record<RuntimeEventType, { color: string; bg: string; border:
     color: 'var(--color-block)',
     bg: 'rgba(239,68,68,0.12)',
     border: 'rgba(239,68,68,0.2)',
+  },
+  l3_advisory_snapshot: {
+    color: 'var(--color-accent-secondary)',
+    bg: 'rgba(96,165,250,0.12)',
+    border: 'rgba(96,165,250,0.2)',
+  },
+  l3_advisory_review: {
+    color: 'var(--color-risk-high)',
+    bg: 'rgba(249,115,22,0.12)',
+    border: 'rgba(249,115,22,0.2)',
+  },
+  l3_advisory_job: {
+    color: 'var(--color-accent)',
+    bg: 'rgba(167,139,250,0.12)',
+    border: 'rgba(167,139,250,0.2)',
   },
 }
 
@@ -369,6 +392,54 @@ function RuntimeSummary({ event }: { event: SSERuntimeEvent }) {
             </span>
           )}
         </div>
+      )
+    case 'l3_advisory_snapshot':
+      return (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span className="badge badge-modify">snapshot</span>
+            <span className="mono" style={{ fontSize: '0.72rem' }}>
+              {event.snapshot_id}
+            </span>
+            <SessionLink sessionId={event.session_id} />
+          </div>
+          <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 6 }}>
+            Trigger: <span className="mono">{event.trigger_reason}</span>
+            {' '}range: <span className="mono">{event.event_range.from_record_id}→{event.event_range.to_record_id}</span>
+          </div>
+        </>
+      )
+    case 'l3_advisory_review':
+      return (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <RiskBadge level={event.risk_level} />
+            <span className="badge badge-defer">{event.recommended_operator_action}</span>
+            <span className="badge badge-modify">{event.l3_state}</span>
+            <span className="mono" style={{ fontSize: '0.72rem' }}>
+              {event.review_id}
+            </span>
+            <SessionLink sessionId={event.session_id} />
+          </div>
+          <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 6 }}>
+            Advisory only from snapshot <span className="mono">{event.snapshot_id}</span>
+          </div>
+        </>
+      )
+    case 'l3_advisory_job':
+      return (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span className="badge badge-modify">{event.job_state}</span>
+            <span className="mono" style={{ fontSize: '0.72rem' }}>
+              {event.job_id}
+            </span>
+            <SessionLink sessionId={event.session_id} />
+          </div>
+          <div className="text-secondary" style={{ fontSize: '0.73rem', marginTop: 6 }}>
+            Runner <span className="mono">{event.runner}</span> for snapshot <span className="mono">{event.snapshot_id}</span>
+          </div>
+        </>
       )
     case 'budget_exhausted':
       return (

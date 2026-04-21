@@ -618,15 +618,16 @@ class SupervisionGateway:
         snapshot: dict[str, Any],
         meta: dict[str, Any],
         l3_trace: dict[str, Any] | None,
-    ) -> None:
+    ) -> int:
         is_resolution = str(meta.get("record_type") or "") == "decision_resolution"
         total_start = time.perf_counter()
         trajectory_store_seconds = 0.0
         session_registry_seconds = 0.0
+        record_id = 0
         try:
             trajectory_start = time.perf_counter()
             if is_resolution:
-                self.trajectory_store.record_resolution(
+                record_id = self.trajectory_store.record_resolution(
                     event=event,
                     decision=decision,
                     snapshot=snapshot,
@@ -634,7 +635,7 @@ class SupervisionGateway:
                     l3_trace=l3_trace,
                 )
             else:
-                self.trajectory_store.record(
+                record_id = self.trajectory_store.record(
                     event=event,
                     decision=decision,
                     snapshot=snapshot,
@@ -657,6 +658,7 @@ class SupervisionGateway:
                 trajectory_store_seconds=trajectory_store_seconds,
                 session_registry_seconds=session_registry_seconds,
             )
+        return record_id
 
     async def handle_jsonrpc(self, raw_body: bytes) -> dict[str, Any]:
         """
@@ -1055,12 +1057,23 @@ class SupervisionGateway:
         except Exception:
             logger.exception("trajectory analysis failed for event %s", req.event.event_id)
 
-        self._record_decision_path(
+        record_id = self._record_decision_path(
             event=event_dict,
             decision=decision_dict,
             snapshot=snapshot_dict,
             meta=meta_dict,
             l3_trace=l3_trace,
+        )
+
+        current_risk_level = str(snapshot_dict.get("risk_level") or decision_dict.get("risk_level") or "low")
+        occurred_at = str(event_dict.get("occurred_at") or utc_now_iso())
+        self._maybe_create_l3_advisory_snapshot(
+            config=project_config or self._detection_config,
+            session_id=_sid,
+            event_id=str(event_dict.get("event_id") or "unknown"),
+            record_id=record_id,
+            current_risk_level=current_risk_level,
+            pending_trajectory_alerts=pending_trajectory_alerts,
         )
 
         for alert in pending_trajectory_alerts:
@@ -1089,9 +1102,6 @@ class SupervisionGateway:
         # Event broadcasts must happen unconditionally so that watch CLI and
         # /report/stream subscribers always receive events, even when the
         # request exceeds its deadline.
-        current_risk_level = str(snapshot_dict.get("risk_level") or decision_dict.get("risk_level") or "low")
-        occurred_at = str(event_dict.get("occurred_at") or utc_now_iso())
-
         if previous_risk_level is None and session_id:
             self.event_bus.broadcast(
                 {
@@ -1775,6 +1785,7 @@ class SupervisionGateway:
             "generated_at": utc_now_iso(),
             "window_seconds": since_seconds,
         }
+        payload["l3_advisory"] = self._l3_advisory_payload(session_id)
         payload.update(self._reporting_state())
         self._observe_reporting_io("replay_session", time.perf_counter() - start)
         payload.update(self._reporting_io_state())
@@ -1805,6 +1816,7 @@ class SupervisionGateway:
             "generated_at": utc_now_iso(),
             "window_seconds": since_seconds,
         }
+        payload["l3_advisory"] = self._l3_advisory_payload(session_id)
         payload.update(self._reporting_state())
         self._observe_reporting_io("replay_session_page", time.perf_counter() - start)
         payload.update(self._reporting_io_state())
@@ -1829,12 +1841,32 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        for session in result.get("sessions", []):
+            if not isinstance(session, dict):
+                continue
+            latest_review = self.trajectory_store.latest_l3_advisory_review(
+                session_id=str(session.get("session_id") or "")
+            )
+            if latest_review is not None:
+                session["l3_advisory_latest"] = latest_review
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
         result.update(self._reporting_state())
         self._observe_reporting_io("report_sessions", time.perf_counter() - start)
         result.update(self._reporting_io_state())
         return result
+
+    def _l3_advisory_payload(self, session_id: str) -> dict[str, Any]:
+        snapshots = self.trajectory_store.list_l3_evidence_snapshots(session_id=session_id)
+        reviews = self.trajectory_store.list_l3_advisory_reviews(session_id=session_id)
+        jobs = self.trajectory_store.list_l3_advisory_jobs(session_id=session_id)
+        return {
+            "snapshots": snapshots,
+            "reviews": reviews,
+            "jobs": jobs,
+            "latest_review": reviews[-1] if reviews else None,
+            "latest_job": jobs[-1] if jobs else None,
+        }
 
     def report_session_risk(
         self,
@@ -1851,12 +1883,356 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        result["l3_advisory"] = self._l3_advisory_payload(session_id)
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
         result.update(self._reporting_state())
         self._observe_reporting_io("report_session_risk", time.perf_counter() - start)
         result.update(self._reporting_io_state())
         return result
+
+    def create_l3_evidence_snapshot(
+        self,
+        *,
+        session_id: str,
+        trigger_event_id: str,
+        trigger_reason: str,
+        trigger_detail: str | None = None,
+        to_record_id: int | None = None,
+        from_record_id: int | None = None,
+        max_records: int = 50,
+        max_tool_calls: int = 4,
+    ) -> dict[str, Any]:
+        snapshot = self.trajectory_store.create_l3_evidence_snapshot(
+            session_id=session_id,
+            trigger_event_id=trigger_event_id,
+            trigger_reason=trigger_reason,
+            trigger_detail=trigger_detail,
+            to_record_id=to_record_id,
+            from_record_id=from_record_id,
+            max_records=max_records,
+            max_tool_calls=max_tool_calls,
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_snapshot",
+            "session_id": session_id,
+            "snapshot_id": snapshot["snapshot_id"],
+            "trigger_event_id": trigger_event_id,
+            "trigger_reason": trigger_reason,
+            "trigger_detail": trigger_detail,
+            "event_range": snapshot["event_range"],
+            "advisory_only": True,
+            "timestamp": snapshot["created_at"],
+        })
+        return snapshot
+
+    def record_l3_advisory_review(
+        self,
+        *,
+        snapshot_id: str,
+        risk_level: str,
+        findings: list[str] | None = None,
+        confidence: float | None = None,
+        recommended_operator_action: str = "inspect",
+        advisory_only: bool = True,
+        l3_state: str = "completed",
+        l3_reason_code: str | None = None,
+    ) -> dict[str, Any]:
+        review = self.trajectory_store.record_l3_advisory_review(
+            snapshot_id=snapshot_id,
+            risk_level=risk_level,
+            findings=findings,
+            confidence=confidence,
+            recommended_operator_action=recommended_operator_action,
+            advisory_only=advisory_only,
+            l3_state=l3_state,
+            l3_reason_code=l3_reason_code,
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_review",
+            "session_id": review["session_id"],
+            "snapshot_id": snapshot_id,
+            "review_id": review["review_id"],
+            "risk_level": review["risk_level"],
+            "recommended_operator_action": review["recommended_operator_action"],
+            "l3_state": review["l3_state"],
+            "advisory_only": True,
+            "timestamp": review["created_at"],
+        })
+        return review
+
+    def update_l3_advisory_review(
+        self,
+        review_id: str,
+        *,
+        risk_level: str | None = None,
+        findings: list[str] | None = None,
+        confidence: float | None = None,
+        recommended_operator_action: str | None = None,
+        l3_state: str | None = None,
+        l3_reason_code: str | None = None,
+    ) -> dict[str, Any]:
+        review = self.trajectory_store.update_l3_advisory_review(
+            review_id,
+            risk_level=risk_level,
+            findings=findings,
+            confidence=confidence,
+            recommended_operator_action=recommended_operator_action,
+            l3_state=l3_state,
+            l3_reason_code=l3_reason_code,
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_review",
+            "session_id": review["session_id"],
+            "snapshot_id": review["snapshot_id"],
+            "review_id": review["review_id"],
+            "risk_level": review["risk_level"],
+            "recommended_operator_action": review["recommended_operator_action"],
+            "l3_state": review["l3_state"],
+            "advisory_only": True,
+            "timestamp": review.get("completed_at") or review["created_at"],
+        })
+        return review
+
+    def run_local_l3_advisory_review(self, *, snapshot_id: str) -> dict[str, Any]:
+        review = self.trajectory_store.run_local_l3_advisory_review(snapshot_id)
+        self.event_bus.broadcast({
+            "type": "l3_advisory_review",
+            "session_id": review["session_id"],
+            "snapshot_id": review["snapshot_id"],
+            "review_id": review["review_id"],
+            "risk_level": review["risk_level"],
+            "recommended_operator_action": review["recommended_operator_action"],
+            "l3_state": review["l3_state"],
+            "advisory_only": True,
+            "timestamp": review.get("completed_at") or review["created_at"],
+        })
+        return review
+
+    def enqueue_l3_advisory_job(
+        self,
+        *,
+        snapshot_id: str,
+        runner: str = "deterministic_local",
+    ) -> dict[str, Any]:
+        job = self.trajectory_store.enqueue_l3_advisory_job(
+            snapshot_id,
+            runner=runner,
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_job",
+            "session_id": job["session_id"],
+            "snapshot_id": job["snapshot_id"],
+            "job_id": job["job_id"],
+            "job_state": job["job_state"],
+            "runner": job["runner"],
+            "timestamp": job["updated_at"],
+        })
+        return job
+
+    def run_l3_advisory_job_local(self, *, job_id: str) -> dict[str, Any]:
+        running = self.trajectory_store.update_l3_advisory_job(
+            job_id,
+            job_state="running",
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_job",
+            "session_id": running["session_id"],
+            "snapshot_id": running["snapshot_id"],
+            "job_id": running["job_id"],
+            "job_state": running["job_state"],
+            "runner": running["runner"],
+            "timestamp": running["updated_at"],
+        })
+        result = self.trajectory_store.run_l3_advisory_job_local(job_id)
+        job = result["job"]
+        review = result["review"]
+        self.event_bus.broadcast({
+            "type": "l3_advisory_job",
+            "session_id": job["session_id"],
+            "snapshot_id": job["snapshot_id"],
+            "job_id": job["job_id"],
+            "job_state": job["job_state"],
+            "runner": job["runner"],
+            "review_id": job.get("review_id"),
+            "timestamp": job["updated_at"],
+        })
+        self.event_bus.broadcast({
+            "type": "l3_advisory_review",
+            "session_id": review["session_id"],
+            "snapshot_id": review["snapshot_id"],
+            "review_id": review["review_id"],
+            "risk_level": review["risk_level"],
+            "recommended_operator_action": review["recommended_operator_action"],
+            "l3_state": review["l3_state"],
+            "advisory_only": True,
+            "timestamp": review.get("completed_at") or review["created_at"],
+        })
+        return result
+
+    def run_l3_advisory_worker(
+        self,
+        *,
+        job_id: str,
+        worker_name: str,
+    ) -> dict[str, Any]:
+        from .l3_advisory_worker import (
+            FakeLLMAdvisoryWorker,
+            LLMProviderAdvisoryWorker,
+            run_l3_advisory_worker_job,
+        )
+
+        workers = {
+            FakeLLMAdvisoryWorker.runner_name: FakeLLMAdvisoryWorker(),
+            LLMProviderAdvisoryWorker.runner_name: LLMProviderAdvisoryWorker(),
+        }
+        worker = workers.get(worker_name)
+        if worker is None:
+            raise ValueError(f"unsupported advisory worker {worker_name!r}")
+        job = self.trajectory_store.get_l3_advisory_job(job_id)
+        if job is None:
+            raise ValueError(f"job {job_id!r} was not found")
+        if job.get("runner") != worker.runner_name:
+            raise ValueError(
+                f"job runner {job.get('runner')!r} does not match worker {worker.runner_name!r}"
+            )
+
+        running = self.trajectory_store.update_l3_advisory_job(
+            job_id,
+            job_state="running",
+        )
+        self.event_bus.broadcast({
+            "type": "l3_advisory_job",
+            "session_id": running["session_id"],
+            "snapshot_id": running["snapshot_id"],
+            "job_id": running["job_id"],
+            "job_state": running["job_state"],
+            "runner": running["runner"],
+            "timestamp": running["updated_at"],
+        })
+        result = run_l3_advisory_worker_job(
+            store=self.trajectory_store,
+            job_id=job_id,
+            worker=worker,
+        )
+        job = result["job"]
+        review = result["review"]
+        self.event_bus.broadcast({
+            "type": "l3_advisory_job",
+            "session_id": job["session_id"],
+            "snapshot_id": job["snapshot_id"],
+            "job_id": job["job_id"],
+            "job_state": job["job_state"],
+            "runner": job["runner"],
+            "review_id": job.get("review_id"),
+            "timestamp": job["updated_at"],
+        })
+        self.event_bus.broadcast({
+            "type": "l3_advisory_review",
+            "session_id": review["session_id"],
+            "snapshot_id": review["snapshot_id"],
+            "review_id": review["review_id"],
+            "risk_level": review["risk_level"],
+            "recommended_operator_action": review["recommended_operator_action"],
+            "l3_state": review["l3_state"],
+            "advisory_only": True,
+            "timestamp": review.get("completed_at") or review["created_at"],
+        })
+        return result
+
+    def run_operator_l3_full_review(
+        self,
+        *,
+        session_id: str,
+        trigger_event_id: str,
+        trigger_detail: str | None = None,
+        from_record_id: int | None = None,
+        to_record_id: int | None = None,
+        max_records: int = 100,
+        max_tool_calls: int = 0,
+        runner: str = "deterministic_local",
+        run: bool = True,
+    ) -> dict[str, Any]:
+        snapshot = self.create_l3_evidence_snapshot(
+            session_id=session_id,
+            trigger_event_id=trigger_event_id,
+            trigger_reason="operator_full_review",
+            trigger_detail=trigger_detail or "operator_requested_full_review",
+            from_record_id=from_record_id,
+            to_record_id=to_record_id,
+            max_records=max_records,
+            max_tool_calls=max_tool_calls,
+        )
+        job = self.enqueue_l3_advisory_job(
+            snapshot_id=snapshot["snapshot_id"],
+            runner=runner,
+        )
+        review = None
+        completed_job = job
+        if run:
+            if runner == "deterministic_local":
+                result = self.run_l3_advisory_job_local(job_id=job["job_id"])
+            else:
+                result = self.run_l3_advisory_worker(
+                    job_id=job["job_id"],
+                    worker_name=runner,
+                )
+            completed_job = result["job"]
+            review = result["review"]
+        return {
+            "snapshot": snapshot,
+            "job": completed_job,
+            "review": review,
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+        }
+
+    def _maybe_create_l3_advisory_snapshot(
+        self,
+        *,
+        config: DetectionConfig,
+        session_id: str,
+        event_id: str,
+        record_id: int,
+        current_risk_level: str,
+        pending_trajectory_alerts: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not config.l3_advisory_async_enabled:
+            return None
+        if not session_id or record_id <= 0:
+            return None
+
+        trigger_reason: str | None = None
+        trigger_detail: str | None = None
+        for alert in pending_trajectory_alerts:
+            if _risk_rank(str(alert.get("risk_level") or "low")) >= _risk_rank("high"):
+                trigger_reason = "trajectory_alert"
+                trigger_detail = str(alert.get("sequence_id") or alert.get("reason") or "").strip() or None
+                break
+
+        if trigger_reason is None and _risk_rank(current_risk_level) >= _risk_rank("high"):
+            trigger_reason = "threshold"
+
+        if trigger_reason is None:
+            return None
+
+        try:
+            snapshot = self.create_l3_evidence_snapshot(
+                session_id=session_id,
+                trigger_event_id=event_id,
+                trigger_reason=trigger_reason,
+                trigger_detail=trigger_detail,
+                to_record_id=record_id,
+            )
+            self.enqueue_l3_advisory_job(snapshot_id=snapshot["snapshot_id"])
+            return snapshot
+        except Exception:
+            logger.exception(
+                "failed to create L3 advisory evidence snapshot for session %s event %s",
+                session_id,
+                event_id,
+            )
+            return None
 
     def report_alerts(
         self,
@@ -1995,6 +2371,9 @@ def create_http_app(
         "defer_pending",
         "defer_resolved",
         "budget_exhausted",
+        "l3_advisory_snapshot",
+        "l3_advisory_review",
+        "l3_advisory_job",
     }
     enterprise_enabled = enterprise_mode_enabled()
 
@@ -2220,7 +2599,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -2278,7 +2657,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -2427,6 +2806,302 @@ def create_http_app(
             limit=effective_limit,
             window_seconds=window_seconds,
         )
+
+    @app.post("/report/session/{session_id}/l3-advisory/snapshots")
+    async def create_l3_advisory_snapshot_endpoint(
+        request: Request,
+        session_id: str,
+        body: dict[str, Any],
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            snapshot = gateway.create_l3_evidence_snapshot(
+                session_id=session_id,
+                trigger_event_id=str(body.get("trigger_event_id") or ""),
+                trigger_reason=str(body.get("trigger_reason") or "operator"),
+                trigger_detail=(
+                    str(body.get("trigger_detail"))
+                    if body.get("trigger_detail") is not None
+                    else None
+                ),
+                to_record_id=(
+                    int(body["to_record_id"])
+                    if body.get("to_record_id") is not None
+                    else None
+                ),
+                from_record_id=(
+                    int(body["from_record_id"])
+                    if body.get("from_record_id") is not None
+                    else None
+                ),
+                max_records=int(body.get("max_records") or 50),
+                max_tool_calls=int(body.get("max_tool_calls") or 4),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=400,
+                media_type="application/json",
+            )
+        return {"snapshot": snapshot}
+
+    @app.get("/report/session/{session_id}/l3-advisory/snapshots")
+    async def list_l3_advisory_snapshots_endpoint(
+        request: Request,
+        session_id: str,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        return {
+            "session_id": session_id,
+            "snapshots": gateway.trajectory_store.list_l3_evidence_snapshots(session_id=session_id),
+        }
+
+    @app.get("/report/l3-advisory/snapshot/{snapshot_id}")
+    async def get_l3_advisory_snapshot_endpoint(
+        request: Request,
+        snapshot_id: str,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        snapshot = gateway.trajectory_store.get_l3_evidence_snapshot(snapshot_id)
+        if snapshot is None:
+            return Response(
+                content=json.dumps({"error": "snapshot not found"}),
+                status_code=404,
+                media_type="application/json",
+            )
+        return {
+            "snapshot": snapshot,
+            "records": gateway.trajectory_store.replay_l3_evidence_snapshot(snapshot_id),
+        }
+
+    @app.post("/report/l3-advisory/snapshot/{snapshot_id}/jobs")
+    async def enqueue_l3_advisory_job_endpoint(
+        request: Request,
+        snapshot_id: str,
+        body: dict[str, Any] | None = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            job = gateway.enqueue_l3_advisory_job(
+                snapshot_id=snapshot_id,
+                runner=str((body or {}).get("runner") or "deterministic_local"),
+            )
+        except ValueError as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return {"job": job}
+
+    @app.post("/report/l3-advisory/reviews")
+    async def create_l3_advisory_review_endpoint(
+        request: Request,
+        body: dict[str, Any],
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            review = gateway.record_l3_advisory_review(
+                snapshot_id=str(body.get("snapshot_id") or ""),
+                risk_level=str(body.get("risk_level") or "medium"),
+                findings=[
+                    str(item)
+                    for item in (
+                        body.get("findings")
+                        if isinstance(body.get("findings"), list)
+                        else []
+                    )
+                ],
+                confidence=(
+                    float(body["confidence"])
+                    if body.get("confidence") is not None
+                    else None
+                ),
+                recommended_operator_action=str(
+                    body.get("recommended_operator_action") or "inspect"
+                ),
+                advisory_only=bool(body.get("advisory_only", True)),
+                l3_state=str(body.get("l3_state") or "completed"),
+                l3_reason_code=(
+                    str(body.get("l3_reason_code"))
+                    if body.get("l3_reason_code") is not None
+                    else None
+                ),
+            )
+        except (TypeError, ValueError) as exc:
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=400,
+                media_type="application/json",
+            )
+        return {"review": review}
+
+    @app.patch("/report/l3-advisory/review/{review_id}")
+    async def update_l3_advisory_review_endpoint(
+        request: Request,
+        review_id: str,
+        body: dict[str, Any],
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            review = gateway.update_l3_advisory_review(
+                review_id,
+                risk_level=(
+                    str(body.get("risk_level"))
+                    if body.get("risk_level") is not None
+                    else None
+                ),
+                findings=(
+                    [str(item) for item in body.get("findings")]
+                    if isinstance(body.get("findings"), list)
+                    else None
+                ),
+                confidence=(
+                    float(body["confidence"])
+                    if body.get("confidence") is not None
+                    else None
+                ),
+                recommended_operator_action=(
+                    str(body.get("recommended_operator_action"))
+                    if body.get("recommended_operator_action") is not None
+                    else None
+                ),
+                l3_state=(
+                    str(body.get("l3_state"))
+                    if body.get("l3_state") is not None
+                    else None
+                ),
+                l3_reason_code=(
+                    str(body.get("l3_reason_code"))
+                    if body.get("l3_reason_code") is not None
+                    else None
+                ),
+            )
+        except (TypeError, ValueError) as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return {"review": review}
+
+    @app.post("/report/l3-advisory/snapshot/{snapshot_id}/run-local-review")
+    async def run_l3_advisory_local_review_endpoint(
+        request: Request,
+        snapshot_id: str,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            review = gateway.run_local_l3_advisory_review(snapshot_id=snapshot_id)
+        except ValueError as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return {"review": review}
+
+    @app.post("/report/l3-advisory/job/{job_id}/run-local")
+    async def run_l3_advisory_job_local_endpoint(
+        request: Request,
+        job_id: str,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            result = gateway.run_l3_advisory_job_local(job_id=job_id)
+        except ValueError as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return result
+
+    @app.post("/report/l3-advisory/job/{job_id}/run-worker")
+    async def run_l3_advisory_worker_endpoint(
+        request: Request,
+        job_id: str,
+        body: dict[str, Any] | None = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            result = gateway.run_l3_advisory_worker(
+                job_id=job_id,
+                worker_name=str((body or {}).get("worker") or "fake_llm"),
+            )
+        except ValueError as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return result
+
+    @app.post("/report/session/{session_id}/l3-advisory/full-review")
+    async def run_l3_advisory_operator_full_review_endpoint(
+        request: Request,
+        session_id: str,
+        body: dict[str, Any] | None = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        body = body or {}
+        try:
+            result = gateway.run_operator_l3_full_review(
+                session_id=session_id,
+                trigger_event_id=str(body.get("trigger_event_id") or "operator_full_review"),
+                trigger_detail=(
+                    str(body.get("trigger_detail"))
+                    if body.get("trigger_detail") is not None
+                    else None
+                ),
+                from_record_id=(
+                    int(body["from_record_id"])
+                    if body.get("from_record_id") is not None
+                    else None
+                ),
+                to_record_id=(
+                    int(body["to_record_id"])
+                    if body.get("to_record_id") is not None
+                    else None
+                ),
+                max_records=int(body.get("max_records") or 100),
+                max_tool_calls=int(body.get("max_tool_calls") or 0),
+                runner=str(body.get("runner") or "deterministic_local"),
+                run=bool(body.get("run", True)),
+            )
+        except (TypeError, ValueError) as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+        return result
 
     @_enterprise_get("/enterprise/report/session/{session_id}/risk")
     async def enterprise_report_session_risk_endpoint(

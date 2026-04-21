@@ -2384,6 +2384,621 @@ class TestHttpTransport:
             assert data["decision_path_io"]["reporting"]["report_session_risk"]["calls"] == 1
 
     @pytest.mark.asyncio
+    async def test_l3_advisory_snapshot_and_review_surface_in_reports_and_stream(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_snapshot", "l3_advisory_review"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-1",
+                        event={
+                            "event_id": "evt-l3adv-1",
+                            "trace_id": "trace-l3adv-1",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-report",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+
+                snapshot_resp = await client.post(
+                    "/report/session/sess-l3adv-report/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": "evt-l3adv-1",
+                        "trigger_reason": "trajectory_alert",
+                        "trigger_detail": "secret_plus_network",
+                        "to_record_id": 1,
+                    },
+                )
+                assert snapshot_resp.status_code == 200
+                snapshot = snapshot_resp.json()["snapshot"]
+                assert snapshot["snapshot_id"].startswith("l3snap-")
+                assert snapshot["advisory_only"] is True
+                assert snapshot["event_range"]["to_record_id"] == 1
+
+                review_resp = await client.post(
+                    "/report/l3-advisory/reviews",
+                    json={
+                        "snapshot_id": snapshot["snapshot_id"],
+                        "risk_level": "high",
+                        "findings": ["frozen evidence warrants inspection"],
+                        "recommended_operator_action": "inspect",
+                    },
+                )
+                assert review_resp.status_code == 200
+                review = review_resp.json()["review"]
+                assert review["review_id"].startswith("l3adv-")
+                assert review["snapshot_id"] == snapshot["snapshot_id"]
+                assert review["advisory_only"] is True
+
+                risk_resp = await client.get("/report/session/sess-l3adv-report/risk")
+                risk_data = risk_resp.json()
+                assert risk_data["l3_advisory"]["snapshots"][0]["snapshot_id"] == snapshot["snapshot_id"]
+                assert risk_data["l3_advisory"]["reviews"][0]["review_id"] == review["review_id"]
+                assert risk_data["l3_advisory"]["latest_review"]["review_id"] == review["review_id"]
+
+                sessions_resp = await client.get("/report/sessions")
+                session = next(
+                    item for item in sessions_resp.json()["sessions"]
+                    if item["session_id"] == "sess-l3adv-report"
+                )
+                assert session["l3_advisory_latest"]["review_id"] == review["review_id"]
+
+            events = []
+            while not queue.empty():
+                events.append(await queue.get())
+            assert any(event["type"] == "l3_advisory_snapshot" for event in events)
+            assert any(event["type"] == "l3_advisory_review" for event in events)
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_review_lifecycle_update_endpoint(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_review"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-life-1",
+                        event={
+                            "event_id": "evt-l3adv-life-1",
+                            "trace_id": "trace-l3adv-life-1",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-life",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                snapshot_resp = await client.post(
+                    "/report/session/sess-l3adv-life/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": "evt-l3adv-life-1",
+                        "trigger_reason": "operator",
+                        "to_record_id": 1,
+                    },
+                )
+                snapshot = snapshot_resp.json()["snapshot"]
+                review_resp = await client.post(
+                    "/report/l3-advisory/reviews",
+                    json={
+                        "snapshot_id": snapshot["snapshot_id"],
+                        "risk_level": "high",
+                        "findings": [],
+                        "l3_state": "pending",
+                    },
+                )
+                review = review_resp.json()["review"]
+
+                update_resp = await client.patch(
+                    f"/report/l3-advisory/review/{review['review_id']}",
+                    json={
+                        "l3_state": "completed",
+                        "risk_level": "critical",
+                        "findings": ["confirmed credential exposure"],
+                        "confidence": 0.93,
+                        "recommended_operator_action": "escalate",
+                    },
+                )
+
+                assert update_resp.status_code == 200
+                updated = update_resp.json()["review"]
+                assert updated["review_id"] == review["review_id"]
+                assert updated["l3_state"] == "completed"
+                assert updated["risk_level"] == "critical"
+                assert updated["findings"] == ["confirmed credential exposure"]
+                assert updated["completed_at"] is not None
+
+                risk_resp = await client.get("/report/session/sess-l3adv-life/risk")
+                latest = risk_resp.json()["l3_advisory"]["latest_review"]
+                assert latest["review_id"] == review["review_id"]
+                assert latest["l3_state"] == "completed"
+
+            events = []
+            while not queue.empty():
+                events.append(await queue.get())
+            assert any(
+                event["type"] == "l3_advisory_review"
+                and event["review_id"] == review["review_id"]
+                and event["l3_state"] == "completed"
+                for event in events
+            )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_local_review_runner_endpoint_uses_frozen_snapshot(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_review"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-runner-1",
+                        event={
+                            "event_id": "evt-l3adv-runner-1",
+                            "trace_id": "trace-l3adv-runner-1",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-runner",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"path": "/tmp/readme.txt"},
+                            "tool_name": "read_file",
+                        },
+                    ),
+                ))
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-runner-2",
+                        event={
+                            "event_id": "evt-l3adv-runner-2",
+                            "trace_id": "trace-l3adv-runner-2",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-runner",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:01+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                snapshot_resp = await client.post(
+                    "/report/session/sess-l3adv-runner/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": "evt-l3adv-runner-2",
+                        "trigger_reason": "operator",
+                        "to_record_id": 2,
+                    },
+                )
+                snapshot = snapshot_resp.json()["snapshot"]
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-runner-3",
+                        event={
+                            "event_id": "evt-live-after-snapshot",
+                            "trace_id": "trace-live-after-snapshot",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-runner",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:02+00:00",
+                            "payload": {"command": "rm -rf /"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+
+                run_resp = await client.post(
+                    f"/report/l3-advisory/snapshot/{snapshot['snapshot_id']}/run-local-review"
+                )
+
+                assert run_resp.status_code == 200
+                review = run_resp.json()["review"]
+                assert review["l3_state"] == "completed"
+                assert review["evidence_event_ids"] == [
+                    "evt-l3adv-runner-1",
+                    "evt-l3adv-runner-2",
+                ]
+                assert "evt-live-after-snapshot" not in review["evidence_event_ids"]
+                assert review["source_record_range"] == {
+                    "from_record_id": 1,
+                    "to_record_id": 2,
+                }
+
+            events = []
+            while not queue.empty():
+                events.append(await queue.get())
+            assert any(
+                event["type"] == "l3_advisory_review"
+                and event["review_id"] == review["review_id"]
+                and event["l3_state"] == "completed"
+                for event in events
+            )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_auto_snapshot_is_feature_flagged(self):
+        from clawsentry.gateway.trajectory_analyzer import TrajectoryMatch
+
+        class FakeTrajectoryAnalyzer:
+            def record(self, event):
+                return [
+                    TrajectoryMatch(
+                        sequence_id="seq-auto",
+                        risk_level="high",
+                        matched_event_ids=[event["event_id"]],
+                        reason="high-risk sequence",
+                    )
+                ]
+
+        disabled = SupervisionGateway(
+            detection_config=DetectionConfig(l3_advisory_async_enabled=False)
+        )
+        disabled.trajectory_analyzer = FakeTrajectoryAnalyzer()
+        await disabled.handle_jsonrpc(_jsonrpc_request(
+            "ahp/sync_decision",
+            _sync_decision_params(
+                request_id="req-l3adv-disabled",
+                event={
+                    "event_id": "evt-l3adv-disabled",
+                    "trace_id": "trace-l3adv-disabled",
+                    "event_type": "pre_action",
+                    "session_id": "sess-l3adv-disabled",
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "occurred_at": "2026-04-21T00:00:00+00:00",
+                    "payload": {"command": "sudo cat /etc/shadow"},
+                    "tool_name": "bash",
+                },
+            ),
+        ))
+        assert disabled.trajectory_store.list_l3_evidence_snapshots(
+            session_id="sess-l3adv-disabled"
+        ) == []
+
+        enabled = SupervisionGateway(
+            detection_config=DetectionConfig(l3_advisory_async_enabled=True)
+        )
+        enabled.trajectory_analyzer = FakeTrajectoryAnalyzer()
+        sub_id, queue = enabled.event_bus.subscribe(event_types={"l3_advisory_snapshot"})
+        try:
+            await enabled.handle_jsonrpc(_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id="req-l3adv-enabled",
+                    event={
+                        "event_id": "evt-l3adv-enabled",
+                        "trace_id": "trace-l3adv-enabled",
+                        "event_type": "pre_action",
+                        "session_id": "sess-l3adv-enabled",
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": "2026-04-21T00:00:00+00:00",
+                        "payload": {"command": "sudo cat /etc/shadow"},
+                        "tool_name": "bash",
+                    },
+                ),
+            ))
+
+            snapshots = enabled.trajectory_store.list_l3_evidence_snapshots(
+                session_id="sess-l3adv-enabled"
+            )
+            jobs = enabled.trajectory_store.list_l3_advisory_jobs(
+                session_id="sess-l3adv-enabled"
+            )
+            assert len(snapshots) == 1
+            assert len(jobs) == 1
+            assert snapshots[0]["trigger_reason"] == "trajectory_alert"
+            assert snapshots[0]["trigger_detail"] == "seq-auto"
+            assert snapshots[0]["event_range"]["to_record_id"] == 1
+            assert jobs[0]["snapshot_id"] == snapshots[0]["snapshot_id"]
+            assert jobs[0]["job_state"] == "queued"
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+            assert any(
+                event["type"] == "l3_advisory_snapshot"
+                and event["snapshot_id"] == snapshots[0]["snapshot_id"]
+                for event in events
+            )
+        finally:
+            enabled.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_job_endpoint_runs_local_review_explicitly(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_job", "l3_advisory_review"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-job-1",
+                        event={
+                            "event_id": "evt-l3adv-job-1",
+                            "trace_id": "trace-l3adv-job-1",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-job",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                snapshot_resp = await client.post(
+                    "/report/session/sess-l3adv-job/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": "evt-l3adv-job-1",
+                        "trigger_reason": "operator",
+                        "to_record_id": 1,
+                    },
+                )
+                snapshot = snapshot_resp.json()["snapshot"]
+                enqueue_resp = await client.post(
+                    f"/report/l3-advisory/snapshot/{snapshot['snapshot_id']}/jobs"
+                )
+                assert enqueue_resp.status_code == 200
+                job = enqueue_resp.json()["job"]
+                assert job["job_state"] == "queued"
+                assert job["review_id"] is None
+
+                run_resp = await client.post(
+                    f"/report/l3-advisory/job/{job['job_id']}/run-local"
+                )
+                assert run_resp.status_code == 200
+                payload = run_resp.json()
+                assert payload["job"]["job_id"] == job["job_id"]
+                assert payload["job"]["job_state"] == "completed"
+                assert payload["job"]["review_id"] == payload["review"]["review_id"]
+                assert payload["review"]["l3_state"] == "completed"
+
+                risk_resp = await client.get("/report/session/sess-l3adv-job/risk")
+                l3_advisory = risk_resp.json()["l3_advisory"]
+                assert l3_advisory["jobs"][0]["job_id"] == job["job_id"]
+                assert l3_advisory["latest_job"]["job_state"] == "completed"
+                assert l3_advisory["latest_review"]["review_id"] == payload["review"]["review_id"]
+
+            events = []
+            while not queue.empty():
+                events.append(await queue.get())
+            assert any(
+                event["type"] == "l3_advisory_job"
+                and event["job_id"] == job["job_id"]
+                and event["job_state"] == "queued"
+                for event in events
+            )
+            assert any(
+                event["type"] == "l3_advisory_job"
+                and event["job_id"] == job["job_id"]
+                and event["job_state"] == "completed"
+                for event in events
+            )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_fake_worker_endpoint_uses_worker_adapter(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_job", "l3_advisory_review"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-fake-worker-1",
+                        event={
+                            "event_id": "evt-l3adv-fake-worker-1",
+                            "trace_id": "trace-l3adv-fake-worker-1",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-fake-worker",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                snapshot_resp = await client.post(
+                    "/report/session/sess-l3adv-fake-worker/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": "evt-l3adv-fake-worker-1",
+                        "trigger_reason": "operator",
+                        "to_record_id": 1,
+                    },
+                )
+                snapshot = snapshot_resp.json()["snapshot"]
+                enqueue_resp = await client.post(
+                    f"/report/l3-advisory/snapshot/{snapshot['snapshot_id']}/jobs",
+                    json={"runner": "fake_llm"},
+                )
+                job = enqueue_resp.json()["job"]
+
+                run_resp = await client.post(
+                    f"/report/l3-advisory/job/{job['job_id']}/run-worker",
+                    json={"worker": "fake_llm"},
+                )
+
+                assert run_resp.status_code == 200
+                payload = run_resp.json()
+                assert payload["job"]["job_state"] == "completed"
+                assert payload["review"]["review_runner"] == "fake_llm"
+                assert payload["review"]["worker_backend"] == "fake_llm"
+                assert payload["review"]["evidence_event_ids"] == ["evt-l3adv-fake-worker-1"]
+                assert any("fake_llm" in finding for finding in payload["review"]["findings"])
+
+            events = []
+            while not queue.empty():
+                events.append(await queue.get())
+            assert any(
+                event["type"] == "l3_advisory_job"
+                and event["job_id"] == job["job_id"]
+                and event["runner"] == "fake_llm"
+                and event["job_state"] == "completed"
+                for event in events
+            )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_provider_worker_endpoint_degrades_by_default(self, app, gw):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post("/ahp", content=_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id="req-l3adv-provider-worker-1",
+                    event={
+                        "event_id": "evt-l3adv-provider-worker-1",
+                        "trace_id": "trace-l3adv-provider-worker-1",
+                        "event_type": "pre_action",
+                        "session_id": "sess-l3adv-provider-worker",
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": "2026-04-21T00:00:00+00:00",
+                        "payload": {"command": "sudo cat /etc/shadow"},
+                        "tool_name": "bash",
+                    },
+                ),
+            ))
+            snapshot_resp = await client.post(
+                "/report/session/sess-l3adv-provider-worker/l3-advisory/snapshots",
+                json={
+                    "trigger_event_id": "evt-l3adv-provider-worker-1",
+                    "trigger_reason": "operator",
+                    "to_record_id": 1,
+                },
+            )
+            snapshot = snapshot_resp.json()["snapshot"]
+            enqueue_resp = await client.post(
+                f"/report/l3-advisory/snapshot/{snapshot['snapshot_id']}/jobs",
+                json={"runner": "llm_provider"},
+            )
+            job = enqueue_resp.json()["job"]
+
+            run_resp = await client.post(
+                f"/report/l3-advisory/job/{job['job_id']}/run-worker",
+                json={"worker": "llm_provider"},
+            )
+
+            assert run_resp.status_code == 200
+            payload = run_resp.json()
+            assert payload["job"]["job_state"] == "completed"
+            assert payload["review"]["review_runner"] == "llm_provider"
+            assert payload["review"]["l3_state"] == "degraded"
+            assert payload["review"]["l3_reason_code"] == "provider_disabled"
+            assert payload["review"]["provider_enabled"] is False
+            assert payload["review"]["advisory_only"] is True
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_operator_full_review_queues_without_running(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post("/ahp", content=_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id="req-l3adv-full-review-queue-1",
+                    event={
+                        "event_id": "evt-l3adv-full-review-queue-1",
+                        "trace_id": "trace-l3adv-full-review-queue-1",
+                        "event_type": "pre_action",
+                        "session_id": "sess-l3adv-full-review-queue",
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": "2026-04-21T00:00:00+00:00",
+                        "payload": {"command": "sudo cat /etc/shadow"},
+                        "tool_name": "bash",
+                    },
+                ),
+            ))
+
+            response = await client.post(
+                "/report/session/sess-l3adv-full-review-queue/l3-advisory/full-review",
+                json={
+                    "trigger_event_id": "operator-full-review-queue",
+                    "trigger_detail": "operator_requested_full_review",
+                    "run": False,
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["advisory_only"] is True
+            assert payload["canonical_decision_mutated"] is False
+            assert payload["snapshot"]["trigger_reason"] == "operator_full_review"
+            assert payload["job"]["job_state"] == "queued"
+            assert payload["job"]["runner"] == "deterministic_local"
+            assert payload["review"] is None
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_operator_full_review_runs_frozen_boundary(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for idx, risk in [(1, "low"), (2, "high"), (3, "critical")]:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-l3adv-full-review-run-{idx}",
+                        event={
+                            "event_id": f"evt-l3adv-full-review-run-{idx}",
+                            "trace_id": f"trace-l3adv-full-review-run-{idx}",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-full-review-run",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow" if risk != "low" else "pwd"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+
+            response = await client.post(
+                "/report/session/sess-l3adv-full-review-run/l3-advisory/full-review",
+                json={
+                    "trigger_event_id": "operator-full-review-run",
+                    "to_record_id": 2,
+                    "runner": "deterministic_local",
+                    "run": True,
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["job"]["job_state"] == "completed"
+            assert payload["review"]["l3_state"] == "completed"
+            assert payload["review"]["advisory_only"] is True
+            assert payload["review"]["source_record_range"]["to_record_id"] == 2
+            assert payload["review"]["evidence_event_ids"] == [
+                "evt-l3adv-full-review-run-1",
+                "evt-l3adv-full-review-run-2",
+            ]
+            assert "evt-l3adv-full-review-run-3" not in payload["review"]["evidence_event_ids"]
+
+            risk_resp = await client.get("/report/session/sess-l3adv-full-review-run/risk")
+            latest_review = risk_resp.json()["l3_advisory"]["latest_review"]
+            assert latest_review["review_id"] == payload["review"]["review_id"]
+
+    @pytest.mark.asyncio
     async def test_http_report_session_risk_includes_session_identity_metadata(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

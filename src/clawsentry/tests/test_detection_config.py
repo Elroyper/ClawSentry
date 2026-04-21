@@ -102,6 +102,11 @@ class TestDetectionConfigDefaults:
         assert c.l2_budget_ms == 5000.0
         assert c.attack_patterns_path is None
 
+    def test_l3_advisory_async_defaults_are_disabled(self):
+        c = DetectionConfig()
+        assert c.l3_advisory_async_enabled is False
+        assert c.l3_heartbeat_review_enabled is False
+
 
 # =========================================================================
 # 2. build_detection_config_from_env (~8 tests)
@@ -175,6 +180,8 @@ class TestBuildFromEnv:
             "CS_POST_ACTION_WHITELIST": "a,b,c",
             "CS_TRAJECTORY_MAX_EVENTS": "100",
             "CS_TRAJECTORY_MAX_SESSIONS": "20000",
+            "CS_L3_ADVISORY_ASYNC_ENABLED": "true",
+            "CS_L3_HEARTBEAT_REVIEW_ENABLED": "true",
         }
         with patch.dict(os.environ, env, clear=True):
             c = build_detection_config_from_env()
@@ -195,6 +202,8 @@ class TestBuildFromEnv:
         assert c.post_action_whitelist == ("a", "b", "c")
         assert c.trajectory_max_events == 100
         assert c.trajectory_max_sessions == 20000
+        assert c.l3_advisory_async_enabled is True
+        assert c.l3_heartbeat_review_enabled is True
 
 
 # =========================================================================

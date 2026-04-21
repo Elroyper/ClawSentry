@@ -82,6 +82,7 @@ def run_rules_report(
     patterns_path: str | Path | None = None,
     evolved_patterns_path: str | Path | None = None,
     skills_dir: str | Path | None = None,
+    summary_markdown_path: str | Path | None = None,
     as_json: bool = False,
 ) -> int:
     """Write a combined rule-governance report for CI/release artifacts."""
@@ -122,11 +123,13 @@ def run_rules_report(
         exit_code=exit_code,
     )
     _write_json_report(Path(output_path), payload)
+    if summary_markdown_path is not None:
+        _write_text_report(Path(summary_markdown_path), _render_markdown_dashboard(payload))
 
     if as_json:
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     else:
-        print(_render_ci_report_summary(payload, Path(output_path)))
+        print(_render_ci_report_summary(payload, Path(output_path), summary_markdown_path))
     return exit_code
 
 
@@ -270,7 +273,16 @@ def _write_json_report(output_path: Path, payload: dict[str, Any]) -> None:
     )
 
 
-def _render_ci_report_summary(payload: dict[str, Any], output_path: Path) -> str:
+def _write_text_report(output_path: Path, body: str) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(body, encoding="utf-8")
+
+
+def _render_ci_report_summary(
+    payload: dict[str, Any],
+    output_path: Path,
+    summary_markdown_path: str | Path | None = None,
+) -> str:
     status = str(payload["status"]).upper()
     checks = payload["checks"]
     lines = [
@@ -288,8 +300,58 @@ def _render_ci_report_summary(payload: dict[str, Any], output_path: Path) -> str
             f"{checks['dry_run']['finding_count']} findings)"
         ),
     ]
+    if summary_markdown_path is not None:
+        lines.append(f"Dashboard: {summary_markdown_path}")
     if checks["dry_run"]["input_error"]:
         lines.append(f"Input error: {checks['dry_run']['input_error']}")
+    return "\n".join(lines)
+
+
+def _render_markdown_dashboard(payload: dict[str, Any]) -> str:
+    checks = payload["checks"]
+    dry_run = payload.get("dry_run") or {}
+    events = dry_run.get("events") if isinstance(dry_run, dict) else []
+    if not isinstance(events, list):
+        events = []
+
+    lines = [
+        "# ClawSentry Rules Governance Dashboard",
+        "",
+        "| Metric | Value |",
+        "| --- | --- |",
+        f"| Overall status | {payload['status']} |",
+        f"| Exit code | {payload['exit_code']} |",
+        f"| Fingerprint | `{payload['fingerprint']}` |",
+        f"| Lint findings | {checks['lint']['finding_count']} |",
+        f"| Dry-run status | {checks['dry_run']['status']} |",
+        f"| Dry-run events | {checks['dry_run']['event_count']} |",
+        f"| Dry-run findings | {checks['dry_run']['finding_count']} |",
+        "",
+        "## Dry-run event coverage",
+        "",
+    ]
+    if not events:
+        lines.append("_No dry-run events were included._")
+    else:
+        lines.extend(
+            [
+                "| Event | Matched patterns | Selected skill |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            matched_patterns = event.get("matched_pattern_ids") or []
+            if isinstance(matched_patterns, list):
+                matched = ", ".join(str(item) for item in matched_patterns) or "-"
+            else:
+                matched = str(matched_patterns)
+            selected_skill = event.get("selected_skill") or "-"
+            lines.append(
+                f"| {event.get('event_id', '-')} | {matched} | {selected_skill} |"
+            )
+    lines.append("")
     return "\n".join(lines)
 
 

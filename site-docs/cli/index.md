@@ -335,6 +335,8 @@ clawsentry init codex --setup
 ClawSentry 管理的 hook entries。已有用户 hooks 和 OMX hooks 会被保留；
 `clawsentry init codex --uninstall` 只移除 ClawSentry 管理的 entries。
 如需测试临时目录或非默认安装位置，可加 `--codex-home PATH`。
+`clawsentry doctor` 会逐项显示 managed hook 形态，便于确认
+`PreToolUse(Bash): sync` 与其他 native events 的 `async` 观察模式是否仍符合预期。
 
 #### 恢复 OpenClaw 配置
 
@@ -910,7 +912,12 @@ clawsentry doctor
     [PASS] L2_BUDGET          CS_L2_BUDGET_MS is positive
     [PASS] TRAJECTORY_DB      Database directory is writable
     [PASS] CODEX_CONFIG       Codex config OK
-    [WARN] CODEX_NATIVE_HOOKS Codex native hooks not installed (optional)
+    [PASS] CODEX_NATIVE_HOOKS Codex native hooks installed
+           PreToolUse(Bash): sync
+           PostToolUse(Bash): async
+           UserPromptSubmit: async
+           Stop: async
+           SessionStart(startup|resume): async
     [WARN] LATCH_BINARY       Latch binary not installed
     [WARN] LATCH_HUB_HEALTH   Latch Hub not running
     [WARN] LATCH_TOKEN_SYNC   Latch not configured, skipped
@@ -1118,7 +1125,7 @@ preset = "high"
 ```bash
 clawsentry rules lint [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 clawsentry rules dry-run --events FILE [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
-clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+clawsentry rules report --output FILE [--events FILE] [--summary-markdown FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 ```
 
 ### 子命令
@@ -1127,13 +1134,13 @@ clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [
 |--------|------|
 | `lint` | 加载当前规则资产，输出 schema / duplicate / conflict / source 问题 |
 | `dry-run` | 用 sample canonical events 预演 pattern 命中与 skill 选择结果 |
-| `report` | 写入组合 JSON 工件，便于 CI / release checklist 保存治理证据 |
+| `report` | 写入组合 JSON 工件和可选 markdown dashboard，便于 CI / release checklist 保存治理证据 |
 
 ### 输入与输出
 
 - `lint` 默认读取内置 `attack_patterns.yaml` 与 `skills/`，可额外叠加 `--evolved-patterns` 和 `--skills-dir`
 - `dry-run --events` 接受三种输入：单个 JSON object、JSON array、JSONL
-- `report --output` 会把 lint 结果与可选 dry-run 结果写成稳定 JSON 工件；加 `--json` 时也会输出到 stdout
+- `report --output` 会把 lint 结果与可选 dry-run 结果写成稳定 JSON 工件；加 `--summary-markdown` 时会额外写出人类可读 rollout dashboard；加 `--json` 时也会输出到 stdout
 - `--json` 会返回 machine-readable 报告，包含 `fingerprint`、`source_summaries`、`version_summary`、`findings`
 
 ### 退出码
@@ -1149,7 +1156,7 @@ clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [
 ```bash
 clawsentry rules lint --json
 clawsentry rules dry-run --events examples/sample-events.jsonl --json
-clawsentry rules report --output artifacts/rules-report.json --events examples/sample-events.jsonl
+clawsentry rules report --output artifacts/rules-report.json --events examples/sample-events.jsonl --summary-markdown artifacts/rules-dashboard.md
 clawsentry rules dry-run --events my-events.json --skills-dir /etc/clawsentry/skills
 ```
 

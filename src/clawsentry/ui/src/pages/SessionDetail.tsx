@@ -132,6 +132,9 @@ export default function SessionDetail() {
   const [reloadNonce, setReloadNonce] = useState(0)
   const [sessionWindowSeconds, setSessionWindowSeconds] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [fullReviewStatus, setFullReviewStatus] = useState<string | null>(null)
+  const [fullReviewError, setFullReviewError] = useState<string | null>(null)
+  const [fullReviewRunning, setFullReviewRunning] = useState(false)
 
   useEffect(() => {
     if (!sessionId) return
@@ -186,6 +189,31 @@ export default function SessionDetail() {
       setReplayLoadMoreError('Could not load older replay records. Try again.')
     } finally {
       setReplayLoadingMore(false)
+    }
+  }
+
+  async function requestFullReview() {
+    if (!sessionId || fullReviewRunning) return
+    setFullReviewRunning(true)
+    setFullReviewError(null)
+    setFullReviewStatus(null)
+    try {
+      const result = await api.requestL3FullReview(sessionId, {
+        runner: 'deterministic_local',
+        run: true,
+      })
+      const reviewId = result.review?.review_id
+      const state = result.review?.l3_state || result.job?.job_state || 'queued'
+      setFullReviewStatus(
+        reviewId
+          ? `Full review ${state}: ${reviewId}. Canonical decision unchanged.`
+          : `Full review queued: ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
+      )
+      setReloadNonce(value => value + 1)
+    } catch {
+      setFullReviewError('Could not request L3 full review. Try again.')
+    } finally {
+      setFullReviewRunning(false)
     }
   }
 
@@ -270,13 +298,36 @@ export default function SessionDetail() {
 
       <section className="session-surface session-analysis-surface" aria-labelledby="session-analysis-heading">
         <div className="section-card-header session-surface-header">
-          <div>
-            <p className="section-kicker">Analysis</p>
-            <h2 id="session-analysis-heading">Session analysis</h2>
-          </div>
-          <span className="section-meta">Risk posture, charts, evidence, and replay</span>
-        </div>
-        <div className="session-analysis-grid">
+              <div>
+                <p className="section-kicker">Analysis</p>
+                <h2 id="session-analysis-heading">Session analysis</h2>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span className="section-meta">Risk posture, charts, evidence, and replay</span>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={requestFullReview}
+                  disabled={fullReviewRunning || !sessionId}
+                >
+                  {fullReviewRunning ? 'Requesting L3 full review…' : 'Request L3 full review'}
+                </button>
+              </div>
+            </div>
+            {(fullReviewStatus || fullReviewError) && (
+              <p
+                role={fullReviewError ? 'alert' : 'status'}
+                className="priority-session-meta"
+                style={{
+                  marginTop: -8,
+                  marginBottom: 16,
+                  color: fullReviewError ? 'var(--color-warning, #f59e0b)' : 'var(--color-text-muted)',
+                }}
+              >
+                {fullReviewError || fullReviewStatus}
+              </p>
+            )}
+            <div className="session-analysis-grid">
           <section className="card section-card session-analysis-card-wide session-analysis-summary-card">
             <div className="section-card-header">
               <div>

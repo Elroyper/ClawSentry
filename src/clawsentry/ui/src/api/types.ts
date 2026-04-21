@@ -72,6 +72,7 @@ export interface SessionSummary {
   l3_reason?: string
   l3_reason_code?: string
   evidence_summary?: L3EvidenceSummary | null
+  l3_advisory_latest?: L3AdvisoryReview | null
 }
 
 export interface SessionRisk {
@@ -107,6 +108,7 @@ export interface SessionRisk {
   risk_hints_seen: string[]
   tools_used: string[]
   actual_tier_distribution: Partial<Record<DecisionTier, number>>
+  l3_advisory?: L3AdvisoryPayload
 }
 
 export interface L3EvidenceSummary {
@@ -116,6 +118,84 @@ export interface L3EvidenceSummary {
   toolkit_budget_cap?: number
   toolkit_calls_remaining?: number
   toolkit_budget_exhausted?: boolean
+}
+
+export interface L3EvidenceSnapshot {
+  snapshot_id: string
+  session_id: string
+  created_at: string
+  trigger_event_id: string
+  trigger_reason: string
+  trigger_detail?: string | null
+  event_range: {
+    from_record_id: number
+    to_record_id: number
+  }
+  record_count: number
+  trajectory_fingerprint: string
+  risk_summary: {
+    current_risk_level: RiskLevel
+    high_risk_event_count: number
+    decision_distribution: Record<string, number>
+  }
+  evidence_budget: {
+    max_records: number
+    max_tool_calls: number
+  }
+  advisory_only: true
+}
+
+export interface L3AdvisoryReview {
+  review_id: string
+  type: 'l3_advisory_review'
+  snapshot_id: string
+  session_id: string
+  risk_level: RiskLevel
+  findings: string[]
+  confidence?: number | null
+  advisory_only: true
+  recommended_operator_action: 'inspect' | 'pause' | 'escalate' | 'none' | string
+  l3_state: string
+  l3_reason_code?: string | null
+  created_at: string
+  completed_at?: string | null
+  evidence_record_count?: number
+  evidence_event_ids?: string[]
+  source_record_range?: {
+    from_record_id: number
+    to_record_id: number
+  }
+  review_runner?: string
+  worker_backend?: string
+}
+
+export interface L3AdvisoryPayload {
+  snapshots: L3EvidenceSnapshot[]
+  reviews: L3AdvisoryReview[]
+  jobs: L3AdvisoryJob[]
+  latest_review: L3AdvisoryReview | null
+  latest_job: L3AdvisoryJob | null
+}
+
+export interface L3AdvisoryJob {
+  job_id: string
+  snapshot_id: string
+  session_id: string
+  review_id?: string | null
+  job_state: 'queued' | 'running' | 'completed' | 'failed' | string
+  runner: string
+  created_at: string
+  updated_at: string
+  completed_at?: string | null
+  error?: string
+}
+
+export interface L3FullReviewResponse {
+  snapshot: L3EvidenceSnapshot | { snapshot_id: string }
+  job: L3AdvisoryJob | { job_id: string; job_state: string }
+  review: L3AdvisoryReview | null
+  advisory_only: true
+  canonical_decision_mutated: false
 }
 
 export interface TrajectoryRecord {
@@ -287,6 +367,41 @@ export type SSESessionEnforcementChangeEvent = {
   timestamp: string
 }
 
+export type SSEL3AdvisorySnapshotEvent = {
+  session_id: string
+  snapshot_id: string
+  trigger_event_id: string
+  trigger_reason: string
+  trigger_detail?: string | null
+  event_range: {
+    from_record_id: number
+    to_record_id: number
+  }
+  advisory_only: true
+  timestamp: string
+}
+
+export type SSEL3AdvisoryReviewEvent = {
+  session_id: string
+  snapshot_id: string
+  review_id: string
+  risk_level: RiskLevel
+  recommended_operator_action: string
+  l3_state: string
+  advisory_only: true
+  timestamp: string
+}
+
+export type SSEL3AdvisoryJobEvent = {
+  session_id: string
+  snapshot_id: string
+  job_id: string
+  job_state: string
+  runner: string
+  review_id?: string | null
+  timestamp: string
+}
+
 export type RuntimeEventType =
   | 'decision'
   | 'alert'
@@ -298,6 +413,9 @@ export type RuntimeEventType =
   | 'defer_resolved'
   | 'budget_exhausted'
   | 'session_enforcement_change'
+  | 'l3_advisory_snapshot'
+  | 'l3_advisory_review'
+  | 'l3_advisory_job'
 
 export type SSERuntimeEvent =
   | (SSEDecisionEvent & { type: 'decision' })
@@ -310,3 +428,6 @@ export type SSERuntimeEvent =
   | (SSEDeferResolvedEvent & { type: 'defer_resolved' })
   | SSEBudgetExhaustedEvent
   | (SSESessionEnforcementChangeEvent & { type: 'session_enforcement_change' })
+  | (SSEL3AdvisorySnapshotEvent & { type: 'l3_advisory_snapshot' })
+  | (SSEL3AdvisoryReviewEvent & { type: 'l3_advisory_review' })
+  | (SSEL3AdvisoryJobEvent & { type: 'l3_advisory_job' })

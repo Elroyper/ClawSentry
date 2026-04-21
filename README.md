@@ -18,11 +18,11 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Multi-step attack trajectory detection**: 5 built-in sequences with sliding-window analysis, SSE `trajectory_alert` broadcast
 - **Self-evolving pattern library (E-5)**: auto-extract candidates from high-risk events, CANDIDATE→EXPERIMENTAL→STABLE lifecycle, confidence scoring, REST API feedback loop
 - **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with explicit `CS_` / project-level overrides, including high-level L3 routing and trigger controls
-- **Four-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher)
+- **Four-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + optional tested `PreToolUse(Bash)` preflight)
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **2962+ tests**, ~45s full suite
+- **3020+ tests**, ~45s full suite
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.0
+## What's New in v0.5.2
 
-- **AHP v2.3 compatibility foundation**: ClawSentry now recognizes the latest AHP observation surfaces while keeping the stable canonical event core intact.
-- **Confirmation bridge**: AHP `confirmation` events reuse the existing operator approval lifecycle, including `/ahp/resolve`, replay, SSE, session risk, and explicit timeout/no-route failure classes.
-- **Analysis-consumption signals**: `context_perception`, `memory_recall`, `planning`, `reasoning`, and `intent_detection` now feed compact evidence into replay, session views, and semantic analysis without becoming new blocking surfaces.
+- **L3 advisory async review foundation**: frozen evidence snapshots, advisory job queue, explicit worker execution, provider safety gates, and manual real-provider smoke evidence while keeping canonical decisions unchanged.
+- **Operator-triggered full review**: `POST /report/session/{session_id}/l3-advisory/full-review` and `clawsentry l3 full-review --session ...` let operators request bounded advisory reviews without scheduler/enforcement.
+- **Web UI action**: Session Detail now includes `Request L3 full review`, showing advisory completion/queue status directly in the console.
 
 ## Quick Start
 

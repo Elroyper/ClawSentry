@@ -6,6 +6,7 @@ import type {
   SessionReplayPageResponse,
   SessionReplayResponse,
   Alert,
+  L3FullReviewResponse,
 } from './types'
 
 let _token: string | null = null
@@ -99,6 +100,23 @@ export const api = {
       `/report/session/${id}/page${qs.toString() ? `?${qs.toString()}` : ''}`,
     )
   },
+  requestL3FullReview: (
+    id: string,
+    body?: {
+      runner?: 'deterministic_local' | 'fake_llm' | 'llm_provider' | string
+      run?: boolean
+      trigger_event_id?: string
+      trigger_detail?: string
+      from_record_id?: number
+      to_record_id?: number
+      max_records?: number
+      max_tool_calls?: number
+    },
+  ): Promise<L3FullReviewResponse> =>
+    apiFetch<L3FullReviewResponse>(`/report/session/${id}/l3-advisory/full-review`, {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+    }),
   alerts: async (params?: { severity?: string; acknowledged?: boolean; limit?: number }) => {
     const qs = new URLSearchParams()
     if (params?.severity) qs.set('severity', params.severity)

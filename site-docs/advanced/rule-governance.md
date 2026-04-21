@@ -95,7 +95,7 @@ clawsentry rules dry-run --events examples/sample-events.jsonl --json
 ## `clawsentry rules report` {#rules-report}
 
 ```bash
-clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
+clawsentry rules report --output FILE [--events FILE] [--summary-markdown FILE] [--attack-patterns PATH] [--evolved-patterns PATH] [--skills-dir DIR] [--json]
 ```
 
 `report` 面向 CI 与 release checklist：它把 `lint` 结果和可选
@@ -106,6 +106,10 @@ clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [
 - `checks.lint` 与 `checks.dry_run` 的状态、finding 数量和事件数量
 - 完整 `lint` payload
 - 可选的完整 `dry_run` payload
+
+如果传入 `--summary-markdown`，`report` 还会写出一份面向 release /
+rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fingerprint
+以及 sample events 的 pattern / skill 覆盖情况。
 
 如果同时传入 `--json`，报告也会输出到 stdout，便于流水线直接解析。
 
@@ -118,7 +122,8 @@ clawsentry rules report --output FILE [--events FILE] [--attack-patterns PATH] [
 ```bash
 clawsentry rules report \
   --output artifacts/rules-report.json \
-  --events examples/sample-events.jsonl
+  --events examples/sample-events.jsonl \
+  --summary-markdown artifacts/rules-dashboard.md
 ```
 
 ## 典型工作流 {#workflow}
@@ -148,7 +153,8 @@ PYTHONPATH=src python -m clawsentry rules lint --json
 PYTHONPATH=src python -m clawsentry rules dry-run --events examples/sample-events.jsonl --json
 PYTHONPATH=src python -m clawsentry rules report \
   --output artifacts/rules-report.json \
-  --events examples/sample-events.jsonl
+  --events examples/sample-events.jsonl \
+  --summary-markdown artifacts/rules-dashboard.md
 ```
 
 ## 输出字段 {#outputs}

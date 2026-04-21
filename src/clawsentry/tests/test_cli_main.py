@@ -92,6 +92,16 @@ class TestCLIParsing:
         assert "dry-run" in proc.stdout
         assert "report" in proc.stdout
 
+    def test_l3_full_review_subcommand_help(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "clawsentry", "l3", "full-review", "--help"],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+        assert proc.returncode == 0
+        assert "--session" in proc.stdout
+        assert "--queue-only" in proc.stdout
+        assert "--runner" in proc.stdout
+
     def test_rules_subcommand_requires_nested_command(self):
         proc = subprocess.run(
             [sys.executable, "-m", "clawsentry", "rules"],
@@ -123,6 +133,28 @@ class TestCLIParsing:
         assert proc.returncode == 0
         assert output_path.exists()
         assert "PASS: wrote rules report" in proc.stdout
+
+    def test_rules_report_writes_markdown_dashboard_from_cli(self, tmp_path):
+        output_path = tmp_path / "rules-report.json"
+        dashboard_path = tmp_path / "rules-dashboard.md"
+
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "clawsentry",
+                "rules", "report",
+                "--output", str(output_path),
+                "--summary-markdown", str(dashboard_path),
+            ],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+
+        assert proc.returncode == 0
+        assert output_path.exists()
+        assert dashboard_path.exists()
+        assert "# ClawSentry Rules Governance Dashboard" in dashboard_path.read_text(
+            encoding="utf-8"
+        )
+        assert str(dashboard_path) in proc.stdout
 
 
 

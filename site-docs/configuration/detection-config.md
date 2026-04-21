@@ -382,12 +382,15 @@ DEFER 决策产生
 | `l3_routing_mode` | `str` | `"normal"` | `CS_L3_ROUTING_MODE` | L3 路由模式：`normal` 保持现状，`replace_l2` 在命中 organic L2 入口时直接改走本地 L3 |
 | `l3_trigger_profile` | `str` | `"default"` | `CS_L3_TRIGGER_PROFILE` | 正常模式下的高层触发档位：`default` 保持现状，`eager` 让 L3 更容易被提升到 |
 | `l3_budget_tuning_enabled` | `bool` | `false` | `CS_L3_BUDGET_TUNING_ENABLED` | 是否允许基于 L3 模式启用更宽松的默认预算；关闭时默认预算行为不变 |
+| `l3_advisory_async_enabled` | `bool` | `false` | `CS_L3_ADVISORY_ASYNC_ENABLED` | 在 high/critical decision 或 high+ trajectory alert 后自动创建 frozen advisory snapshot；当前不启动真实 review scheduler |
+| `l3_heartbeat_review_enabled` | `bool` | `false` | `CS_L3_HEARTBEAT_REVIEW_ENABLED` | 预留给 heartbeat/idle 聚合后的 advisory snapshot review；不启用 timer-only full review |
 
 约束：
 
 - **默认行为不变**：以上三个字段全部保持默认值时，L1/L2/L3 行为与旧版本一致。
 - **`replace_l2` 不等于强制 L3 follow-up**：它只在命中 organic L2 入口时改写路由，不会把所有请求都视为显式 `requested_tier=L3`。
 - **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `.clawsentry.toml [overrides].l3_budget_ms` 仍然优先。
+- **Advisory 自动化必须显式 opt-in**：Rank2 foundation 提供 frozen evidence snapshot / advisory result 契约；打开 `l3_advisory_async_enabled` 只会自动创建 snapshot，不会自动运行后台 L3 审查或改变 canonical decision。
 - **无本地 L3 能力时保持诚实回退**：如果网关启动时没有本地 L3 能力，`replace_l2` / `eager` 会被视为 unsupported runtime，现有 L1/L2 路径继续运行，但运行态会明确暴露 `l3_available=false`、`effective_tier=L3`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
 
 ---

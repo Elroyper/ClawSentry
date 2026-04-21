@@ -1,7 +1,7 @@
 # OpenAI Codex CLI 集成
 
 !!! warning "默认仍是监控模式"
-    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，其他 native hook 事件仍为异步观察/建议，不承诺完整前置阻断。
+    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，并已有真实 Codex CLI -> ClawSentry Gateway daemon smoke 验证；其他 native hook 事件仍为异步观察/建议，不承诺前置阻断。
 
 将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控和可选 `PreToolUse(Bash)` native hook preflight 实现工具调用的实时安全评估与审计。
 
@@ -130,7 +130,7 @@ SSE 广播 (决策/告警/风险变更)
 | `Stop` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 会话收尾观察；不返回 deny |
 | `SessionStart` | `startup|resume` | `clawsentry harness --framework codex --async` | best-effort 会话启动观察；不返回 deny |
 
-Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。
+Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。开发仓库中的 `scripts/run_codex_gateway_e2e_smoke.py` 可复现真实 Codex CLI + managed hook + Gateway daemon 的 host deny 验证。
 
 ### 配置变量
 
@@ -316,7 +316,12 @@ ClawSentry Doctor — 20 checks
  [PASS] AUTH_ENTROPY       Token entropy is acceptable.
  ...
  [PASS] CODEX_CONFIG       Codex configured: /ahp/codex on port 8080.
- [WARN] CODEX_NATIVE_HOOKS Codex native hooks are not installed (optional).
+ [PASS] CODEX_NATIVE_HOOKS Codex native hooks installed.
+        PreToolUse(Bash): sync
+        PostToolUse(Bash): async
+        UserPromptSubmit: async
+        Stop: async
+        SessionStart(startup|resume): async
 ──────────────────────────────────
 Summary: 18 PASS, 2 WARN, 0 FAIL
 ```
@@ -571,7 +576,7 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
 | 审计记录 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | DEFER 审批 | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
-> 当前 ClawSentry 已能非破坏式注册 Codex native hooks，但完整 blocking defense 仍处于后续收口阶段；生产上仍应保留 session watcher 与人工审批策略。
+> 当前 ClawSentry 已能非破坏式注册 Codex native hooks，并已验证 `PreToolUse(Bash)` 可经真实 Gateway daemon 返回 host deny；生产上仍应把 Codex 默认视为 observation-first，并保留 session watcher 与人工审批策略。不要把这一点外推为所有 Codex native events 都可同步阻断。
 
 ---
 

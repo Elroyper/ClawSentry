@@ -68,6 +68,11 @@ class TestDoctorCodexCheck:
         assert result.status == "PASS"
         assert "hooks.json" in result.message
         assert "PreToolUse(Bash)" in result.message
+        assert "PreToolUse(Bash): sync" in result.detail
+        assert "PostToolUse(Bash): async" in result.detail
+        assert "UserPromptSubmit: async" in result.detail
+        assert "Stop: async" in result.detail
+        assert "SessionStart(startup|resume): async" in result.detail
 
     def test_codex_native_hooks_warn_when_pretool_bash_is_async(self, tmp_path, monkeypatch):
         codex_home = tmp_path / ".codex"

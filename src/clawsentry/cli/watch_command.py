@@ -56,6 +56,7 @@ _EMOJIS: dict[str, str] = {
     "post_action": "🛡️",
     "pattern_candidate": "🧪",
     "pattern_evolved": "🧬",
+    "l3_advisory": "🧾",
     "risk_high": "🔴",
     "risk_medium": "🟡",
     "risk_low": "🟢",
@@ -789,6 +790,120 @@ def _format_budget_exhausted(
     return line
 
 
+def _format_l3_advisory_snapshot(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    hms = _timestamp_hms(event.get("timestamp"))
+    session_id = str(event.get("session_id") or "unknown")
+    snapshot_id = str(event.get("snapshot_id") or "unknown")
+    trigger_reason = str(event.get("trigger_reason") or "unknown")
+    event_range = event.get("event_range") if isinstance(event.get("event_range"), dict) else {}
+    from_id = event_range.get("from_record_id", "-")
+    to_id = event_range.get("to_record_id", "-")
+
+    e = _emoji("l3_advisory", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+    label = _c("cyan", f"{e_str}L3 ADVISORY SNAPSHOT", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+
+    if compact:
+        return (
+            f"{ts_str} {label}  {snapshot_id}  "
+            f"Session={session_id} Trigger={trigger_reason} Range={from_id}->{to_id}"
+        )
+
+    lines = [f"{ts_str} {label}  {snapshot_id}"]
+    for i, item in enumerate([
+        f"Session: {_c('grey', session_id, color=color)}",
+        f"Trigger: {_c('grey', trigger_reason, color=color)}",
+        f"Range: {_c('grey', f'{from_id}->{to_id}', color=color)}",
+    ]):
+        connector = "└─" if i == 2 else "├─"
+        lines.append(f"{_TREE_INDENT}{connector} {item}")
+    return "\n".join(lines)
+
+
+def _format_l3_advisory_review(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    hms = _timestamp_hms(event.get("timestamp"))
+    session_id = str(event.get("session_id") or "unknown")
+    review_id = str(event.get("review_id") or "unknown")
+    snapshot_id = str(event.get("snapshot_id") or "unknown")
+    risk_level = str(event.get("risk_level") or "unknown")
+    action = str(event.get("recommended_operator_action") or "inspect")
+    l3_state = str(event.get("l3_state") or "unknown")
+
+    e = _emoji("l3_advisory", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+    label = _c("yellow", f"{e_str}L3 ADVISORY REVIEW", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+    risk = _risk_display(risk_level, color=color, no_emoji=no_emoji)
+
+    if compact:
+        return (
+            f"{ts_str} {label}  {review_id}  "
+            f"Session={session_id} Risk={risk_level} State={l3_state} Action={action}"
+        )
+
+    lines = [f"{ts_str} {label}  {review_id}"]
+    for i, item in enumerate([
+        f"Session: {_c('grey', session_id, color=color)}",
+        f"Snapshot: {_c('grey', snapshot_id, color=color)}",
+        f"Risk: {risk}",
+        f"State: {_c('grey', l3_state, color=color)}",
+        f"Action: {_c('grey', action, color=color)}",
+    ]):
+        connector = "└─" if i == 4 else "├─"
+        lines.append(f"{_TREE_INDENT}{connector} {item}")
+    return "\n".join(lines)
+
+
+def _format_l3_advisory_job(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    hms = _timestamp_hms(event.get("timestamp"))
+    session_id = str(event.get("session_id") or "unknown")
+    job_id = str(event.get("job_id") or "unknown")
+    snapshot_id = str(event.get("snapshot_id") or "unknown")
+    job_state = str(event.get("job_state") or "unknown")
+    runner = str(event.get("runner") or "unknown")
+
+    e = _emoji("l3_advisory", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+    label = _c("magenta", f"{e_str}L3 ADVISORY JOB", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+
+    if compact:
+        return (
+            f"{ts_str} {label}  {job_id}  "
+            f"Session={session_id} State={job_state} Runner={runner}"
+        )
+
+    lines = [f"{ts_str} {label}  {job_id}"]
+    for i, item in enumerate([
+        f"Session: {_c('grey', session_id, color=color)}",
+        f"Snapshot: {_c('grey', snapshot_id, color=color)}",
+        f"State: {_c('grey', job_state, color=color)}",
+        f"Runner: {_c('grey', runner, color=color)}",
+    ]):
+        connector = "└─" if i == 3 else "├─"
+        lines.append(f"{_TREE_INDENT}{connector} {item}")
+    return "\n".join(lines)
+
+
 def format_event(
     event: dict,
     *,
@@ -842,6 +957,18 @@ def format_event(
         )
     if event_type == "budget_exhausted":
         return _format_budget_exhausted(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "l3_advisory_snapshot":
+        return _format_l3_advisory_snapshot(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "l3_advisory_review":
+        return _format_l3_advisory_review(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "l3_advisory_job":
+        return _format_l3_advisory_job(
             event, color=color, no_emoji=no_emoji, compact=compact
         )
 

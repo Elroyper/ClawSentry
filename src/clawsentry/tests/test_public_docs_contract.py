@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -39,10 +40,33 @@ def test_rules_governance_ci_example_publishes_report_artifact() -> None:
     assert "python -m clawsentry rules dry-run --events examples/sample-events.jsonl --json" in source
     assert (
         "python -m clawsentry rules report --output artifacts/rules-report.json "
-        "--events examples/sample-events.jsonl --json"
+        "--events examples/sample-events.jsonl "
+        "--summary-markdown artifacts/rules-dashboard.md --json"
     ) in source
     assert "actions/upload-artifact" in source
     assert "artifacts/rules-report.json" in source
+    assert "artifacts/rules-dashboard.md" in source
+    assert "retention-days: 30" in source
+
+
+def test_sample_events_cover_representative_rule_governance_cases() -> None:
+    sample_events = [
+        json.loads(line)
+        for line in (REPO_ROOT / "examples" / "sample-events.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
+    assert [event["event_id"] for event in sample_events] == [
+        "sample-safe-read",
+        "sample-credential-upload",
+        "sample-download-execute",
+    ]
+    assert sample_events[0]["tool_name"] == "list_directory"
+    assert sample_events[0]["risk_hints"] == []
+    assert "curl -F file=@" in sample_events[1]["payload"]["command"]
+    assert "| bash" in sample_events[2]["payload"]["command"]
 
 
 def test_codex_docs_describe_optional_native_hook_setup() -> None:

@@ -44,6 +44,8 @@ class DetectionConfig:
     l3_routing_mode: str = "normal"  # "normal" or "replace_l2"
     l3_trigger_profile: str = "default"  # "default" or "eager"
     l3_budget_tuning_enabled: bool = False
+    l3_advisory_async_enabled: bool = False
+    l3_heartbeat_review_enabled: bool = False
     attack_patterns_path: Optional[str] = None  # None = built-in default
 
     # --- Post-action tier thresholds ---
@@ -234,6 +236,8 @@ def build_detection_config_from_env() -> DetectionConfig:
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
     _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
     _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
+    _parse_bool_env("CS_L3_ADVISORY_ASYNC_ENABLED", "l3_advisory_async_enabled")
+    _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
 
     try:
         return DetectionConfig(**overrides)
@@ -355,6 +359,8 @@ def build_detection_config_with_preset(
     _parse_bool_env("CS_D4_FREQ_ENABLED", "d4_freq_enabled")
     _parse_bool_env("CS_DEFER_BRIDGE_ENABLED", "defer_bridge_enabled")
     _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
+    _parse_bool_env("CS_L3_ADVISORY_ASYNC_ENABLED", "l3_advisory_async_enabled")
+    _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
 
     try:
         return DetectionConfig(**params)

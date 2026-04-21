@@ -4,6 +4,40 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 暂无。
+
+## [0.5.2] — 2026-04-21
+
+### 新增
+
+- **Codex -> Gateway daemon 真实 E2E smoke** — 新增 `scripts/run_codex_gateway_e2e_smoke.py` 与 `clawsentry.devtools.codex_gateway_e2e_smoke`，可在临时 `CODEX_HOME` 下安装 managed native hooks、启动本地 Gateway daemon，并验证真实 Codex CLI `PreToolUse(Bash)` 经 ClawSentry harness/Gateway 判定后返回 host deny；验证记录见 `docs/validation/codex-gateway-daemon-e2e-smoke-2026-04-21.md`。
+- **CODEX_NATIVE_HOOKS doctor 明细输出** — `clawsentry doctor` 现在在 PASS/WARN detail 中逐项显示 managed Codex native hooks 的实际形态，例如 `PreToolUse(Bash): sync`、`PostToolUse(Bash): async`、`UserPromptSubmit: async`、`Stop: async`、`SessionStart(startup|resume): async`。
+- **Rules governance CI template actions 升级** — `examples/ci/rules-governance.yml` 已升级到 Node 24-compatible action majors（`checkout@v6`、`setup-python@v6`、`upload-artifact@v6`），并固定 `retention-days: 30`，用于后续同步公开仓库时避开 GitHub Actions Node 20 deprecation 警告并保留规则治理 artifact。
+- **CS-01 markdown release dashboard** — `clawsentry rules report` 新增 `--summary-markdown`，可在 JSON report 之外写出人类可读的规则治理 rollout dashboard；CI template 同步上传 `rules-dashboard.md`，便于 release / policy-change review 直接审阅状态、finding 数与 sample event 覆盖。
+- **L3 advisory snapshot foundation** — 新增 Rank2 frozen evidence snapshot / advisory review 契约：可在 bounded trajectory record range 上创建 `l3_evidence_snapshot`，再附加 `advisory_only=true` 的 `l3_advisory_review`；`CS_L3_ADVISORY_ASYNC_ENABLED=true` 时 high/critical decision 或 high+ trajectory alert 会自动创建 frozen snapshot；report/session/replay payload 与 SSE/watch/UI 类型现在能追溯 snapshot/review ID，同时不改变 canonical decision。
+- **L3 advisory review lifecycle** — `l3_advisory_review` 支持 `pending` / `running` / `completed` / `failed` / `degraded` 状态更新，并通过 `PATCH /report/l3-advisory/review/{review_id}` 与 `l3_advisory_review` SSE 暴露 lifecycle 变化，为后续真实 async worker 接入预留稳定契约。
+- **L3 deterministic local advisory runner** — 新增 `POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review`，可显式对 frozen snapshot 运行 deterministic local review，验证 `snapshot -> pending/running/completed review` 全链路；runner 只读取 snapshot record range，不接 LLM、不启动 scheduler、不改变 canonical decision。
+- **L3 advisory job queue foundation** — 新增 `l3_advisory_jobs` 与 `POST /report/l3-advisory/snapshot/{snapshot_id}/jobs` / `POST /report/l3-advisory/job/{job_id}/run-local`，使 auto snapshot 后可以只排队 `queued` job，后续由显式调用推进到 `running/completed`，为真实 worker 队列预留契约。
+- **L3 advisory worker adapter interface** — 新增 `l3_advisory_worker` adapter 契约与 `fake_llm` dry-run worker，可通过 `POST /report/l3-advisory/job/{job_id}/run-worker` 显式运行，验证 worker 只消费 frozen snapshot records 并写入 review patch；仍不调用真实 LLM、不启动 scheduler。
+- **L3 advisory provider safety gates** — 新增 provider-neutral request/response schema、OpenAI / Anthropic provider shell，以及显式 `llm_provider` worker runner；`CS_L3_ADVISORY_PROVIDER_ENABLED=false` 默认关闭真实 provider 路径，`CS_L3_ADVISORY_PROVIDER` / `CS_L3_ADVISORY_MODEL` 不继承同步 `CS_LLM_*` 配置，`CS_L3_ADVISORY_PROVIDER_DRY_RUN=true` 默认保持不联网，未启用、缺 key、缺 model、不支持 provider 或未实现真实调用时统一降级为 `l3_state=degraded`，测试中不发网络请求。
+- **L3 advisory provider smoke readiness** — 新增 `clawsentry.devtools.l3_advisory_provider_smoke` 与 `scripts/run_l3_advisory_provider_smoke.py`，可通过显式 env opt-in 构造 frozen snapshot、排队 `llm_provider` job、执行一次手动 smoke 并输出 markdown/JSON 证据；当前 smoke 验证 provider path 安全降级为 `provider_not_implemented`，不启动 scheduler、不联网、不修改 canonical decision。验证记录见 `docs/validation/l3-advisory-provider-smoke-readiness-2026-04-21.md`。
+- **L3 full-review Web UI action** — Session Detail 现在提供 `Request L3 full review` 操作按钮，可从 operator console 显式触发 deterministic advisory full review，并显示 review/job 状态；仍保持 advisory-only、不改 canonical decision、不启动 scheduler。
+- **L3 full-review CLI surface** — 新增 `clawsentry l3 full-review --session ...`，operator 可从命令行调用 full-review endpoint，支持 `--queue-only`、`--runner deterministic_local|fake_llm|llm_provider`、record range、JSON 输出与 bearer token；默认仍走 deterministic local / no scheduler。
+- **Operator-triggered L3 full review** — 新增 `POST /report/session/{session_id}/l3-advisory/full-review`，operator 可显式冻结 session evidence、排队 advisory job，并选择 queue-only 或执行一次 deterministic/fake/provider worker；结果保持 `advisory_only=true`，返回 `canonical_decision_mutated=false`，不启动 scheduler、不做 enforcement。
+- **L3 advisory real-provider bridge** — `llm_provider` runner 现在可在 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 且 provider/key/model 都显式配置时桥接到现有 OpenAI / Anthropic LLM provider 抽象；默认仍 dry-run，不进入后台调度，mock-backed 回归覆盖 completed review 解析路径，并兼容 fenced JSON provider responses；真实网络 smoke 仅在 `CS_L3_ADVISORY_RUN_REAL_SMOKE=true` 时运行，否则默认跳过；OpenAI-compatible Kimi 端点已通过 `--require-completed` real smoke。
+- **Benchmark wrapper proxy hygiene** — `benchmarks/scripts/skills_safety_bench_codex.sh` 真实执行时默认过滤 proxy env 并使用临时干净 `DOCKER_CONFIG`，避免 Harbor/Docker build 继承宿主不可达代理配置。
+- **CS-01 sample events expansion** — `examples/sample-events.jsonl` 现在覆盖 safe-read、credential upload、download-and-execute 三类代表事件，使 rules dry-run/report artifact 更适合作为 rollout smoke。
+
+### 测试与验证
+
+- Python 回归：完整测试 `3020 passed, 4 skipped`
+- Focused L3 advisory provider path 回归：`36 passed, 169 deselected`
+- Real-provider smoke gate：默认 `1 skipped`
+- Real-provider smoke：`openai/kimi-k2.5` completed，证据 `docs/validation/l3-advisory-provider-real-smoke-2026-04-21.md`
+- `mkdocs build --strict`：PASS
+
 ## [0.5.1] — 2026-04-21
 
 ### 新增
@@ -86,7 +120,7 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2883 passed, 3 skipped`
-- Web UI 回归：`28 passed`
+- Web UI 回归：`29 passed`
 - Web UI 生产构建：PASS
 - `mkdocs build --strict`：待本次 release workflow 执行
 
@@ -893,6 +927,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.2
 [0.5.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.1
 [0.5.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.0
 [0.4.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.4.8

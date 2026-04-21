@@ -276,6 +276,14 @@ _CODEX_REQUIRED_HOOK_SHAPES: tuple[tuple[str, str | None, str, str], ...] = (
 )
 
 
+def _codex_hook_label(event_name: str, matcher: str | None) -> str:
+    return f"{event_name}({matcher})" if matcher else event_name
+
+
+def _codex_hook_display_mode(expected_command: str) -> str:
+    return "sync" if expected_command == _CODEX_HOOK_SYNC_COMMAND else "async"
+
+
 def _codex_managed_hook_commands(
     hooks_payload: dict[str, Any],
     *,
@@ -320,7 +328,7 @@ def _codex_native_hook_shape_issues(
             event_name=event_name,
             matcher=matcher,
         )
-        label = f"{event_name}({matcher})" if matcher else event_name
+        label = _codex_hook_label(event_name, matcher)
         if not commands:
             issues.append(f"{label}: missing ClawSentry managed entry")
             continue
@@ -330,6 +338,28 @@ def _codex_native_hook_shape_issues(
                 f"'{expected_command}', found {commands!r}"
             )
     return issues
+
+
+def _codex_native_hook_shape_detail(hooks_payload: dict[str, Any]) -> str:
+    """Return operator-readable per-hook sync/async status lines."""
+
+    lines: list[str] = []
+    for event_name, matcher, expected_command, _expected_mode in _CODEX_REQUIRED_HOOK_SHAPES:
+        label = _codex_hook_label(event_name, matcher)
+        expected_display = _codex_hook_display_mode(expected_command)
+        commands = _codex_managed_hook_commands(
+            hooks_payload,
+            event_name=event_name,
+            matcher=matcher,
+        )
+        if expected_command in commands:
+            lines.append(f"{label}: {expected_display}")
+        elif not commands:
+            lines.append(f"{label}: missing")
+        else:
+            found = ", ".join(commands)
+            lines.append(f"{label}: expected {expected_display}, found {found}")
+    return "\n".join(lines)
 
 
 def check_codex_native_hooks() -> DoctorCheck:
@@ -367,6 +397,7 @@ def check_codex_native_hooks() -> DoctorCheck:
 
     has_feature = "codex_hooks = true" in config_text
     shape_issues = _codex_native_hook_shape_issues(hooks_payload)
+    shape_detail = _codex_native_hook_shape_detail(hooks_payload)
     if has_feature and not shape_issues:
         return DoctorCheck(
             "CODEX_NATIVE_HOOKS",
@@ -375,17 +406,22 @@ def check_codex_native_hooks() -> DoctorCheck:
                 f"Codex native hooks installed: {hooks_path}; "
                 "PreToolUse(Bash) sync + advisory hooks async."
             ),
+            detail=shape_detail,
         )
 
     missing: list[str] = []
     if not has_feature:
         missing.append("[features].codex_hooks = true")
     missing.extend(shape_issues)
+    detail = (
+        f"{shape_detail}\n"
+        f"Missing: {', '.join(missing)}. Run clawsentry init codex --setup."
+    )
     return DoctorCheck(
         "CODEX_NATIVE_HOOKS",
         "WARN",
         "Codex native hooks are incomplete.",
-        detail=f"Missing: {', '.join(missing)}. Run clawsentry init codex --setup.",
+        detail=detail,
     )
 
 

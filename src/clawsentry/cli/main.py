@@ -271,6 +271,32 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip L3 agent review test.",
     )
 
+    # --- l3 ---
+    l3_parser = sub.add_parser(
+        "l3",
+        help="Operator-triggered L3 advisory actions.",
+    )
+    l3_sub = l3_parser.add_subparsers(dest="l3_command")
+    l3_sub.required = True
+    l3_full = l3_sub.add_parser(
+        "full-review",
+        help="Request a bounded advisory full review for one session.",
+    )
+    _l3_default_url = f"http://127.0.0.1:{os.environ.get('CS_HTTP_PORT', '8080')}"
+    l3_full.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
+    l3_full.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
+    l3_full.add_argument("--session", required=True, dest="session_id", help="Session ID to review.")
+    l3_full.add_argument("--trigger-event-id", default=None, help="Operator action/event ID.")
+    l3_full.add_argument("--trigger-detail", default=None, help="Operator trigger detail.")
+    l3_full.add_argument("--from-record-id", type=int, default=None, help="Optional frozen range start record ID.")
+    l3_full.add_argument("--to-record-id", type=int, default=None, help="Optional frozen range end record ID.")
+    l3_full.add_argument("--max-records", type=int, default=100, help="Maximum records to freeze (default: 100).")
+    l3_full.add_argument("--max-tool-calls", type=int, default=0, help="Advisory evidence tool-call budget (default: 0).")
+    l3_full.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to queue/execute.")
+    l3_full.add_argument("--queue-only", action="store_true", default=False, help="Freeze evidence and queue the job without running it.")
+    l3_full.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
+    l3_full.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
+
     # --- service ---
     service_parser = sub.add_parser(
         "service",
@@ -333,6 +359,7 @@ def _build_parser() -> argparse.ArgumentParser:
     rules_report.add_argument("--attack-patterns", default=None, help="Path to attack patterns YAML.")
     rules_report.add_argument("--evolved-patterns", default=None, help="Path to evolved patterns YAML.")
     rules_report.add_argument("--skills-dir", default=None, help="Directory containing review skill YAML files.")
+    rules_report.add_argument("--summary-markdown", default=None, help="Optional path to write a human-readable markdown dashboard.")
     rules_report.add_argument("--json", action="store_true", default=False, help="Also print report JSON to stdout.")
 
     # --- latch ---
@@ -611,6 +638,27 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(code)
 
+    elif args.command == "l3":
+        from .l3_command import run_l3_full_review
+
+        if args.l3_command == "full-review":
+            sys.exit(run_l3_full_review(
+                gateway_url=args.gateway_url,
+                token=args.token,
+                session_id=args.session_id,
+                trigger_event_id=args.trigger_event_id,
+                trigger_detail=args.trigger_detail,
+                from_record_id=args.from_record_id,
+                to_record_id=args.to_record_id,
+                max_records=args.max_records,
+                max_tool_calls=args.max_tool_calls,
+                runner=args.runner,
+                queue_only=args.queue_only,
+                json_mode=args.json,
+                timeout=args.timeout,
+            ))
+        print("Usage: clawsentry l3 {full-review}")
+
     elif args.command == "service":
         from .service_command import (
             run_service_install, run_service_uninstall, run_service_status,
@@ -673,6 +721,7 @@ def main(argv: list[str] | None = None) -> None:
                     patterns_path=args.attack_patterns,
                     evolved_patterns_path=args.evolved_patterns,
                     skills_dir=args.skills_dir,
+                    summary_markdown_path=args.summary_markdown,
                     as_json=args.json,
                 )
             )

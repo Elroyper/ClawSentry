@@ -10,6 +10,7 @@ vi.mock('../api/client', () => ({
     sessionRisk: vi.fn(),
     sessionReplay: vi.fn(),
     sessionReplayPage: vi.fn(),
+    requestL3FullReview: vi.fn(),
   },
 }))
 
@@ -140,6 +141,13 @@ describe('SessionDetail', () => {
   beforeEach(() => {
     vi.mocked(api.sessionRisk).mockResolvedValue(makeRiskResponse() as never)
     vi.mocked(api.sessionReplayPage).mockResolvedValue(makeReplayPageResponse() as never)
+    vi.mocked(api.requestL3FullReview).mockResolvedValue({
+      snapshot: { snapshot_id: 'snap-full-review' },
+      job: { job_id: 'job-full-review', job_state: 'completed' },
+      review: { review_id: 'review-full-review', l3_state: 'completed', advisory_only: true },
+      advisory_only: true,
+      canonical_decision_mutated: false,
+    } as never)
   })
 
   it('keeps analysis first while preserving supporting context and heading hierarchy', async () => {
@@ -189,6 +197,20 @@ describe('SessionDetail', () => {
 
     expect(await screen.findByText('Evidence:')).toBeInTheDocument()
     expect(screen.getByText('trajectory, file · 2 tool call(s) · toolkit 0/5 (exhausted)')).toBeInTheDocument()
+  })
+
+  it('lets operators request a deterministic L3 full review from session detail', async () => {
+    renderSessionDetail()
+
+    const button = await screen.findByRole('button', { name: 'Request L3 full review' })
+    fireEvent.click(button)
+
+    expect(api.requestL3FullReview).toHaveBeenCalledWith('sess-123', {
+      runner: 'deterministic_local',
+      run: true,
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent('Full review completed: review-full-review')
+    expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
   })
 
   it('switches the initial window and re-fetches the first replay page for the new scope', async () => {

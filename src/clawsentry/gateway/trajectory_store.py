@@ -7,6 +7,7 @@ import logging
 import os
 import sqlite3
 import time
+import hashlib
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
@@ -16,6 +17,11 @@ logger = logging.getLogger("clawsentry")
 DEFAULT_TRAJECTORY_DB_PATH = "/tmp/clawsentry-trajectory.db"
 DEFAULT_TRAJECTORY_RETENTION_SECONDS = 30 * 24 * 3600
 HIGH_RISK_LEVELS = {"high", "critical"}
+L3_ADVISORY_REVIEW_STATES = {"pending", "running", "completed", "failed", "degraded"}
+L3_ADVISORY_TERMINAL_STATES = {"completed", "failed", "degraded"}
+L3_ADVISORY_JOB_STATES = {"queued", "running", "completed", "failed"}
+L3_ADVISORY_JOB_TERMINAL_STATES = {"completed", "failed"}
+_RISK_LEVEL_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 INVALID_EVENT_COUNT_THRESHOLD_1M = 20
 INVALID_EVENT_RATE_CRITICAL_5M = 0.01
@@ -112,6 +118,72 @@ class TrajectoryStore:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_traj_source_framework ON trajectory_records(source_framework)"
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS l3_evidence_snapshots (
+                snapshot_id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                trigger_event_id TEXT NOT NULL,
+                trigger_reason TEXT NOT NULL,
+                trigger_detail TEXT,
+                from_record_id INTEGER NOT NULL,
+                to_record_id INTEGER NOT NULL,
+                record_count INTEGER NOT NULL,
+                trajectory_fingerprint TEXT NOT NULL,
+                risk_summary_json TEXT NOT NULL,
+                evidence_budget_json TEXT NOT NULL,
+                created_at_ts REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                snapshot_json TEXT NOT NULL
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_l3_snapshots_session ON l3_evidence_snapshots(session_id, created_at_ts)"
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS l3_advisory_reviews (
+                review_id TEXT PRIMARY KEY,
+                snapshot_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                advisory_only INTEGER NOT NULL,
+                recommended_operator_action TEXT NOT NULL,
+                l3_state TEXT NOT NULL,
+                l3_reason_code TEXT,
+                created_at_ts REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                completed_at TEXT,
+                review_json TEXT NOT NULL,
+                FOREIGN KEY(snapshot_id) REFERENCES l3_evidence_snapshots(snapshot_id)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_l3_reviews_session ON l3_advisory_reviews(session_id, created_at_ts)"
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS l3_advisory_jobs (
+                job_id TEXT PRIMARY KEY,
+                snapshot_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                review_id TEXT,
+                job_state TEXT NOT NULL,
+                runner TEXT NOT NULL,
+                created_at_ts REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                completed_at TEXT,
+                job_json TEXT NOT NULL,
+                FOREIGN KEY(snapshot_id) REFERENCES l3_evidence_snapshots(snapshot_id)
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_l3_jobs_session ON l3_advisory_jobs(session_id, created_at_ts)"
+        )
         # Migrate: add l3_trace_json column if missing
         try:
             cur.execute("ALTER TABLE trajectory_records ADD COLUMN l3_trace_json TEXT")
@@ -139,7 +211,7 @@ class TrajectoryStore:
         meta: dict,
         recorded_at_ts: Optional[float] = None,
         l3_trace: Optional[dict] = None,
-    ) -> None:
+    ) -> int:
         ts = recorded_at_ts if recorded_at_ts is not None else time.time()
         recorded_at = self._iso_from_ts(ts)
         cur = self._conn.cursor()
@@ -175,8 +247,10 @@ class TrajectoryStore:
                 json.dumps(l3_trace) if l3_trace else None,
             ),
         )
+        record_id = int(cur.lastrowid)
         self._conn.commit()
         self._prune_expired(now_ts=ts)
+        return record_id
 
     def record_resolution(
         self,
@@ -187,10 +261,10 @@ class TrajectoryStore:
         meta: dict,
         recorded_at_ts: Optional[float] = None,
         l3_trace: Optional[dict] = None,
-    ) -> None:
+    ) -> int:
         resolution_meta = dict(meta)
         resolution_meta["record_type"] = "decision_resolution"
-        self.record(
+        return self.record(
             event=event,
             decision=decision,
             snapshot=snapshot,
@@ -255,6 +329,668 @@ class TrajectoryStore:
                 }
             )
         return records
+
+    def _query_records_by_id_range(
+        self,
+        *,
+        session_id: str,
+        from_record_id: int,
+        to_record_id: int,
+    ) -> list[dict[str, Any]]:
+        rows = self._conn.execute(
+            """
+            SELECT id, recorded_at_ts, recorded_at, event_json, decision_json, snapshot_json, meta_json, l3_trace_json
+            FROM trajectory_records
+            WHERE session_id = ? AND id >= ? AND id <= ?
+            ORDER BY id ASC
+            """,
+            (session_id, from_record_id, to_record_id),
+        ).fetchall()
+        records: list[dict[str, Any]] = []
+        for row in rows:
+            l3_raw = row["l3_trace_json"]
+            records.append(
+                {
+                    "event": json.loads(row["event_json"]),
+                    "decision": json.loads(row["decision_json"]),
+                    "risk_snapshot": json.loads(row["snapshot_json"]),
+                    "meta": json.loads(row["meta_json"]),
+                    "record_id": int(row["id"]),
+                    "recorded_at": row["recorded_at"],
+                    "recorded_at_ts": float(row["recorded_at_ts"]),
+                    "l3_trace": json.loads(l3_raw) if l3_raw else None,
+                }
+            )
+        return records
+
+    @staticmethod
+    def _json_dumps(value: Any) -> str:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    @staticmethod
+    def _hash_text(value: str) -> str:
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def _select_l3_snapshot_records(
+        self,
+        *,
+        session_id: str,
+        to_record_id: int | None,
+        from_record_id: int | None,
+        max_records: int,
+    ) -> list[dict[str, Any]]:
+        clauses = ["session_id = ?"]
+        params: list[Any] = [session_id]
+        if to_record_id is not None:
+            clauses.append("id <= ?")
+            params.append(to_record_id)
+        if from_record_id is not None:
+            clauses.append("id >= ?")
+            params.append(from_record_id)
+        rows = self._conn.execute(
+            f"""
+            SELECT id
+            FROM trajectory_records
+            WHERE {' AND '.join(clauses)}
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (*params, max(max_records, 1)),
+        ).fetchall()
+        record_ids = sorted(int(row["id"]) for row in rows)
+        if not record_ids:
+            return []
+        return self._query_records_by_id_range(
+            session_id=session_id,
+            from_record_id=record_ids[0],
+            to_record_id=record_ids[-1],
+        )
+
+    @staticmethod
+    def _build_l3_snapshot_risk_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+        decision_distribution: dict[str, int] = defaultdict(int)
+        high_risk_count = 0
+        current_risk_level = "low"
+        for record in records:
+            decision = record.get("decision") or {}
+            risk_level = str(decision.get("risk_level") or record.get("risk_snapshot", {}).get("risk_level") or "low")
+            current_risk_level = risk_level
+            decision_distribution[str(decision.get("decision") or "unknown")] += 1
+            if risk_level.lower() in HIGH_RISK_LEVELS:
+                high_risk_count += 1
+        return {
+            "current_risk_level": current_risk_level,
+            "high_risk_event_count": high_risk_count,
+            "decision_distribution": dict(decision_distribution),
+        }
+
+    def create_l3_evidence_snapshot(
+        self,
+        *,
+        session_id: str,
+        trigger_event_id: str,
+        trigger_reason: str,
+        trigger_detail: str | None = None,
+        to_record_id: int | None = None,
+        from_record_id: int | None = None,
+        max_records: int = 50,
+        max_tool_calls: int = 4,
+    ) -> dict[str, Any]:
+        records = self._select_l3_snapshot_records(
+            session_id=session_id,
+            to_record_id=to_record_id,
+            from_record_id=from_record_id,
+            max_records=max_records,
+        )
+        if not records:
+            raise ValueError(f"no trajectory records found for session {session_id!r}")
+
+        from_id = int(records[0]["record_id"])
+        to_id = int(records[-1]["record_id"])
+        fingerprint_input = [
+            {
+                "record_id": record["record_id"],
+                "event_id": record.get("event", {}).get("event_id"),
+                "decision": record.get("decision", {}).get("decision"),
+                "risk_level": record.get("decision", {}).get("risk_level"),
+                "recorded_at": record.get("recorded_at"),
+            }
+            for record in records
+        ]
+        trajectory_fingerprint = self._hash_text(self._json_dumps(fingerprint_input))
+        snapshot_hash = self._hash_text(
+            self._json_dumps(
+                {
+                    "session_id": session_id,
+                    "trigger_event_id": trigger_event_id,
+                    "trigger_reason": trigger_reason,
+                    "trigger_detail": trigger_detail,
+                    "from_record_id": from_id,
+                    "to_record_id": to_id,
+                    "trajectory_fingerprint": trajectory_fingerprint,
+                }
+            )
+        )
+        snapshot_id = f"l3snap-{snapshot_hash[:16]}"
+        existing = self.get_l3_evidence_snapshot(snapshot_id)
+        if existing is not None:
+            return existing
+
+        ts = time.time()
+        created_at = self._iso_from_ts(ts)
+        risk_summary = self._build_l3_snapshot_risk_summary(records)
+        evidence_budget = {
+            "max_records": max_records,
+            "max_tool_calls": max_tool_calls,
+        }
+        snapshot = {
+            "snapshot_id": snapshot_id,
+            "session_id": session_id,
+            "created_at": created_at,
+            "trigger_event_id": trigger_event_id,
+            "trigger_reason": trigger_reason,
+            "trigger_detail": trigger_detail,
+            "event_range": {
+                "from_record_id": from_id,
+                "to_record_id": to_id,
+            },
+            "record_count": len(records),
+            "trajectory_fingerprint": trajectory_fingerprint,
+            "risk_summary": risk_summary,
+            "evidence_budget": evidence_budget,
+            "advisory_only": True,
+        }
+        self._conn.execute(
+            """
+            INSERT INTO l3_evidence_snapshots (
+                snapshot_id, session_id, trigger_event_id, trigger_reason, trigger_detail,
+                from_record_id, to_record_id, record_count, trajectory_fingerprint,
+                risk_summary_json, evidence_budget_json, created_at_ts, created_at, snapshot_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                snapshot_id,
+                session_id,
+                trigger_event_id,
+                trigger_reason,
+                trigger_detail,
+                from_id,
+                to_id,
+                len(records),
+                trajectory_fingerprint,
+                self._json_dumps(risk_summary),
+                self._json_dumps(evidence_budget),
+                ts,
+                created_at,
+                self._json_dumps(snapshot),
+            ),
+        )
+        self._conn.commit()
+        return snapshot
+
+    def get_l3_evidence_snapshot(self, snapshot_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT snapshot_json FROM l3_evidence_snapshots WHERE snapshot_id = ?",
+            (snapshot_id,),
+        ).fetchone()
+        return json.loads(row["snapshot_json"]) if row else None
+
+    def list_l3_evidence_snapshots(self, *, session_id: str | None = None) -> list[dict[str, Any]]:
+        if session_id is None:
+            rows = self._conn.execute(
+                "SELECT snapshot_json FROM l3_evidence_snapshots ORDER BY created_at_ts ASC"
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT snapshot_json FROM l3_evidence_snapshots WHERE session_id = ? ORDER BY created_at_ts ASC",
+                (session_id,),
+            ).fetchall()
+        return [json.loads(row["snapshot_json"]) for row in rows]
+
+    def replay_l3_evidence_snapshot(self, snapshot_id: str) -> list[dict[str, Any]]:
+        snapshot = self.get_l3_evidence_snapshot(snapshot_id)
+        if snapshot is None:
+            return []
+        event_range = snapshot.get("event_range") or {}
+        return self._query_records_by_id_range(
+            session_id=str(snapshot.get("session_id") or ""),
+            from_record_id=int(event_range.get("from_record_id") or 0),
+            to_record_id=int(event_range.get("to_record_id") or 0),
+        )
+
+    def record_l3_advisory_review(
+        self,
+        *,
+        snapshot_id: str,
+        risk_level: str,
+        findings: list[str] | None = None,
+        confidence: float | None = None,
+        advisory_only: bool = True,
+        recommended_operator_action: str = "inspect",
+        l3_state: str = "completed",
+        l3_reason_code: str | None = None,
+        completed_at: str | None = None,
+    ) -> dict[str, Any]:
+        if advisory_only is not True:
+            raise ValueError("l3 advisory reviews must keep advisory_only=true")
+        if l3_state not in L3_ADVISORY_REVIEW_STATES:
+            raise ValueError(f"l3_state must be one of: {', '.join(sorted(L3_ADVISORY_REVIEW_STATES))}")
+        snapshot = self.get_l3_evidence_snapshot(snapshot_id)
+        if snapshot is None:
+            raise ValueError(f"snapshot {snapshot_id!r} was not found")
+        normalized_findings = [str(item) for item in (findings or [])]
+        review_hash = self._hash_text(
+            self._json_dumps(
+                {
+                    "snapshot_id": snapshot_id,
+                    "risk_level": risk_level,
+                    "findings": normalized_findings,
+                    "confidence": confidence,
+                    "recommended_operator_action": recommended_operator_action,
+                    "l3_state": l3_state,
+                    "l3_reason_code": l3_reason_code,
+                }
+            )
+        )
+        review_id = f"l3adv-{review_hash[:16]}"
+        existing = self.get_l3_advisory_review(review_id)
+        if existing is not None:
+            return existing
+
+        ts = time.time()
+        created_at = self._iso_from_ts(ts)
+        if completed_at is None and l3_state in L3_ADVISORY_TERMINAL_STATES:
+            completed_at = created_at
+        review = {
+            "review_id": review_id,
+            "type": "l3_advisory_review",
+            "snapshot_id": snapshot_id,
+            "session_id": snapshot["session_id"],
+            "risk_level": risk_level,
+            "findings": normalized_findings,
+            "confidence": confidence,
+            "advisory_only": True,
+            "recommended_operator_action": recommended_operator_action,
+            "l3_state": l3_state,
+            "l3_reason_code": l3_reason_code,
+            "created_at": created_at,
+            "completed_at": completed_at,
+        }
+        self._conn.execute(
+            """
+            INSERT INTO l3_advisory_reviews (
+                review_id, snapshot_id, session_id, risk_level, advisory_only,
+                recommended_operator_action, l3_state, l3_reason_code,
+                created_at_ts, created_at, completed_at, review_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                snapshot_id,
+                snapshot["session_id"],
+                risk_level,
+                1,
+                recommended_operator_action,
+                l3_state,
+                l3_reason_code,
+                ts,
+                created_at,
+                completed_at,
+                self._json_dumps(review),
+            ),
+        )
+        self._conn.commit()
+        return review
+
+    def update_l3_advisory_review(
+        self,
+        review_id: str,
+        *,
+        risk_level: str | None = None,
+        findings: list[str] | None = None,
+        confidence: float | None = None,
+        recommended_operator_action: str | None = None,
+        l3_state: str | None = None,
+        l3_reason_code: str | None = None,
+        completed_at: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        current = self.get_l3_advisory_review(review_id)
+        if current is None:
+            raise ValueError(f"review {review_id!r} was not found")
+        if l3_state is not None and l3_state not in L3_ADVISORY_REVIEW_STATES:
+            raise ValueError(f"l3_state must be one of: {', '.join(sorted(L3_ADVISORY_REVIEW_STATES))}")
+
+        next_review = dict(current)
+        if risk_level is not None:
+            next_review["risk_level"] = risk_level
+        if findings is not None:
+            next_review["findings"] = [str(item) for item in findings]
+        if confidence is not None:
+            next_review["confidence"] = confidence
+        if recommended_operator_action is not None:
+            next_review["recommended_operator_action"] = recommended_operator_action
+        if l3_state is not None:
+            next_review["l3_state"] = l3_state
+        if l3_reason_code is not None:
+            next_review["l3_reason_code"] = l3_reason_code
+        if completed_at is not None:
+            next_review["completed_at"] = completed_at
+        elif (
+            next_review.get("completed_at") is None
+            and next_review.get("l3_state") in L3_ADVISORY_TERMINAL_STATES
+        ):
+            next_review["completed_at"] = self._iso_from_ts(time.time())
+        if extra_fields:
+            next_review.update(extra_fields)
+
+        self._conn.execute(
+            """
+            UPDATE l3_advisory_reviews
+            SET risk_level = ?,
+                recommended_operator_action = ?,
+                l3_state = ?,
+                l3_reason_code = ?,
+                completed_at = ?,
+                review_json = ?
+            WHERE review_id = ?
+            """,
+            (
+                next_review["risk_level"],
+                next_review["recommended_operator_action"],
+                next_review["l3_state"],
+                next_review.get("l3_reason_code"),
+                next_review.get("completed_at"),
+                self._json_dumps(next_review),
+                review_id,
+            ),
+        )
+        self._conn.commit()
+        return next_review
+
+    @staticmethod
+    def _highest_risk_level(records: list[dict[str, Any]]) -> str:
+        highest = "low"
+        for record in records:
+            risk_level = str(
+                record.get("decision", {}).get("risk_level")
+                or record.get("risk_snapshot", {}).get("risk_level")
+                or "low"
+            ).lower()
+            if _RISK_LEVEL_RANK.get(risk_level, 0) > _RISK_LEVEL_RANK.get(highest, 0):
+                highest = risk_level
+        return highest
+
+    @staticmethod
+    def _recommended_action_for_risk(risk_level: str) -> str:
+        if risk_level == "critical":
+            return "escalate"
+        if risk_level in {"high", "medium"}:
+            return "inspect"
+        return "none"
+
+    def run_local_l3_advisory_review(self, snapshot_id: str) -> dict[str, Any]:
+        """Run a deterministic local advisory review over a frozen snapshot.
+
+        This is intentionally not an LLM worker. It proves that the review
+        lifecycle consumes only snapshot-bounded records and can be updated
+        without changing canonical decision records.
+        """
+
+        snapshot = self.get_l3_evidence_snapshot(snapshot_id)
+        if snapshot is None:
+            raise ValueError(f"snapshot {snapshot_id!r} was not found")
+        records = self.replay_l3_evidence_snapshot(snapshot_id)
+        if not records:
+            raise ValueError(f"snapshot {snapshot_id!r} has no replayable records")
+
+        event_ids = [str(record.get("event", {}).get("event_id") or "") for record in records]
+        event_ids = [event_id for event_id in event_ids if event_id]
+        risk_summary = self._build_l3_snapshot_risk_summary(records)
+        risk_level = self._highest_risk_level(records)
+        action = self._recommended_action_for_risk(risk_level)
+        event_range = snapshot.get("event_range") or {}
+        decision_distribution = risk_summary.get("decision_distribution") or {}
+        decision_summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(decision_distribution.items())
+        ) or "none"
+        findings = [
+            (
+                f"Reviewed {len(records)} frozen record(s) from "
+                f"{event_range.get('from_record_id')} to {event_range.get('to_record_id')}"
+            ),
+            f"Source events: {', '.join(event_ids) or '-'}",
+            f"Decision distribution: {decision_summary}",
+        ]
+
+        review = self.record_l3_advisory_review(
+            snapshot_id=snapshot_id,
+            risk_level=risk_level,
+            findings=[],
+            recommended_operator_action=action,
+            l3_state="pending",
+        )
+        self.update_l3_advisory_review(
+            review["review_id"],
+            l3_state="running",
+            findings=["Deterministic local advisory review started"],
+        )
+        return self.update_l3_advisory_review(
+            review["review_id"],
+            l3_state="completed",
+            risk_level=risk_level,
+            findings=findings,
+            confidence=None,
+            recommended_operator_action=action,
+            extra_fields={
+                "evidence_record_count": len(records),
+                "evidence_event_ids": event_ids,
+                "source_record_range": {
+                    "from_record_id": int(event_range.get("from_record_id") or 0),
+                    "to_record_id": int(event_range.get("to_record_id") or 0),
+                },
+                "review_runner": "deterministic_local",
+            },
+        )
+
+    def enqueue_l3_advisory_job(
+        self,
+        snapshot_id: str,
+        *,
+        runner: str = "deterministic_local",
+    ) -> dict[str, Any]:
+        snapshot = self.get_l3_evidence_snapshot(snapshot_id)
+        if snapshot is None:
+            raise ValueError(f"snapshot {snapshot_id!r} was not found")
+        job_id = f"l3job-{self._hash_text(self._json_dumps({'snapshot_id': snapshot_id, 'runner': runner}))[:16]}"
+        existing = self.get_l3_advisory_job(job_id)
+        if existing is not None:
+            return existing
+        ts = time.time()
+        created_at = self._iso_from_ts(ts)
+        job = {
+            "job_id": job_id,
+            "snapshot_id": snapshot_id,
+            "session_id": snapshot["session_id"],
+            "review_id": None,
+            "job_state": "queued",
+            "runner": runner,
+            "created_at": created_at,
+            "updated_at": created_at,
+            "completed_at": None,
+        }
+        self._conn.execute(
+            """
+            INSERT INTO l3_advisory_jobs (
+                job_id, snapshot_id, session_id, review_id, job_state, runner,
+                created_at_ts, created_at, updated_at, completed_at, job_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job_id,
+                snapshot_id,
+                snapshot["session_id"],
+                None,
+                "queued",
+                runner,
+                ts,
+                created_at,
+                created_at,
+                None,
+                self._json_dumps(job),
+            ),
+        )
+        self._conn.commit()
+        return job
+
+    def get_l3_advisory_job(self, job_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT job_json FROM l3_advisory_jobs WHERE job_id = ?",
+            (job_id,),
+        ).fetchone()
+        return json.loads(row["job_json"]) if row else None
+
+    def list_l3_advisory_jobs(
+        self,
+        *,
+        session_id: str | None = None,
+        snapshot_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if session_id is not None:
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        if snapshot_id is not None:
+            clauses.append("snapshot_id = ?")
+            params.append(snapshot_id)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self._conn.execute(
+            f"SELECT job_json FROM l3_advisory_jobs {where_sql} ORDER BY created_at_ts ASC",
+            params,
+        ).fetchall()
+        return [json.loads(row["job_json"]) for row in rows]
+
+    def latest_l3_advisory_job(self, *, session_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            """
+            SELECT job_json FROM l3_advisory_jobs
+            WHERE session_id = ?
+            ORDER BY created_at_ts DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        ).fetchone()
+        return json.loads(row["job_json"]) if row else None
+
+    def update_l3_advisory_job(
+        self,
+        job_id: str,
+        *,
+        job_state: str | None = None,
+        review_id: str | None = None,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        current = self.get_l3_advisory_job(job_id)
+        if current is None:
+            raise ValueError(f"job {job_id!r} was not found")
+        if job_state is not None and job_state not in L3_ADVISORY_JOB_STATES:
+            raise ValueError(f"job_state must be one of: {', '.join(sorted(L3_ADVISORY_JOB_STATES))}")
+        next_job = dict(current)
+        if job_state is not None:
+            next_job["job_state"] = job_state
+        if review_id is not None:
+            next_job["review_id"] = review_id
+        if error is not None:
+            next_job["error"] = error
+        updated_at = self._iso_from_ts(time.time())
+        next_job["updated_at"] = updated_at
+        if next_job["job_state"] in L3_ADVISORY_JOB_TERMINAL_STATES and next_job.get("completed_at") is None:
+            next_job["completed_at"] = updated_at
+        self._conn.execute(
+            """
+            UPDATE l3_advisory_jobs
+            SET review_id = ?,
+                job_state = ?,
+                updated_at = ?,
+                completed_at = ?,
+                job_json = ?
+            WHERE job_id = ?
+            """,
+            (
+                next_job.get("review_id"),
+                next_job["job_state"],
+                next_job["updated_at"],
+                next_job.get("completed_at"),
+                self._json_dumps(next_job),
+                job_id,
+            ),
+        )
+        self._conn.commit()
+        return next_job
+
+    def run_l3_advisory_job_local(self, job_id: str) -> dict[str, Any]:
+        job = self.get_l3_advisory_job(job_id)
+        if job is None:
+            raise ValueError(f"job {job_id!r} was not found")
+        if job["runner"] != "deterministic_local":
+            raise ValueError(f"unsupported advisory job runner {job['runner']!r}")
+        self.update_l3_advisory_job(job_id, job_state="running")
+        try:
+            review = self.run_local_l3_advisory_review(job["snapshot_id"])
+        except Exception as exc:
+            failed = self.update_l3_advisory_job(
+                job_id,
+                job_state="failed",
+                error=str(exc),
+            )
+            raise ValueError(str(exc)) from exc
+        completed = self.update_l3_advisory_job(
+            job_id,
+            job_state="completed",
+            review_id=review["review_id"],
+        )
+        return {"job": completed, "review": review}
+
+    def get_l3_advisory_review(self, review_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT review_json FROM l3_advisory_reviews WHERE review_id = ?",
+            (review_id,),
+        ).fetchone()
+        return json.loads(row["review_json"]) if row else None
+
+    def list_l3_advisory_reviews(
+        self,
+        *,
+        session_id: str | None = None,
+        snapshot_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if session_id is not None:
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        if snapshot_id is not None:
+            clauses.append("snapshot_id = ?")
+            params.append(snapshot_id)
+        where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = self._conn.execute(
+            f"SELECT review_json FROM l3_advisory_reviews {where_sql} ORDER BY created_at_ts ASC",
+            params,
+        ).fetchall()
+        return [json.loads(row["review_json"]) for row in rows]
+
+    def latest_l3_advisory_review(self, *, session_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            """
+            SELECT review_json FROM l3_advisory_reviews
+            WHERE session_id = ?
+            ORDER BY created_at_ts DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        ).fetchone()
+        return json.loads(row["review_json"]) if row else None
 
     @property
     def records(self) -> list[dict[str, Any]]:
@@ -508,6 +1244,9 @@ class TrajectoryStore:
 
     def clear(self) -> None:
         self._conn.execute("DELETE FROM trajectory_records")
+        self._conn.execute("DELETE FROM l3_evidence_snapshots")
+        self._conn.execute("DELETE FROM l3_advisory_reviews")
+        self._conn.execute("DELETE FROM l3_advisory_jobs")
         self._conn.commit()
 
 

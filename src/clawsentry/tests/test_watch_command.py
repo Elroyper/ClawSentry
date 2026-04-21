@@ -596,6 +596,53 @@ class TestFormatEvent:
         assert "budget=$10.00/$10.00" in result
         assert "remaining=$0.00" in result
 
+    def test_l3_advisory_snapshot_dispatch(self):
+        event = {
+            "type": "l3_advisory_snapshot",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "trigger_reason": "trajectory_alert",
+            "event_range": {"from_record_id": 1, "to_record_id": 3},
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "L3 ADVISORY SNAPSHOT" in result
+        assert "l3snap-abc123" in result
+        assert "1->3" in result
+
+    def test_l3_advisory_review_dispatch(self):
+        event = {
+            "type": "l3_advisory_review",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "review_id": "l3adv-def456",
+            "risk_level": "high",
+            "l3_state": "running",
+            "recommended_operator_action": "inspect",
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "L3 ADVISORY REVIEW" in result
+        assert "l3adv-def456" in result
+        assert "running" in result
+        assert "inspect" in result
+
+    def test_l3_advisory_job_dispatch(self):
+        event = {
+            "type": "l3_advisory_job",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "job_id": "l3job-ghi789",
+            "job_state": "queued",
+            "runner": "deterministic_local",
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "L3 ADVISORY JOB" in result
+        assert "l3job-ghi789" in result
+        assert "queued" in result
+        assert "deterministic_local" in result
+
 
 # ---------------------------------------------------------------------------
 # TestFormatDeferEvents

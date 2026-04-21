@@ -202,6 +202,7 @@ ClawSentry — AHP unified safety supervision framework.
 | `clawsentry doctor` | 配置安全审计 |
 | `clawsentry audit` | 离线审计日志查询 |
 | `clawsentry test-llm` | 验证 L2/L3 连通性、时延与当前运行模式 |
+| `clawsentry l3 full-review` | operator-triggered advisory full review |
 | `clawsentry-gateway` | 直接启动 HTTP 网关服务 |
 | `clawsentry-harness` | 启动 stdio 协议桥接进程 |
 | `clawsentry-stack` | 启动完整栈（网关 + OpenClaw 集成） |
@@ -218,12 +219,12 @@ python -m pytest src/clawsentry/tests/ -v --tb=short
 
 ```
 ========================= test session starts ==========================
-collected 2965 items
+collected 3024 items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 2962 passed, 3 skipped in ~45s ===============
+========================= 3020 passed, 4 skipped in ~45s ===============
 ```
 
 !!! success "全部通过即安装成功"
