@@ -1,100 +1,212 @@
 ---
 title: L3 咨询审查
-description: L3 advisory snapshots、jobs、reviews、operator full review、CLI/API/UI 使用方式与边界
+description: 用一份只读、可追溯、不改写历史判决的 L3 安全复盘报告，帮助 operator 处理高风险 session
 ---
+
+<style>
+  .l3-hero {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 18px;
+    padding: 1.6rem;
+    margin: 1rem 0 1.5rem;
+    background: linear-gradient(135deg, rgba(3,105,161,.14), rgba(34,197,94,.08));
+  }
+  .l3-hero h2 { margin-top: 0; }
+  .l3-hero p { max-width: 52rem; }
+  .l3-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: .9rem;
+    margin: 1rem 0 1.4rem;
+  }
+  .l3-card {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 14px;
+    padding: 1rem 1.05rem;
+    background: var(--md-default-bg-color);
+  }
+  .l3-card h3 { margin: 0 0 .45rem; font-size: 1rem; }
+  .l3-card p { margin: 0; font-size: .88rem; }
+  .l3-pill-row { display: flex; flex-wrap: wrap; gap: .45rem; margin: .8rem 0 0; }
+  .l3-pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: .16rem .55rem;
+    font-size: .78rem;
+    border: 1px solid var(--md-accent-fg-color--transparent);
+    background: var(--md-code-bg-color);
+  }
+  .l3-flow {
+    border-left: 4px solid var(--md-primary-fg-color);
+    padding: .8rem 1rem;
+    background: var(--md-code-bg-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+</style>
 
 # L3 咨询审查
 
-L3 咨询审查（L3 advisory review）用于在不改写历史判决的前提下，对一个高风险 session 做一次可追溯的安全复盘。它把证据先冻结，再让 operator 明确选择是否排队、是否运行、用哪个 runner 运行。
+<div class="l3-hero" markdown>
 
-!!! success "一句话理解"
-    L3 咨询审查回答的是：“基于已经记录下来的 bounded evidence，这个 session 还需要 operator 做什么？”它不会把过去的 `allow` / `block` / `defer` 改成别的判决。
+## 给高风险 session 的“第二意见报告”
 
----
+当 ClawSentry 发现一个 session 风险很高时，L3 咨询审查可以把当时已经记录下来的证据固定住，生成一份只读复盘报告，告诉 operator：**发生了什么、风险为什么高、下一步该 inspect / escalate / pause 还是继续观察**。
 
-## 适用场景
+它不是新的拦截器，也不是“重新判决历史事件”。它更像安全值守台里的 **case review**：用固定证据做一次可追溯分析，辅助人做后续处置。
 
-使用 L3 咨询审查，当你需要：
+<div class="l3-pill-row" markdown>
+<span class="l3-pill">只读复盘</span>
+<span class="l3-pill">不改写 allow/block/defer</span>
+<span class="l3-pill">可在 Web UI 点击触发</span>
+<span class="l3-pill">CLI / API 可自动化</span>
+</div>
 
-- 对一个已经变成 high / critical 的 session 做完整复盘；
-- 把某段 trajectory records 固定下来，避免后续事件改变审查输入；
-- 让 Web UI / `clawsentry watch` 显示 review、job、snapshot ID 与状态；
-- 在真实 provider 调用前，先用 deterministic / fake runner 验证流程；
-- 保留审计证据，同时明确 `canonical decision unchanged`。
-
-不适合把它当作：
-
-- 后台自动调度器；
-- 新的实时阻断层；
-- 对历史判决的重写工具；
-- 默认联网的 LLM worker。
+</div>
 
 ---
 
-## 核心对象
+## 先用一个场景理解
 
-| 对象 | 作用 | 关键字段 |
-|------|------|----------|
-| `l3_evidence_snapshot` | 冻结一个 session 的 bounded trajectory record range | `snapshot_id`, `from_record_id`, `to_record_id`, `trigger_reason`, `risk_summary` |
-| `l3_advisory_job` | 记录一次待运行或已运行的咨询审查任务 | `job_id`, `snapshot_id`, `runner`, `job_state` |
-| `l3_advisory_review` | 保存咨询审查结果 | `review_id`, `snapshot_id`, `l3_state`, `risk_level`, `recommended_operator_action`, `advisory_only` |
+你在 Web UI 里看到一个 session 变成 **high risk**：
 
-状态集合：
+1. 这个 agent 先读取了 `.env` 或 SSH key；
+2. 后面又执行了 `curl` / `scp` / archive packaging；
+3. Dashboard 和 `clawsentry watch` 都提示风险升高；
+4. 你想知道：这到底是正常部署，还是准备外传？
 
-- Job：`queued` / `running` / `completed` / `failed`
-- Review：`pending` / `running` / `completed` / `failed` / `degraded`
-
----
-
-## Operator full review
-
-最常用入口是 operator-triggered full review：
-
-```http
-POST /report/session/{session_id}/l3-advisory/full-review
-```
-
-请求示例：
-
-```json
-{
-  "trigger_event_id": "operator-action-id",
-  "trigger_detail": "operator_requested_full_review",
-  "from_record_id": 1,
-  "to_record_id": 42,
-  "max_records": 100,
-  "max_tool_calls": 0,
-  "runner": "deterministic_local",
-  "run": true
-}
-```
-
-响应示例：
-
-```json
-{
-  "snapshot": {"snapshot_id": "l3snap-..."},
-  "job": {"job_id": "l3job-...", "job_state": "completed"},
-  "review": {"review_id": "l3adv-...", "l3_state": "completed", "advisory_only": true},
-  "advisory_only": true,
-  "canonical_decision_mutated": false
-}
-```
-
-`run=false` 时只冻结证据并排队 job，`review` 为 `null`。
-
----
-
-## CLI 使用
+这时可以在 Session Detail 点 **Request L3 full review**，或者运行：
 
 ```bash
-# 冻结当前 session 证据，并执行一次 deterministic local review
 clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
+```
 
-# 只排队，不运行 worker
-clawsentry l3 full-review --session sess-001 --queue-only --json
+ClawSentry 会生成一份咨询审查结果，例如：
 
-# 固定 record 范围
+```text
+review:   l3adv-... (completed, risk=high)
+action:   inspect
+boundary: advisory only; canonical decision unchanged
+```
+
+意思是：系统已经基于固定证据做完复盘，建议 operator 进一步检查；但它没有把过去的判决改掉。
+
+---
+
+## 它解决什么问题？
+
+<div class="l3-card-grid" markdown>
+
+<div class="l3-card" markdown>
+### 1. 证据会固定
+高风险 session 还在继续产生事件时，审查输入必须稳定。L3 咨询审查会冻结一段 record range，例如 `Records 4–8`。
+</div>
+
+<div class="l3-card" markdown>
+### 2. 结果可追溯
+每次复盘都有 `snapshot_id`、`job_id`、`review_id`。你可以在 UI、SSE、API、日志里追踪同一份报告。
+</div>
+
+<div class="l3-card" markdown>
+### 3. 不污染历史判决
+报告始终是 `advisory_only=true`。full-review 响应会明确返回 `canonical_decision_mutated=false`。
+</div>
+
+<div class="l3-card" markdown>
+### 4. 可从轻到重运行
+默认用本地确定性 runner；需要时才显式打开 provider runner。不会因为配置了同步 LLM 就自动联网。
+</div>
+
+</div>
+
+---
+
+## 工作流程
+
+<div class="l3-flow" markdown>
+
+**高风险 session** → **冻结证据 Snapshot** → **排队 Job** → **运行 Runner** → **生成 Review** → **Web UI / watch / API 展示结果**
+
+</div>
+
+```mermaid
+graph LR
+    A[High-risk session] --> B[Freeze snapshot<br/>bounded records]
+    B --> C[Queue advisory job]
+    C --> D{Runner}
+    D -->|default| E[deterministic_local]
+    D -->|contract test| F[fake_llm]
+    D -->|explicit opt-in| G[llm_provider]
+    E --> H[Advisory review]
+    F --> H
+    G --> H
+    H --> I[UI / watch / API]
+    H --> J[canonical decision unchanged]
+```
+
+### 三个对象
+
+| 对象 | 普通理解 | 典型 ID | 你会在哪里看到 |
+|------|----------|---------|----------------|
+| Snapshot | 固定下来的证据包 | `l3snap-...` | Session Detail、SSE、API |
+| Job | 这次复盘任务 | `l3job-...` | `watch` 里的 queued/running/completed |
+| Review | 最终咨询报告 | `l3adv-...` | Session Detail 的 L3 advisory review 卡片 |
+
+---
+
+## 在 Web UI 里怎么用
+
+1. 打开 **Sessions**，进入一个 high / critical session；
+2. 在 **Session Detail** 点击 **Request L3 full review**；
+3. 等待状态从 queued / running 变成 completed；
+4. 查看 L3 advisory review 卡片：
+
+| 字段 | 你该怎么看 |
+|------|------------|
+| `Risk` | 复盘后的风险等级 |
+| `Action` | 建议动作：`Inspect` / `Escalate` / `Pause` / `None` |
+| `Runner` | 这次报告由哪个 runner 生成 |
+| `Records 4–8` | 本次复盘只看了这段固定证据 |
+| `canonical decision unchanged` | 原始判决没有被修改 |
+
+!!! tip "建议的值守路径"
+    先看 `Action`，再看 frozen record boundary，最后根据 `review_id` 去 API / replay 里查细节。不要把 advisory review 当成新的 block/allow 判决。
+
+---
+
+## 在 CLI 里怎么用
+
+### 默认：立即生成一份本地咨询报告
+
+```bash
+clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
+```
+
+典型输出：
+
+```text
+L3 advisory full review requested
+snapshot: l3snap-...
+job:      l3job-... (completed)
+review:   l3adv-... (completed, risk=high)
+advisory_only: true
+canonical_decision_mutated: false
+```
+
+### 只排队，不运行
+
+```bash
+clawsentry l3 full-review \
+  --session sess-001 \
+  --queue-only \
+  --json
+```
+
+适合先冻结证据，再由另一个流程决定何时运行 worker。
+
+### 固定审查范围
+
+```bash
 clawsentry l3 full-review \
   --session sess-001 \
   --from-record-id 4 \
@@ -102,52 +214,78 @@ clawsentry l3 full-review \
   --runner deterministic_local
 ```
 
-常用参数：
-
-| 参数 | 说明 |
-|------|------|
-| `--session` | 要审查的 session ID |
-| `--from-record-id` / `--to-record-id` | 冻结的 trajectory record 范围 |
-| `--max-records` | 最多纳入多少条 record |
-| `--runner` | `deterministic_local` / `fake_llm` / `llm_provider` |
-| `--queue-only` | 只排队，不执行 worker |
-| `--json` | 输出完整 JSON |
+适合你已经在 replay 中看到关键事件，只想复盘那一段。
 
 ---
 
-## Runner 选择
+## Runner 怎么选？
 
-| Runner | 是否联网 | 用途 |
-|--------|----------|------|
-| `deterministic_local` | 否 | 默认选择；用本地确定性逻辑给出可重复的咨询结果 |
-| `fake_llm` | 否 | 验证 worker contract 和 job lifecycle |
-| `llm_provider` | 默认否；显式打开后可联网 | 调用 OpenAI / Anthropic provider 的咨询审查路径 |
+| Runner | 是否联网 | 适合谁 | 说明 |
+|--------|----------|--------|------|
+| `deterministic_local` | 否 | 大多数用户 | 默认选择，稳定、可重复、无外部依赖 |
+| `fake_llm` | 否 | 集成测试 / 平台验证 | 验证 job/review 流程，不代表真实模型判断 |
+| `llm_provider` | 默认不联网；显式打开后可联网 | 有 LLM 审查需求的安全团队 | 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置，不继承同步 L2/L3 LLM 配置 |
 
-`llm_provider` 不继承同步 L2/L3 的 `CS_LLM_*` 配置，必须单独设置 `CS_L3_ADVISORY_PROVIDER_*`。默认 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=true`，因此不会误发网络请求。
-
-真实 provider 调用需要显式满足：
+!!! warning "provider runner 必须显式打开"
+    即使你已经配置了 `CS_LLM_PROVIDER`，L3 咨询审查也不会自动用它联网。`llm_provider` 需要独立设置 provider、model、key，并把 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`。
 
 ```bash
 CS_L3_ADVISORY_PROVIDER_ENABLED=true
 CS_L3_ADVISORY_PROVIDER=openai        # 或 anthropic
 CS_L3_ADVISORY_MODEL=<model>
 CS_L3_ADVISORY_PROVIDER_DRY_RUN=false
-# 以及 OPENAI_API_KEY / ANTHROPIC_API_KEY 或 CS_L3_ADVISORY_API_KEY
+OPENAI_API_KEY=<key>                  # 或 CS_L3_ADVISORY_API_KEY
 ```
 
 ---
 
-## Web UI 与 watch 中怎么看
+## API 速查
 
-Session Detail 页的 **Request L3 full review** 按钮会触发 full-review，并显示：
+最常用端点：
 
-- latest `review_id` / `snapshot_id` / `job_id`
-- frozen record boundary，例如 `Records 4–8`
-- `l3_state`、`job_state`、`runner` 的人类可读标签
-- `advisory_only=true`
-- `canonical decision unchanged`
+```http
+POST /report/session/{session_id}/l3-advisory/full-review
+```
 
-`clawsentry watch` 会显示三类 SSE 事件：
+请求：
+
+```json
+{
+  "trigger_detail": "operator_requested_full_review",
+  "from_record_id": 4,
+  "to_record_id": 8,
+  "max_records": 100,
+  "max_tool_calls": 0,
+  "runner": "deterministic_local",
+  "run": true
+}
+```
+
+响应：
+
+```json
+{
+  "snapshot": {"snapshot_id": "l3snap-..."},
+  "job": {"job_id": "l3job-...", "job_state": "completed"},
+  "review": {"review_id": "l3adv-...", "l3_state": "completed"},
+  "advisory_only": true,
+  "canonical_decision_mutated": false
+}
+```
+
+更多端点：
+
+- 创建 snapshot：`POST /report/session/{id}/l3-advisory/snapshots`
+- 创建 job：`POST /report/l3-advisory/snapshot/{snapshot_id}/jobs`
+- 运行本地 job：`POST /report/l3-advisory/job/{job_id}/run-local`
+- 运行 worker：`POST /report/l3-advisory/job/{job_id}/run-worker`
+- 更新 review lifecycle：`PATCH /report/l3-advisory/review/{review_id}`
+
+完整字段见 [报表与监控端点](../api/reporting.md#l3-advisory-endpoints)。
+
+---
+
+## `clawsentry watch` 里会看到什么？
 
 ```text
 L3 ADVISORY SNAPSHOT  l3snap-...  Range=4->8
@@ -155,35 +293,30 @@ L3 ADVISORY JOB       l3job-...   State=Completed Runner=Deterministic local
 L3 ADVISORY REVIEW    l3adv-...   State=Completed Action=Inspect
 ```
 
----
-
-## API 与事件
-
-主要 API：
-
-- `POST /report/session/{id}/l3-advisory/snapshots`
-- `POST /report/l3-advisory/reviews`
-- `PATCH /report/l3-advisory/review/{review_id}`
-- `POST /report/l3-advisory/snapshot/{snapshot_id}/jobs`
-- `POST /report/l3-advisory/job/{job_id}/run-local`
-- `POST /report/l3-advisory/job/{job_id}/run-worker`
-- `POST /report/session/{id}/l3-advisory/full-review`
-
-SSE 事件：
-
-- `l3_advisory_snapshot`
-- `l3_advisory_job`
-- `l3_advisory_review`
-
-完整字段见 [报表与监控端点](../api/reporting.md#l3-advisory-endpoints)。
+这三行对应：证据已冻结、任务已运行、报告已生成。
 
 ---
 
-## 安全边界
+## 边界与常见误解
 
-- 咨询审查只读 frozen trajectory records；不会直接读取不断变化的 live session state。
-- full review 默认不调用真实 LLM provider。
-- provider 调用必须显式打开独立 `CS_L3_ADVISORY_PROVIDER_*` 闸门。
-- 所有结果都标记为 `advisory_only=true`。
-- full-review 响应明确返回 `canonical_decision_mutated=false`。
-- 如 provider 配置缺失、未启用、dry-run 未关闭或 provider 不支持，结果会降级为 `l3_state=degraded`，而不是静默联网或伪装成功。
+| 误解 | 实际行为 |
+|------|----------|
+| “它会重新决定 allow/block 吗？” | 不会。它只生成 advisory review。 |
+| “它会自动联网调用 LLM 吗？” | 不会。provider runner 默认 dry-run，必须显式打开。 |
+| “它会一直后台扫描所有 session 吗？” | 不会。full review 是 operator 显式触发；自动 snapshot 也不会自动运行后台 review。 |
+| “它会读取最新 live 文件吗？” | 默认只读 frozen trajectory records；范围由 snapshot 固定。 |
+| “失败会伪装成成功吗？” | 不会。配置缺失或 provider 不可用会显示 `degraded` / `failed`。 |
+
+---
+
+## 和同步 L3 Agent 有什么区别？
+
+| 能力 | 同步 L3 Agent | L3 咨询审查 |
+|------|---------------|--------------|
+| 触发时机 | 在实时决策链中按策略触发 | operator 手动触发，或只自动冻结 snapshot |
+| 目标 | 帮助当前事件得出安全评估 | 对已记录 session 做复盘报告 |
+| 输入 | 当前事件 + bounded context | frozen trajectory record range |
+| 输出 | 决策路径中的 L3 结果 / trace | advisory review / recommended operator action |
+| 是否改历史判决 | 不适用 | 明确不改，`canonical_decision_mutated=false` |
+
+如果你想了解同步决策链里的 L3 审查器，继续看 [L3 审查 Agent](l3-agent.md)。
