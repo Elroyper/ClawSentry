@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://elroyper.github.io/ClawSentry/configuration/env-vars/">
       
       
-        <link rel="prev" href="../../integration/openclaw/">
+        <link rel="prev" href="../../integration/latch/">
       
       
-        <link rel="next" href="../policy-tuning/">
+        <link rel="next" href="../detection-config/">
       
       
         
@@ -246,7 +246,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../getting-started/installation/" class="md-tabs__link">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -351,7 +351,7 @@
           
   
   
-  三层决策详解
+  安全决策引擎
 
         </a>
       </li>
@@ -386,7 +386,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../advanced/custom-skills/" class="md-tabs__link">
+        <a href="../../advanced/rule-governance/" class="md-tabs__link">
           
   
   
@@ -570,14 +570,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    安装
+    快速开始
   
 
     
@@ -598,14 +598,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    快速开始
+    安装
   
 
     
@@ -771,6 +771,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../integration/claude-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Claude Code 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codex CLI 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integration/openclaw/" class="md-nav__link">
         
   
@@ -779,6 +835,34 @@
     
   
     OpenClaw 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/latch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Latch 集成
   
 
     
@@ -973,7 +1057,101 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#detectionconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检测管线调优（DetectionConfig）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="检测管线调优（DetectionConfig）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        合成评分权重
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        风险阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D4 会话累积阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L2 语义分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-action 分析阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        轨迹分析器
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自进化模式库（E-5）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         会话执法
@@ -984,7 +1162,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         安全
@@ -1023,7 +1201,95 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#d4_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D4 频率异常检测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外部内容安全
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFER 桥接
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latch-hub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Latch Hub 集成
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prometheus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus 可观测性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 每日预算
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codex-session-watcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codex Session Watcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#l3-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L3 审查 Agent 预算
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
     <span class="md-ellipsis">
       
         完整配置示例
@@ -1046,7 +1312,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_10" class="md-nav__link">
     <span class="md-ellipsis">
       
         开发环境配置
@@ -1057,7 +1323,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
         生产环境配置
@@ -1073,7 +1339,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
         环境变量优先级
@@ -1087,6 +1353,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../detection-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    检测管线配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1359,7 +1653,7 @@
   <span class="md-ellipsis">
     
   
-    三层决策详解
+    安全决策引擎
   
 
     
@@ -1375,7 +1669,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    三层决策详解
+    安全决策引擎
   
 
           </label>
@@ -1452,6 +1746,62 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/post-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-action 围栏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    轨迹分析器
   
 
     
@@ -1560,6 +1910,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../advanced/rule-governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CS-01 规则治理
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../advanced/custom-skills/" class="md-nav__link">
         
   
@@ -1624,6 +2002,90 @@
     
   
     自定义 Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/pattern-evolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    自进化模式库
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/attack-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    攻击模式定制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/embedding-backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    向量相似度接入 (D6)
   
 
     
@@ -1865,7 +2327,101 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#detectionconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检测管线调优（DetectionConfig）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="检测管线调优（DetectionConfig）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        合成评分权重
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        风险阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D4 会话累积阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#l2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L2 语义分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-action" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-action 分析阈值
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        轨迹分析器
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#e-5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自进化模式库（E-5）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
         会话执法
@@ -1876,7 +2432,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
+  <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
         安全
@@ -1915,7 +2471,95 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
+  <a href="#d4_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D4 频率异常检测
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        外部内容安全
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFER 桥接
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latch-hub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Latch Hub 集成
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prometheus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus 可观测性
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 每日预算
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codex-session-watcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codex Session Watcher
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#l3-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L3 审查 Agent 预算
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
     <span class="md-ellipsis">
       
         完整配置示例
@@ -1938,7 +2582,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
+  <a href="#_10" class="md-nav__link">
     <span class="md-ellipsis">
       
         开发环境配置
@@ -1949,7 +2593,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
+  <a href="#_11" class="md-nav__link">
     <span class="md-ellipsis">
       
         生产环境配置
@@ -1965,7 +2609,7 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
+  <a href="#_12" class="md-nav__link">
     <span class="md-ellipsis">
       
         环境变量优先级
@@ -2066,8 +2710,22 @@
 <td><code>2592000</code> (30 天)</td>
 <td>轨迹数据保留时间（秒）。过期记录自动清理</td>
 </tr>
+<tr>
+<td><code>CS_FRAMEWORK</code></td>
+<td>(自动检测)</td>
+<td>兼容字段：单框架默认标识，或 harness 默认 source framework</td>
+</tr>
+<tr>
+<td><code>CS_ENABLED_FRAMEWORKS</code></td>
+<td>(空)</td>
+<td>逗号分隔的已启用框架列表，由 <code>clawsentry init &lt;framework&gt;</code> 增量维护</td>
+</tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">多框架配置</p>
+<p><code>CS_FRAMEWORK</code> 是旧版单值字段，ClawSentry 会保留它以兼容旧脚本。多框架并存时以 <code>CS_ENABLED_FRAMEWORKS</code> 表达启用列表，例如 <code>a3s-code,codex,openclaw</code>。重新运行 <code>clawsentry init &lt;framework&gt;</code> 默认会合并缺失变量，不会轮换已有 <code>CS_AUTH_TOKEN</code>；使用 <code>--force</code> 才会覆盖 <code>.env.clawsentry</code>。</p>
+</div>
 <div class="admonition tip">
 <p class="admonition-title">生产环境建议</p>
 <ul>
@@ -2109,6 +2767,11 @@
 <td>启用 L3 审查 Agent。需要先配置 LLM provider。可选值：<code>true</code>/<code>1</code>/<code>yes</code></td>
 </tr>
 <tr>
+<td><code>CS_L3_MULTI_TURN</code></td>
+<td><code>true</code>（仅在 <code>CS_L3_ENABLED=true</code> 时生效）</td>
+<td>控制 L3 运行模式。<code>true</code>/<code>1</code>/<code>yes</code>/<code>on</code> = 标准多轮；<code>false</code>/其他非空值 = 强制单轮 MVP；留空时使用默认值</td>
+</tr>
+<tr>
 <td><code>ANTHROPIC_API_KEY</code></td>
 <td>-</td>
 <td>Anthropic API 密钥。<code>CS_LLM_PROVIDER=anthropic</code> 时必填</td>
@@ -2117,6 +2780,11 @@
 <td><code>OPENAI_API_KEY</code></td>
 <td>-</td>
 <td>OpenAI API 密钥。<code>CS_LLM_PROVIDER=openai</code> 时必填</td>
+</tr>
+<tr>
+<td><code>CS_LLM_API_KEY</code></td>
+<td>-</td>
+<td>通用 LLM API 密钥。作为 <code>ANTHROPIC_API_KEY</code>/<code>OPENAI_API_KEY</code> 的替代方案，<code>doctor</code> 检查时也会检测此变量</td>
 </tr>
 </tbody>
 </table>
@@ -2129,8 +2797,213 @@
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>CS_LLM_PROVIDER 已设置  →  L1 + L2 语义分析（CompositeAnalyzer）
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>CS_L3_ENABLED=true       →  L1 + L2 + L3 审查 Agent（完整三层）
 </span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">L3 运行模式默认值</p>
+<p>通过 <code>build_analyzer_from_env()</code> 装配时，只要 <code>CS_L3_ENABLED=true</code> 且未显式关闭，L3 默认以 <code>multi_turn</code> 模式运行。
+如需保留旧的单轮 MVP 行为，请设置 <code>CS_L3_MULTI_TURN=false</code>。</p>
+</div>
 <hr />
-<h2 id="_3">会话执法<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h2 id="detectionconfig">检测管线调优（DetectionConfig）<a class="headerlink" href="#detectionconfig" title="Permanent link">&para;</a></h2>
+<p><code>DetectionConfig</code> 是 ClawSentry 检测管线的统一配置对象，所有参数均可通过 <code>CS_</code> 环境变量覆盖，完全向后兼容（默认值与原硬编码一致）。</p>
+<div class="admonition info">
+<p class="admonition-title">何时需要调整</p>
+<p>默认配置适合绝大多数场景。仅在以下情况考虑调整：
+- 特定业务场景误报/漏报率过高
+- 需要更激进的注入检测灵敏度
+- 生产环境中需降低某类检测的资源消耗</p>
+</div>
+<h3 id="_3">合成评分权重<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_COMPOSITE_WEIGHT_MAX_D123</code></td>
+<td><code>0.4</code></td>
+<td>max(D1,D2,D3) 的权重系数</td>
+</tr>
+<tr>
+<td><code>CS_COMPOSITE_WEIGHT_D4</code></td>
+<td><code>0.25</code></td>
+<td>D4 会话累积的权重系数</td>
+</tr>
+<tr>
+<td><code>CS_COMPOSITE_WEIGHT_D5</code></td>
+<td><code>0.15</code></td>
+<td>D5 信任等级的权重系数</td>
+</tr>
+<tr>
+<td><code>CS_D6_INJECTION_MULTIPLIER</code></td>
+<td><code>0.5</code></td>
+<td>D6 注入乘数 X（公式：base × (1.0 + X × D6/3.0)）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_4">风险阈值<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_THRESHOLD_CRITICAL</code></td>
+<td><code>2.2</code></td>
+<td>composite_score &gt;= 此值 → CRITICAL</td>
+</tr>
+<tr>
+<td><code>CS_THRESHOLD_HIGH</code></td>
+<td><code>1.5</code></td>
+<td>composite_score &gt;= 此值 → HIGH</td>
+</tr>
+<tr>
+<td><code>CS_THRESHOLD_MEDIUM</code></td>
+<td><code>0.8</code></td>
+<td>composite_score &gt;= 此值 → MEDIUM</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">阈值约束</p>
+<p>必须满足 <code>threshold_medium ≤ threshold_high ≤ threshold_critical</code>，否则启动时自动回退到默认值并记录错误日志。</p>
+</div>
+<h3 id="d4">D4 会话累积阈值<a class="headerlink" href="#d4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_D4_HIGH_THRESHOLD</code></td>
+<td><code>5</code></td>
+<td>高危事件数 &gt;= 此值 → D4=2（最高级别）</td>
+</tr>
+<tr>
+<td><code>CS_D4_MID_THRESHOLD</code></td>
+<td><code>2</code></td>
+<td>高危事件数 &gt;= 此值 → D4=1（中等级别）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="l2">L2 语义分析<a class="headerlink" href="#l2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_L2_BUDGET_MS</code></td>
+<td><code>5000</code></td>
+<td>L2 分析总时间预算（毫秒）。超时自动降级为 L1 结果</td>
+</tr>
+<tr>
+<td><code>CS_ATTACK_PATTERNS_PATH</code></td>
+<td>(内置 25 条)</td>
+<td>自定义攻击模式 YAML 文件路径。设置后覆盖内置模式库</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-action">Post-action 分析阈值<a class="headerlink" href="#post-action" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_POST_ACTION_EMERGENCY</code></td>
+<td><code>0.9</code></td>
+<td>score &gt;= 此值 → EMERGENCY（触发 SSE 广播+紧急告警）</td>
+</tr>
+<tr>
+<td><code>CS_POST_ACTION_ESCALATE</code></td>
+<td><code>0.6</code></td>
+<td>score &gt;= 此值 → ESCALATE（上报人工审核）</td>
+</tr>
+<tr>
+<td><code>CS_POST_ACTION_MONITOR</code></td>
+<td><code>0.3</code></td>
+<td>score &gt;= 此值 → MONITOR（写入告警日志）</td>
+</tr>
+<tr>
+<td><code>CS_POST_ACTION_WHITELIST</code></td>
+<td>(空)</td>
+<td>白名单文件路径正则，逗号分隔。命中则跳过 post-action 分析</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_5">轨迹分析器<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_TRAJECTORY_MAX_EVENTS</code></td>
+<td><code>50</code></td>
+<td>每会话保留的最大事件数（滑动窗口容量上限）</td>
+</tr>
+<tr>
+<td><code>CS_TRAJECTORY_MAX_SESSIONS</code></td>
+<td><code>10000</code></td>
+<td>全局最大会话追踪数（超限按 LRU 淘汰最旧会话）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="e-5">自进化模式库（E-5）<a class="headerlink" href="#e-5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_EVOLVING_ENABLED</code></td>
+<td><code>false</code></td>
+<td>启用自进化模式库。可选值：<code>true</code>/<code>1</code>/<code>yes</code></td>
+</tr>
+<tr>
+<td><code>CS_EVOLVED_PATTERNS_PATH</code></td>
+<td>(空)</td>
+<td>进化模式 YAML 文件存储路径（启用时必须配置）</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">启用自进化模式库</p>
+<p><div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">CS_EVOLVING_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">CS_EVOLVED_PATTERNS_PATH</span><span class="o">=</span>/var/lib/clawsentry/evolved_patterns.yaml
+</span></code></pre></div>
+启用后，Gateway 会从高风险事件中自动提取候选模式，并通过 <code>POST /ahp/patterns/confirm</code> API 接受人工反馈，推动模式从 CANDIDATE → EXPERIMENTAL → STABLE 升级。</p>
+</div>
+<hr />
+<h2 id="_6">会话执法<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <p>当单个会话累积多次高危决策时，自动触发强制措施。</p>
 <table>
 <thead>
@@ -2188,15 +3061,15 @@
 </table>
 <div class="admonition example">
 <p class="admonition-title">配置示例</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># 累积 5 次高危后阻断会话，冷却期 10 分钟</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">5</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>block
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 累积 5 次高危后阻断会话，冷却期 10 分钟</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">5</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>block
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
 </span></code></pre></div>
 </div>
 <hr />
-<h2 id="_4">安全<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h2 id="_7">安全<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <p>TLS 加密、Webhook 安全和 L3 Skills 扩展相关配置。</p>
 <table>
 <thead>
@@ -2242,14 +3115,14 @@
 <div class="admonition note">
 <p class="admonition-title">TLS 配置</p>
 <p>同时设置 <code>AHP_SSL_CERTFILE</code> 和 <code>AHP_SSL_KEYFILE</code> 后，Gateway 将以 HTTPS 模式启动。
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
 </span></code></pre></div></p>
 </div>
 <div class="admonition note">
 <p class="admonition-title">IP 白名单格式</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># 允许特定 IP</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.1,10.0.0.2,192.168.1.100
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 允许特定 IP</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.1,10.0.0.2,192.168.1.100
 </span></code></pre></div>
 </div>
 <hr />
@@ -2322,64 +3195,455 @@
 <p>启动时会执行预检验证，配置缺失将给出明确错误提示并退出。</p>
 </div>
 <hr />
-<h2 id="_5">完整配置示例<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<h2 id="d4_1">D4 频率异常检测<a class="headerlink" href="#d4_1" title="Permanent link">&para;</a></h2>
+<p>三层频率异常检测，捕获 Agent 行为中的突发、重复和速率异常。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_D4_FREQ_ENABLED</code></td>
+<td><code>true</code></td>
+<td>启用 D4 频率异常检测。可选值：<code>true</code>/<code>1</code>/<code>yes</code></td>
+</tr>
+<tr>
+<td><code>CS_D4_FREQ_BURST_COUNT</code></td>
+<td><code>10</code></td>
+<td>突发检测：同一工具在窗口期内调用次数 ≥ 此值 → D4=2</td>
+</tr>
+<tr>
+<td><code>CS_D4_FREQ_BURST_WINDOW_S</code></td>
+<td><code>5.0</code></td>
+<td>突发检测时间窗口（秒）</td>
+</tr>
+<tr>
+<td><code>CS_D4_FREQ_REPETITIVE_COUNT</code></td>
+<td><code>20</code></td>
+<td>重复检测：同一工具在窗口期内调用次数 ≥ 此值 → D4=1</td>
+</tr>
+<tr>
+<td><code>CS_D4_FREQ_REPETITIVE_WINDOW_S</code></td>
+<td><code>60.0</code></td>
+<td>重复检测时间窗口（秒）</td>
+</tr>
+<tr>
+<td><code>CS_D4_FREQ_RATE_LIMIT_PER_MIN</code></td>
+<td><code>60</code></td>
+<td>全局速率限制：所有工具每分钟总调用数 ≥ 此值 → D4=1</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition info">
+<p class="admonition-title">检测层级</p>
+<p>三层检测独立运行，取最高 D4 值：</p>
+<ul>
+<li><strong>突发（Burst）</strong>：短时间内同一工具密集调用（如 5 秒内 ≥10 次） → D4=2</li>
+<li><strong>重复（Repetitive）</strong>：中等时间窗口内同一工具大量调用（如 60 秒内 ≥20 次） → D4=1</li>
+<li><strong>速率（Rate）</strong>：全局工具调用速率过高（如每分钟 ≥60 次） → D4=1</li>
+</ul>
+</div>
+<hr />
+<h2 id="_8">外部内容安全<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p>当工具处理外部来源内容时（如 fetch、http_request 等），自动提升安全检测灵敏度。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_EXTERNAL_CONTENT_D6_BOOST</code></td>
+<td><code>0.3</code></td>
+<td>外部内容 D6 注入检测加成值。叠加在原始 D6 评分之上</td>
+</tr>
+<tr>
+<td><code>CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER</code></td>
+<td><code>1.3</code></td>
+<td>外部内容 Post-action 分析乘数。放大输出检测评分</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition example">
+<p class="admonition-title">内容来源推断</p>
+<p>ClawSentry 通过 <code>infer_content_origin()</code> 函数从 tool_name 和 payload 推断内容来源：</p>
+<ul>
+<li><code>external</code>：fetch、http_request、curl、wget 等网络工具</li>
+<li><code>user</code>：用户直接输入</li>
+<li><code>unknown</code>：无法判断来源时使用默认值</li>
+</ul>
+</div>
+<hr />
+<h2 id="defer">DEFER 桥接<a class="headerlink" href="#defer" title="Permanent link">&para;</a></h2>
+<p>DEFER 决策的运维审批桥接配置，控制超时行为和操作员交互。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_DEFER_TIMEOUT_ACTION</code></td>
+<td><code>block</code></td>
+<td>DEFER 超时后的默认动作。可选值：<code>block</code>（安全优先）或 <code>allow</code>（可用性优先）</td>
+</tr>
+<tr>
+<td><code>CS_DEFER_TIMEOUT_S</code></td>
+<td><code>300</code> (5 分钟)</td>
+<td>DEFER 等待运维审批的超时时间（秒）</td>
+</tr>
+<tr>
+<td><code>CS_DEFER_BRIDGE_ENABLED</code></td>
+<td><code>true</code></td>
+<td>启用 DEFER→运维审批桥接。可选值：<code>true</code>/<code>1</code>/<code>yes</code></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">超时策略选择</p>
+<ul>
+<li><code>block</code>（默认）：超时后阻断操作，<strong>安全优先</strong>。适合生产环境。</li>
+<li><code>allow</code>：超时后放行操作，<strong>可用性优先</strong>。适合开发/低安全场景。</li>
+</ul>
+</div>
+<hr />
+<h2 id="latch-hub">Latch Hub 集成<a class="headerlink" href="#latch-hub" title="Permanent link">&para;</a></h2>
+<p>Latch Hub 是可选的远程监控组件，支持移动设备推送审批和跨设备事件转发。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_LATCH_HUB_URL</code></td>
+<td>(空)</td>
+<td>Latch Hub 基础 URL（如 <code>http://127.0.0.1:3006</code>）</td>
+</tr>
+<tr>
+<td><code>CS_LATCH_HUB_PORT</code></td>
+<td><code>3006</code></td>
+<td>Latch Hub 端口（当 <code>CS_LATCH_HUB_URL</code> 未设置时作为回退）</td>
+</tr>
+<tr>
+<td><code>CS_HUB_BRIDGE_ENABLED</code></td>
+<td><code>auto</code></td>
+<td>Hub 事件转发开关。<code>auto</code> 在检测到 Hub 运行时自动启用，<code>true</code> 强制启用，<code>false</code> 禁用</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="prometheus">Prometheus 可观测性<a class="headerlink" href="#prometheus" title="Permanent link">&para;</a></h2>
+<p>Prometheus 指标导出配置，需安装 <code>clawsentry[metrics]</code> 可选依赖。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_METRICS_ENABLED</code></td>
+<td><code>auto</code></td>
+<td>指标端点启用模式。<code>auto</code> 在安装 prometheus_client 时自动启用</td>
+</tr>
+<tr>
+<td><code>CS_METRICS_AUTH</code></td>
+<td><code>true</code></td>
+<td><code>/metrics</code> 端点是否需要 Bearer Token 认证。设为 <code>false</code> 允许 Prometheus 无认证抓取</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="llm_1">LLM 每日预算<a class="headerlink" href="#llm_1" title="Permanent link">&para;</a></h2>
+<p>限制 LLM API 每日支出，防止 L2/L3 决策层成本失控。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_LLM_DAILY_BUDGET_USD</code></td>
+<td><code>0.0</code> (无限制)</td>
+<td>每日 LLM 支出上限（美元）。设为 <code>0</code> 表示无限制</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition info">
+<p class="admonition-title">预算机制</p>
+<ul>
+<li>按 UTC 日期计算，每天 00:00 UTC 自动重置</li>
+<li>预算耗尽后，L2/L3 自动降级为 L1 纯规则决策</li>
+<li>通过 SSE 广播预算耗尽事件</li>
+<li>预算基于估算价格：Anthropic <span class="arithmatex">\(3/\)</span>15 per M tokens，OpenAI <span class="arithmatex">\(2.5/\)</span>10 per M tokens</li>
+</ul>
+</div>
+<hr />
+<h2 id="codex-session-watcher">Codex Session Watcher<a class="headerlink" href="#codex-session-watcher" title="Permanent link">&para;</a></h2>
+<p>Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；<code>clawsentry init codex --setup</code> 可额外安装 managed native hooks。</p>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_CODEX_SESSION_DIR</code></td>
+<td><em>(空)</em></td>
+<td>Codex 会话 JSONL 目录路径。显式设置时直接启用 Watcher</td>
+</tr>
+<tr>
+<td><code>CODEX_HOME</code></td>
+<td><code>~/.codex</code></td>
+<td>Codex 根目录。仅在 <code>CS_CODEX_WATCH_ENABLED=true</code> 时用于自动检测 session 目录</td>
+</tr>
+<tr>
+<td><code>CS_CODEX_WATCH_ENABLED</code></td>
+<td><code>false</code>（<code>init codex</code> 写入 <code>true</code>）</td>
+<td>启用 Codex Session Watcher 自动探测</td>
+</tr>
+<tr>
+<td><code>CS_CODEX_WATCH_POLL_INTERVAL</code></td>
+<td><code>1.0</code></td>
+<td>Watcher 轮询间隔（秒）</td>
+</tr>
+<tr>
+<td><code>CS_FRAMEWORK</code></td>
+<td>(自动检测)</td>
+<td>框架标识。设为 <code>codex</code> 启用 Codex 专用检查和 Watcher</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Codex watcher 启用顺序</p>
+<p><code>CS_CODEX_SESSION_DIR</code> 显式设置时优先使用该目录；否则在 <code>CS_CODEX_WATCH_ENABLED=true</code> 时从 <code>CODEX_HOME</code>（默认 <code>~/.codex</code>）自动探测 <code>sessions/</code>。Watcher 会按 JSONL offset 追踪新增事件，重启后继续从已处理位置之后读取，避免重复广播旧事件。</p>
+</div>
+<hr />
+<h2 id="l3-agent">L3 审查 Agent 预算<a class="headerlink" href="#l3-agent" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_L3_BUDGET_MS</code></td>
+<td>(空=使用 L2 预算)</td>
+<td>L3 审查 Agent 独立超时（毫秒）。留空时使用 <code>CS_L2_BUDGET_MS</code> 的值。L3 通常需要更长时间（多轮工具调用），建议设为 15000-30000</td>
+</tr>
+<tr>
+<td><code>CS_L3_ROUTING_MODE</code></td>
+<td><code>normal</code></td>
+<td>L3 路由模式：<code>normal</code> 保持现状；<code>replace_l2</code> 在命中 organic L2 入口时直接本地 L3 替换 L2</td>
+</tr>
+<tr>
+<td><code>CS_L3_TRIGGER_PROFILE</code></td>
+<td><code>default</code></td>
+<td>正常模式触发档位：<code>default</code> 保持现状；<code>eager</code> 让 L3 更容易被正常模式提升到</td>
+</tr>
+<tr>
+<td><code>CS_L3_BUDGET_TUNING_ENABLED</code></td>
+<td><code>false</code></td>
+<td>是否允许按 L3 模式启用更大的默认预算。显式 <code>CS_L3_BUDGET_MS</code> 仍然优先</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_ASYNC_ENABLED</code></td>
+<td><code>false</code></td>
+<td>启用 advisory snapshot 自动创建：high/critical decision 或 high+ trajectory alert 后冻结当前 trajectory record range。当前不自动启动真实 L3 review scheduler</td>
+</tr>
+<tr>
+<td><code>CS_L3_HEARTBEAT_REVIEW_ENABLED</code></td>
+<td><code>false</code></td>
+<td>预留给 heartbeat/idle 聚合后的 advisory snapshot review。默认关闭，且不启用 timer-only full review</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_PROVIDER_ENABLED</code></td>
+<td><code>false</code></td>
+<td>显式启用 advisory provider worker。未启用、缺 key、缺 model、不支持 provider，或 dry-run 未关闭时都会写入 <code>degraded</code> advisory review</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_PROVIDER</code></td>
+<td>(空)</td>
+<td>advisory provider shell 选择，支持 <code>openai</code> / <code>anthropic</code>。故意不继承 <code>CS_LLM_PROVIDER</code>，避免同步 L2/L3 配置意外启动异步 advisory worker</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_MODEL</code></td>
+<td>(空)</td>
+<td>advisory worker model 标签。故意不继承 <code>CS_LLM_MODEL</code></td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_BASE_URL</code></td>
+<td>(空)</td>
+<td>advisory worker OpenAI-compatible endpoint；仅在显式启用 provider 且关闭 dry-run 时使用</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_API_KEY</code></td>
+<td>(空)</td>
+<td>advisory worker 专用 API key；未设置时按 provider 读取 <code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code>。默认 dry-run 不发真实网络请求</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_PROVIDER_DRY_RUN</code></td>
+<td><code>true</code></td>
+<td>advisory provider worker dry-run 安全闸门。只有显式设为 <code>false</code> 且 provider/key/model 都有效时，<code>llm_provider</code> runner 才会桥接到真实 LLM provider</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_TEMPERATURE</code></td>
+<td><code>1.0</code></td>
+<td>advisory provider 独立 temperature。部分 OpenAI-compatible 端点（如 Kimi）要求 <code>1</code></td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_DEADLINE_MS</code></td>
+<td><code>30000</code></td>
+<td>advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 smoke 中调大</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_RUN_REAL_SMOKE</code></td>
+<td><code>false</code></td>
+<td>仅用于 pytest real-provider smoke gate；默认跳过真实网络 smoke</td>
+</tr>
+<tr>
+<td><code>CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV</code></td>
+<td><code>true</code></td>
+<td>manual smoke 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 <code>false</code></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">多轮模式的延迟与成本</p>
+<p><code>CS_L3_ENABLED=true</code> 时，运行时默认使用多轮 L3。相比单轮 MVP，这会增加平均延迟和 token 成本；若需要保守 rollout，可显式设置 <code>CS_L3_MULTI_TURN=false</code>。</p>
+</div>
+<div class="admonition info">
+<p class="admonition-title">本地 L3 不可用时的运行态语义</p>
+<p>如果配置了 <code>CS_L3_ROUTING_MODE=replace_l2</code> 或 <code>CS_L3_TRIGGER_PROFILE=eager</code>，但网关启动时没有本地 L3 能力，系统不会伪装成已执行 L3。它会保留原有 L1/L2 回退路径，同时明确输出：</p>
+<ul>
+<li><code>l3_available=false</code></li>
+<li><code>effective_tier=L3</code></li>
+<li><code>actual_tier=&lt;真实执行层级&gt;</code></li>
+<li><code>l3_state=skipped</code></li>
+<li><code>l3_reason_code=local_l3_unavailable</code></li>
+</ul>
+</div>
+<div class="admonition info">
+<p class="admonition-title">L3 advisory foundation</p>
+<p><code>CS_L3_ADVISORY_ASYNC_ENABLED</code> 和 <code>CS_L3_HEARTBEAT_REVIEW_ENABLED</code>
+是 advisory review 自动化的显式 opt-in 开关。当前实现落地 frozen
+evidence snapshot 与 <code>advisory_only=true</code> review 结果的持久化 / report /
+watch surface；打开 <code>CS_L3_ADVISORY_ASYNC_ENABLED</code> 只会自动创建 snapshot，
+不会运行真实后台 L3 review，也不会 retroactively 修改 canonical decision。</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Advisory provider safety gate</p>
+<p><code>CS_L3_ADVISORY_PROVIDER_*</code> 是 L3 advisory provider worker 的独立安全闸门。
+它不会继承 <code>CS_LLM_*</code>，因此现有同步 L2/L3 LLM 配置不会意外触发
+advisory worker。默认 <code>CS_L3_ADVISORY_PROVIDER_DRY_RUN=true</code> 时 <code>llm_provider</code>
+runner 仍不发网络请求；所有未启用、
+缺 key、缺 model、不支持 provider 或 dry-run 路径都会安全降级为 <code>l3_state=degraded</code>。只有显式
+设置 <code>CS_L3_ADVISORY_PROVIDER_ENABLED=true</code>、provider/model/key 有效，并把
+<code>CS_L3_ADVISORY_PROVIDER_DRY_RUN=false</code> 后，<code>llm_provider</code> runner 才会桥接到真实 LLM provider。</p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">手动 smoke</p>
+<p>可用 <code>scripts/run_l3_advisory_provider_smoke.py</code> 做 operator-controlled
+readiness check。该脚本要求显式设置 <code>CS_L3_ADVISORY_PROVIDER_ENABLED=true</code>，
+会构造一个 frozen snapshot、排队并执行一个 <code>llm_provider</code> job，并可通过
+<code>--output-report &lt;path&gt;</code> 写出 markdown 证据。provider smoke 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；<code>--require-completed</code> 用作真实 provider
+execution gate。pytest 中的真实网络 smoke 还需要
+<code>CS_L3_ADVISORY_RUN_REAL_SMOKE=true</code>，否则默认 skip。当前已用
+OpenAI-compatible <code>kimi-k2.5</code> 完成一次 <code>--require-completed</code> real smoke。</p>
+</div>
+<hr />
+<h2 id="_9">完整配置示例<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <h3 id="l1">最小配置（仅 L1 规则引擎）<a class="headerlink" href="#l1" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 无需任何配置，开箱即用</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># 所有变量使用默认值</span>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 无需任何配置，开箱即用</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># 所有变量使用默认值</span>
 </span></code></pre></div>
-<h3 id="_6">开发环境配置<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">CS_HTTP_HOST</span><span class="o">=</span><span class="m">127</span>.0.0.1
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">CS_HTTP_PORT</span><span class="o">=</span><span class="m">8080</span>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">0</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># L2 语义分析</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>openai
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>sk-xxx
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nv">CS_LLM_BASE_URL</span><span class="o">=</span>http://localhost:11434/v1
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="nv">CS_LLM_MODEL</span><span class="o">=</span>qwen2.5:7b
+<h3 id="_10">开发环境配置<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">CS_HTTP_HOST</span><span class="o">=</span><span class="m">127</span>.0.0.1
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">CS_HTTP_PORT</span><span class="o">=</span><span class="m">8080</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">0</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># L2 语义分析</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>openai
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>sk-xxx
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nv">CS_LLM_BASE_URL</span><span class="o">=</span>http://localhost:11434/v1
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="nv">CS_LLM_MODEL</span><span class="o">=</span>qwen2.5:7b
 </span></code></pre></div>
-<h3 id="_7">生产环境配置<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Gateway 核心</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">CS_HTTP_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nv">CS_HTTP_PORT</span><span class="o">=</span><span class="m">8080</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>prod-secret-token-xxxxx
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/var/lib/clawsentry/trajectory.db
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nv">CS_UDS_PATH</span><span class="o">=</span>/var/run/clawsentry/gateway.sock
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">300</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1"># TLS</span>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># 三层决策</span>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
-</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
-</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="c1"># 会话执法</span>
-</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-7-20"><a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">3</span>
-</span><span id="__span-7-21"><a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>defer
-</span><span id="__span-7-22"><a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
-</span><span id="__span-7-23"><a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
-</span><span id="__span-7-24"><a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="c1"># Webhook 安全</span>
-</span><span id="__span-7-25"><a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.0/8
-</span><span id="__span-7-26"><a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="nv">AHP_WEBHOOK_TOKEN_TTL_SECONDS</span><span class="o">=</span><span class="m">3600</span>
-</span><span id="__span-7-27"><a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>
-</span><span id="__span-7-28"><a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a><span class="c1"># OpenClaw 集成</span>
-</span><span id="__span-7-29"><a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="nv">OPENCLAW_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-7-30"><a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="nv">OPENCLAW_OPERATOR_TOKEN</span><span class="o">=</span>your-openclaw-token
-</span><span id="__span-7-31"><a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="nv">OPENCLAW_WS_URL</span><span class="o">=</span>ws://127.0.0.1:18789
-</span><span id="__span-7-32"><a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="nv">OPENCLAW_WEBHOOK_SECRET</span><span class="o">=</span>your-hmac-secret
+<h3 id="_11">生产环境配置<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Gateway 核心</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">CS_HTTP_HOST</span><span class="o">=</span><span class="m">0</span>.0.0.0
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">CS_HTTP_PORT</span><span class="o">=</span><span class="m">8080</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>prod-secret-token-xxxxx
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/var/lib/clawsentry/trajectory.db
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="nv">CS_UDS_PATH</span><span class="o">=</span>/var/run/clawsentry/gateway.sock
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">300</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># TLS</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># 三层决策</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># 会话执法</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">3</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>defer
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="c1"># Webhook 安全</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.0/8
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="nv">AHP_WEBHOOK_TOKEN_TTL_SECONDS</span><span class="o">=</span><span class="m">3600</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="c1"># Prometheus + 预算</span>
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="nv">CS_LLM_DAILY_BUDGET_USD</span><span class="o">=</span><span class="m">5</span>.0
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="nv">CS_METRICS_AUTH</span><span class="o">=</span><span class="nb">false</span>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="c1"># DEFER 桥接</span>
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="nv">CS_DEFER_BRIDGE_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-34"><a id="__codelineno-8-34" name="__codelineno-8-34" href="#__codelineno-8-34"></a><span class="nv">CS_DEFER_TIMEOUT_S</span><span class="o">=</span><span class="m">300</span>
+</span><span id="__span-8-35"><a id="__codelineno-8-35" name="__codelineno-8-35" href="#__codelineno-8-35"></a><span class="nv">CS_DEFER_TIMEOUT_ACTION</span><span class="o">=</span>block
+</span><span id="__span-8-36"><a id="__codelineno-8-36" name="__codelineno-8-36" href="#__codelineno-8-36"></a>
+</span><span id="__span-8-37"><a id="__codelineno-8-37" name="__codelineno-8-37" href="#__codelineno-8-37"></a><span class="c1"># OpenClaw 集成</span>
+</span><span id="__span-8-38"><a id="__codelineno-8-38" name="__codelineno-8-38" href="#__codelineno-8-38"></a><span class="nv">OPENCLAW_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-39"><a id="__codelineno-8-39" name="__codelineno-8-39" href="#__codelineno-8-39"></a><span class="nv">OPENCLAW_OPERATOR_TOKEN</span><span class="o">=</span>your-openclaw-token
+</span><span id="__span-8-40"><a id="__codelineno-8-40" name="__codelineno-8-40" href="#__codelineno-8-40"></a><span class="nv">OPENCLAW_WS_URL</span><span class="o">=</span>ws://127.0.0.1:18789
+</span><span id="__span-8-41"><a id="__codelineno-8-41" name="__codelineno-8-41" href="#__codelineno-8-41"></a><span class="nv">OPENCLAW_WEBHOOK_SECRET</span><span class="o">=</span>your-hmac-secret
 </span></code></pre></div>
 <hr />
-<h2 id="_8">环境变量优先级<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>命令行参数 &gt; 已存在的环境变量 &gt; .env.clawsentry 文件 &gt; 代码默认值
+<h2 id="_12">环境变量优先级<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>命令行参数 &gt; 已存在的环境变量 &gt; .env.clawsentry 文件 &gt; 代码默认值
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">调试技巧</p>
 <p>启动 Gateway 时，日志会输出已加载的环境变量数量：
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>INFO [clawsentry.cli.dotenv_loader] Loaded 8 env vars from /path/to/.env.clawsentry
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>INFO [clawsentry.cli.dotenv_loader] Loaded 8 env vars from /path/to/.env.clawsentry
 </span></code></pre></div>
 如果某个变量未生效，检查是否已在系统环境中设置了同名变量（<code>.env.clawsentry</code> 不会覆盖已有值）。</p>
 </div>
@@ -2405,7 +3669,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月21日 17:03:08 UTC">2026年4月21日</span>
   </span>
 
     
@@ -2415,7 +3679,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 23:48:13 UTC">2026年3月22日</span>
   </span>
 
     
@@ -2452,7 +3716,7 @@
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../../integration/openclaw/" class="md-footer__link md-footer__link--prev" aria-label="上一页: OpenClaw 集成">
+          <a href="../../integration/latch/" class="md-footer__link md-footer__link--prev" aria-label="上一页: Latch 集成">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2462,20 +3726,20 @@
                 上一页
               </span>
               <div class="md-ellipsis">
-                OpenClaw 集成
+                Latch 集成
               </div>
             </div>
           </a>
         
         
           
-          <a href="../policy-tuning/" class="md-footer__link md-footer__link--next" aria-label="下一页: 策略调优">
+          <a href="../detection-config/" class="md-footer__link md-footer__link--next" aria-label="下一页: 检测管线配置">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 下一页
               </span>
               <div class="md-ellipsis">
-                策略调优
+                检测管线配置
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -2536,6 +3800,10 @@
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

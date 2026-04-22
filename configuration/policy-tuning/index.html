@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://elroyper.github.io/ClawSentry/configuration/policy-tuning/">
       
       
-        <link rel="prev" href="../env-vars/">
+        <link rel="prev" href="../detection-config/">
       
       
         <link rel="next" href="../llm-config/">
@@ -246,7 +246,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../getting-started/installation/" class="md-tabs__link">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -351,7 +351,7 @@
           
   
   
-  三层决策详解
+  安全决策引擎
 
         </a>
       </li>
@@ -386,7 +386,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../advanced/custom-skills/" class="md-tabs__link">
+        <a href="../../advanced/rule-governance/" class="md-tabs__link">
           
   
   
@@ -570,14 +570,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    安装
+    快速开始
   
 
     
@@ -598,14 +598,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    快速开始
+    安装
   
 
     
@@ -771,6 +771,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../integration/claude-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Claude Code 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codex CLI 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integration/openclaw/" class="md-nav__link">
         
   
@@ -779,6 +835,34 @@
     
   
     OpenClaw 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/latch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Latch 集成
   
 
     
@@ -871,6 +955,34 @@
     
   
     环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../detection-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    检测管线配置
   
 
     
@@ -990,15 +1102,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#d1-d5" class="md-nav__link">
+  <a href="#d1-d6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        D1-D5 五维风险评分
+        D1-D6 六维风险评分
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="D1-D5 五维风险评分">
+    <nav class="md-nav" aria-label="D1-D6 六维风险评分">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1072,6 +1184,17 @@
     <span class="md-ellipsis">
       
         D5：Agent 信任等级 (0-2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d6-00-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D6：注入检测评分 (0.0-3.0)
       
     </span>
   </a>
@@ -1300,6 +1423,183 @@
     <span class="md-ellipsis">
       
         生产环境
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运行时检测器处理策略
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFER 审批桥接
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DEFER 审批桥接">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        生命周期
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decisionsource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        决策来源（DecisionSource）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSE 事件对
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        解决端点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_24" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        完整示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latch-hub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Latch Hub 事件转发
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Latch Hub 事件转发">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_25" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件格式化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        使用示例
       
     </span>
   </a>
@@ -1559,7 +1859,7 @@
   <span class="md-ellipsis">
     
   
-    三层决策详解
+    安全决策引擎
   
 
     
@@ -1575,7 +1875,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    三层决策详解
+    安全决策引擎
   
 
           </label>
@@ -1652,6 +1952,62 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/post-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-action 围栏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    轨迹分析器
   
 
     
@@ -1760,6 +2116,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../advanced/rule-governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CS-01 规则治理
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../advanced/custom-skills/" class="md-nav__link">
         
   
@@ -1824,6 +2208,90 @@
     
   
     自定义 Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/pattern-evolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    自进化模式库
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/attack-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    攻击模式定制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/embedding-backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    向量相似度接入 (D6)
   
 
     
@@ -2054,15 +2522,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#d1-d5" class="md-nav__link">
+  <a href="#d1-d6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        D1-D5 五维风险评分
+        D1-D6 六维风险评分
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="D1-D5 五维风险评分">
+    <nav class="md-nav" aria-label="D1-D6 六维风险评分">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2136,6 +2604,17 @@
     <span class="md-ellipsis">
       
         D5：Agent 信任等级 (0-2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d6-00-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        D6：注入检测评分 (0.0-3.0)
       
     </span>
   </a>
@@ -2375,6 +2854,183 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        运行时检测器处理策略
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DEFER 审批桥接
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="DEFER 审批桥接">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        生命周期
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        触发条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#decisionsource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        决策来源（DecisionSource）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSE 事件对
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        解决端点
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_24" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        完整示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#latch-hub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Latch Hub 事件转发
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Latch Hub 事件转发">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_25" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        架构
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_26" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        启动条件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        事件格式化
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        使用示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2423,8 +3079,8 @@
 </tr>
 <tr>
 <td><code>post_action</code></td>
-<td><strong>始终 ALLOW</strong></td>
-<td>观察性事件，仅记录审计轨迹</td>
+<td><strong>默认 ALLOW</strong></td>
+<td>观察性事件；高风险发现可按预设进入后续会话执法</td>
 </tr>
 <tr>
 <td><code>post_response</code></td>
@@ -2481,34 +3137,42 @@
 <p>当 <code>pre_action</code> 事件的 L1 风险等级为 <code>medium</code> 时，系统会自动触发 L2 语义分析。L2 只能<strong>升级</strong>风险等级（从 medium 升到 high/critical），永不降级。这意味着 L1 判定为 medium 的事件，可能在 L2 分析后被升级为 BLOCK。</p>
 </div>
 <hr />
-<h2 id="d1-d5">D1-D5 五维风险评分<a class="headerlink" href="#d1-d5" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 使用五个独立维度对事件进行风险评估，每个维度产生一个整数分值，最终组合为综合风险分数。</p>
+<h2 id="d1-d6">D1-D6 六维风险评分<a class="headerlink" href="#d1-d6" title="Permanent link">&para;</a></h2>
+<p>ClawSentry 使用六个独立维度对事件进行风险评估，D1-D5 产生整数分值，D6 为连续浮点值（注入乘数），最终由 v2 加权公式合成综合风险分数。</p>
 <h3 id="_3">评分公式<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>composite_score = max(D1, D2, D3) + D4 + D5
-</span></code></pre></div>
+<div class="arithmatex">\[
+\text{base\_score} = 0.4 \times \max(D1, D2, D3) + 0.25 \times D4 + 0.15 \times D5
+\]</div>
+<div class="arithmatex">\[
+\text{composite\_score} = \text{base\_score} \times \left(1.0 + 0.5 \times \frac{D6}{3.0}\right)
+\]</div>
+<div class="admonition note">
+<p class="admonition-title">D6=0 时的退化</p>
+<p>当没有注入信号（D6=0.0）时，公式退化为纯 base_score，完全向后兼容。</p>
+</div>
 <p>综合分数到风险等级的映射：</p>
 <table>
 <thead>
 <tr>
-<th>综合分数</th>
+<th>合成分范围</th>
 <th>风险等级</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>0 - 1</td>
+<td>&lt; 0.8</td>
 <td><code>low</code></td>
 </tr>
 <tr>
-<td>2 - 3</td>
+<td>0.8 – 1.5</td>
 <td><code>medium</code></td>
 </tr>
 <tr>
-<td>4</td>
+<td>1.5 – 2.2</td>
 <td><code>high</code></td>
 </tr>
 <tr>
-<td>5+</td>
+<td>≥ 2.2</td>
 <td><code>critical</code></td>
 </tr>
 </tbody>
@@ -2662,29 +3326,29 @@
 </tbody>
 </table>
 <p>高危命令模式的完整正则匹配列表：</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># 递归强制删除</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">rm</span> <span class="o">-</span><span class="n">rf</span> <span class="o">/</span> <span class="n">rm</span> <span class="o">-</span><span class="n">fr</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># 直接磁盘写入</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">dd</span> <span class="o">/</span> <span class="n">mkfs</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Fork bomb</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="p">:()</span> <span class="p">{</span> <span class="p">:</span><span class="o">|</span><span class="p">:</span><span class="o">&amp;</span> <span class="p">};:</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># 远程代码执行</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">curl</span> <span class="o">...</span> <span class="o">|</span> <span class="n">sh</span> <span class="o">/</span> <span class="n">wget</span> <span class="o">...</span> <span class="o">|</span> <span class="n">bash</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># 设备写入</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/...</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="c1"># 强制推送</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="n">git</span> <span class="n">push</span> <span class="o">--</span><span class="n">force</span>
-</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="c1"># 危险权限变更</span>
-</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="n">chmod</span> <span class="mi">777</span>
-</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
-</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="c1"># 特权提升</span>
-</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="n">sudo</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># 递归强制删除</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">rm</span> <span class="o">-</span><span class="n">rf</span> <span class="o">/</span> <span class="n">rm</span> <span class="o">-</span><span class="n">fr</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># 直接磁盘写入</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">dd</span> <span class="o">/</span> <span class="n">mkfs</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Fork bomb</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">:()</span> <span class="p">{</span> <span class="p">:</span><span class="o">|</span><span class="p">:</span><span class="o">&amp;</span> <span class="p">};:</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># 远程代码执行</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">curl</span> <span class="o">...</span> <span class="o">|</span> <span class="n">sh</span> <span class="o">/</span> <span class="n">wget</span> <span class="o">...</span> <span class="o">|</span> <span class="n">bash</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="c1"># 设备写入</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="o">&gt;</span> <span class="o">/</span><span class="n">dev</span><span class="o">/...</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="c1"># 强制推送</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">git</span> <span class="n">push</span> <span class="o">--</span><span class="n">force</span>
+</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
+</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="c1"># 危险权限变更</span>
+</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="n">chmod</span> <span class="mi">777</span>
+</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># 特权提升</span>
+</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="n">sudo</span>
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">非 bash 工具的 D3</p>
@@ -2754,37 +3418,78 @@
 <p class="admonition-title">默认不信任</p>
 <p>当 <code>DecisionContext</code> 为空或未设置 <code>agent_trust_level</code> 时，D5 默认为 <strong>2</strong>（最不信任）。这是安全优先的设计选择。</p>
 </div>
+<h3 id="d6-00-30">D6：注入检测评分 (0.0-3.0)<a class="headerlink" href="#d6-00-30" title="Permanent link">&para;</a></h3>
+<p>D6 是 E-4 引入的第六个风险维度，采用连续浮点值，专门检测提示词注入（Prompt Injection）和命令注入（Command Injection）企图。与 D1-D5 直接参与加权求和不同，D6 作为<strong>乘数</strong>放大 base_score。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: center;">D6 值</th>
+<th>乘数公式 <code>1.0 + 0.5×(D6/3.0)</code></th>
+<th style="text-align: center;">乘数</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">0.0</td>
+<td>1.0 + 0.5 × 0.00</td>
+<td style="text-align: center;"><strong>1.00</strong></td>
+<td>无影响（公式退化为纯 base_score）</td>
+</tr>
+<tr>
+<td style="text-align: center;">1.5</td>
+<td>1.0 + 0.5 × 0.50</td>
+<td style="text-align: center;"><strong>1.25</strong></td>
+<td>基础评分提升 25%</td>
+</tr>
+<tr>
+<td style="text-align: center;">3.0</td>
+<td>1.0 + 0.5 × 1.00</td>
+<td style="text-align: center;"><strong>1.50</strong></td>
+<td>基础评分提升 50%（最大放大倍数）</td>
+</tr>
+</tbody>
+</table>
+<p>D6 由三层检测架构综合评分（详见 <a href="../../decision-layers/l1-rules/#d6">L1 规则引擎 → D6</a>）：</p>
+<ul>
+<li><strong>Layer 1 启发式正则</strong>：弱模式 22 条（含中文，+0.3/条，上限 1.5）+ 强模式 17 条（含中文，+0.8/条，上限 2.4）+ 工具特定模式</li>
+<li><strong>Layer 2 Canary Token</strong>：在载荷中嵌入随机 token，检测是否泄露到外部（+1.5）</li>
+<li><strong>Layer 3 向量相似度</strong>：可插拔 <code>EmbeddingBackend</code>，与已知攻击语料比较（0.0–2.0，默认禁用）</li>
+</ul>
+<div class="admonition info">
+<p class="admonition-title">D6 最低保证</p>
+<p>当 D6 ≥ 2.0 且当前风险为 LOW 时，系统强制升级为 MEDIUM，防止高置信度注入因基础分低而被漏过。</p>
+</div>
 <h3 id="_4">评分示例<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <p>以下是一些典型场景的评分演示：</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">安全读取</label><label for="__tabbed_1_2">删除系统文件</label><label for="__tabbed_1_3">安装包</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>工具: read_file    路径: ./src/main.py    会话高危: 0    信任: standard
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>工具: read_file    路径: ./src/main.py    会话高危: 0    信任: standard
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>D1=0 (只读工具)   D2=0 (普通路径)   D3=0 (非bash)   D4=0 (无高危)   D5=1 (标准)   D6=0.0
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>短路规则 SC-3 命中: D1=0, D2=0, D3=0 → 直接判定 low → ALLOW
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>（无短路时: base = 0.4×0 + 0.25×0 + 0.15×1 = 0.15 → LOW）
+</span></code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>工具: bash    命令: rm -rf /etc/important    会话高危: 1    信任: untrusted
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>D1=0 (只读工具)   D2=0 (普通路径)   D3=0 (非bash)   D4=0 (无高危)   D5=1 (标准)
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>composite_score = max(0,0,0) + 0 + 1 = 1
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>风险等级: low → ALLOW
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>短路规则 SC-3 命中: D1=0, D2=0, D3=0 → 直接判定 low
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>D1=3 (高危命令)   D2=3 (系统路径)   D3=3 (rm -rf)   D4=0 (&lt;2次)   D5=2 (不信任)   D6=0.0
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>短路规则 SC-1 命中: D1=3, D2=3(≥2) → 直接判定 critical → BLOCK
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>短路规则 SC-2 命中: D3=3 → 直接判定 critical → BLOCK
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>工具: bash    命令: rm -rf /etc/important    会话高危: 1    信任: untrusted
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>工具: bash    命令: pip install requests    会话高危: 0    信任: standard
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>D1=3 (高危命令)   D2=3 (系统路径)   D3=3 (rm -rf)   D4=0 (&lt;2次)   D5=2 (不信任)
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>composite_score = max(3,3,3) + 0 + 2 = 5
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>风险等级: critical → BLOCK
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>短路规则 SC-1 命中: D1=3, D2=3(&gt;=2) → 直接判定 critical
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>短路规则 SC-2 命中: D3=3 → 直接判定 critical
-</span></code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>工具: bash    命令: pip install requests    会话高危: 0    信任: standard
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>D1=2 (bash工具)   D2=1 (默认)   D3=2 (pip install)   D4=0 (无高危)   D5=1 (标准)
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>composite_score = max(2,1,2) + 0 + 1 = 3
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>风险等级: medium → ALLOW (触发 L2 分析)
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>D1=2 (bash工具)   D2=1 (默认)   D3=2 (pip install)   D4=0 (无高危)   D5=1 (标准)   D6=0.0
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>base_score = 0.4×max(2,1,2) + 0.25×0 + 0.15×1 = 0.80 + 0 + 0.15 = 0.95
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>composite_score = 0.95 × (1.0 + 0.5×0.0) = 0.95
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>风险等级: medium → ALLOW (触发 L2 分析)
 </span></code></pre></div>
 </div>
 </div>
@@ -2874,9 +3579,9 @@
 <div class="admonition tip">
 <p class="admonition-title">手动释放</p>
 <p>被执法的会话可通过 REST API 手动释放：
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/report/session/<span class="o">{</span>session_id<span class="o">}</span>/enforcement<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;action&quot;: &quot;release&quot;}&#39;</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8080/report/session/<span class="o">{</span>session_id<span class="o">}</span>/enforcement<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;action&quot;: &quot;release&quot;}&#39;</span>
 </span></code></pre></div></p>
 </div>
 <hr />
@@ -2971,14 +3676,14 @@
 <li>包含高危标记（已知危险工具）的操作 → <strong>BLOCK</strong></li>
 <li>无高危标记的操作 → <strong>DEFER</strong></li>
 </ul>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 已知危险工具列表</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">DANGEROUS_TOOLS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;bash&quot;</span><span class="p">,</span> <span class="s2">&quot;shell&quot;</span><span class="p">,</span> <span class="s2">&quot;exec&quot;</span><span class="p">,</span> <span class="s2">&quot;sudo&quot;</span><span class="p">,</span> <span class="s2">&quot;chmod&quot;</span><span class="p">,</span> <span class="s2">&quot;chown&quot;</span><span class="p">,</span> <span class="s2">&quot;kill&quot;</span><span class="p">,</span> <span class="s2">&quot;pkill&quot;</span><span class="p">}</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># 已知危险工具列表</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">DANGEROUS_TOOLS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;bash&quot;</span><span class="p">,</span> <span class="s2">&quot;shell&quot;</span><span class="p">,</span> <span class="s2">&quot;exec&quot;</span><span class="p">,</span> <span class="s2">&quot;sudo&quot;</span><span class="p">,</span> <span class="s2">&quot;chmod&quot;</span><span class="p">,</span> <span class="s2">&quot;chown&quot;</span><span class="p">,</span> <span class="s2">&quot;kill&quot;</span><span class="p">,</span> <span class="s2">&quot;pkill&quot;</span><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="fail-open">低危 Fail-Open<a class="headerlink" href="#fail-open" title="Permanent link">&para;</a></h3>
 <p>对于非阻塞性事件类型：</p>
 <ul>
 <li><code>pre_prompt</code> → <strong>ALLOW</strong>（避免阻断用户输入）</li>
-<li><code>post_action</code> / <code>post_response</code> / <code>error</code> / <code>session</code> → <strong>ALLOW</strong>（观察性事件）</li>
+<li><code>post_action</code> / <code>post_response</code> / <code>error</code> / <code>session</code> → 默认 <strong>ALLOW</strong>（观察性事件）；如启用严格风险事件处理，<code>post_action_finding</code> 可让后续同一 session 进入 DEFER/BLOCK</li>
 </ul>
 <div class="admonition danger">
 <p class="admonition-title">降级永不跳过</p>
@@ -3031,75 +3736,75 @@
 <hr />
 <h2 id="_15">最佳实践<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h2>
 <h3 id="_16">开发环境<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 禁用速率限制，方便测试</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">0</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 禁用认证，简化调试</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># CS_AUTH_TOKEN=  (不设置)</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># 禁用会话执法，减少干扰</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">false</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># 可选: 启用 LLM 语义分析 (本地模型)</span>
-</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>openai
-</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="nv">CS_LLM_BASE_URL</span><span class="o">=</span>http://localhost:11434/v1
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="nv">CS_LLM_MODEL</span><span class="o">=</span>qwen2.5:7b
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>ollama
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># 禁用速率限制，方便测试</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">0</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># 禁用认证，简化调试</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># CS_AUTH_TOKEN=  (不设置)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># 禁用会话执法，减少干扰</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">false</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># 可选: 启用 LLM 语义分析 (本地模型)</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>openai
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="nv">CS_LLM_BASE_URL</span><span class="o">=</span>http://localhost:11434/v1
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="nv">CS_LLM_MODEL</span><span class="o">=</span>qwen2.5:7b
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>ollama
 </span></code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">开发小技巧</p>
 <p>开发阶段建议保持纯 L1 模式（不设 <code>CS_LLM_PROVIDER</code>），这样所有决策都是确定性的且零延迟，便于编写测试和调试策略逻辑。</p>
 </div>
 <h3 id="_17">预发布环境<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 启用认证</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>staging-token-xxx
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># 适中的速率限制</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">300</span>
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># 宽松的会话执法</span>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">5</span>
-</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>defer
-</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">120</span>
-</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
-</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># 完整三层决策</span>
-</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
-</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
-</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>
-</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="c1"># 持久化轨迹</span>
-</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/data/clawsentry/trajectory.db
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 启用认证</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>staging-token-xxx
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 适中的速率限制</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">300</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># 宽松的会话执法</span>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">5</span>
+</span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>defer
+</span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">120</span>
+</span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
+</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># 完整三层决策</span>
+</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
+</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
+</span><span id="__span-7-16"><a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-7-17"><a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+</span><span id="__span-7-18"><a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="c1"># 持久化轨迹</span>
+</span><span id="__span-7-19"><a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/data/clawsentry/trajectory.db
 </span></code></pre></div>
 <h3 id="_18">生产环境<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># 强认证</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>prod-high-entropy-token-64chars
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># 严格速率限制</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">200</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># 严格的会话执法</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">3</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>block
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="c1"># TLS 加密</span>
-</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
-</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
-</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a>
-</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="c1"># 完整三层决策</span>
-</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
-</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
-</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>
-</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="c1"># Webhook 安全加固</span>
-</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.1,10.0.0.2
-</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="nv">AHP_WEBHOOK_TOKEN_TTL_SECONDS</span><span class="o">=</span><span class="m">3600</span>
-</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a>
-</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="c1"># 长期持久化</span>
-</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/var/lib/clawsentry/trajectory.db
-</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="nv">AHP_TRAJECTORY_RETENTION_SECONDS</span><span class="o">=</span><span class="m">7776000</span><span class="w">  </span><span class="c1"># 90 天</span>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 强认证</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">CS_AUTH_TOKEN</span><span class="o">=</span>prod-high-entropy-token-64chars
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># 严格速率限制</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="nv">CS_RATE_LIMIT_PER_MINUTE</span><span class="o">=</span><span class="m">200</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># 严格的会话执法</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="nv">AHP_SESSION_ENFORCEMENT_THRESHOLD</span><span class="o">=</span><span class="m">3</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="nv">AHP_SESSION_ENFORCEMENT_ACTION</span><span class="o">=</span>block
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="nv">AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</span><span class="o">=</span><span class="m">600</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># TLS 加密</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="nv">AHP_SSL_CERTFILE</span><span class="o">=</span>/etc/ssl/certs/clawsentry.pem
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="nv">AHP_SSL_KEYFILE</span><span class="o">=</span>/etc/ssl/private/clawsentry-key.pem
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="c1"># 完整三层决策</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="nv">CS_LLM_PROVIDER</span><span class="o">=</span>anthropic
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="nv">ANTHROPIC_API_KEY</span><span class="o">=</span>sk-ant-xxx
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="nv">CS_L3_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="c1"># Webhook 安全加固</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="nv">AHP_WEBHOOK_IP_WHITELIST</span><span class="o">=</span><span class="m">10</span>.0.0.1,10.0.0.2
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="nv">AHP_WEBHOOK_TOKEN_TTL_SECONDS</span><span class="o">=</span><span class="m">3600</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="c1"># 长期持久化</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="nv">CS_TRAJECTORY_DB_PATH</span><span class="o">=</span>/var/lib/clawsentry/trajectory.db
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="nv">AHP_TRAJECTORY_RETENTION_SECONDS</span><span class="o">=</span><span class="m">7776000</span><span class="w">  </span><span class="c1"># 90 天</span>
 </span></code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">生产环境检查清单</p>
@@ -3111,6 +3816,308 @@
 <li>[x] Webhook IP 白名单已配置</li>
 <li>[x] 速率限制已配置</li>
 </ul>
+</div>
+<hr />
+<h2 id="_19">运行时检测器处理策略<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h2>
+<p>除 L1/L2/L3 的同步决策外，ClawSentry 还会产生运行时检测事件，例如：</p>
+<ul>
+<li><code>trajectory_alert</code>：多步轨迹检测器发现“读敏感文件后外传”等序列。</li>
+<li><code>post_action_finding</code>：工具输出里出现秘密泄露、外部内容指令、混淆执行等 post-action 护栏信号。</li>
+</ul>
+<p>这些事件默认会广播到 <code>clawsentry watch</code>、SSE 和 UI；高约束预设会进一步转为 DEFER 或 BLOCK：</p>
+<table>
+<thead>
+<tr>
+<th>预设</th>
+<th><code>trajectory_alert_action</code></th>
+<th><code>post_action_finding_action</code></th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>low</code></td>
+<td><code>broadcast</code></td>
+<td><code>broadcast</code></td>
+<td>只提示，不阻塞</td>
+</tr>
+<tr>
+<td><code>medium</code></td>
+<td><code>broadcast</code></td>
+<td><code>broadcast</code></td>
+<td>默认兼容行为，只提示</td>
+</tr>
+<tr>
+<td><code>high</code></td>
+<td><code>defer</code></td>
+<td><code>defer</code></td>
+<td>轨迹命中会 DEFER 当前 pre-action；post-action 命中会让后续同 session 动作 DEFER</td>
+</tr>
+<tr>
+<td><code>strict</code></td>
+<td><code>block</code></td>
+<td><code>block</code></td>
+<td>轨迹命中会 BLOCK 当前 pre-action；post-action 命中会让后续同 session 动作 BLOCK</td>
+</tr>
+</tbody>
+</table>
+<p>也可以通过环境变量显式覆盖：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">CS_TRAJECTORY_ALERT_ACTION</span><span class="o">=</span>block<span class="w">        </span><span class="c1"># broadcast | defer | block</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">CS_POST_ACTION_FINDING_ACTION</span><span class="o">=</span>defer<span class="w">     </span><span class="c1"># broadcast | defer | block</span>
+</span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">为什么 post_action 不是阻塞当前动作？</p>
+<p><code>post_action</code> 发生在工具已经执行之后，无法回滚当前动作。因此 <code>post_action_finding_action=defer|block</code> 的含义是对后续同一 session 动作启用会话级执法。</p>
+</div>
+<h2 id="defer">DEFER 审批桥接<a class="headerlink" href="#defer" title="Permanent link">&para;</a></h2>
+<p>当 L1/L2 决策为 DEFER 且 <code>defer_bridge_enabled=true</code> 时，Gateway 会将审批请求注册到 DeferManager，等待运维人员通过 CLI、Web UI 或移动端做出允许/拒绝决定。</p>
+<h3 id="_20">生命周期<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Agent as AI Agent
+    participant GW as Gateway
+    participant DM as DeferManager
+    participant SSE as SSE 订阅者
+    participant Op as 运维人员
+
+    Agent-&gt;&gt;GW: pre_action 请求
+    GW-&gt;&gt;GW: L1/L2 评估 → DEFER
+    GW-&gt;&gt;DM: 注册审批 (approval_id)
+    GW-&gt;&gt;SSE: defer_pending 事件
+
+    alt 运维批准
+        Op-&gt;&gt;GW: POST /ahp/resolve {allow}
+        GW-&gt;&gt;DM: resolve(approved)
+        GW-&gt;&gt;SSE: defer_resolved {approved}
+        GW-&gt;&gt;Agent: ALLOW (source=OPERATOR)
+    else 运维拒绝
+        Op-&gt;&gt;GW: POST /ahp/resolve {deny}
+        GW-&gt;&gt;DM: resolve(denied)
+        GW-&gt;&gt;SSE: defer_resolved {denied}
+        GW-&gt;&gt;Agent: BLOCK (source=OPERATOR)
+    else 超时
+        DM-&gt;&gt;GW: timeout
+        GW-&gt;&gt;Agent: defer_timeout_action (block/allow)
+    end</code></pre>
+<h3 id="_21">触发条件<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
+<p>DEFER 桥接在以下<strong>所有条件</strong>同时满足时激活：</p>
+<ol>
+<li><code>defer_bridge_enabled = true</code>（DetectionConfig / 项目预设）</li>
+<li>决策结果为 <code>DEFER</code></li>
+<li>事件类型为 <code>pre_action</code></li>
+<li>未被会话强制策略覆盖</li>
+</ol>
+<h3 id="decisionsource">决策来源（DecisionSource）<a class="headerlink" href="#decisionsource" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POLICY</code></td>
+<td>L1/L2/L3 引擎自动决策</td>
+</tr>
+<tr>
+<td><code>MANUAL</code></td>
+<td>手动覆盖</td>
+</tr>
+<tr>
+<td><code>SYSTEM</code></td>
+<td>系统级决策（如速率限制）</td>
+</tr>
+<tr>
+<td><code>OPERATOR</code></td>
+<td><strong>运维人员通过 DEFER 桥接做出的决策</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="sse">SSE 事件对<a class="headerlink" href="#sse" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>触发时机</th>
+<th>关键字段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defer_pending</code></td>
+<td>DEFER 注册时</td>
+<td><code>approval_id</code>, <code>defer_timeout_s</code></td>
+</tr>
+<tr>
+<td><code>defer_resolved</code></td>
+<td>运维响应时</td>
+<td><code>approval_id</code>, <code>resolution</code> (approved/denied)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_22">解决端点<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
+<p><code>POST /ahp/resolve</code> 接受以下请求：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="p">{</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-xxx&quot;</span><span class="p">,</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow-once&quot;</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>或拒绝：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p">{</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-xxx&quot;</span><span class="p">,</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deny&quot;</span><span class="p">,</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;operator rejected&quot;</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong>双重检查</strong>：Gateway 在解决 DEFER 时会验证 approval_id 是否仍然有效（未超时、未重复解决）。</p>
+<h3 id="_23">配置<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_DEFER_BRIDGE_ENABLED</code></td>
+<td><code>true</code></td>
+<td>启用 DEFER 桥接</td>
+</tr>
+<tr>
+<td><code>CS_DEFER_TIMEOUT_S</code></td>
+<td><code>300</code></td>
+<td>超时时间（秒）</td>
+</tr>
+<tr>
+<td><code>CS_DEFER_TIMEOUT_ACTION</code></td>
+<td><code>block</code></td>
+<td>超时动作：<code>block</code> 或 <code>allow</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="_24">完整示例<a class="headerlink" href="#_24" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># 启用 DEFER 桥接</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nv">CS_DEFER_BRIDGE_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nv">CS_DEFER_TIMEOUT_S</span><span class="o">=</span><span class="m">180</span><span class="w">          </span><span class="c1"># 3 分钟超时</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nv">CS_DEFER_TIMEOUT_ACTION</span><span class="o">=</span>block<span class="w">   </span><span class="c1"># 超时阻断</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="c1"># 使用 watch CLI 交互审批</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="c1"># 终端 1: clawsentry gateway</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="c1"># 终端 2: clawsentry watch --interactive --token $CS_AUTH_TOKEN</span>
+</span></code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">交互式审批</p>
+<p><code>clawsentry watch --interactive</code> 可直接在终端中对 DEFER 做出 Allow/Deny 决策：
+<div class="language-text highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Command: sudo rm -rf /var/log
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>Reason:  Destructive operation on system logs
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[A]llow  [D]eny  [S]kip (timeout in 175s) &gt;
+</span></code></pre></div></p>
+</div>
+<hr />
+<h2 id="latch-hub">Latch Hub 事件转发<a class="headerlink" href="#latch-hub" title="Permanent link">&para;</a></h2>
+<p>LatchHubBridge 将 Gateway 的 SSE 事件通过 HTTP 转发至 Latch Hub，实现移动端/远程运维人员的实时监控和 DEFER 推送审批。</p>
+<h3 id="_25">架构<a class="headerlink" href="#_25" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>Gateway EventBus
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    │
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    ├─ decision
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    ├─ session_start
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    ├─ session_risk_change
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    ├─ alert
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    ├─ defer_pending
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>    ├─ defer_resolved
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>    ├─ post_action_finding
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>    └─ session_enforcement_change
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>         │
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>         ▼
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>    LatchHubBridge
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    (订阅 EventBus → HTTP POST)
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>         │
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a>         ▼
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>    Latch Hub CLI Session API
+</span><span id="__span-14-18"><a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>    (推送到 Web / PWA / 移动端)
+</span></code></pre></div>
+<h3 id="_26">启动条件<a class="headerlink" href="#_26" title="Permanent link">&para;</a></h3>
+<p>LatchHubBridge 在以下条件满足时自动启动：</p>
+<ul>
+<li><code>CS_HUB_BRIDGE_ENABLED=true</code>（或 <code>auto</code> 且检测到 Hub 运行）</li>
+<li>Hub 基础 URL 可达（<code>CS_LATCH_HUB_URL</code> 或 <code>http://127.0.0.1:{CS_LATCH_HUB_PORT}</code>）</li>
+</ul>
+<h3 id="_27">事件格式化<a class="headerlink" href="#_27" title="Permanent link">&para;</a></h3>
+<p>Bridge 将 ClawSentry 事件转换为人类可读的消息格式：</p>
+<table>
+<thead>
+<tr>
+<th>事件</th>
+<th>消息格式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decision</code></td>
+<td><code>[ALLOW/BLOCK/DEFER] tool_name (risk: level)</code></td>
+</tr>
+<tr>
+<td><code>alert</code></td>
+<td><code>[ALERT:severity] message</code></td>
+</tr>
+<tr>
+<td><code>defer_pending</code></td>
+<td><code>[DEFER PENDING] tool — awaiting approval (timeout: Ns)</code></td>
+</tr>
+<tr>
+<td><code>defer_resolved</code></td>
+<td><code>[DEFER RESOLVED] allow/block</code></td>
+</tr>
+<tr>
+<td><code>session_start</code></td>
+<td><code>[SESSION START] Agent: id (framework)</code></td>
+</tr>
+<tr>
+<td><code>session_risk_change</code></td>
+<td><code>[RISK CHANGE] prev → curr</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="_28">配置<a class="headerlink" href="#_28" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CS_HUB_BRIDGE_ENABLED</code></td>
+<td><code>auto</code></td>
+<td><code>auto</code>/<code>true</code>/<code>false</code></td>
+</tr>
+<tr>
+<td><code>CS_LATCH_HUB_URL</code></td>
+<td>(空)</td>
+<td>Hub 基础 URL</td>
+</tr>
+<tr>
+<td><code>CS_LATCH_HUB_PORT</code></td>
+<td><code>3006</code></td>
+<td>Hub 端口（URL 未设置时回退）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_29">使用示例<a class="headerlink" href="#_29" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># 启用 Hub 转发</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">CS_HUB_BRIDGE_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="nv">CS_LATCH_HUB_URL</span><span class="o">=</span>http://127.0.0.1:3006
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># 一键启动（含 Latch）</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>clawsentry<span class="w"> </span>start<span class="w"> </span>--with-latch
+</span></code></pre></div>
+<div class="admonition info">
+<p class="admonition-title">Hub 会话映射</p>
+<p>Bridge 自动为每个 ClawSentry 会话创建对应的 Hub CLI 会话，无需手动配置。</p>
 </div>
 
 
@@ -3134,7 +4141,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月9日 10:22:57 UTC">2026年4月9日</span>
   </span>
 
     
@@ -3144,7 +4151,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 23:48:13 UTC">2026年3月22日</span>
   </span>
 
     
@@ -3181,7 +4188,7 @@
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../env-vars/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 环境变量">
+          <a href="../detection-config/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 检测管线配置">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3191,7 +4198,7 @@
                 上一页
               </span>
               <div class="md-ellipsis">
-                环境变量
+                检测管线配置
               </div>
             </div>
           </a>
@@ -3265,6 +4272,10 @@
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

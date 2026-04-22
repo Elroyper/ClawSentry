@@ -246,7 +246,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../getting-started/installation/" class="md-tabs__link">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -351,7 +351,7 @@
           
   
   
-  三层决策详解
+  安全决策引擎
 
         </a>
       </li>
@@ -386,7 +386,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../advanced/custom-skills/" class="md-tabs__link">
+        <a href="../../advanced/rule-governance/" class="md-tabs__link">
           
   
   
@@ -570,14 +570,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    安装
+    快速开始
   
 
     
@@ -598,14 +598,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    快速开始
+    安装
   
 
     
@@ -771,6 +771,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../integration/claude-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Claude Code 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codex CLI 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integration/openclaw/" class="md-nav__link">
         
   
@@ -779,6 +835,34 @@
     
   
     OpenClaw 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/latch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Latch 集成
   
 
     
@@ -868,6 +952,34 @@
     
   
     环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/detection-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    检测管线配置
   
 
     
@@ -1294,15 +1406,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#post-ahp-resolve" class="md-nav__link">
+  <a href="#post-ahp-codex" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/resolve — DEFER 决策代理
+        POST /ahp/codex — Codex CLI HTTP Transport
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/resolve — DEFER 决策代理">
+    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP Transport">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1320,7 +1432,7 @@
   <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
-        请求
+        请求格式
       
     </span>
   </a>
@@ -1331,7 +1443,7 @@
   <a href="#_14" class="md-nav__link">
     <span class="md-ellipsis">
       
-        成功响应
+        事件类型映射
       
     </span>
   </a>
@@ -1342,7 +1454,7 @@
   <a href="#_15" class="md-nav__link">
     <span class="md-ellipsis">
       
-        错误响应
+        成功响应
       
     </span>
   </a>
@@ -1353,7 +1465,7 @@
   <a href="#_16" class="md-nav__link">
     <span class="md-ellipsis">
       
-        优雅降级
+        安全默认
       
     </span>
   </a>
@@ -1362,6 +1474,89 @@
         
           <li class="md-nav__item">
   <a href="#curl_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        curl 示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-ahp-resolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /ahp/resolve — DEFER 决策代理
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="POST /ahp/resolve — DEFER 决策代理">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        认证
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        请求
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        成功响应
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        错误响应
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优雅降级
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#curl_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         curl 示例
@@ -1389,7 +1584,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
+  <a href="#_22" class="md-nav__link">
     <span class="md-ellipsis">
       
         连接信息
@@ -1400,7 +1595,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
+  <a href="#_23" class="md-nav__link">
     <span class="md-ellipsis">
       
         帧格式
@@ -1411,7 +1606,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
+  <a href="#_24" class="md-nav__link">
     <span class="md-ellipsis">
       
         请求示例
@@ -1422,7 +1617,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
+  <a href="#_25" class="md-nav__link">
     <span class="md-ellipsis">
       
         响应示例
@@ -1433,7 +1628,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
+  <a href="#_26" class="md-nav__link">
     <span class="md-ellipsis">
       
         安全限制
@@ -1483,7 +1678,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
+  <a href="#_27" class="md-nav__link">
     <span class="md-ellipsis">
       
         风险等级映射
@@ -1602,7 +1797,7 @@
   <span class="md-ellipsis">
     
   
-    三层决策详解
+    安全决策引擎
   
 
     
@@ -1618,7 +1813,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    三层决策详解
+    安全决策引擎
   
 
           </label>
@@ -1695,6 +1890,62 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/post-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-action 围栏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    轨迹分析器
   
 
     
@@ -1803,6 +2054,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../advanced/rule-governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CS-01 规则治理
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../advanced/custom-skills/" class="md-nav__link">
         
   
@@ -1867,6 +2146,90 @@
     
   
     自定义 Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/pattern-evolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    自进化模式库
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/attack-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    攻击模式定制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/embedding-backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    向量相似度接入 (D6)
   
 
     
@@ -2257,15 +2620,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#post-ahp-resolve" class="md-nav__link">
+  <a href="#post-ahp-codex" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/resolve — DEFER 决策代理
+        POST /ahp/codex — Codex CLI HTTP Transport
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/resolve — DEFER 决策代理">
+    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP Transport">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2283,7 +2646,7 @@
   <a href="#_13" class="md-nav__link">
     <span class="md-ellipsis">
       
-        请求
+        请求格式
       
     </span>
   </a>
@@ -2294,7 +2657,7 @@
   <a href="#_14" class="md-nav__link">
     <span class="md-ellipsis">
       
-        成功响应
+        事件类型映射
       
     </span>
   </a>
@@ -2305,7 +2668,7 @@
   <a href="#_15" class="md-nav__link">
     <span class="md-ellipsis">
       
-        错误响应
+        成功响应
       
     </span>
   </a>
@@ -2316,7 +2679,7 @@
   <a href="#_16" class="md-nav__link">
     <span class="md-ellipsis">
       
-        优雅降级
+        安全默认
       
     </span>
   </a>
@@ -2325,6 +2688,89 @@
         
           <li class="md-nav__item">
   <a href="#curl_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        curl 示例
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-ahp-resolve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /ahp/resolve — DEFER 决策代理
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="POST /ahp/resolve — DEFER 决策代理">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_17" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        认证
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        请求
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        成功响应
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        错误响应
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        优雅降级
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#curl_3" class="md-nav__link">
     <span class="md-ellipsis">
       
         curl 示例
@@ -2352,7 +2798,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
+  <a href="#_22" class="md-nav__link">
     <span class="md-ellipsis">
       
         连接信息
@@ -2363,7 +2809,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
+  <a href="#_23" class="md-nav__link">
     <span class="md-ellipsis">
       
         帧格式
@@ -2374,7 +2820,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
+  <a href="#_24" class="md-nav__link">
     <span class="md-ellipsis">
       
         请求示例
@@ -2385,7 +2831,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
+  <a href="#_25" class="md-nav__link">
     <span class="md-ellipsis">
       
         响应示例
@@ -2396,7 +2842,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
+  <a href="#_26" class="md-nav__link">
     <span class="md-ellipsis">
       
         安全限制
@@ -2446,7 +2892,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
+  <a href="#_27" class="md-nav__link">
     <span class="md-ellipsis">
       
         风险等级映射
@@ -2888,18 +3334,133 @@
 </span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="s1">  }&#39;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="post-ahp-resolve">POST /ahp/resolve — DEFER 决策代理<a class="headerlink" href="#post-ahp-resolve" title="Permanent link">&para;</a></h2>
-<p>代理 DEFER 决策的操作员确认——将允许/拒绝指令转发到 OpenClaw WebSocket 客户端。</p>
+<h2 id="post-ahp-codex">POST /ahp/codex — Codex CLI HTTP Transport<a class="headerlink" href="#post-ahp-codex" title="Permanent link">&para;</a></h2>
+<p>为 OpenAI Codex CLI 提供简化的 HTTP 接入端点。无需 JSON-RPC 封装，直接提交事件获取安全决策。</p>
 <h3 id="_12">认证<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Bearer Token</strong>: <code>Authorization: Bearer &lt;CS_AUTH_TOKEN&gt;</code></li>
 </ul>
-<h3 id="_13">请求<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
+<h3 id="_13">请求格式<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="p">{</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-abc-123&quot;</span><span class="p">,</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow-once&quot;</span><span class="p">,</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Operator approved after manual review&quot;</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="p">}</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">&quot;hook_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;function_call&quot;</span><span class="p">,</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="nt">&quot;tool_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shell&quot;</span><span class="p">,</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="nt">&quot;arguments&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;{\&quot;cmd\&quot;: \&quot;rm -rf /tmp/data\&quot;}&quot;</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="p">},</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex-session-001&quot;</span><span class="p">,</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex-agent-001&quot;</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">}</span>
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hook_type</code></td>
+<td>string</td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59z"/></svg></span></td>
+<td>事件类型：<code>function_call</code> / <code>function_call_output</code> / <code>session_meta</code> / <code>session_end</code></td>
+</tr>
+<tr>
+<td><code>payload</code></td>
+<td>object</td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 7 9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59z"/></svg></span></td>
+<td>工具调用负载</td>
+</tr>
+<tr>
+<td><code>session_id</code></td>
+<td>string</td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span></td>
+<td>会话 ID（缺省自动生成）</td>
+</tr>
+<tr>
+<td><code>agent_id</code></td>
+<td>string</td>
+<td><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span></td>
+<td>Agent ID（缺省自动生成）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_14">事件类型映射<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th><code>hook_type</code></th>
+<th>归一化 EventType</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>function_call</code></td>
+<td><code>pre_action</code></td>
+<td>工具调用前（阻塞决策）</td>
+</tr>
+<tr>
+<td><code>function_call_output</code></td>
+<td><code>post_action</code></td>
+<td>工具调用后（异步审计）</td>
+</tr>
+<tr>
+<td><code>session_meta</code></td>
+<td><code>session</code></td>
+<td>会话元数据</td>
+</tr>
+<tr>
+<td><code>session_end</code></td>
+<td><code>session</code></td>
+<td>会话结束</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_15">成功响应<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;block&quot;</span><span class="p">,</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;D1: destructive tool pattern detected (rm -rf)&quot;</span><span class="p">,</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">&quot;risk_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1b2c3d4e5f6a7b8c9d0e1f2&quot;</span><span class="p">,</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nt">&quot;source_framework&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex&quot;</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="_16">安全默认<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
+<p>当 Gateway 内部发生异常时，Codex 端点返回 <strong>block</strong>（fail-closed），而非 continue：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;block&quot;</span><span class="p">,</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal error (fail-closed)&quot;</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="curl_2">curl 示例<a class="headerlink" href="#curl_2" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/ahp/codex<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="s1">    &quot;hook_type&quot;: &quot;function_call&quot;,</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="s1">    &quot;payload&quot;: {</span>
+</span><span id="__span-15-7"><a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="s1">      &quot;tool_name&quot;: &quot;shell&quot;,</span>
+</span><span id="__span-15-8"><a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="s1">      &quot;arguments&quot;: &quot;{\&quot;cmd\&quot;: \&quot;ls -la\&quot;}&quot;</span>
+</span><span id="__span-15-9"><a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="s1">    },</span>
+</span><span id="__span-15-10"><a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="s1">    &quot;session_id&quot;: &quot;test-session&quot;</span>
+</span><span id="__span-15-11"><a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="s1">  }&#39;</span>
+</span></code></pre></div>
+<hr />
+<h2 id="post-ahp-resolve">POST /ahp/resolve — DEFER 决策代理<a class="headerlink" href="#post-ahp-resolve" title="Permanent link">&para;</a></h2>
+<p>代理 DEFER 决策的操作员确认——将允许/拒绝指令转发到 OpenClaw WebSocket 客户端。</p>
+<h3 id="_17">认证<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Bearer Token</strong>: <code>Authorization: Bearer &lt;CS_AUTH_TOKEN&gt;</code></li>
+</ul>
+<h3 id="_18">请求<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-abc-123&quot;</span><span class="p">,</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;allow-once&quot;</span><span class="p">,</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Operator approved after manual review&quot;</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="p">}</span>
 </span></code></pre></div>
 <table>
 <thead>
@@ -2931,52 +3492,52 @@
 </tr>
 </tbody>
 </table>
-<h3 id="_14">成功响应<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="p">{</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-abc-123&quot;</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="p">}</span>
+<h3 id="_19">成功响应<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">  </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-abc-123&quot;</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="_15">错误响应<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
+<h3 id="_20">错误响应<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
 <p><strong>无 OpenClaw 连接（503）：</strong></p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resolve not available (no OpenClaw enforcement)&quot;</span>
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">{</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resolve not available (no OpenClaw enforcement)&quot;</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong>请求参数错误（400）：</strong></p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="p">{</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;approval_id and decision are required&quot;</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="p">{</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;approval_id and decision are required&quot;</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong>无效 decision 值（400）：</strong></p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="p">{</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;decision must be one of [&#39;allow-once&#39;, &#39;deny&#39;]&quot;</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;decision must be one of [&#39;allow-once&#39;, &#39;deny&#39;]&quot;</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="p">}</span>
 </span></code></pre></div>
 <p><strong>上游解析失败（502）：</strong></p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="p">{</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resolve failed: &lt;error detail&gt;&quot;</span>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;resolve failed: &lt;error detail&gt;&quot;</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="_16">优雅降级<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
+<h3 id="_21">优雅降级<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
 <p>当 OpenClaw 不支持 <code>reason</code> 字段（由于 <code>additionalProperties: false</code> 限制）时，resolve 端点会自动重试——先带 <code>reason</code> 发送，失败后去掉 <code>reason</code> 再次发送。</p>
-<h3 id="curl_2">curl 示例<a class="headerlink" href="#curl_2" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># 允许执行</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/ahp/resolve<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;approval_id&quot;: &quot;apr-001&quot;, &quot;decision&quot;: &quot;allow-once&quot;}&#39;</span>
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>
-</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="c1"># 拒绝执行</span>
-</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/ahp/resolve<span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;approval_id&quot;: &quot;apr-001&quot;, &quot;decision&quot;: &quot;deny&quot;, &quot;reason&quot;: &quot;suspicious operation&quot;}&#39;</span>
+<h3 id="curl_3">curl 示例<a class="headerlink" href="#curl_3" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># 允许执行</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/ahp/resolve<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;approval_id&quot;: &quot;apr-001&quot;, &quot;decision&quot;: &quot;allow-once&quot;}&#39;</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="c1"># 拒绝执行</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/ahp/resolve<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;approval_id&quot;: &quot;apr-001&quot;, &quot;decision&quot;: &quot;deny&quot;, &quot;reason&quot;: &quot;suspicious operation&quot;}&#39;</span>
 </span></code></pre></div>
 <hr />
 <h2 id="uds-transport">UDS Transport — Unix Domain Socket<a class="headerlink" href="#uds-transport" title="Permanent link">&para;</a></h2>
 <p>UDS 是 ClawSentry 的<strong>主传输通道</strong>，提供最低延迟的进程间通信。a3s-code Harness 默认通过 UDS 连接 Gateway。</p>
-<h3 id="_17">连接信息<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
+<h3 id="_22">连接信息<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -3007,69 +3568,69 @@
 </tr>
 </tbody>
 </table>
-<h3 id="_18">帧格式<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>+------------------+--------------------+
-</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>| 4 bytes (uint32) | N bytes (JSON)     |
-</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>| big-endian       | UTF-8 encoded      |
-</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>| = N              | JSON-RPC 2.0 body  |
-</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>+------------------+--------------------+
+<h3 id="_23">帧格式<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>+------------------+--------------------+
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>| 4 bytes (uint32) | N bytes (JSON)     |
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>| big-endian       | UTF-8 encoded      |
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>| = N              | JSON-RPC 2.0 body  |
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>+------------------+--------------------+
 </span></code></pre></div>
-<h3 id="_19">请求示例<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span>
-</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
-</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ahp/sync_decision&quot;</span><span class="p">,</span>
-</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">    </span><span class="nt">&quot;rpc_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sync_decision.1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uds-req-001&quot;</span><span class="p">,</span>
-</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">    </span><span class="nt">&quot;deadline_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
-</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">    </span><span class="nt">&quot;decision_tier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
-</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">    </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">      </span><span class="nt">&quot;schema_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ahp.1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-20-12"><a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">      </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;evt-uds-001&quot;</span><span class="p">,</span>
-</span><span id="__span-20-13"><a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">      </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;trace-uds-001&quot;</span><span class="p">,</span>
-</span><span id="__span-20-14"><a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">      </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pre_action&quot;</span><span class="p">,</span>
-</span><span id="__span-20-15"><a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="w">      </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;session-001&quot;</span><span class="p">,</span>
-</span><span id="__span-20-16"><a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a><span class="w">      </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent-001&quot;</span><span class="p">,</span>
-</span><span id="__span-20-17"><a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a><span class="w">      </span><span class="nt">&quot;source_framework&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3s-code&quot;</span><span class="p">,</span>
-</span><span id="__span-20-18"><a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a><span class="w">      </span><span class="nt">&quot;occurred_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-23T10:00:00+00:00&quot;</span><span class="p">,</span>
-</span><span id="__span-20-19"><a id="__codelineno-20-19" name="__codelineno-20-19" href="#__codelineno-20-19"></a><span class="w">      </span><span class="nt">&quot;event_subtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PreToolUse&quot;</span><span class="p">,</span>
-</span><span id="__span-20-20"><a id="__codelineno-20-20" name="__codelineno-20-20" href="#__codelineno-20-20"></a><span class="w">      </span><span class="nt">&quot;tool_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span>
-</span><span id="__span-20-21"><a id="__codelineno-20-21" name="__codelineno-20-21" href="#__codelineno-20-21"></a><span class="w">      </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-20-22"><a id="__codelineno-20-22" name="__codelineno-20-22" href="#__codelineno-20-22"></a><span class="w">        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cat /etc/passwd&quot;</span>
-</span><span id="__span-20-23"><a id="__codelineno-20-23" name="__codelineno-20-23" href="#__codelineno-20-23"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-20-24"><a id="__codelineno-20-24" name="__codelineno-20-24" href="#__codelineno-20-24"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-20-25"><a id="__codelineno-20-25" name="__codelineno-20-25" href="#__codelineno-20-25"></a><span class="w">    </span><span class="nt">&quot;context&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-20-26"><a id="__codelineno-20-26" name="__codelineno-20-26" href="#__codelineno-20-26"></a><span class="w">      </span><span class="nt">&quot;caller_adapter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3s-adapter.v1&quot;</span>
-</span><span id="__span-20-27"><a id="__codelineno-20-27" name="__codelineno-20-27" href="#__codelineno-20-27"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-20-28"><a id="__codelineno-20-28" name="__codelineno-20-28" href="#__codelineno-20-28"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-20-29"><a id="__codelineno-20-29" name="__codelineno-20-29" href="#__codelineno-20-29"></a><span class="p">}</span>
+<h3 id="_24">请求示例<a class="headerlink" href="#_24" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="p">{</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">  </span><span class="nt">&quot;method&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ahp/sync_decision&quot;</span><span class="p">,</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a><span class="w">  </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a><span class="w">    </span><span class="nt">&quot;rpc_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sync_decision.1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uds-req-001&quot;</span><span class="p">,</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a><span class="w">    </span><span class="nt">&quot;deadline_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+</span><span id="__span-24-9"><a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a><span class="w">    </span><span class="nt">&quot;decision_tier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
+</span><span id="__span-24-10"><a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="w">    </span><span class="nt">&quot;event&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-24-11"><a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a><span class="w">      </span><span class="nt">&quot;schema_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ahp.1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-24-12"><a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a><span class="w">      </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;evt-uds-001&quot;</span><span class="p">,</span>
+</span><span id="__span-24-13"><a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a><span class="w">      </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;trace-uds-001&quot;</span><span class="p">,</span>
+</span><span id="__span-24-14"><a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a><span class="w">      </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pre_action&quot;</span><span class="p">,</span>
+</span><span id="__span-24-15"><a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a><span class="w">      </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;session-001&quot;</span><span class="p">,</span>
+</span><span id="__span-24-16"><a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a><span class="w">      </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent-001&quot;</span><span class="p">,</span>
+</span><span id="__span-24-17"><a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a><span class="w">      </span><span class="nt">&quot;source_framework&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3s-code&quot;</span><span class="p">,</span>
+</span><span id="__span-24-18"><a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a><span class="w">      </span><span class="nt">&quot;occurred_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-23T10:00:00+00:00&quot;</span><span class="p">,</span>
+</span><span id="__span-24-19"><a id="__codelineno-24-19" name="__codelineno-24-19" href="#__codelineno-24-19"></a><span class="w">      </span><span class="nt">&quot;event_subtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PreToolUse&quot;</span><span class="p">,</span>
+</span><span id="__span-24-20"><a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a><span class="w">      </span><span class="nt">&quot;tool_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span>
+</span><span id="__span-24-21"><a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a><span class="w">      </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-24-22"><a id="__codelineno-24-22" name="__codelineno-24-22" href="#__codelineno-24-22"></a><span class="w">        </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cat /etc/passwd&quot;</span>
+</span><span id="__span-24-23"><a id="__codelineno-24-23" name="__codelineno-24-23" href="#__codelineno-24-23"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-24-24"><a id="__codelineno-24-24" name="__codelineno-24-24" href="#__codelineno-24-24"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-24-25"><a id="__codelineno-24-25" name="__codelineno-24-25" href="#__codelineno-24-25"></a><span class="w">    </span><span class="nt">&quot;context&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-24-26"><a id="__codelineno-24-26" name="__codelineno-24-26" href="#__codelineno-24-26"></a><span class="w">      </span><span class="nt">&quot;caller_adapter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3s-adapter.v1&quot;</span>
+</span><span id="__span-24-27"><a id="__codelineno-24-27" name="__codelineno-24-27" href="#__codelineno-24-27"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-24-28"><a id="__codelineno-24-28" name="__codelineno-24-28" href="#__codelineno-24-28"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-24-29"><a id="__codelineno-24-29" name="__codelineno-24-29" href="#__codelineno-24-29"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="_20">响应示例<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
-</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">  </span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">    </span><span class="nt">&quot;rpc_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sync_decision.1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uds-req-001&quot;</span><span class="p">,</span>
-</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">&quot;rpc_status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>
-</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">    </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">      </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;defer&quot;</span><span class="p">,</span>
-</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">      </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;D2: sensitive path (/etc/passwd) access detected&quot;</span><span class="p">,</span>
-</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">      </span><span class="nt">&quot;policy_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1-D2-sensitive-path&quot;</span><span class="p">,</span>
-</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">      </span><span class="nt">&quot;risk_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
-</span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">      </span><span class="nt">&quot;decision_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">,</span>
-</span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="w">      </span><span class="nt">&quot;policy_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-21-15"><a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">      </span><span class="nt">&quot;decision_latency_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.8</span><span class="p">,</span>
-</span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">      </span><span class="nt">&quot;failure_class&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
-</span><span id="__span-21-17"><a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="w">      </span><span class="nt">&quot;final&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
-</span><span id="__span-21-18"><a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="w">    </span><span class="p">},</span>
-</span><span id="__span-21-19"><a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a><span class="w">    </span><span class="nt">&quot;actual_tier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
-</span><span id="__span-21-20"><a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a><span class="w">    </span><span class="nt">&quot;served_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-23T10:00:00.001+00:00&quot;</span>
-</span><span id="__span-21-21"><a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-21-22"><a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a><span class="p">}</span>
+<h3 id="_25">响应示例<a class="headerlink" href="#_25" title="Permanent link">&para;</a></h3>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="p">{</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">  </span><span class="nt">&quot;result&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">    </span><span class="nt">&quot;rpc_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sync_decision.1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">    </span><span class="nt">&quot;request_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uds-req-001&quot;</span><span class="p">,</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">    </span><span class="nt">&quot;rpc_status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ok&quot;</span><span class="p">,</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">    </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">      </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;defer&quot;</span><span class="p">,</span>
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">      </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;D2: sensitive path (/etc/passwd) access detected&quot;</span><span class="p">,</span>
+</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">      </span><span class="nt">&quot;policy_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1-D2-sensitive-path&quot;</span><span class="p">,</span>
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">      </span><span class="nt">&quot;risk_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;medium&quot;</span><span class="p">,</span>
+</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a><span class="w">      </span><span class="nt">&quot;decision_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">,</span>
+</span><span id="__span-25-14"><a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">      </span><span class="nt">&quot;policy_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-25-15"><a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">      </span><span class="nt">&quot;decision_latency_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.8</span><span class="p">,</span>
+</span><span id="__span-25-16"><a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="w">      </span><span class="nt">&quot;failure_class&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+</span><span id="__span-25-17"><a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="w">      </span><span class="nt">&quot;final&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+</span><span id="__span-25-18"><a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-25-19"><a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="w">    </span><span class="nt">&quot;actual_tier&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1&quot;</span><span class="p">,</span>
+</span><span id="__span-25-20"><a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a><span class="w">    </span><span class="nt">&quot;served_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-23T10:00:00.001+00:00&quot;</span>
+</span><span id="__span-25-21"><a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-25-22"><a id="__codelineno-25-22" name="__codelineno-25-22" href="#__codelineno-25-22"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="_21">安全限制<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
+<h3 id="_26">安全限制<a class="headerlink" href="#_26" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -3093,28 +3654,28 @@
 </tbody>
 </table>
 <h3 id="python">Python 客户端示例<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">struct</span>
-</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>
-</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">send_uds_request</span><span class="p">(</span><span class="n">uds_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;发送 JSON-RPC 2.0 请求到 ClawSentry UDS。&quot;&quot;&quot;</span>
-</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>    <span class="n">reader</span><span class="p">,</span> <span class="n">writer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">open_unix_connection</span><span class="p">(</span><span class="n">uds_path</span><span class="p">)</span>
-</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>        <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">request</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>        <span class="c1"># 写入 4 字节长度前缀 + JSON payload</span>
-</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s2">&quot;!I&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">body</span><span class="p">)))</span>
-</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
-</span><span id="__span-22-13"><a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a>        <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
-</span><span id="__span-22-14"><a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a>
-</span><span id="__span-22-15"><a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a>        <span class="c1"># 读取响应</span>
-</span><span id="__span-22-16"><a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a>        <span class="n">length_bytes</span> <span class="o">=</span> <span class="k">await</span> <span class="n">reader</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
-</span><span id="__span-22-17"><a id="__codelineno-22-17" name="__codelineno-22-17" href="#__codelineno-22-17"></a>        <span class="n">resp_length</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;!I&quot;</span><span class="p">,</span> <span class="n">length_bytes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-</span><span id="__span-22-18"><a id="__codelineno-22-18" name="__codelineno-22-18" href="#__codelineno-22-18"></a>        <span class="n">resp_data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">reader</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="n">resp_length</span><span class="p">)</span>
-</span><span id="__span-22-19"><a id="__codelineno-22-19" name="__codelineno-22-19" href="#__codelineno-22-19"></a>        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp_data</span><span class="p">)</span>
-</span><span id="__span-22-20"><a id="__codelineno-22-20" name="__codelineno-22-20" href="#__codelineno-22-20"></a>    <span class="k">finally</span><span class="p">:</span>
-</span><span id="__span-22-21"><a id="__codelineno-22-21" name="__codelineno-22-21" href="#__codelineno-22-21"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-</span><span id="__span-22-22"><a id="__codelineno-22-22" name="__codelineno-22-22" href="#__codelineno-22-22"></a>        <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="kn">import</span> <span class="nn">asyncio</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="kn">import</span> <span class="nn">json</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="kn">import</span> <span class="nn">struct</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="k">async</span> <span class="k">def</span> <span class="nf">send_uds_request</span><span class="p">(</span><span class="n">uds_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;发送 JSON-RPC 2.0 请求到 ClawSentry UDS。&quot;&quot;&quot;</span>
+</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>    <span class="n">reader</span><span class="p">,</span> <span class="n">writer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">open_unix_connection</span><span class="p">(</span><span class="n">uds_path</span><span class="p">)</span>
+</span><span id="__span-26-8"><a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-26-9"><a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>        <span class="n">body</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">request</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+</span><span id="__span-26-10"><a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>        <span class="c1"># 写入 4 字节长度前缀 + JSON payload</span>
+</span><span id="__span-26-11"><a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s2">&quot;!I&quot;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">body</span><span class="p">)))</span>
+</span><span id="__span-26-12"><a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+</span><span id="__span-26-13"><a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>        <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+</span><span id="__span-26-14"><a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>
+</span><span id="__span-26-15"><a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>        <span class="c1"># 读取响应</span>
+</span><span id="__span-26-16"><a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>        <span class="n">length_bytes</span> <span class="o">=</span> <span class="k">await</span> <span class="n">reader</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+</span><span id="__span-26-17"><a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a>        <span class="n">resp_length</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s2">&quot;!I&quot;</span><span class="p">,</span> <span class="n">length_bytes</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-26-18"><a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>        <span class="n">resp_data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">reader</span><span class="o">.</span><span class="n">readexactly</span><span class="p">(</span><span class="n">resp_length</span><span class="p">)</span>
+</span><span id="__span-26-19"><a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a>        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">resp_data</span><span class="p">)</span>
+</span><span id="__span-26-20"><a id="__codelineno-26-20" name="__codelineno-26-20" href="#__codelineno-26-20"></a>    <span class="k">finally</span><span class="p">:</span>
+</span><span id="__span-26-21"><a id="__codelineno-26-21" name="__codelineno-26-21" href="#__codelineno-26-21"></a>        <span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</span><span id="__span-26-22"><a id="__codelineno-26-22" name="__codelineno-26-22" href="#__codelineno-26-22"></a>        <span class="k">await</span> <span class="n">writer</span><span class="o">.</span><span class="n">wait_closed</span><span class="p">()</span>
 </span></code></pre></div>
 <hr />
 <h2 id="decision-layers">三层决策模型<a class="headerlink" href="#decision-layers" title="Permanent link">&para;</a></h2>
@@ -3187,7 +3748,7 @@
 </tbody>
 </table>
 <p>综合风险分 = max(D1, D2, D3) + D4 + D5，范围 0-7。</p>
-<h3 id="_22">风险等级映射<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
+<h3 id="_27">风险等级映射<a class="headerlink" href="#_27" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -3236,7 +3797,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月29日 14:44:41 UTC">2026年3月29日</span>
   </span>
 
     
@@ -3246,7 +3807,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 23:48:13 UTC">2026年3月22日</span>
   </span>
 
     
@@ -3367,6 +3928,10 @@
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

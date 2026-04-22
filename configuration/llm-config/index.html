@@ -246,7 +246,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../getting-started/installation/" class="md-tabs__link">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -351,7 +351,7 @@
           
   
   
-  三层决策详解
+  安全决策引擎
 
         </a>
       </li>
@@ -386,7 +386,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../advanced/custom-skills/" class="md-tabs__link">
+        <a href="../../advanced/rule-governance/" class="md-tabs__link">
           
   
   
@@ -570,14 +570,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    安装
+    快速开始
   
 
     
@@ -598,14 +598,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    快速开始
+    安装
   
 
     
@@ -771,6 +771,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../integration/claude-code/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Claude Code 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/codex/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Codex CLI 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../integration/openclaw/" class="md-nav__link">
         
   
@@ -779,6 +835,34 @@
     
   
     OpenClaw 集成
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../integration/latch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Latch 集成
   
 
     
@@ -871,6 +955,34 @@
     
   
     环境变量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../detection-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    检测管线配置
   
 
     
@@ -1423,7 +1535,140 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#instrumentedprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InstrumentedProvider 可观测性包装器
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InstrumentedProvider 可观测性包装器">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#llmusage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLMUsage 数据模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自动包装机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol 兼容性
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        预估价格
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 每日预算控制
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM 每日预算控制">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        降级行为
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSE 通知
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程安全
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_24" class="md-nav__link">
     <span class="md-ellipsis">
       
         故障排除
@@ -1435,7 +1680,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
+  <a href="#_25" class="md-nav__link">
     <span class="md-ellipsis">
       
         常见问题
@@ -1670,7 +1915,7 @@
   <span class="md-ellipsis">
     
   
-    三层决策详解
+    安全决策引擎
   
 
     
@@ -1686,7 +1931,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    三层决策详解
+    安全决策引擎
   
 
           </label>
@@ -1763,6 +2008,62 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/post-action/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-action 围栏
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    轨迹分析器
   
 
     
@@ -1871,6 +2172,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../advanced/rule-governance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CS-01 规则治理
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../advanced/custom-skills/" class="md-nav__link">
         
   
@@ -1935,6 +2264,90 @@
     
   
     自定义 Adapter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/pattern-evolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    自进化模式库
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/attack-patterns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    攻击模式定制
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../advanced/embedding-backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    向量相似度接入 (D6)
   
 
     
@@ -2570,7 +2983,140 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#instrumentedprovider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InstrumentedProvider 可观测性包装器
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InstrumentedProvider 可观测性包装器">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#llmusage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLMUsage 数据模型
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#_18" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        自动包装机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol 兼容性
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_19" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        预估价格
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM 每日预算控制
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM 每日预算控制">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_20" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        配置
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_21" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作机制
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_22" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        降级行为
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSE 通知
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        线程安全
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_24" class="md-nav__link">
     <span class="md-ellipsis">
       
         故障排除
@@ -2582,7 +3128,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
+  <a href="#_25" class="md-nav__link">
     <span class="md-ellipsis">
       
         常见问题
@@ -2805,19 +3351,27 @@
 <p>当 LLM 调用超时、网络错误或响应解析失败时，<code>LLMAnalyzer</code> 返回 <code>confidence=0.0</code>，自动降级为 L1 结果。<strong>决不会因为 LLM 错误而阻断正常流程</strong>。</p>
 </div>
 <h3 id="compositeanalyzer">CompositeAnalyzer（组合分析器）<a class="headerlink" href="#compositeanalyzer" title="Permanent link">&para;</a></h3>
-<p>链式组合多个分析器，并发执行，取最高风险结果。</p>
+<p>链式组合多个分析器，按层级递进执行，取最高风险结果。</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>CompositeAnalyzer
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ├── RuleBasedAnalyzer  (规则引擎, &lt; 0.1ms)
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  ├── LLMAnalyzer        (LLM 语义分析, &lt; 3s)
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  └── AgentAnalyzer      (L3 审查 Agent, &lt; 30s, 可选)
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>  ├── CompositeAnalyzer  (L2 聚合层)
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>  │   ├── RuleBasedAnalyzer  (规则引擎, &lt; 0.1ms)
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>  │   └── LLMAnalyzer        (LLM 语义分析, &lt; 3s)
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>  └── AgentAnalyzer          (L3 审查 Agent, &lt; 30s, 可选)
 </span></code></pre></div>
 <p><strong>合并策略</strong>：</p>
 <ol>
-<li>并发执行所有分析器（<code>asyncio.gather</code>）</li>
+<li>先执行第一个 analyzer，并检查结果是否已对 HIGH+ 风险给出足够确定的结论</li>
+<li>若第一个 analyzer 不够确定，再执行后续 analyzer</li>
 <li>过滤掉 <code>confidence=0.0</code> 的降级结果</li>
 <li>按 <code>(risk_level, confidence)</code> 取最大值</li>
 <li>如果所有分析器都降级 → 回退到 L1 结果</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">L3 启用时的工厂装配</p>
+<p><code>build_analyzer_from_env()</code> 在 <code>CS_L3_ENABLED=true</code> 时会返回嵌套结构：
+<code>CompositeAnalyzer([CompositeAnalyzer([RuleBasedAnalyzer, LLMAnalyzer]), AgentAnalyzer])</code>。
+这意味着外层是否进入 L3，取决于<strong>聚合后的 L2 结果</strong>，而不是单个 <code>RuleBasedAnalyzer</code> 或 <code>LLMAnalyzer</code>。</p>
+</div>
 <hr />
 <h2 id="l3-agent">L3 审查 Agent<a class="headerlink" href="#l3-agent" title="Permanent link">&para;</a></h2>
 <p>L3 是最高决策层，启用后可对高风险事件进行多轮工具调用的深度审查。</p>
@@ -2957,7 +3511,7 @@
     L --&gt; M{CS_L3_ENABLED=true?}
     M --&gt;|否| N["返回 CompositeAnalyzer(L1+L2)"]
     M --&gt;|是| O["初始化 AgentAnalyzer"]
-    O --&gt;|成功| P["返回 CompositeAnalyzer(L1+L2+L3)"]
+    O --&gt;|成功| P["返回 CompositeAnalyzer([L2 aggregate, L3])"]
     O --&gt;|失败| Q["日志警告, 返回 CompositeAnalyzer(L1+L2)"]</code></pre>
 <h3 id="gateway">Gateway 集成<a class="headerlink" href="#gateway" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># stack.py 中的调用</span>
@@ -3084,8 +3638,137 @@
 </span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="nv">CS_LLM_MODEL</span><span class="o">=</span>deepseek-chat
 </span></code></pre></div>
 <hr />
-<h2 id="_18">故障排除<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h2>
-<h3 id="_19">常见问题<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<h2 id="instrumentedprovider">InstrumentedProvider 可观测性包装器<a class="headerlink" href="#instrumentedprovider" title="Permanent link">&para;</a></h2>
+<p>当安装 <code>clawsentry[metrics]</code> 依赖后，Gateway 会自动将所有 LLM Provider 包装为 <code>InstrumentedProvider</code>，在每次 LLM 调用后记录指标到 Prometheus。</p>
+<h3 id="llmusage">LLMUsage 数据模型<a class="headerlink" href="#llmusage" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="k">class</span> <span class="nc">LLMUsage</span><span class="p">:</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    <span class="n">input_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>      <span class="c1"># 输入 token 数</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    <span class="n">output_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>     <span class="c1"># 输出 token 数</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>         <span class="c1"># 提供商标识（anthropic/openai）</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>            <span class="c1"># 模型 ID</span>
+</span></code></pre></div>
+<h3 id="_18">自动包装机制<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
+<p><code>InstrumentedProvider</code> 透明地包装 LLM Provider：</p>
+<ol>
+<li>委托 <code>complete()</code> 调用给内部 Provider</li>
+<li>读取 <code>_last_usage</code> 获取 token 消耗</li>
+<li>调用 <code>MetricsCollector.record_llm_call()</code> 记录：</li>
+<li><code>clawsentry_llm_calls_total</code> — 按 provider/tier/status 计数</li>
+<li><code>clawsentry_llm_tokens_total</code> — 按 provider/direction 累计</li>
+<li><code>clawsentry_llm_cost_usd_total</code> — 按 provider 累计预估费用</li>
+<li>状态追踪：<code>ok</code>（成功）、<code>timeout</code>（超时）、<code>error</code>（异常）</li>
+<li>异常不被吞噬——记录指标后重新抛出</li>
+</ol>
+<h3 id="protocol">Protocol 兼容性<a class="headerlink" href="#protocol" title="Permanent link">&para;</a></h3>
+<p><code>InstrumentedProvider</code> 实现 <code>LLMProvider</code> Protocol，对上层代码完全透明。<code>provider_id</code> 和 <code>_last_usage</code> 属性均委托给内部 Provider。</p>
+<h3 id="_19">预估价格<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>提供商</th>
+<th style="text-align: center;">输入价格 ($/M tokens)</th>
+<th style="text-align: center;">输出价格 ($/M tokens)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Anthropic</td>
+<td style="text-align: center;">$3.00</td>
+<td style="text-align: center;">$15.00</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td style="text-align: center;">$2.50</td>
+<td style="text-align: center;">$10.00</td>
+</tr>
+<tr>
+<td>其他（默认）</td>
+<td style="text-align: center;">$5.00</td>
+<td style="text-align: center;">$15.00</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">价格仅为估算</p>
+<p>预估价格用于 Prometheus 指标展示和预算控制，不代表实际账单金额。实际费用请参考各提供商官方定价页面。</p>
+</div>
+<hr />
+<h2 id="llm_1">LLM 每日预算控制<a class="headerlink" href="#llm_1" title="Permanent link">&para;</a></h2>
+<p><code>LLMBudgetTracker</code> 提供线程安全的每日 LLM 支出限制，防止 L2/L3 决策层成本失控。</p>
+<h3 id="_20">配置<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><span class="filename">.env.clawsentry</span><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># 设置每日预算为 $5.00</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="nv">CS_LLM_DAILY_BUDGET_USD</span><span class="o">=</span><span class="m">5</span>.0
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># 0.0 = 无限制（默认）</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="nv">CS_LLM_DAILY_BUDGET_USD</span><span class="o">=</span><span class="m">0</span>.0
+</span></code></pre></div>
+<h3 id="_21">工作机制<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>费用记录</strong>：每次 LLM 调用完成后，<code>InstrumentedProvider</code> 计算预估费用并调用 <code>record_spend()</code></li>
+<li><strong>预算检查</strong>：下一次 LLM 调用前，<code>can_spend()</code> 检查当日累计是否超出预算</li>
+<li><strong>自动降级</strong>：预算耗尽后，L2/L3 调用被跳过，所有事件仅走 L1 规则引擎</li>
+<li><strong>UTC 日期翻转</strong>：每天 UTC 00:00 自动重置累计支出和状态</li>
+</ol>
+<h3 id="_22">降级行为<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>预算充足</td>
+<td>正常 L1+L2(+L3) 决策流程</td>
+</tr>
+<tr>
+<td>预算耗尽</td>
+<td>L2/L3 跳过，仅 L1 规则引擎</td>
+</tr>
+<tr>
+<td>新的 UTC 日期</td>
+<td>自动重置，恢复完整决策流程</td>
+</tr>
+</tbody>
+</table>
+<h3 id="sse">SSE 通知<a class="headerlink" href="#sse" title="Permanent link">&para;</a></h3>
+<p>预算首次耗尽时，Gateway 通过 EventBus 广播事件通知运维人员。</p>
+<h3 id="_23">线程安全<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h3>
+<p><code>LLMBudgetTracker</code> 使用 <code>threading.Lock</code> 保护所有状态访问，适合多线程/异步环境。</p>
+<div class="admonition tip">
+<p class="admonition-title">建议预算设置</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>建议值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开发/测试</td>
+<td>$1.00 - $2.00</td>
+</tr>
+<tr>
+<td>小型生产</td>
+<td>$5.00 - $10.00</td>
+</tr>
+<tr>
+<td>大规模生产</td>
+<td>$20.00 - $50.00</td>
+</tr>
+<tr>
+<td>无限制</td>
+<td><code>0.0</code>（默认）</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="_24">故障排除<a class="headerlink" href="#_24" title="Permanent link">&para;</a></h2>
+<h3 id="_25">常见问题<a class="headerlink" href="#_25" title="Permanent link">&para;</a></h3>
 <details class="question">
 <summary>设置了 CS_LLM_PROVIDER 但日志显示 'falling back to rule-based'</summary>
 <p>检查对应的 API Key 是否正确设置：</p>
@@ -3116,8 +3799,8 @@
 <details class="question">
 <summary>如何确认 LLM 分析器确实在工作?</summary>
 <p>检查 Gateway 启动日志：
-<div class="language-text highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>INFO [ahp.llm-factory] LLM provider configured: openai (model=gpt-4o, base_url=(default))
-</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>INFO [ahp.llm-factory] L3 AgentAnalyzer enabled
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>INFO [ahp.llm-factory] LLM provider configured: openai (model=gpt-4o, base_url=(default))
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>INFO [ahp.llm-factory] L3 AgentAnalyzer enabled
 </span></code></pre></div>
 如果没有这些日志，说明 LLM 未正确配置。</p>
 <p>决策响应中的 <code>classified_by</code> 字段标识实际使用的决策层：</p>
@@ -3148,7 +3831,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月10日 20:54:13 UTC">2026年4月10日</span>
   </span>
 
     
@@ -3158,7 +3841,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:21:45 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 23:48:13 UTC">2026年3月22日</span>
   </span>
 
     
@@ -3279,6 +3962,10 @@
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
