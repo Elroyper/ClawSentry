@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **3020 tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **3000+ regression tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -463,7 +463,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (3020 tests)
++-- tests/                             # Test suite (3000+ regression tests)
 ```
 
 ---
@@ -508,12 +508,12 @@ src/clawsentry/
 | `CS_LLM_MODEL` | Model name |
 | `CS_L3_ENABLED` | Enable L3 review Agent |
 | `CS_L3_MULTI_TURN` | Force L3 `multi_turn`/single-turn runtime mode (`false` keeps MVP single-turn) |
-| `CS_L3_ADVISORY_ASYNC_ENABLED` | Auto-create frozen advisory snapshots after high/critical decisions or high+ trajectory alerts (default off; current slice does not run a real review scheduler) |
-| `CS_L3_HEARTBEAT_REVIEW_ENABLED` | Enable future heartbeat/idle advisory snapshot review trigger (default off; no timer-only review is started by the foundation slice) |
-| `CS_L3_ADVISORY_PROVIDER_ENABLED` | Explicitly enable the advisory provider worker shell (default off; still dry-run/degraded until real provider execution is implemented) |
+| `CS_L3_ADVISORY_ASYNC_ENABLED` | Auto-create frozen advisory snapshots after high/critical decisions or high+ trajectory alerts (default off; automatic snapshots do not run a real review scheduler) |
+| `CS_L3_HEARTBEAT_REVIEW_ENABLED` | Reserved heartbeat/idle advisory snapshot review trigger (default off; no timer-only review is started by the current implementation) |
+| `CS_L3_ADVISORY_PROVIDER_ENABLED` | Explicitly enable the advisory provider worker (default off; dry-run/degraded unless provider/model/key are explicit and dry-run is disabled) |
 | `CS_L3_ADVISORY_PROVIDER` | Advisory provider shell to select (`openai` / `anthropic`); intentionally does not inherit `CS_LLM_PROVIDER` |
 | `CS_L3_ADVISORY_MODEL` | Advisory worker model label; intentionally does not inherit `CS_LLM_MODEL` |
-| `CS_L3_ADVISORY_BASE_URL` | Advisory worker OpenAI-compatible endpoint label for future provider execution |
+| `CS_L3_ADVISORY_BASE_URL` | Advisory worker OpenAI-compatible endpoint used only when provider execution is explicitly enabled |
 | `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | Advisory provider worker dry-run gate; defaults to `true`, and must be explicitly `false` before bridging to a real LLM provider |
 | `CS_L3_ADVISORY_TEMPERATURE` | Advisory provider temperature; defaults to `1.0` for OpenAI-compatible smoke compatibility |
 | `CS_L3_ADVISORY_DEADLINE_MS` | Advisory provider completion deadline in milliseconds (default `30000`) |
@@ -527,41 +527,40 @@ its detail output so operators can verify the runtime path.
 
 ### L3 Advisory Snapshot Foundation
 
-The Rank2 foundation adds a separate advisory evidence plane without changing
-canonical decisions. Operators or future schedulers can create a frozen
+The advisory snapshot foundation adds a separate advisory evidence plane without
+changing canonical decisions. Operators can create a frozen
 `l3_evidence_snapshot` over a bounded trajectory record range, then attach an
 `l3_advisory_review` result marked `advisory_only=true`. When
 `CS_L3_ADVISORY_ASYNC_ENABLED=true`, high/critical decisions and high+
 trajectory alerts automatically create frozen advisory snapshots. These records
 are surfaced through report/session/replay payloads and SSE events
 (`l3_advisory_snapshot`, `l3_advisory_review`) but never retroactively mutate
-the original `allow` / `block` decision or run a real background L3 review in
-this foundation slice.
+the original `allow` / `block` decision or run a real background L3 review by
+default.
 
-The explicit `llm_provider` worker runner adds provider execution safety gates
-for future real LLM review. It reads only `CS_L3_ADVISORY_PROVIDER_*` settings,
-does not inherit the synchronous L2/L3 `CS_LLM_*` provider, and currently
-returns `degraded` advisory reviews for disabled, missing-key, missing-model, unsupported, or
-not-yet-implemented providers without making network calls.
+The explicit `llm_provider` worker runner adds provider execution safety gates.
+It reads only `CS_L3_ADVISORY_PROVIDER_*` settings, does not inherit the
+synchronous L2/L3 `CS_LLM_*` provider, and returns `degraded` advisory reviews
+for disabled, missing-key, missing-model, unsupported provider, or dry-run paths
+without making network calls unless the dry-run gate is explicitly disabled.
 
-For operator-controlled readiness checks, the checkout includes a manual smoke
-helper:
+For operator-controlled readiness checks, use the packaged manual smoke helper:
 
 ```bash
 CS_L3_ADVISORY_PROVIDER_ENABLED=true \
 CS_L3_ADVISORY_PROVIDER=openai \
 CS_L3_ADVISORY_MODEL=gpt-advisory-smoke \
 OPENAI_API_KEY=sk-... \
-python scripts/run_l3_advisory_provider_smoke.py \
-  --output-report docs/validation/l3-advisory-provider-smoke-readiness.md
+python -m clawsentry.devtools.l3_advisory_provider_smoke \
+  --output-report l3-advisory-provider-smoke-readiness.md
 ```
 
-The current provider smoke defaults to dry-run and degrades with
-`provider_not_implemented`. Set `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` only for
-an operator-controlled manual real-provider smoke, and use `--require-completed`
-to fail unless the provider returns a completed advisory review. Pytest
-real-network smoke additionally requires `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`;
-otherwise it is skipped by default.
+The provider smoke defaults to dry-run and proves that no network call is made
+until explicitly enabled. Set `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` only for an
+operator-controlled manual real-provider smoke, and use `--require-completed` to
+fail unless the provider returns a completed advisory review. Pytest real-network
+smoke additionally requires `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`; otherwise it
+is skipped by default.
 
 Operators can also trigger a bounded full advisory review explicitly:
 
@@ -610,7 +609,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 3020 passed, 4 skipped
+# Expected: 3021 passed, 4 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

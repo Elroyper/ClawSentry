@@ -130,7 +130,20 @@ SSE 广播 (决策/告警/风险变更)
 | `Stop` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 会话收尾观察；不返回 deny |
 | `SessionStart` | `startup|resume` | `clawsentry harness --framework codex --async` | best-effort 会话启动观察；不返回 deny |
 
-Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。开发仓库中的 `scripts/run_codex_gateway_e2e_smoke.py` 可复现真实 Codex CLI + managed hook + Gateway daemon 的 host deny 验证。
+Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。生产验证应使用独立测试环境确认真实 Codex CLI、managed hook 与 Gateway daemon 的 host deny 链路。
+
+### 能力边界与 hook 所有权
+
+!!! important "不要把 Codex 可选防护误读为全量 host 沙箱"
+    当前 Codex 防护是“默认 watcher + 可选最小同步 preflight”的组合：
+
+    - **默认路径**：Session JSONL watcher 负责实时评估、审计、SSE/watch/UI 告警，不阻断已提交给 Codex 的操作。
+    - **同步防护路径**：只有显式运行 `clawsentry init codex --setup` 后，ClawSentry 才会注册 managed native hooks；已验证可返回 host deny 的范围仅是 `PreToolUse` + `Bash` matcher。
+    - **异步观察路径**：`PostToolUse(Bash)`、`UserPromptSubmit`、`Stop`、`SessionStart(startup|resume)` 使用 `--async`，只写入观察/审计/建议，不返回 host deny。
+    - **Gateway 不可达**：native hook preflight 默认 fail-open 并写 stderr 诊断，避免把所有 Codex 开发操作一起卡死。若需要更严格的生产策略，应先在隔离环境验证再调整 fallback。
+    - **未知 native events**：Codex adapter 只归一化已声明的事件形态；未知事件不会被当作可阻断 surface 扩大解释。
+
+ClawSentry 的 hook installer 使用 managed entry 标记进行非破坏式合并：它会保留已有用户 hooks 和 OMX hooks，卸载时只移除 ClawSentry 管理的 entries。用 `clawsentry doctor` 可核对当前形态是否仍为 `PreToolUse(Bash): sync`、其他 native events 为 `async`。
 
 ### 配置变量
 

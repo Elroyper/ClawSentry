@@ -157,6 +157,31 @@ PYTHONPATH=src python -m clawsentry rules report \
   --summary-markdown artifacts/rules-dashboard.md
 ```
 
+### Policy-change review checklist {#policy-change-review-checklist}
+
+在合并或发布任何 attack patterns、evolved patterns 或 L3 review skills 变更前，建议把以下 checklist 作为变更说明的一部分保存。它面向规则作者和发布 reviewer，目标是让“规则为什么变、会影响什么、如何回滚”可审计。
+
+| 检查项 | 需要记录的内容 | 推荐证据 |
+|--------|----------------|----------|
+| 变更意图 | 新增、放宽、收紧还是删除规则；对应的风险场景 | PR/变更说明中的一句话目标 |
+| 规则范围 | 影响 core attack pattern、evolved pattern、built-in skill 还是 custom skill | `clawsentry rules lint --json` 的 `source_summaries` |
+| Fingerprint 变化 | 变更前后 fingerprint，确认 reviewer 看到的是同一规则面 | `clawsentry rules report --output ...` |
+| 样本覆盖 | 至少一组 benign、一组 expected-match、一组 near-miss sample event | `clawsentry rules dry-run --events ... --json` |
+| 冲突检查 | duplicate ID/name、skill signature conflict、schema finding 是否为 0 或已解释 | `findings` 与 report dashboard |
+| 误报风险 | 哪些正常操作可能被新规则影响，是否需要 allowlist / 文档说明 | dry-run 样本和 reviewer 备注 |
+| 回滚方式 | 回滚文件、关闭 evolved pattern、移除 custom skill 或恢复上一 fingerprint | 变更说明中的 rollback plan |
+
+最小 review 命令模板：
+
+```bash
+clawsentry rules report \
+  --output artifacts/rules-report.json \
+  --events examples/sample-events.jsonl \
+  --summary-markdown artifacts/rules-dashboard.md
+```
+
+如果 `status` 不是 `pass`，或 dashboard 中出现未解释的 FAIL finding，应先修规则或补充风险说明，再进入 rollout。
+
 ## 输出字段 {#outputs}
 
 ### `fingerprint`

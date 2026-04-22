@@ -331,8 +331,14 @@ curl http://localhost:8080/health
 
 ```json
 {
-  "status": "ok",
-  "version": "0.1.0"
+  "status": "healthy",
+  "uptime_seconds": 3600.5,
+  "cache_size": 12,
+  "trajectory_count": 4523,
+  "trajectory_backend": "sqlite",
+  "policy_engine": "L1+L2",
+  "rpc_version": "sync_decision.1.0",
+  "auth_enabled": true
 }
 ```
 

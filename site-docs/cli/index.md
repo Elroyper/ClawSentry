@@ -50,6 +50,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 | [`audit`](#clawsentry-audit) | 离线查询审计日志 | `clawsentry audit --risk high --since 1h` |
 | [`doctor`](#clawsentry-doctor) | 诊断配置和连接（20 项检查） | `clawsentry doctor` |
 | [`test-llm`](#clawsentry-test-llm) | 验证 L2/L3 连通性、时延与当前运行模式 | `clawsentry test-llm --json` |
+| [`l3`](#clawsentry-l3) | Operator-triggered L3 advisory actions | `clawsentry l3 full-review --session sess-123` |
 | [`service`](#clawsentry-service) | 安装或检查常驻服务（systemd/launchd） | `clawsentry service status` |
 | [`config`](#clawsentry-config) | 管理项目安全预设 | `clawsentry config init --preset high` |
 | [`rules`](#clawsentry-rules) | 规则治理（lint / dry-run / report） | `clawsentry rules lint --json` |
@@ -67,7 +68,7 @@ clawsentry-stack     # 等价于 clawsentry stack
     | `clawsentry-harness` | a3s-code stdio transport 自动调用 | 不是普通用户入口，通常只出现在 SDK transport 配置里 |
 
 !!! abstract "本页快速导航"
-    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [test-llm](#clawsentry-test-llm) · [service](#clawsentry-service) · [config](#clawsentry-config) · [rules](#clawsentry-rules) · [integrations](#clawsentry-integrations) · [latch](#clawsentry-latch)
+    [start](#clawsentry-start) · [stop](#clawsentry-stop) · [status](#clawsentry-status) · [init](#clawsentry-init) · [gateway](#clawsentry-gateway) · [stack](#clawsentry-stack) · [harness](#clawsentry-harness) · [watch](#clawsentry-watch) · [audit](#clawsentry-audit) · [doctor](#clawsentry-doctor) · [test-llm](#clawsentry-test-llm) · [l3](#clawsentry-l3) · [service](#clawsentry-service) · [config](#clawsentry-config) · [rules](#clawsentry-rules) · [integrations](#clawsentry-integrations) · [latch](#clawsentry-latch)
 
 ---
 
@@ -152,6 +153,8 @@ clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
 
 此命令会按列表增量合并 `.env.clawsentry`，启动 banner 会显示 `Enabled: a3s-code, codex, openclaw`。默认不会修改 `~/.openclaw/`；如需在启动时一并配置 OpenClaw 侧审批文件，显式添加 `--setup-openclaw`。
 从这版开始，banner 还会打印 `Readiness` 摘要，把每个框架当前是 `ready`、`needs attention` 还是 `manual verification required` 直接讲明白，并给出 `Next actions`。
+
+如果加上 `--with-latch`，`start` 会在 Gateway 之外编排 Latch Hub，并把 Web UI / watch / Latch 的启动信息放进同一份 banner；如果 Latch 二进制或 token 尚未就绪，readiness 会给出具体 next step，而不是把多框架启动误报为完全可用。
 
 #### 启动时同时设置 OpenClaw
 
@@ -608,6 +611,13 @@ clawsentry watch [--gateway-url URL] [--token TOKEN] [--filter TYPES]
 | `session_start` | 新会话创建 |
 | `session_risk_change` | 会话风险等级变更 |
 | `session_enforcement_change` | 会话强制策略状态变更 |
+| `defer_pending` / `defer_resolved` | DEFER 审批创建与完成 |
+| `post_action_finding` | Post-action 围栏发现 |
+| `trajectory_alert` | 多步轨迹命中 |
+| `pattern_candidate` / `pattern_evolved` | 自进化模式候选与生命周期变化 |
+| `l3_advisory_snapshot` | L3 advisory frozen evidence snapshot 已创建 |
+| `l3_advisory_review` | L3 advisory review 状态/结果 |
+| `l3_advisory_job` | L3 advisory job 队列/worker 状态 |
 
 ### 终端输出格式
 
@@ -633,6 +643,20 @@ clawsentry watch [--gateway-url URL] [--token TOKEN] [--filter TYPES]
 [10:30:45]  SESSION   started  sess=sess-001  agent=agent-1  framework=a3s-code
 [10:31:00]  RISK      sess=sess-001  low -> high
 ```
+
+#### L3 advisory 事件
+
+当启用 advisory snapshot 或 operator 手动触发 full review 时，`watch` 会把底层 ID 保留，同时给出 operator-readable 状态：
+
+```text
+[10:31:12] 🧊 L3 ADVISORY SNAPSHOT  l3snap-abc  Session=sess-001 Trigger=operator_full_review Range=4->8
+[10:31:13] 🧠 L3 ADVISORY JOB       l3job-abc   Session=sess-001 State=Completed (completed) Runner=Deterministic local (deterministic_local)
+            └─ Boundary: frozen snapshot; explicit run only
+[10:31:13] 🧠 L3 ADVISORY REVIEW    l3adv-abc   Session=sess-001 Risk=high State=Completed (completed) Action=Inspect (inspect)
+            └─ Boundary: advisory only; canonical unchanged
+```
+
+这些事件表示“冻结证据并生成咨询结论”，不代表历史 canonical decision 被重写。
 
 ### 交互模式
 
@@ -978,6 +1002,76 @@ clawsentry test-llm [--json] [--no-color] [--skip-l3]
 clawsentry test-llm
 clawsentry test-llm --skip-l3
 clawsentry test-llm --json
+```
+
+---
+
+## clawsentry l3
+
+Operator-triggered L3 advisory actions. 当前子命令是 `full-review`：对一个已记录的 session 冻结 bounded evidence snapshot，排队一个 advisory job，并可选择立即执行一次显式 runner。
+
+!!! warning "advisory-only 边界"
+    `clawsentry l3 full-review` 不会修改历史 canonical decision，不会启动后台 scheduler，也不会把 advisory 结果变成新的 enforcement。它的输出用于 operator 复盘和下一步处置判断。
+
+### 语法
+
+```bash
+clawsentry l3 full-review --session SESSION_ID
+                            [--gateway-url URL] [--token TOKEN]
+                            [--trigger-event-id ID] [--trigger-detail TEXT]
+                            [--from-record-id N] [--to-record-id N]
+                            [--max-records N] [--max-tool-calls N]
+                            [--runner deterministic_local|fake_llm|llm_provider]
+                            [--queue-only] [--json] [--timeout SECONDS]
+```
+
+### 选项
+
+| 选项 | 默认值 | 说明 |
+|------|--------|------|
+| `--session` | 必填 | 要 review 的 session ID |
+| `--gateway-url` | `http://127.0.0.1:${CS_HTTP_PORT:-8080}` | Gateway 基础 URL |
+| `--token` | `CS_AUTH_TOKEN` | Bearer token |
+| `--trigger-event-id` | `operator_full_review` | 记录这次 operator action 的事件 ID |
+| `--trigger-detail` | `operator_requested_full_review` | 写入 snapshot 的触发详情 |
+| `--from-record-id` / `--to-record-id` | 空 | 冻结的 trajectory record 范围；为空时按当前 session bounded range 选择 |
+| `--max-records` | `100` | 最大冻结记录数 |
+| `--max-tool-calls` | `0` | advisory evidence 工具预算；默认不额外读取 live workspace |
+| `--runner` | `deterministic_local` | 执行 runner：确定性本地、fake LLM contract、或受 env 闸门保护的 `llm_provider` |
+| `--queue-only` | `false` | 只创建 snapshot/job，不执行 worker |
+| `--json` | `false` | 输出原始 JSON |
+| `--timeout` | `30` | HTTP 超时时间（秒） |
+
+### 示例
+
+```bash
+# 冻结证据并执行一次 deterministic local advisory review
+clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
+
+# 只排队，不执行 worker
+clawsentry l3 full-review --session sess-001 --queue-only --json
+
+# 明确限定 record 边界，并使用受安全闸门保护的 provider runner
+CS_L3_ADVISORY_PROVIDER_ENABLED=true \
+CS_L3_ADVISORY_PROVIDER=openai \
+CS_L3_ADVISORY_MODEL=gpt-advisory \
+CS_L3_ADVISORY_PROVIDER_DRY_RUN=false \
+clawsentry l3 full-review \
+  --session sess-001 \
+  --from-record-id 4 \
+  --to-record-id 8 \
+  --runner llm_provider
+```
+
+典型文本输出：
+
+```text
+L3 advisory full review requested
+snapshot: l3snap-...
+job:      l3job-... (completed)
+review:   l3adv-... (completed, risk=high)
+advisory_only: true
+canonical_decision_mutated: false
 ```
 
 ---

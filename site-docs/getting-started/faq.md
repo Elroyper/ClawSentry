@@ -33,7 +33,7 @@ ClawSentry 当前公开支持四条接入路径：
 | **Claude Code** | Host hooks + `clawsentry-harness` | 是 | 已完成 |
 | **a3s-code** | 显式 SDK Transport（stdio / HTTP） | 是 | 已完成 |
 | **OpenClaw** | WebSocket / Webhook | 是 | 已完成 |
-| **Codex** | Session JSONL watcher | 否（监控/告警） | 已完成 |
+| **Codex** | Session JSONL watcher + 可选 managed native hooks | 默认否；已验证 `PreToolUse(Bash)` 可选 host deny | 已完成 |
 
 !!! tip "扩展自定义框架"
     ClawSentry 的 Adapter 架构是可扩展的。要对接一个新的 Agent 框架，你需要：

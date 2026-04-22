@@ -12,12 +12,12 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 | 能力 | Claude Code | a3s-code | OpenClaw | Codex |
 |------|:-----------:|:--------:|:--------:|:-----:|
 | 实时风险评估 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| **自动拦截高危操作** | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: |
+| **自动拦截高危操作** | :white_check_mark: | :white_check_mark: | :white_check_mark: | 默认 :x:；可选 `PreToolUse(Bash)` |
 | 审计记录 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | clawsentry watch 监控 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | Web UI 仪表板 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
-| DEFER 交互审批 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :x: |
-| 集成方式 | Hook 注入 | 显式 AHP Transport | WebSocket | Session 日志监控 |
+| DEFER 交互审批 | :white_check_mark: | :white_check_mark: | :white_check_mark: | 默认 :x:；native hook 可返回 host deny |
+| 集成方式 | Hook 注入 | 显式 AHP Transport | WebSocket | Session 日志监控 + 可选 managed native hooks |
 
 !!! info "为什么 Codex 默认仍按监控模式使用？"
     ClawSentry 默认通过监控 Codex session 日志实现实时评估和推荐。当前版本可用 `clawsentry init codex --setup` 非破坏式安装 managed native hooks，并已验证 `PreToolUse(Bash)` 可经 Gateway 返回 host deny；其他 native events 仍是异步观察，生产上建议继续配合 `--approval-policy untrusted` 使用。
@@ -372,7 +372,7 @@ Dashboard -> Sessions -> Session Detail
         clawsentry watch
         ```
 
-        `clawsentry watch` 会实时显示风险评估结果，帮助你决定是否批准 Codex 的操作请求。
+        `clawsentry watch` 会实时显示风险评估结果；如果启用了 managed native hooks，`PreToolUse(Bash)` 在 Gateway 判为 block/defer 时可让 Codex host deny 该 Bash 调用。其他 native events 只做异步观察/建议。
 
     ### 验证
 

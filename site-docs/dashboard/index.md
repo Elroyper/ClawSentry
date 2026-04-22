@@ -354,6 +354,15 @@ Session Detail 页现在首先回答“这个 session 是谁”：
 - `budget_exhaustion_event`
 - `decision_path_io`
 
+对于需要人工复盘的 session，Session Detail 还提供 **Request L3 full review** 操作。它会调用 `POST /report/session/{id}/l3-advisory/full-review`，冻结 bounded evidence snapshot，排队并可执行一次 advisory job，然后在页面中展示：
+
+- latest `review_id` / `snapshot_id` / `job_id`
+- `l3_state`、`job_state`、`runner` 的 operator-readable 标签
+- frozen record boundary（例如 `Records 4–8`）
+- `advisory_only=true` 与 `canonical decision unchanged` 边界
+
+这不是“重新判决历史事件”，而是让值守人员在不改变原始 allow/block/defer 的前提下，拿到一次可追溯的 L3 咨询结论。
+
 如果你之前只看到一个 `session_id` 不知道上下文，那么这次改动就是为了解决这个问题。
 
 ---

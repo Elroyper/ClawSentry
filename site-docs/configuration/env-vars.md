@@ -359,6 +359,9 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | Watcher 轮询间隔（秒） |
 | `CS_FRAMEWORK` | (自动检测) | 框架标识。设为 `codex` 启用 Codex 专用检查和 Watcher |
 
+!!! note "Codex watcher 启用顺序"
+    `CS_CODEX_SESSION_DIR` 显式设置时优先使用该目录；否则在 `CS_CODEX_WATCH_ENABLED=true` 时从 `CODEX_HOME`（默认 `~/.codex`）自动探测 `sessions/`。Watcher 会按 JSONL offset 追踪新增事件，重启后继续从已处理位置之后读取，避免重复广播旧事件。
+
 ---
 
 ## L3 审查 Agent 预算
@@ -371,11 +374,11 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CS_L3_BUDGET_TUNING_ENABLED` | `false` | 是否允许按 L3 模式启用更大的默认预算。显式 `CS_L3_BUDGET_MS` 仍然优先 |
 | `CS_L3_ADVISORY_ASYNC_ENABLED` | `false` | 启用 advisory snapshot 自动创建：high/critical decision 或 high+ trajectory alert 后冻结当前 trajectory record range。当前不自动启动真实 L3 review scheduler |
 | `CS_L3_HEARTBEAT_REVIEW_ENABLED` | `false` | 预留给 heartbeat/idle 聚合后的 advisory snapshot review。默认关闭，且不启用 timer-only full review |
-| `CS_L3_ADVISORY_PROVIDER_ENABLED` | `false` | 显式启用 advisory provider worker shell。当前仍为安全闸门：未启用、缺 key、缺 model、不支持 provider 或未实现真实调用时都写入 `degraded` advisory review |
+| `CS_L3_ADVISORY_PROVIDER_ENABLED` | `false` | 显式启用 advisory provider worker。未启用、缺 key、缺 model、不支持 provider，或 dry-run 未关闭时都会写入 `degraded` advisory review |
 | `CS_L3_ADVISORY_PROVIDER` | (空) | advisory provider shell 选择，支持 `openai` / `anthropic`。故意不继承 `CS_LLM_PROVIDER`，避免同步 L2/L3 配置意外启动异步 advisory worker |
 | `CS_L3_ADVISORY_MODEL` | (空) | advisory worker model 标签。故意不继承 `CS_LLM_MODEL` |
-| `CS_L3_ADVISORY_BASE_URL` | (空) | advisory worker OpenAI-compatible endpoint 标签，预留给未来真实 provider execution |
-| `CS_L3_ADVISORY_API_KEY` | (空) | advisory worker 专用 API key；未设置时按 provider 读取 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。当前 shell 不发真实网络请求 |
+| `CS_L3_ADVISORY_BASE_URL` | (空) | advisory worker OpenAI-compatible endpoint；仅在显式启用 provider 且关闭 dry-run 时使用 |
+| `CS_L3_ADVISORY_API_KEY` | (空) | advisory worker 专用 API key；未设置时按 provider 读取 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。默认 dry-run 不发真实网络请求 |
 | `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | `true` | advisory provider worker dry-run 安全闸门。只有显式设为 `false` 且 provider/key/model 都有效时，`llm_provider` runner 才会桥接到真实 LLM provider |
 | `CS_L3_ADVISORY_TEMPERATURE` | `1.0` | advisory provider 独立 temperature。部分 OpenAI-compatible 端点（如 Kimi）要求 `1` |
 | `CS_L3_ADVISORY_DEADLINE_MS` | `30000` | advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 smoke 中调大 |
@@ -396,24 +399,25 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 
 !!! info "L3 advisory foundation"
     `CS_L3_ADVISORY_ASYNC_ENABLED` 和 `CS_L3_HEARTBEAT_REVIEW_ENABLED`
-    是 Rank2 后续自动化的显式 opt-in 开关。当前实现落地 frozen
+    是 advisory review 自动化的显式 opt-in 开关。当前实现落地 frozen
     evidence snapshot 与 `advisory_only=true` review 结果的持久化 / report /
     watch surface；打开 `CS_L3_ADVISORY_ASYNC_ENABLED` 只会自动创建 snapshot，
     不会运行真实后台 L3 review，也不会 retroactively 修改 canonical decision。
 
 !!! warning "Advisory provider safety gate"
-    `CS_L3_ADVISORY_PROVIDER_*` 是未来真实 async L3 provider 的独立安全闸门。
+    `CS_L3_ADVISORY_PROVIDER_*` 是 L3 advisory provider worker 的独立安全闸门。
     它不会继承 `CS_LLM_*`，因此现有同步 L2/L3 LLM 配置不会意外触发
     advisory worker。默认 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=true` 时 `llm_provider`
     runner 仍不发网络请求；所有未启用、
-    缺 key、缺 model、不支持 provider 或未实现路径都会安全降级为 `l3_state=degraded`。
+    缺 key、缺 model、不支持 provider 或 dry-run 路径都会安全降级为 `l3_state=degraded`。只有显式
+    设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`、provider/model/key 有效，并把
+    `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 后，`llm_provider` runner 才会桥接到真实 LLM provider。
 
 !!! tip "手动 smoke"
     可用 `scripts/run_l3_advisory_provider_smoke.py` 做 operator-controlled
     readiness check。该脚本要求显式设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`，
     会构造一个 frozen snapshot、排队并执行一个 `llm_provider` job，并可通过
-    `--output-report <path>` 写出 markdown 证据。当前 provider smoke 默认保持 dry-run，预期结果仍是
-    `provider_not_implemented` degraded；`--require-completed` 用作真实 provider
+    `--output-report <path>` 写出 markdown 证据。provider smoke 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；`--require-completed` 用作真实 provider
     execution gate。pytest 中的真实网络 smoke 还需要
     `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`，否则默认 skip。当前已用
     OpenAI-compatible `kimi-k2.5` 完成一次 `--require-completed` real smoke。

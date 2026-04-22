@@ -180,7 +180,7 @@ clawsentry --help
 预期输出：
 
 ```
-usage: clawsentry [-h] {init,gateway,stack,harness,watch,audit,doctor,test-llm,service,config,rules,latch,integrations,start,stop,status} ...
+usage: clawsentry [-h] {init,gateway,stack,harness,watch,audit,doctor,test-llm,l3,service,config,rules,latch,integrations,start,stop,status} ...
 
 ClawSentry — AHP unified safety supervision framework.
 ```
@@ -215,16 +215,16 @@ ClawSentry — AHP unified safety supervision framework.
 python -m pytest src/clawsentry/tests/ -v --tb=short
 ```
 
-预期看到类似输出：
+预期看到类似输出（具体数量以当前发布的 CI/验证报告为准）：
 
 ```
 ========================= test session starts ==========================
-collected 3024 items
+collected 3000+ items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 3020 passed, 4 skipped in ~45s ===============
+========================= 3000+ passed, <若干 skipped> ===============
 ```
 
 !!! success "全部通过即安装成功"

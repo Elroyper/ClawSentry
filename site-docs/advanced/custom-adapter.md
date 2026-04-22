@@ -406,7 +406,7 @@ class CustomAgentAdapter:
         # 2. 非阻塞事件：异步发送，不等待决策
         raw_type = raw_event.get("type", "")
         if not self.is_blocking(raw_type):
-            # TODO: 异步发送到 Gateway 用于审计
+            # 可选：异步发送到 Gateway 用于审计
             logger.debug("Non-blocking event %s: audit only", event.event_id)
             return None
 
