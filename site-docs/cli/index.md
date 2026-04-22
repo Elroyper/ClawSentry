@@ -1008,7 +1008,7 @@ clawsentry test-llm --json
 
 ## clawsentry l3
 
-Operator-triggered L3 advisory actions. 当前子命令是 `full-review`：对一个已记录的 session 冻结 bounded evidence snapshot，排队一个 advisory job，并可选择立即执行一次显式 runner。
+Operator-triggered L3 advisory actions. 当前子命令是 `full-review`：对一个已记录的 session 冻结 bounded evidence snapshot，排队一个 advisory job，并可选择立即执行一次显式 runner。完整概念说明见 [L3 咨询审查](../decision-layers/l3-advisory.md)。
 
 !!! warning "advisory-only 边界"
     `clawsentry l3 full-review` 不会修改历史 canonical decision，不会启动后台 scheduler，也不会把 advisory 结果变成新的 enforcement。它的输出用于 operator 复盘和下一步处置判断。

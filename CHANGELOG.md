@@ -7,7 +7,7 @@
 ### 新增
 
 - **WebUI/watch P2 收尾** — 新增 operator-readable L3 状态/原因/runner 标签层，WebUI RuntimeFeed、Sessions、Session Detail 与 `clawsentry watch` 在保留底层 ID/边界语义的同时显示更易扫描的状态文案；L3 advisory job 现在同时展示 frozen snapshot / explicit-run-only 边界，不改变 JSON 输出、Gateway 判决、scheduler 或 canonical decision。
-- **L3 full-review operator handoff polish** — Session Detail 现在在 full-review action 之外持续展示最新 advisory review/job/snapshot ID、frozen record boundary 与 “canonical decision unchanged” 口径，根 README / 状态页同步到 `v0.5.2` 基线并增加版本一致性契约测试。
+- **L3 full-review operator visibility** — Session Detail 现在在 full-review action 之外持续展示最新 advisory review/job/snapshot ID、frozen record boundary 与 “canonical decision unchanged” 口径，根 README / 状态页同步到 `v0.5.2` 基线并增加版本一致性契约测试。
 - **L3 advisory real-provider smoke hardening** — `llm_provider` advisory worker 的 provider completion budget 从 1024 提升到 4096 tokens，避免 reasoning-heavy OpenAI-compatible 模型在 reasoning 阶段耗尽输出预算而返回空 content；`openai/kimi-k2.5` 已重新通过 `--require-completed` 真实 smoke，证据见 `docs/validation/l3-advisory-provider-real-smoke-rerun-2026-04-21.md`。
 
 ## [0.5.2] — 2026-04-21
@@ -17,11 +17,11 @@
 - **Codex -> Gateway daemon 真实 E2E smoke** — 新增 `scripts/run_codex_gateway_e2e_smoke.py` 与 `clawsentry.devtools.codex_gateway_e2e_smoke`，可在临时 `CODEX_HOME` 下安装 managed native hooks、启动本地 Gateway daemon，并验证真实 Codex CLI `PreToolUse(Bash)` 经 ClawSentry harness/Gateway 判定后返回 host deny；验证记录见 `docs/validation/codex-gateway-daemon-e2e-smoke-2026-04-21.md`。
 - **CODEX_NATIVE_HOOKS doctor 明细输出** — `clawsentry doctor` 现在在 PASS/WARN detail 中逐项显示 managed Codex native hooks 的实际形态，例如 `PreToolUse(Bash): sync`、`PostToolUse(Bash): async`、`UserPromptSubmit: async`、`Stop: async`、`SessionStart(startup|resume): async`。
 - **Rules governance CI template actions 升级** — `examples/ci/rules-governance.yml` 已升级到 Node 24-compatible action majors（`checkout@v6`、`setup-python@v6`、`upload-artifact@v6`），并固定 `retention-days: 30`，用于后续同步公开仓库时避开 GitHub Actions Node 20 deprecation 警告并保留规则治理 artifact。
-- **CS-01 markdown release dashboard** — `clawsentry rules report` 新增 `--summary-markdown`，可在 JSON report 之外写出人类可读的规则治理 rollout dashboard；CI template 同步上传 `rules-dashboard.md`，便于 release / policy-change review 直接审阅状态、finding 数与 sample event 覆盖。
-- **L3 advisory snapshot foundation** — 新增 Rank2 frozen evidence snapshot / advisory review 契约：可在 bounded trajectory record range 上创建 `l3_evidence_snapshot`，再附加 `advisory_only=true` 的 `l3_advisory_review`；`CS_L3_ADVISORY_ASYNC_ENABLED=true` 时 high/critical decision 或 high+ trajectory alert 会自动创建 frozen snapshot；report/session/replay payload 与 SSE/watch/UI 类型现在能追溯 snapshot/review ID，同时不改变 canonical decision。
+- **Rules governance markdown release dashboard** — `clawsentry rules report` 新增 `--summary-markdown`，可在 JSON report 之外写出人类可读的规则治理 rollout dashboard；CI template 同步上传 `rules-dashboard.md`，便于 release / policy-change review 直接审阅状态、finding 数与 sample event 覆盖。
+- **L3 advisory snapshot and review workflow** — 新增 Rank2 frozen evidence snapshot / advisory review 契约：可在 bounded trajectory record range 上创建 `l3_evidence_snapshot`，再附加 `advisory_only=true` 的 `l3_advisory_review`；`CS_L3_ADVISORY_ASYNC_ENABLED=true` 时 high/critical decision 或 high+ trajectory alert 会自动创建 frozen snapshot；report/session/replay payload 与 SSE/watch/UI 类型现在能追溯 snapshot/review ID，同时不改变 canonical decision。
 - **L3 advisory review lifecycle** — `l3_advisory_review` 支持 `pending` / `running` / `completed` / `failed` / `degraded` 状态更新，并通过 `PATCH /report/l3-advisory/review/{review_id}` 与 `l3_advisory_review` SSE 暴露 lifecycle 变化，为后续真实 async worker 接入预留稳定契约。
 - **L3 deterministic local advisory runner** — 新增 `POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review`，可显式对 frozen snapshot 运行 deterministic local review，验证 `snapshot -> pending/running/completed review` 全链路；runner 只读取 snapshot record range，不接 LLM、不启动 scheduler、不改变 canonical decision。
-- **L3 advisory job queue foundation** — 新增 `l3_advisory_jobs` 与 `POST /report/l3-advisory/snapshot/{snapshot_id}/jobs` / `POST /report/l3-advisory/job/{job_id}/run-local`，使 auto snapshot 后可以只排队 `queued` job，后续由显式调用推进到 `running/completed`，为真实 worker 队列预留契约。
+- **L3 advisory job queue** — 新增 `l3_advisory_jobs` 与 `POST /report/l3-advisory/snapshot/{snapshot_id}/jobs` / `POST /report/l3-advisory/job/{job_id}/run-local`，使 auto snapshot 后可以只排队 `queued` job，后续由显式调用推进到 `running/completed`，为真实 worker 队列预留契约。
 - **L3 advisory worker adapter interface** — 新增 `l3_advisory_worker` adapter 契约与 `fake_llm` dry-run worker，可通过 `POST /report/l3-advisory/job/{job_id}/run-worker` 显式运行，验证 worker 只消费 frozen snapshot records 并写入 review patch；仍不调用真实 LLM、不启动 scheduler。
 - **L3 advisory provider safety gates** — 新增 provider-neutral request/response schema、OpenAI / Anthropic provider shell，以及显式 `llm_provider` worker runner；`CS_L3_ADVISORY_PROVIDER_ENABLED=false` 默认关闭真实 provider 路径，`CS_L3_ADVISORY_PROVIDER` / `CS_L3_ADVISORY_MODEL` 不继承同步 `CS_LLM_*` 配置，`CS_L3_ADVISORY_PROVIDER_DRY_RUN=true` 默认保持不联网，未启用、缺 key、缺 model、不支持 provider 或未实现真实调用时统一降级为 `l3_state=degraded`，测试中不发网络请求。
 - **L3 advisory provider smoke readiness** — 新增 `clawsentry.devtools.l3_advisory_provider_smoke` 与 `scripts/run_l3_advisory_provider_smoke.py`，可通过显式 env opt-in 构造 frozen snapshot、排队 `llm_provider` job、执行一次手动 smoke 并输出 markdown/JSON 证据；当前 smoke 验证 provider path 安全降级为 `provider_not_implemented`，不启动 scheduler、不联网、不修改 canonical decision。验证记录见 `docs/validation/l3-advisory-provider-smoke-readiness-2026-04-21.md`。
@@ -30,7 +30,7 @@
 - **Operator-triggered L3 full review** — 新增 `POST /report/session/{session_id}/l3-advisory/full-review`，operator 可显式冻结 session evidence、排队 advisory job，并选择 queue-only 或执行一次 deterministic/fake/provider worker；结果保持 `advisory_only=true`，返回 `canonical_decision_mutated=false`，不启动 scheduler、不做 enforcement。
 - **L3 advisory real-provider bridge** — `llm_provider` runner 现在可在 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 且 provider/key/model 都显式配置时桥接到现有 OpenAI / Anthropic LLM provider 抽象；默认仍 dry-run，不进入后台调度，mock-backed 回归覆盖 completed review 解析路径，并兼容 fenced JSON provider responses；真实网络 smoke 仅在 `CS_L3_ADVISORY_RUN_REAL_SMOKE=true` 时运行，否则默认跳过；OpenAI-compatible Kimi 端点已通过 `--require-completed` real smoke。
 - **Benchmark wrapper proxy hygiene** — `benchmarks/scripts/skills_safety_bench_codex.sh` 真实执行时默认过滤 proxy env 并使用临时干净 `DOCKER_CONFIG`，避免 Harbor/Docker build 继承宿主不可达代理配置。
-- **CS-01 sample events expansion** — `examples/sample-events.jsonl` 现在覆盖 safe-read、credential upload、download-and-execute 三类代表事件，使 rules dry-run/report artifact 更适合作为 rollout smoke。
+- **Rules governance sample events expansion** — `examples/sample-events.jsonl` 现在覆盖 safe-read、credential upload、download-and-execute 三类代表事件，使 rules dry-run/report artifact 更适合作为 rollout smoke。
 
 ### 测试与验证
 
@@ -44,22 +44,22 @@
 
 ### 新增
 
-- **CS-01 rules reporting artifact** — `clawsentry rules report --output ...` 现在可以把规则治理 `lint` 与可选 `dry-run` 结果合并写入稳定 JSON 工件，提供 `status`、`exit_code`、per-check summary、deterministic fingerprint 与完整 payload，便于 CI / release checklist 保存 rollout 证据。
+- **Rules governance reporting artifact** — `clawsentry rules report --output ...` 现在可以把规则治理 `lint` 与可选 `dry-run` 结果合并写入稳定 JSON 工件，提供 `status`、`exit_code`、per-check summary、deterministic fingerprint 与完整 payload，便于 CI / release checklist 保存 rollout 证据。
 - **Rules governance CI template** — 新增可同步的 `examples/ci/rules-governance.yml` GitHub Actions 示例，运行 `rules lint` / `rules dry-run` / `rules report` 并上传 `artifacts/rules-report.json`，方便公开仓库启用规则治理 artifact。
-- **Codex native hook PreToolUse 防护收口** — `clawsentry init codex --setup` 现在将 `PreToolUse(Bash)` 安装为同步 `clawsentry harness --framework codex` preflight，其他 Codex native events 保持 `--async` 观察；harness 使用 Codex-native normalization，经 Gateway block/defer 后返回已验证的 `permissionDecision: "deny"` 响应，fallback policy 默认 fail-open 并输出诊断。安装/卸载仍保留用户 / OMX hooks，`doctor` 会校验 managed hooks 的 sync/async 形态，并已补充真实 Codex CLI native hook smoke 记录。
+- **Codex native hook PreToolUse 防护发布** — `clawsentry init codex --setup` 现在将 `PreToolUse(Bash)` 安装为同步 `clawsentry harness --framework codex` preflight，其他 Codex native events 保持 `--async` 观察；harness 使用 Codex-native normalization，经 Gateway block/defer 后返回已验证的 `permissionDecision: "deny"` 响应，fallback policy 默认 fail-open 并输出诊断。安装/卸载仍保留用户 / OMX hooks，`doctor` 会校验 managed hooks 的 sync/async 形态，并已补充真实 Codex CLI native hook smoke 记录。
 
 ## [0.5.0] — 2026-04-20
 
 ### 新增
 
-- **AHP v2.3 compatibility foundation** — ClawSentry 现在可以识别并保留 `post_response`、`idle`、`heartbeat`、`success`、`rate_limit` 等上游 AHP v2.3 observation surfaces，同时保持 `pre_action/post_action/pre_prompt/post_response/error/session` 这 6 类 stable core 不扩枚举。
+- **AHP v2.3 compatibility support** — ClawSentry 现在可以识别并保留 `post_response`、`idle`、`heartbeat`、`success`、`rate_limit` 等上游 AHP v2.3 observation surfaces，同时保持 `pre_action/post_action/pre_prompt/post_response/error/session` 这 6 类 stable core 不扩枚举。
 - **Confirmation bridge** — `confirmation` 事件现在复用现有 operator approval lifecycle：pending / resolve / timeout / no-route / queue-full 均有统一 `approval_*` telemetry，并兼容 `/ahp/resolve` 与既有 DEFER bridge。
 - **Context 与 memory analysis-consumption** — `context_perception` 与 `memory_recall` 现在会生成 compact evidence summary，进入 replay、session risk、session list 与 `DecisionContext` / `semantic_analyzer` 的解释性分析路径。
 - **Cognition research-to-runtime signals** — `planning`、`reasoning`、`intent_detection` 现在作为 compact runtime evidence 进入 replay、session 视图与语义分析，但不成为新的 blocking surface，也不暴露完整 chain-of-thought。
 
 ### 改进
 
-- **能力分层口径收口** — 设计文档现已统一区分 stable core、compatibility support、bridge semantics 与 analysis-consumption，避免把兼容识别误读为 canonical enforcement。
+- **能力分层口径完善** — 设计文档现已统一区分 stable core、compatibility support、bridge semantics 与 analysis-consumption，避免把兼容识别误读为 canonical enforcement。
 - **Operator-facing evidence 更完整** — replay、session risk 与 session list 现在能展示 approval、context/memory 与 cognition summaries，帮助 operator 理解运行时上下文而不污染 canonical decision 字段。
 - **发布目标升级为 0.5.0** — 本版本聚合 AHP v2.3 协议跟进、兼容层、审批桥接与分析消费链路，作为 0.5 系列基线。
 
@@ -89,8 +89,8 @@
 ### 改进
 
 - **L3 trigger controls 正式发布** — DetectionConfig 与项目级配置现在公开支持 `l3_routing_mode`、`l3_trigger_profile`、`l3_budget_tuning_enabled` 三个高层控制面，用于在不改变默认行为的前提下，让本地 L3 更容易触发或直接替换 organic L2-entry 路径。
-- **`replace_l2` 语义收口为真实路由替换** — 文档与运行态口径现已统一说明：`replace_l2` 不是模糊的 “force L3 follow-up”，而是命中 organic L2 入口后直接跳过 L2、改走本地 L3。
-- **无本地 L3 能力时的公开遥测更诚实** — `l3_runtime` 现在补齐稳定 reason code `local_l3_unavailable`，并把 unsupported-local-L3 情况统一收口为 `l3_available=false`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
+- **`replace_l2` 语义完善为真实路由替换** — 文档与运行态口径现已统一说明：`replace_l2` 不是模糊的 “force L3 follow-up”，而是命中 organic L2 入口后直接跳过 L2、改走本地 L3。
+- **无本地 L3 能力时的公开遥测更诚实** — `l3_runtime` 现在补齐稳定 reason code `local_l3_unavailable`，并把 unsupported-local-L3 情况统一完善为 `l3_available=false`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
 
 ### 文档
 
@@ -100,7 +100,7 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2888 passed, 3 skipped`
-- Focused L3 trigger PRD 回归：`5 passed`
+- Focused L3 trigger config 回归：`5 passed`
 - Focused detection / project / trigger / risk 回归：`609 passed`
 - Focused agent / gateway 回归：`173 passed`
 - `mkdocs build --strict`：PASS
@@ -110,9 +110,9 @@
 
 ### 改进
 
-- **Web UI 升级为 light-first premium operator console** — Dashboard、Sessions、Session Detail、Alerts 与 DEFER Panel 现在共享同一套浅色优先、长时间可读、以 operator scanning 为中心的视觉系统；旧版黑白混杂与深色 SOC 残留被整体收口。
+- **Web UI 升级为 light-first premium operator console** — Dashboard、Sessions、Session Detail、Alerts 与 DEFER Panel 现在共享同一套浅色优先、长时间可读、以 operator scanning 为中心的视觉系统；旧版黑白混杂与深色 SOC 残留被整体完善。
 - **Dashboard 首页补齐 operator brief** — `Security Console` hero 不再留出大片无信息空白，而是补上 coverage / posture / runtime pulse / budget pulse 四块低噪声摘要，让首页第一屏既完整又不喧宾夺主。
-- **空状态、loading 与图表表面完成产品化收口** — `EmptyState`、`SkeletonCard`、图表卡片与 Session Detail tooltip 统一进入新的品牌化系统，去掉默认组件感并保持克制的高级感。
+- **空状态、loading 与图表表面完成产品化完善** — `EmptyState`、`SkeletonCard`、图表卡片与 Session Detail tooltip 统一进入新的品牌化系统，去掉默认组件感并保持克制的高级感。
 
 ### 文档
 
@@ -168,9 +168,9 @@
 
 ### 改进
 
-- **L3 operator telemetry 与 retained-evidence 继续收口** — `l3_state`、`l3_reason_code` 与 compact `evidence_summary` 现在不只停留在单点 trace，而是进一步对齐到 `watch`、Dashboard Runtime Feed、session summary、session risk 以及其他现有 gateway/reporting 路径，便于 operator 在不打开原始轨迹的情况下快速理解 L3 运行态与保留证据。
+- **L3 operator telemetry 与 retained-evidence 继续完善** — `l3_state`、`l3_reason_code` 与 compact `evidence_summary` 现在不只停留在单点 trace，而是进一步对齐到 `watch`、Dashboard Runtime Feed、session summary、session risk 以及其他现有 gateway/reporting 路径，便于 operator 在不打开原始轨迹的情况下快速理解 L3 运行态与保留证据。
 - **Gateway reporting 与 budget governance 对齐** — `budget` / `budget_exhaustion_event` 现在已扩展到 session/report/replay surfaces；`decision_path_io` 也继续从 `health` / `report_summary` 扩展到 session/report endpoints，使当前同步决策路径的运营读数更完整。
-- **共享信号与 bounded evidence collection 继续硬化** — L3/runtime 相关实现继续沿“共享低级信号 + bounded evidence budget + 明确 degraded reason taxonomy”方向收口，在保持同步架构稳定的前提下扩大可解释性与运维可见性。
+- **共享信号与 bounded evidence collection 继续硬化** — L3/runtime 相关实现继续沿“共享低级信号 + bounded evidence budget + 明确 degraded reason taxonomy”方向完善，在保持同步架构稳定的前提下扩大可解释性与运维可见性。
 
 ### 文档
 
@@ -187,12 +187,12 @@
 
 ### 改进
 
-- **L3 Python launcher hardening 收口** — `secret_harvest_archive` 对 bounded `python -c` 命令构造继续收紧并补全，当前已覆盖 `format_map(...)`、named / expanded-keyword `str.format(...)`、`string.Template(...).substitute(...)`、`string.Template(...).safe_substitute(...)` 与 literal `dict(...)` mapping constructor，同时继续保持纯 `print('...')`、本地 restore/inspection 与普通开发打包流负例不触发。
+- **L3 Python launcher hardening 完善** — `secret_harvest_archive` 对 bounded `python -c` 命令构造继续收紧并补全，当前已覆盖 `format_map(...)`、named / expanded-keyword `str.format(...)`、`string.Template(...).substitute(...)`、`string.Template(...).safe_substitute(...)` 与 literal `dict(...)` mapping constructor，同时继续保持纯 `print('...')`、本地 restore/inspection 与普通开发打包流负例不触发。
 - **从执行 helper 扩展到命令构造 helper** — L3 现在能更稳定识别“先读 secret，再通过 Python 字符串 helper 拼出 zip/tar/export 命令”的路径，而不依赖原始 shell 文本里直接出现完整命令串。
 
 ### 文档
 
-- **公开文档统一解释本轮能力边界** — GitHub README、PyPI README、在线首页、安装页与 CHANGELOG 已同步到 `v0.4.2`，并把这一轮变化统一解释为 L3 bounded Python launcher hardening。
+- **公开文档统一解释本次能力边界** — GitHub README、PyPI README、在线首页、安装页与 CHANGELOG 已同步到 `v0.4.2`，并把本次变化统一解释为 L3 bounded Python launcher hardening。
 
 ### 测试与验证
 
@@ -207,7 +207,7 @@
 
 ### 改进
 
-- **L3 基础能力正式收口** — `CS_L3_ENABLED=true` 时的默认 `multi_turn` 语义、显式 `trigger_reason`、基于聚合 L2 结果的 L3 装配、session transcript / risk 证据读取、`suspicious_pattern` 与 `trigger_detail` 观察链路现在已全部进入正式版本。
+- **L3 基础能力正式完善** — `CS_L3_ENABLED=true` 时的默认 `multi_turn` 语义、显式 `trigger_reason`、基于聚合 L2 结果的 L3 装配、session transcript / risk 证据读取、`suspicious_pattern` 与 `trigger_detail` 观察链路现在已全部进入正式版本。
 - **archive/export 边界继续收紧** — `secret_harvest_archive` 现在明确排除普通本地打包、`base64 -d`、extract/restore、archive inspection、zip/gzip validation、以及只是在 shell 文本中提到 archive 命令的负例，同时继续保留真实 shell wrapper 与 bounded `python -c` launcher 下的 archive/export 识别能力。
 - **Python launcher helper 覆盖补全** — bounded `python -c` 匹配路径现已覆盖 `subprocess.run/call/Popen/check_call/check_output/getoutput/getstatusoutput`、`os.system/popen`、`os.execl/execlp/execv/execve/execvp/execvpe`、`os.spawnl/spawnlp/spawnv/spawnve/spawnvp/spawnvpe` 等常见执行 helper，同时保持纯 `print('...')` 文本负例不触发。
 
@@ -228,14 +228,14 @@
 
 ### 改进
 
-- **审计整改主线收口** — 统一 `Alerts` severity taxonomy，`watch --interactive` 真正接入 DEFER resolve 流程，L3 提升为可观测的一等决策层，RuntimeFeed 新增过滤 / 高优先级视图 / 暂停与 backlog 提示，跨框架兼容矩阵与浏览器级验证夹具一并落地。
+- **审计整改主线完善** — 统一 `Alerts` severity taxonomy，`watch --interactive` 真正接入 DEFER resolve 流程，L3 提升为可观测的一等决策层，RuntimeFeed 新增过滤 / 高优先级视图 / 暂停与 backlog 提示，跨框架兼容矩阵与浏览器级验证夹具一并落地。
 - **多框架自检与启动体验增强** — `clawsentry integrations status` 新增 `framework_readiness`，按框架输出 `status / summary / checks / warnings / next_step`；`clawsentry start` 与 `start --with-latch` 复用同一份 readiness 诊断，在 banner 中直接提示 `a3s-code` 显式 SDK wiring、`codex` watcher/session dir、`claude-code` hooks、`openclaw` 宿主配置缺口。
-- **Latch 集成产品化收口** — 修复 `start --with-latch --no-watch` 生命周期、将 `latch install` tar 解压改为兼容 Python 3.11 的安全实现，并让 `--with-latch` 的 `Web UI` / `--open-browser` 统一跳转到 Hub UI。
+- **Latch 集成产品化完善** — 修复 `start --with-latch --no-watch` 生命周期、将 `latch install` tar 解压改为兼容 Python 3.11 的安全实现，并让 `--with-latch` 的 `Web UI` / `--open-browser` 统一跳转到 Hub UI。
 
 ### 文档
 
 - **公开文档与 README 对齐新语义** — Quickstart、CLI 参考、OpenClaw 集成页、GitHub README 与包内 README 全部更新到 readiness 诊断、多框架 start banner 和当前测试基线；包内 README 顶部 Python 版本口径同步为 `3.11+`。
-- **新增正式审计与验证记录** — 仓库内补齐实现审计、整改方案、兼容矩阵、浏览器验证、Latch focused validation 与 rollout readiness 文档，形成本次 0.4.0 收口证据链。
+- **新增正式审计与验证记录** — 仓库内补齐实现审计、整改方案、兼容矩阵、浏览器验证、Latch focused validation 与 rollout readiness 文档，形成本次 0.4.0 完善证据链。
 
 ### 测试与验证
 
@@ -276,7 +276,7 @@
 - **在线文档重写 Web UI 说明** — `site-docs/dashboard/index.md` 现在先解释 Web UI 的使用模型，再解释页面职责，明确 Dashboard / Sessions / Session Detail / Alerts / DEFER Panel 各自回答什么问题。
 - **快速开始补充 Web UI 导读** — `site-docs/getting-started/quickstart.md` 新增“第一次打开 Web UI 先看什么”的说明，帮助用户用正确的视角理解监控台。
 - **报表 API 文档对齐新字段** — `site-docs/api/reporting.md` 更新会话列表与会话风险详情的响应示例，补充 `workspace_root` / `transcript_path` 等字段说明。
-- **进度文档同步收口** — 内部进度记录已更新为包含本轮 Web UI 重构、浏览器验收与后续发布建议。
+- **进度文档同步完善** — 内部进度记录已更新为包含本次 Web UI 重构、浏览器验收与后续发布建议。
 
 ### 验证
 
@@ -697,13 +697,13 @@
 
 ### 修复
 
-#### Issue Batch 2026-03-26-3（CS-013~CS-018, 6 Issues + L3 增强）
-- **[CS-013]** `clawsentry watch` 无 decision 事件 — SSE 广播移到 deadline 检查之前
-- **[CS-014]** `/ahp/resolve` WS 不可用返回 502 而非 503 — 修正 `stack.py` status_code
-- **[CS-015]** L3 trace 未持久化 — 三层修复：CompositeAnalyzer 保留降级 trace / AgentAnalyzer 接入 trajectory_store 累积触发 / inner budget margin 防止外层 timeout 取消 trace
-- **[CS-016]** `/report/stream` 无事件 — 同 CS-013 根因，同一修复
-- **[CS-017]** 轨迹告警缺失 — EventBus 新增 50 条 replay buffer
-- **[CS-018]** `pattern_evolved` 无事件 — 同 CS-017 根因，同一修复
+#### Issue Batch 2026-03-26-3（013~018, 6 Issues + L3 增强）
+- **[Issue 013]** `clawsentry watch` 无 decision 事件 — SSE 广播移到 deadline 检查之前
+- **[Issue 014]** `/ahp/resolve` WS 不可用返回 502 而非 503 — 修正 `stack.py` status_code
+- **[Issue 015]** L3 trace 未持久化 — 三层修复：CompositeAnalyzer 保留降级 trace / AgentAnalyzer 接入 trajectory_store 累积触发 / inner budget margin 防止外层 timeout 取消 trace
+- **[Issue 016]** `/report/stream` 无事件 — 同 Issue 013 根因，同一修复
+- **[Issue 017]** 轨迹告警缺失 — EventBus 新增 50 条 replay buffer
+- **[Issue 018]** `pattern_evolved` 无事件 — 同 Issue 017 根因，同一修复
 
 ### 新增
 
@@ -729,8 +729,8 @@
 ### 修复
 
 #### Issue Batch 2026-03-26-2（2 Critical + 1 High + 1 feat, 12 tests）
-- **[CS-012]** `_handle_sync_decision()` deadline exceeded 时 early return 跳过 `trajectory_store.record()` 和 `session_registry.record()`，导致 fallback 决策不落库 — 将 recording 移到 deadline 检查之前
-- **[CS-011]** `_send_request()` 收到 OpenClaw 错误响应时返回 `False` 而非抛异常，导致 `resolve()` reason 降级重试永不触发 — 新增 `ResolveError` 异常 + 匹配 "unexpected property" 错误格式
+- **[Issue 012]** `_handle_sync_decision()` deadline exceeded 时 early return 跳过 `trajectory_store.record()` 和 `session_registry.record()`，导致 fallback 决策不落库 — 将 recording 移到 deadline 检查之前
+- **[Issue 011]** `_send_request()` 收到 OpenClaw 错误响应时返回 `False` 而非抛异常，导致 `resolve()` reason 降级重试永不触发 — 新增 `ResolveError` 异常 + 匹配 "unexpected property" 错误格式
 - **[CS-009]** L2 budget cap 无 overhead margin，LLM 调用耗尽 budget 后刚好超过 deadline — 预留 200ms margin
 
 ### 新增
@@ -750,7 +750,7 @@
 #### Issue Batch 2026-03-26（3 High defects + 6 tests）
 - **[CS-008]** `CompositeAnalyzer.analyze()` 返回 `L2Result` 时遗漏 `trace=best.trace`，导致 L3 trace 始终为 NULL 无法落库
 - **[CS-009]** `policy_engine.evaluate()` L2 budget 不受请求 `deadline_ms` 约束，高延迟场景触发 `DEADLINE_EXCEEDED` — 新增 `deadline_budget_ms` 参数，以 `min(config, remaining)` 为上限
-- **[CS-010]** `_build_openclaw_runtime()` 遗漏 `enforcement_enabled`/`openclaw_ws_url`/`openclaw_operator_token` 三字段，导致 WS 可用时 `/ahp/resolve` 仍返回 502
+- **[Issue 010]** `_build_openclaw_runtime()` 遗漏 `enforcement_enabled`/`openclaw_ws_url`/`openclaw_operator_token` 三字段，导致 WS 可用时 `/ahp/resolve` 仍返回 502
 - **[CS-007]** LLM 超时日志改善：区分 `TimeoutError` 与其他 provider error，便于调参调试（WONTFIX，设计如此）
 
 #### 测试新增
@@ -768,7 +768,7 @@
 - **[H-1]** OpenClaw POST_ACTION 事件缺少 `output` 字段映射（`toolOutput`/`command_output` 等别名未转换）
 - **[H-2]** CompositeAnalyzer 热重载遍历失败 — `reload_patterns` 未递归查找内层 `_pattern_matcher`
 - **[H-4]** Webhook 会话 ID 提取仅识别 `sessionKey`，缺少 `sessionId` 回退
-- **[H-5/L-3]** WS Future 注册顺序错误（先 send 后 register 导致竞态）+ `get_event_loop()` 弃用
+- **[H-5/L-3]** WS future 注册顺序错误（先 send 后 register 导致竞态）+ `get_event_loop()` 弃用
 - **[M-1]** D6 注入检测遗漏 OpenClaw `message`/`transcript`/`userMessage`/`user_message` 字段
 - **[M-2/M-4]** `extract_candidate()` 未持久化 + `store_path` 空路径未校验
 - **[M-6]** `CS_EVOLVING_ENABLED` 非法值静默忽略，现增加 warning 日志

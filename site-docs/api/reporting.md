@@ -635,7 +635,7 @@ curl -X POST http://127.0.0.1:8080/report/session/session-001/enforcement \
 
 ## L3 advisory endpoints {#l3-advisory-endpoints}
 
-L3 advisory 是一条独立的咨询证据面：它可以冻结 session 的 bounded trajectory records、排队或运行一次 review，但结果始终是 `advisory_only=true`，不会 retroactively 修改原始 canonical decision。
+L3 advisory 是一条独立的咨询审查流程：它可以冻结 session 的 bounded trajectory records、排队或运行一次 review，但结果始终是 `advisory_only=true`，不会修改原始 canonical decision。用户向说明见 [L3 咨询审查](../decision-layers/l3-advisory.md)。
 
 ### POST /report/session/{id}/l3-advisory/snapshots
 

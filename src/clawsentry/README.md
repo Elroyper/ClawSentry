@@ -525,9 +525,9 @@ Set `CS_L3_MULTI_TURN=false` to force the older single-turn MVP behavior. The
 `clawsentry test-llm` probe surfaces the active L3 mode and trigger reason in
 its detail output so operators can verify the runtime path.
 
-### L3 Advisory Snapshot Foundation
+### L3 Advisory Review and Full Review
 
-The advisory snapshot foundation adds a separate advisory evidence plane without
+L3 advisory review adds a separate bounded evidence workflow without
 changing canonical decisions. Operators can create a frozen
 `l3_evidence_snapshot` over a bounded trajectory record range, then attach an
 `l3_advisory_review` result marked `advisory_only=true`. When

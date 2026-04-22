@@ -397,12 +397,9 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
     - `l3_state=skipped`
     - `l3_reason_code=local_l3_unavailable`
 
-!!! info "L3 advisory foundation"
+!!! info "L3 咨询审查"
     `CS_L3_ADVISORY_ASYNC_ENABLED` 和 `CS_L3_HEARTBEAT_REVIEW_ENABLED`
-    是 advisory review 自动化的显式 opt-in 开关。当前实现落地 frozen
-    evidence snapshot 与 `advisory_only=true` review 结果的持久化 / report /
-    watch surface；打开 `CS_L3_ADVISORY_ASYNC_ENABLED` 只会自动创建 snapshot，
-    不会运行真实后台 L3 review，也不会 retroactively 修改 canonical decision。
+    是 L3 咨询审查的显式 opt-in 开关。系统会持久化 frozen evidence snapshot 与 `advisory_only=true` review 结果，并通过 report / watch / UI 暴露状态；打开 `CS_L3_ADVISORY_ASYNC_ENABLED` 只会自动创建 snapshot，不会运行后台 L3 review，也不会修改 canonical decision。详见 [L3 咨询审查](../decision-layers/l3-advisory.md)。
 
 !!! warning "Advisory provider safety gate"
     `CS_L3_ADVISORY_PROVIDER_*` 是 L3 advisory provider worker 的独立安全闸门。

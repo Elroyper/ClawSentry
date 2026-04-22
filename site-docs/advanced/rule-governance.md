@@ -1,11 +1,11 @@
 ---
 title: 规则治理
-description: YAML 规则与技能的上线前治理：lint、dry-run、fingerprint 与 rollout 前检查
+description: YAML 规则与技能的上线前治理：lint、dry-run、fingerprint 与 发布前检查
 ---
 
 # 规则治理
 
-规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的**上线前治理**补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
+规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的**上线前治理**补齐：在 发布或策略变更前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。
 
 !!! abstract "本页快速导航"
     [边界](#scope) · [规则面组成](#rule-surfaces) · [clawsentry rules lint](#rules-lint) · [clawsentry rules dry-run](#rules-dry-run) · [clawsentry rules report](#rules-report) · [典型工作流](#workflow) · [输出字段](#outputs)
