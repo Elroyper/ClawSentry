@@ -105,7 +105,7 @@ CS_DEFER_BRIDGE_ENABLED=false
 # OPENCLAW_ENFORCEMENT_ENABLED=true
 
 # ===== Prometheus 指标 =====
-# CS_METRICS_AUTH=true          # 指标端点认证开关（默认 true）
+# CS_METRICS_AUTH=false         # 指标端点认证开关（默认 false；生产建议设为 true）
 ```
 
 ---
@@ -682,7 +682,7 @@ scrape_configs:
 ```
 
 !!! tip "认证配置"
-    如果 `CS_METRICS_AUTH=true`（默认），需要在 Prometheus 抓取配置中添加 Bearer Token：
+    如果将 `CS_METRICS_AUTH=true`（生产建议）启用，需要在 Prometheus 抓取配置中添加 Bearer Token：
     ```yaml
     scrape_configs:
       - job_name: 'clawsentry-gateway'

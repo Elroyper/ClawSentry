@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3000+ regression tests** with release-time CI/build evidence
+- **3050+ regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.3
+## What's New in v0.5.4
 
-- **L3 advisory review and full-review workflow**: frozen evidence snapshots, advisory job queue, explicit worker execution, provider safety gates, and manual real-provider smoke evidence while keeping canonical decisions unchanged.
-- **Operator-triggered full review**: `POST /report/session/{session_id}/l3-advisory/full-review` and `clawsentry l3 full-review --session ...` let operators request bounded advisory reviews without scheduler/enforcement.
-- **Web UI action**: Session Detail now includes `Request L3 full review`, showing advisory completion/queue status directly in the console.
+- **AHP decision effects**: request-only `decision_effects` adds session quarantine / mark-blocked and audited command/tool-input rewrite without changing the stable `allow/block/modify/defer` verdicts.
+- **Adapter outcome audit trail**: `adapter_effect_result` records what each host adapter enforced, degraded, or could not support, keeping unsupported Codex rewrite/session-stop behavior honest.
+- **API docs coverage**: online API Reference/OpenAPI now covers adapter effect writeback and session quarantine release surfaces.
 
 ## Quick Start
 

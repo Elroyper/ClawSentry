@@ -8,6 +8,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -67,6 +68,19 @@ _CMD_MAX_LEN = 50
 _SESSION_WIDTH = 62
 _TREE_INDENT = " " * 11  # aligns with position after "[HH:MM:SS] "
 _SESSION_PREFIX = "│ "
+
+_PRIORITY_STREAM_TYPES: tuple[str, ...] = (
+    "decision",
+    "alert",
+    "session_enforcement_change",
+    "defer_pending",
+    "defer_resolved",
+    "adapter_effect_result",
+    "budget_exhausted",
+    "l3_advisory_snapshot",
+    "l3_advisory_review",
+    "l3_advisory_job",
+)
 
 
 def _c(name: str, text: str, *, color: bool = True) -> str:
@@ -257,6 +271,41 @@ def parse_sse_line(line: str) -> dict | None:
         except json.JSONDecodeError:
             return None
     return None
+
+
+def _normalize_filter_types(filter_types: str | None) -> list[str]:
+    if not filter_types:
+        return []
+    items: list[str] = []
+    seen: set[str] = set()
+    for item in filter_types.split(","):
+        normalized = item.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        items.append(normalized)
+    return items
+
+
+def _build_stream_url(
+    gateway_url: str,
+    *,
+    filter_types: str | None = None,
+    priority_only: bool = False,
+) -> str:
+    base = f"{gateway_url.rstrip('/')}/report/stream"
+
+    selected_types = _normalize_filter_types(filter_types)
+    if priority_only:
+        for event_type in _PRIORITY_STREAM_TYPES:
+            if event_type not in selected_types:
+                selected_types.append(event_type)
+
+    if not selected_types:
+        return base
+
+    query = urllib.parse.urlencode({"types": ",".join(selected_types)})
+    return f"{base}?{query}"
 
 
 # ── Session tracker ──────────────────────────────────────────────────────────
@@ -461,12 +510,52 @@ def format_decision(
             exp_str = f"{exp_e} " if exp_e else ""
             detail_items.append(f"{exp_str}Expires in: {remaining_s}s")
 
-    # MODIFY: modified command
-    if decision == "modify":
+    effect_summary = event.get("effect_summary") or event.get("decision_effect_summary")
+    rewrite_summary = (
+        effect_summary.get("rewrite_effect")
+        if isinstance(effect_summary, dict)
+        else None
+    )
+
+    # MODIFY: legacy modified command display. Rewrite decisions use the
+    # redacted replacement preview from effect_summary below; never render
+    # full replacement payloads for rewrite effects in watch output.
+    if decision == "modify" and not isinstance(rewrite_summary, dict):
         modified = event.get("modified_command") or event.get("modified")
         if modified:
             detail_items.append(
                 f"Modified: {_c('cyan', str(modified), color=color)}"
+            )
+
+    if isinstance(effect_summary, dict):
+        if effect_summary.get("action_scope") == "session":
+            detail_items.append(
+                f"Effect: {_c('red', 'BLOCK SESSION / QUARANTINE', color=color)}"
+            )
+        rewrite_effect = rewrite_summary
+        if isinstance(rewrite_effect, dict):
+            target = str(rewrite_effect.get("target") or "command")
+            detail_items.append(
+                f"Rewrite: {_c('cyan', f'{target} requested', color=color)}"
+            )
+            replacement_preview = rewrite_effect.get("replacement_preview_redacted")
+            if replacement_preview:
+                detail_items.append(
+                    f"Replacement: {_c('cyan', str(replacement_preview), color=color)}"
+                )
+
+    adapter_summary = event.get("adapter_effect_result_summary")
+    if isinstance(adapter_summary, dict):
+        enforced = adapter_summary.get("enforced") or []
+        degraded = adapter_summary.get("degraded") or adapter_summary.get("unsupported") or []
+        if enforced:
+            detail_items.append(
+                f"Adapter effect: {_c('green', 'ENFORCED', color=color)}"
+            )
+        elif degraded:
+            reason_text = str(adapter_summary.get("degrade_reason") or "degraded")
+            detail_items.append(
+                f"Adapter effect: {_c('yellow', f'DEGRADED ({reason_text})', color=color)}"
             )
 
     # Verbose: tier info
@@ -985,8 +1074,10 @@ def _format_l3_advisory_job(
     session_id = str(event.get("session_id") or "unknown")
     job_id = str(event.get("job_id") or "unknown")
     snapshot_id = str(event.get("snapshot_id") or "unknown")
+    review_id = str(event.get("review_id") or "").strip()
     job_state = str(event.get("job_state") or "unknown")
     runner = str(event.get("runner") or "unknown")
+    error = str(event.get("error") or "").strip()
     job_state_label = _operator_display("job_state", job_state)
     runner_label = _operator_display("runner", runner)
 
@@ -996,9 +1087,10 @@ def _format_l3_advisory_job(
     ts_str = _c("grey", f"[{hms}]", color=color)
 
     if compact:
+        review_segment = f" Review={review_id}" if review_id else ""
         return (
             f"{ts_str} {label}  {job_id}  "
-            f"Session={session_id} State={job_state_label} Runner={runner_label}"
+            f"Session={session_id} State={job_state_label} Runner={runner_label}{review_segment}"
         )
 
     lines = [f"{ts_str} {label}  {job_id}"]
@@ -1008,6 +1100,10 @@ def _format_l3_advisory_job(
         f"State: {_c('grey', job_state_label, color=color)}",
         f"Runner: {_c('grey', runner_label, color=color)}",
     ]
+    if review_id:
+        detail_items.append(f"Review: {_c('grey', review_id, color=color)}")
+    if error:
+        detail_items.append(f"Error: {_c('grey', error, color=color)}")
     transition_hint = _l3_advisory_job_transition_hint(job_state)
     if transition_hint:
         detail_items.append(f"Next: {_c('grey', transition_hint, color=color)}")
@@ -1015,6 +1111,43 @@ def _format_l3_advisory_job(
         f"Boundary: {_c('grey', 'frozen snapshot; explicit run only', color=color)}"
     )
 
+    for i, item in enumerate(detail_items):
+        connector = "└─" if i == len(detail_items) - 1 else "├─"
+        lines.append(f"{_TREE_INDENT}{connector} {item}")
+    return "\n".join(lines)
+
+
+def _format_adapter_effect_result(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    hms = _timestamp_hms(event.get("timestamp"))
+    summary = event.get("adapter_effect_result_summary")
+    summary = summary if isinstance(summary, dict) else {}
+    effect_id = str(event.get("effect_id") or summary.get("effect_id") or "unknown")
+    adapter = str(summary.get("adapter") or "unknown")
+    enforced = summary.get("enforced") or []
+    degraded = summary.get("degraded") or summary.get("unsupported") or []
+    status = "ENFORCED" if enforced else "DEGRADED" if degraded else "OBSERVED"
+    status_color = "green" if enforced else "yellow" if degraded else "grey"
+    label = _c(status_color, f"ADAPTER EFFECT {status}", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+    if compact:
+        return f"{ts_str} {label}  {effect_id} adapter={adapter}"
+    detail_items = [
+        f"Adapter: {_c('grey', adapter, color=color)}",
+        f"Requested: {_c('grey', ', '.join(summary.get('requested') or []) or 'none', color=color)}",
+    ]
+    if enforced:
+        detail_items.append(f"Enforced: {_c('green', ', '.join(enforced), color=color)}")
+    if degraded:
+        detail_items.append(f"Degraded: {_c('yellow', ', '.join(degraded), color=color)}")
+    if summary.get("degrade_reason"):
+        detail_items.append(f"Reason: {_c('grey', str(summary.get('degrade_reason')), color=color)}")
+    lines = [f"{ts_str} {label}  {effect_id}"]
     for i, item in enumerate(detail_items):
         connector = "└─" if i == len(detail_items) - 1 else "├─"
         lines.append(f"{_TREE_INDENT}{connector} {item}")
@@ -1086,6 +1219,10 @@ def format_event(
         )
     if event_type == "l3_advisory_job":
         return _format_l3_advisory_job(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "adapter_effect_result":
+        return _format_adapter_effect_result(
             event, color=color, no_emoji=no_emoji, compact=compact
         )
 
@@ -1277,6 +1414,7 @@ def run_watch(
     gateway_url: str,
     token: str | None = None,
     filter_types: str | None = None,
+    priority_only: bool = False,
     json_mode: bool = False,
     color: bool = True,
     interactive: bool = False,
@@ -1297,6 +1435,9 @@ def run_watch(
     filter_types:
         Comma-separated event types to subscribe to
         (e.g. ``"decision,alert"``).
+    priority_only:
+        If ``True``, subscribe to an operator-priority profile and merge
+        those types with any explicit ``filter_types``.
     json_mode:
         If ``True``, output raw JSON instead of formatted text.
     color:
@@ -1310,9 +1451,11 @@ def run_watch(
     compact:
         If ``True``, use compact session separators instead of Unicode boxes.
     """
-    url = f"{gateway_url.rstrip('/')}/report/stream"
-    if filter_types:
-        url += f"?types={filter_types}"
+    url = _build_stream_url(
+        gateway_url,
+        filter_types=filter_types,
+        priority_only=priority_only,
+    )
 
     headers: dict[str, str] = {}
     if token:

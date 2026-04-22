@@ -1885,6 +1885,39 @@ h1,
   justify-content: flex-end;
 }
 
+.full-review-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.full-review-runner-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.full-review-runner-select select {
+  min-width: 168px;
+}
+
+.full-review-queue-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.full-review-queue-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+}
+
 .session-analysis-surface > .priority-session-meta[data-tone] {
   margin-top: -8px;
   margin-bottom: 16px;

@@ -64,6 +64,8 @@ const WINDOW_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: 'All', value: null },
   { label: 'Recent 1h', value: RECENT_WINDOW_SECONDS },
 ]
+const FULL_REVIEW_RUNNERS = ['deterministic_local', 'fake_llm', 'llm_provider'] as const
+type FullReviewRunner = typeof FULL_REVIEW_RUNNERS[number]
 
 function parseWindowSeconds(value: string | null): number | null {
   if (!value || value === 'all') return null
@@ -205,6 +207,8 @@ export default function SessionDetail() {
   const [fullReviewStatus, setFullReviewStatus] = useState<string | null>(null)
   const [fullReviewError, setFullReviewError] = useState<string | null>(null)
   const [fullReviewRunning, setFullReviewRunning] = useState(false)
+  const [fullReviewRunner, setFullReviewRunner] = useState<FullReviewRunner>('deterministic_local')
+  const [fullReviewQueueOnly, setFullReviewQueueOnly] = useState(false)
 
   useEffect(() => {
     if (!sessionId) return
@@ -291,16 +295,23 @@ export default function SessionDetail() {
     setFullReviewStatus(null)
     try {
       const result = await api.requestL3FullReview(sessionId, {
-        runner: 'deterministic_local',
-        run: true,
+        runner: fullReviewRunner,
+        run: !fullReviewQueueOnly,
       })
+      const runnerLabel = formatRunnerLabel(fullReviewRunner, language)
       const reviewId = result.review?.review_id
       const state = result.review?.l3_state || result.job?.job_state || 'queued'
-      setFullReviewStatus(
-        reviewId
-          ? `Full review ${state}: ${reviewId}. Canonical decision unchanged.`
-          : `Full review queued: ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
-      )
+      if (fullReviewQueueOnly) {
+        setFullReviewStatus(
+          `Full review queued (${runnerLabel}): ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
+        )
+      } else {
+        setFullReviewStatus(
+          reviewId
+            ? `Full review ${state} (${runnerLabel}): ${reviewId}. Canonical decision unchanged.`
+            : `Full review queued (${runnerLabel}): ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
+        )
+      }
       setReloadNonce(value => value + 1)
     } catch {
       setFullReviewError('Could not request L3 full review. Try again.')
@@ -437,6 +448,32 @@ export default function SessionDetail() {
           </div>
           <div className="session-surface-actions">
             <span className="section-meta">{t('session.analysisMeta')}</span>
+            <div className="full-review-controls">
+              <label className="full-review-runner-select">
+                <span>{t('session.fullReviewRunner')}</span>
+                <select
+                  aria-label={t('session.fullReviewRunner')}
+                  value={fullReviewRunner}
+                  onChange={event => setFullReviewRunner(event.target.value as FullReviewRunner)}
+                  disabled={fullReviewRunning}
+                >
+                  {FULL_REVIEW_RUNNERS.map(runner => (
+                    <option key={runner} value={runner}>
+                      {formatRunnerLabel(runner, language)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="full-review-queue-toggle">
+                <input
+                  type="checkbox"
+                  checked={fullReviewQueueOnly}
+                  onChange={event => setFullReviewQueueOnly(event.target.checked)}
+                  disabled={fullReviewRunning}
+                />
+                <span>{t('session.fullReviewQueueOnly')}</span>
+              </label>
+            </div>
             <button
               type="button"
               className="secondary-button"

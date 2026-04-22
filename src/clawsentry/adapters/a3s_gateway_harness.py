@@ -15,7 +15,7 @@ from typing import Any, Callable, Optional
 try:
     from .a3s_adapter import A3SCodeAdapter
     from .codex_adapter import CodexAdapter
-    from ..gateway.models import CanonicalDecision, DecisionVerdict
+    from ..gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict
     from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
     # Support direct script execution:
@@ -27,7 +27,7 @@ except ImportError:
         sys.path.insert(0, _SRC_ROOT)
     from clawsentry.adapters.a3s_adapter import A3SCodeAdapter  # type: ignore[no-redef]
     from clawsentry.adapters.codex_adapter import CodexAdapter  # type: ignore[no-redef]
-    from clawsentry.gateway.models import CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
+    from clawsentry.gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
     from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
 
 import time as _time
@@ -281,10 +281,68 @@ def _decision_to_ahp_result(decision: CanonicalDecision) -> dict[str, Any]:
     }
     if decision.modified_payload is not None:
         result["modified_payload"] = decision.modified_payload
+    if getattr(decision, "decision_effects", None) is not None:
+        result["decision_effects"] = decision.decision_effects.model_dump(mode="json")
     if decision.retry_after_ms is not None:
         result["retry_after_ms"] = decision.retry_after_ms
 
     return result
+
+
+def _requested_effect_outcomes(decision_effects: dict[str, Any] | None) -> list[str]:
+    if not isinstance(decision_effects, dict):
+        return []
+    outcomes: list[str] = []
+    session_effect = decision_effects.get("session_effect")
+    if isinstance(session_effect, dict) and session_effect.get("requested"):
+        mode = str(session_effect.get("mode") or "mark_blocked")
+        outcomes.append(
+            "session_graceful_stop"
+            if mode == "graceful_stop"
+            else "session_quarantine"
+        )
+    rewrite_effect = decision_effects.get("rewrite_effect")
+    if isinstance(rewrite_effect, dict) and rewrite_effect.get("requested"):
+        target = str(rewrite_effect.get("target") or "command")
+        outcomes.append(
+            "tool_input_rewrite" if target == "tool_input" else "command_rewrite"
+        )
+    return outcomes
+
+
+def _record_inprocess_adapter_effect_result(
+    adapter: A3SCodeAdapter,
+    event: Any,
+    result: dict[str, Any],
+    *,
+    enforced: bool,
+    degraded_reason: str | None = None,
+) -> None:
+    gateway = getattr(adapter, "_gateway", None)
+    if gateway is None:
+        return
+    decision_effects = result.get("decision_effects")
+    outcomes = _requested_effect_outcomes(
+        decision_effects if isinstance(decision_effects, dict) else None
+    )
+    if not outcomes:
+        return
+    try:
+        effect_id = str(decision_effects.get("effect_id") or "unknown")
+        payload = AdapterEffectResult(
+            effect_id=effect_id,
+            framework=str(getattr(adapter, "source_framework", "a3s-code") or "a3s-code"),
+            adapter=str(getattr(adapter, "CALLER_ADAPTER_ID", "a3s-gateway-harness")),
+            requested=outcomes,
+            enforced=outcomes if enforced else [],
+            degraded=[] if enforced else outcomes,
+            degrade_reason=degraded_reason,
+            event_id=str(getattr(event, "event_id", "") or ""),
+            session_id=str(getattr(event, "session_id", "") or ""),
+        )
+        gateway.record_adapter_effect_result(payload)
+    except Exception:  # noqa: BLE001
+        logger.debug("adapter effect result writeback failed", exc_info=True)
 
 
 class A3SGatewayHarness:
@@ -381,6 +439,12 @@ class A3SGatewayHarness:
                     "intent_detection",
                     "session",
                     "error",
+                ],
+                "enforcement_capabilities": [
+                    "clawsentry.decision_effects.v1",
+                    "clawsentry.session_control.mark_blocked.v1",
+                    "clawsentry.command_rewrite.v1",
+                    "a3s.command_rewrite.modified_payload.v1",
                 ],
             },
         }
@@ -556,7 +620,14 @@ class A3SGatewayHarness:
                     _merge_clawsentry_meta(evt.payload, preserved_meta)
 
             decision = await self.adapter.request_decision(evt)
-            return _decision_to_ahp_result(decision)
+            result = _decision_to_ahp_result(decision)
+            _record_inprocess_adapter_effect_result(
+                self.adapter,
+                evt,
+                result,
+                enforced=True,
+            )
+            return result
         finally:
             if event_type_raw == "session_end" and session_id is not None:
                 self._clear_compat_observation_state(
@@ -655,7 +726,15 @@ class A3SGatewayHarness:
             _merge_clawsentry_meta(evt.payload, project_meta)
 
         decision = await self.adapter.request_decision(evt)
-        return _decision_to_ahp_result(decision)
+        result = _decision_to_ahp_result(decision)
+        _record_inprocess_adapter_effect_result(
+            self.adapter,
+            evt,
+            result,
+            enforced=False,
+            degraded_reason="codex_pretool_effects_unsupported",
+        )
+        return result
 
     async def dispatch_async(self, msg: dict[str, Any]) -> Optional[dict[str, Any]]:
         req_id = msg.get("id")

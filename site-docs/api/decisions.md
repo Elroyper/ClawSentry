@@ -666,3 +666,36 @@ async def send_uds_request(uds_path: str, request: dict) -> dict:
 | 2-3 | `medium` |
 | 4-5 | `high` |
 | 6-7 | `critical` |
+
+## POST /ahp/adapter-effect-result — Adapter effect outcome writeback {#post-ahp-adapter-effect-result}
+
+Native hook subprocesses and in-process adapters use this endpoint to append observed effect outcomes after host translation. It records what the adapter actually enforced, degraded, or could not support, without mutating the original canonical decision.
+
+```json
+{
+  "effect_id": "eff-rewrite-001",
+  "framework": "codex",
+  "adapter": "codex-native-hook",
+  "requested": ["command_rewrite"],
+  "degraded": ["command_rewrite"],
+  "degrade_reason": "codex_pretool_updated_input_unsupported",
+  "event_id": "evt-001",
+  "session_id": "sess-001"
+}
+```
+
+Response:
+
+```json
+{
+  "created": true,
+  "idempotency_key": "eff-rewrite-001:codex-native-hook:evt-001:degraded"
+}
+```
+
+Notes:
+
+- `decision_effects` describes the requested effect; `adapter_effect_result` describes observed host behavior.
+- Degraded or unsupported results must include `degrade_reason`.
+- Duplicate writebacks use the idempotency key and return the existing result.
+- Full rewrite replacement payloads are not required for this endpoint and should not be sent.

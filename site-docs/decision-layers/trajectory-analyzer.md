@@ -138,4 +138,4 @@ graph LR
 - [Post-action 围栏](post-action.md) — 同样异步、检测工具输出中的即时威胁
 - [L2 语义分析](l2-semantic.md) — 同步的语义理解层，可与轨迹分析互补
 - [检测管线配置](../configuration/detection-config.md) — `CS_TRAJECTORY_*` 完整参数参考
-- [报表与监控 → SSE](../api/reporting.md#sse) — `trajectory_alert` 事件的 SSE 订阅方式
+- [报表与监控 → SSE](../api/reporting.md#get-report-stream) — `trajectory_alert` 事件的 SSE 订阅方式

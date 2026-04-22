@@ -128,6 +128,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Comma-separated event types to subscribe to (e.g. decision,alert).",
     )
     watch_parser.add_argument(
+        "--priority-only",
+        action="store_true",
+        default=False,
+        help=(
+            "Subscribe to an operator-priority watch profile "
+            "(decision/alert/defer/enforcement/budget/L3-advisory events)."
+        ),
+    )
+    watch_parser.add_argument(
         "--json",
         action="store_true",
         default=False,
@@ -594,6 +603,7 @@ def main(argv: list[str] | None = None) -> None:
             gateway_url=args.gateway_url,
             token=args.token,
             filter_types=args.filter,
+            priority_only=args.priority_only,
             json_mode=args.json,
             color=not args.no_color,
             interactive=args.interactive,

@@ -1,5 +1,8 @@
 # a3s-code 集成
 
+!!! tip "本页怎么读"
+    这页面向需要在 Agent 代码里显式接入 AHP Transport 的开发者。优先看 Stdio / HTTP 两种方式怎么选，然后按验证步骤确认事件进入 Gateway。
+
 将 a3s-code AI 编码代理框架接入 ClawSentry，实现工具调用的实时安全监督。
 
 ---

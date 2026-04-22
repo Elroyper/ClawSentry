@@ -1,5 +1,8 @@
 # Claude Code 集成
 
+!!! tip "本页怎么读"
+    这页面向已经使用 Claude Code 的用户。你会看到：适用场景、最短接入路径、如何验证 Hook 生效、以及如何安全卸载。
+
 将 Claude Code AI 编码助手接入 ClawSentry，实现工具调用的实时安全监督。
 
 ---

@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-04-23
+
+### 新增
+
+- **AHP decision effects v1** — 在保持 `allow/block/modify/defer` 顶层 verdict 稳定的前提下，新增 request-only `decision_effects` envelope，用于表达 session quarantine / mark-blocked 与 command/tool-input rewrite 请求。
+- **Adapter effect result trail** — 新增独立 `adapter_effect_result` 记录与 `/ahp/adapter-effect-result` 写回路径，区分 policy 请求和 host adapter 实际 enforced/degraded/unsupported 结果，并提供幂等写入。
+- **Session quarantine / mark-blocked** — `block + action_scope=session` 现在可标记 compromised session；v1 后续阻断范围限定为同 session `pre_action`，释放路径与旧 session-enforcement cooldown 分离。
+- **Audited rewrite lifecycle** — DEFER/confirmation resolve 可携带经过校验的 command/tool-input replacement payload，生成 `modify + modified_payload + rewrite_effect`；trajectory/replay/SSE/watch 默认只保留 hash 和 redacted preview。
+- **Public API docs inventory** — 在线 API Reference/OpenAPI/coverage artifacts 补齐 adapter-effect-result 与 quarantine endpoints，并继续用契约测试校验 source routes 与文档覆盖一致性。
+
+### 测试与验证
+
+- Python 回归：开发仓库 `3057 passed, 4 skipped`；公开仓库 `3054 passed, 7 skipped`
+- Focused AHP action expansion / gateway / watch 回归：`374 passed`
+- Web UI 回归：`40 passed`
+- Web UI build：PASS
+- `mkdocs build --strict`：PASS
+- `git diff --check`：PASS
+
 ## [0.5.3] — 2026-04-22
 
 ### 新增
@@ -939,6 +958,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.4
 [0.5.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.3
 [0.5.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.2
 [0.5.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.1

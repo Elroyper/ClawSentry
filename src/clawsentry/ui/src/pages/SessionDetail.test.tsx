@@ -236,7 +236,23 @@ describe('SessionDetail', () => {
       runner: 'deterministic_local',
       run: true,
     })
-    expect(await screen.findByRole('status')).toHaveTextContent('Full review completed: review-full-review')
+    expect(await screen.findByRole('status')).toHaveTextContent('Full review completed (Deterministic local): review-full-review')
+    expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
+  })
+
+  it('supports queue-only full review requests with alternate runner selection', async () => {
+    renderSessionDetail()
+
+    const runnerSelect = await screen.findByRole('combobox', { name: 'Full-review runner' })
+    fireEvent.change(runnerSelect, { target: { value: 'llm_provider' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Queue only (do not run now)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Request L3 full review' }))
+
+    expect(api.requestL3FullReview).toHaveBeenCalledWith('sess-123', {
+      runner: 'llm_provider',
+      run: false,
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent('Full review queued (LLM provider): job-full-review')
     expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
   })
 

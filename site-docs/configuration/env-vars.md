@@ -381,9 +381,9 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CS_L3_ADVISORY_API_KEY` | (空) | advisory worker 专用 API key；未设置时按 provider 读取 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。默认 dry-run 不发真实网络请求 |
 | `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | `true` | advisory provider worker dry-run 安全闸门。只有显式设为 `false` 且 provider/key/model 都有效时，`llm_provider` runner 才会桥接到真实 LLM provider |
 | `CS_L3_ADVISORY_TEMPERATURE` | `1.0` | advisory provider 独立 temperature。部分 OpenAI-compatible 端点（如 Kimi）要求 `1` |
-| `CS_L3_ADVISORY_DEADLINE_MS` | `30000` | advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 smoke 中调大 |
-| `CS_L3_ADVISORY_RUN_REAL_SMOKE` | `false` | 仅用于 pytest real-provider smoke gate；默认跳过真实网络 smoke |
-| `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | `true` | manual smoke 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 `false` |
+| `CS_L3_ADVISORY_DEADLINE_MS` | `30000` | advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 readiness check 中调大 |
+| `CS_L3_ADVISORY_RUN_REAL_SMOKE` | `false` | 仅用于测试套件里的真实 provider readiness gate；默认跳过真实网络调用 |
+| `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | `true` | 手动 readiness check 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 `false` |
 
 !!! note "多轮模式的延迟与成本"
     `CS_L3_ENABLED=true` 时，运行时默认使用多轮 L3。相比单轮 MVP，这会增加平均延迟和 token 成本；若需要保守 rollout，可显式设置 `CS_L3_MULTI_TURN=false`。
@@ -410,14 +410,14 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
     设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`、provider/model/key 有效，并把
     `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 后，`llm_provider` runner 才会桥接到真实 LLM provider。
 
-!!! tip "手动 smoke"
-    可用 `scripts/run_l3_advisory_provider_smoke.py` 做 operator-controlled
-    readiness check。该脚本要求显式设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`，
+!!! tip "手动 readiness check"
+    如需验证 advisory provider 链路，可用随包提供的 devtools 模块做 operator-controlled
+    readiness check。该流程要求显式设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`，
     会构造一个 frozen snapshot、排队并执行一个 `llm_provider` job，并可通过
-    `--output-report <path>` 写出 markdown 证据。provider smoke 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；`--require-completed` 用作真实 provider
-    execution gate。pytest 中的真实网络 smoke 还需要
-    `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`，否则默认 skip。当前已用
-    OpenAI-compatible `kimi-k2.5` 完成一次 `--require-completed` real smoke。
+    `--output-report <path>` 写出 markdown 证据。provider readiness check 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；`--require-completed` 用作真实 provider
+    execution gate。测试套件里的真实网络 gate 还需要
+    `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`，否则默认跳过。当前已用
+    OpenAI-compatible `kimi-k2.5` 完成一次显式真实 provider readiness check。
 
 ---
 

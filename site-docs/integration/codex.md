@@ -1,7 +1,10 @@
 # OpenAI Codex CLI 集成
 
+!!! tip "本页怎么读"
+    这页面向 Codex CLI 用户。先区分默认监控和可选 Bash preflight，再按验证步骤确认 watcher、native hook 与 Gateway 的实际状态。
+
 !!! warning "默认仍是监控模式"
-    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，并已有真实 Codex CLI -> ClawSentry Gateway daemon smoke 验证；其他 native hook 事件仍为异步观察/建议，不承诺前置阻断。
+    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，并已有真实 Codex CLI -> ClawSentry Gateway daemon 端到端验证；其他 native hook 事件仍为异步观察/建议，不承诺前置阻断。
 
 将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控和可选 `PreToolUse(Bash)` native hook preflight 实现工具调用的实时安全评估与审计。
 
@@ -169,8 +172,8 @@ Bash preflight，并观察 Gateway / `clawsentry watch` 中是否出现对应 de
 建议在临时目录或测试项目里执行，不要用生产仓库做破坏性验证。
 
 维护者如果需要复现完整 host-deny 链路，可以使用仓库提供的 Codex → Gateway
-smoke 工具；它会使用临时 `CODEX_HOME`、临时 Gateway 和测试命令，不会改写你的真实
-Codex 配置。普通用户通常只需要 `doctor` + 一次安全的手动 smoke。
+验证工具；它会使用临时 `CODEX_HOME`、临时 Gateway 和测试命令，不会改写你的真实
+Codex 配置。普通用户通常只需要 `doctor` 加一次安全的手动验证。
 
 ### 配置变量
 

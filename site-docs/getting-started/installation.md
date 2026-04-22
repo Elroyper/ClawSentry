@@ -219,12 +219,12 @@ python -m pytest src/clawsentry/tests/ -v --tb=short
 
 ```
 ========================= test session starts ==========================
-collected 3000+ items
+collected 3061 items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 3000+ passed, <若干 skipped> ===============
+========================= 3054 passed, 7 skipped ===============
 ```
 
 !!! success "全部通过即安装成功"

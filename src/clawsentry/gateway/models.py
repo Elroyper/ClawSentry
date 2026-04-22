@@ -53,6 +53,34 @@ class DecisionVerdict(str, enum.Enum):
     DEFER = "defer"
 
 
+class ActionScope(str, enum.Enum):
+    ACTION = "action"
+    SESSION = "session"
+
+
+class SessionEffectMode(str, enum.Enum):
+    MARK_BLOCKED = "mark_blocked"
+    GRACEFUL_STOP = "graceful_stop"
+
+
+class RewriteTarget(str, enum.Enum):
+    COMMAND = "command"
+    TOOL_INPUT = "tool_input"
+
+
+class RewriteSource(str, enum.Enum):
+    POLICY = "policy"
+    OPERATOR = "operator"
+    SYSTEM = "system"
+
+
+class EffectOutcome(str, enum.Enum):
+    SESSION_QUARANTINE = "session_quarantine"
+    SESSION_GRACEFUL_STOP = "session_graceful_stop"
+    COMMAND_REWRITE = "command_rewrite"
+    TOOL_INPUT_REWRITE = "tool_input_rewrite"
+
+
 class DecisionSource(str, enum.Enum):
     POLICY = "policy"
     MANUAL = "manual"
@@ -117,6 +145,10 @@ class ClassifiedBy(str, enum.Enum):
     L2 = "L2"
     L3 = "L3"
     MANUAL = "manual"
+
+
+DECISION_EFFECTS_VERSION = "cs.decision_effects.v1"
+ADAPTER_EFFECT_RESULT_VERSION = "cs.adapter_effect_result.v1"
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +261,208 @@ class CanonicalEvent(BaseModel):
 # Canonical Decision (02 section 3)
 # ---------------------------------------------------------------------------
 
+class SessionEffectRequest(BaseModel):
+    """Requested session-scope effect; never claims adapter enforcement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested: bool = True
+    mode: SessionEffectMode = SessionEffectMode.MARK_BLOCKED
+    reason_code: Optional[str] = None
+    capability_required: Optional[str] = None
+    fallback_on_unsupported: Optional[str] = None
+
+
+class RewriteEffectRequest(BaseModel):
+    """Requested command/tool-input rewrite effect and audit envelope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requested: bool = True
+    target: RewriteTarget
+    approval_id: Optional[str] = None
+    original_hash: str
+    original_preview_redacted: str
+    replacement_hash: str
+    replacement_preview_redacted: str
+    replacement_payload: Optional[dict[str, Any]] = None
+    redaction_policy_version: str = "cs.redaction.v1"
+    rewrite_source: RewriteSource
+    policy_id: Optional[str] = None
+    post_rewrite_validation_id: Optional[str] = None
+
+
+class DecisionEffects(BaseModel):
+    """Request-only effect envelope attached to a canonical decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    effect_version: str = DECISION_EFFECTS_VERSION
+    effect_id: str = Field(..., min_length=1)
+    action_scope: ActionScope = ActionScope.ACTION
+    session_effect: Optional[SessionEffectRequest] = None
+    rewrite_effect: Optional[RewriteEffectRequest] = None
+
+    @field_validator("effect_version")
+    @classmethod
+    def validate_effect_version(cls, v: str) -> str:
+        if v != DECISION_EFFECTS_VERSION:
+            raise ValueError(
+                f"effect_version must be '{DECISION_EFFECTS_VERSION}', got '{v}'"
+            )
+        return v
+
+
+class AdapterEffectResult(BaseModel):
+    """Observed adapter effect outcome recorded after host translation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    effect_version: str = ADAPTER_EFFECT_RESULT_VERSION
+    effect_id: str = Field(..., min_length=1)
+    framework: str = Field(..., min_length=1)
+    adapter: str = Field(..., min_length=1)
+    requested: list[EffectOutcome] = Field(default_factory=list)
+    enforced: list[EffectOutcome] = Field(default_factory=list)
+    degraded: list[EffectOutcome] = Field(default_factory=list)
+    unsupported: list[EffectOutcome] = Field(default_factory=list)
+    degrade_reason: Optional[str] = None
+    host_ack: Optional[dict[str, Any]] = None
+    smoke_evidence: Optional[dict[str, Any]] = None
+    event_id: Optional[str] = None
+    tool_use_id: Optional[str] = None
+    session_id: Optional[str] = None
+    result_kind: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+    @field_validator("effect_version")
+    @classmethod
+    def validate_effect_version(cls, v: str) -> str:
+        if v != ADAPTER_EFFECT_RESULT_VERSION:
+            raise ValueError(
+                f"effect_version must be '{ADAPTER_EFFECT_RESULT_VERSION}', got '{v}'"
+            )
+        return v
+
+    @model_validator(mode="after")
+    def validate_outcome_consistency(self) -> "AdapterEffectResult":
+        enforced = set(self.enforced)
+        degraded = set(self.degraded)
+        unsupported = set(self.unsupported)
+        overlap = enforced & (degraded | unsupported)
+        if overlap:
+            names = ", ".join(sorted(item.value for item in overlap))
+            raise ValueError(
+                f"effect outcome cannot be both enforced and degraded/unsupported: {names}"
+            )
+        if (degraded or unsupported) and not self.degrade_reason:
+            raise ValueError(
+                "degrade_reason is required for degraded or unsupported adapter effect results"
+            )
+        if not self.result_kind:
+            if self.enforced:
+                self.result_kind = "enforced"
+            elif self.degraded:
+                self.result_kind = "degraded"
+            elif self.unsupported:
+                self.result_kind = "unsupported"
+            else:
+                self.result_kind = "observed"
+        if not self.idempotency_key:
+            target_id = self.tool_use_id or self.event_id or self.session_id or "unknown"
+            self.idempotency_key = (
+                f"{self.effect_id}:{self.adapter}:{target_id}:{self.result_kind}"
+            )
+        return self
+
+
+def decision_effects_for_trajectory(
+    effects: DecisionEffects | dict[str, Any] | None,
+) -> Optional[dict[str, Any]]:
+    """Return trajectory-safe effects with response-only payloads stripped."""
+
+    if effects is None:
+        return None
+    model = effects if isinstance(effects, DecisionEffects) else DecisionEffects(**effects)
+    payload = model.model_dump(mode="json")
+    rewrite_effect = payload.get("rewrite_effect")
+    if isinstance(rewrite_effect, dict) and "replacement_payload" in rewrite_effect:
+        rewrite_effect["replacement_payload"] = None
+    return payload
+
+
+def decision_effect_summary(
+    effects: DecisionEffects | dict[str, Any] | None,
+) -> Optional[dict[str, Any]]:
+    """Compact live-stream/session summary for requested decision effects."""
+
+    safe = decision_effects_for_trajectory(effects)
+    if safe is None:
+        return None
+    session_effect = safe.get("session_effect") or {}
+    rewrite_effect = safe.get("rewrite_effect") or {}
+    summary: dict[str, Any] = {
+        "effect_id": safe.get("effect_id"),
+        "effect_version": safe.get("effect_version"),
+        "action_scope": safe.get("action_scope"),
+    }
+    if session_effect:
+        summary["session_effect"] = {
+            key: session_effect.get(key)
+            for key in (
+                "requested",
+                "mode",
+                "reason_code",
+                "capability_required",
+                "fallback_on_unsupported",
+            )
+            if session_effect.get(key) is not None
+        }
+    if rewrite_effect:
+        summary["rewrite_effect"] = {
+            key: rewrite_effect.get(key)
+            for key in (
+                "requested",
+                "target",
+                "approval_id",
+                "original_hash",
+                "original_preview_redacted",
+                "replacement_hash",
+                "replacement_preview_redacted",
+                "redaction_policy_version",
+                "rewrite_source",
+                "policy_id",
+                "post_rewrite_validation_id",
+            )
+            if rewrite_effect.get(key) is not None
+        }
+    return summary
+
+
+def adapter_effect_result_summary(
+    result: AdapterEffectResult | dict[str, Any] | None,
+) -> Optional[dict[str, Any]]:
+    """Compact live-stream/session summary for observed adapter outcomes."""
+
+    if result is None:
+        return None
+    model = result if isinstance(result, AdapterEffectResult) else AdapterEffectResult(**result)
+    return {
+        "effect_id": model.effect_id,
+        "effect_version": model.effect_version,
+        "framework": model.framework,
+        "adapter": model.adapter,
+        "requested": [item.value for item in model.requested],
+        "enforced": [item.value for item in model.enforced],
+        "degraded": [item.value for item in model.degraded],
+        "unsupported": [item.value for item in model.unsupported],
+        "degrade_reason": model.degrade_reason,
+        "event_id": model.event_id,
+        "tool_use_id": model.tool_use_id,
+        "session_id": model.session_id,
+        "result_kind": model.result_kind,
+    }
+
 class CanonicalDecision(BaseModel):
     """
     Unified decision model per 02-unified-ahp-contract.md section 3.
@@ -243,6 +477,7 @@ class CanonicalDecision(BaseModel):
     policy_version: str = "1.0"
     decision_latency_ms: Optional[float] = None
     modified_payload: Optional[dict[str, Any]] = None
+    decision_effects: Optional[DecisionEffects] = None
     retry_after_ms: Optional[int] = None
     failure_class: FailureClass = FailureClass.NONE
     final: Optional[bool] = None
@@ -262,6 +497,19 @@ class CanonicalDecision(BaseModel):
             raise ValueError(
                 "modified_payload is required when decision='modify'"
             )
+        if self.decision_effects is not None:
+            if (
+                self.decision_effects.rewrite_effect is not None
+                and self.decision != DecisionVerdict.MODIFY
+            ):
+                raise ValueError("rewrite_effect requires decision='modify'")
+            if (
+                self.decision_effects.action_scope == ActionScope.SESSION
+                and self.decision not in (DecisionVerdict.BLOCK, DecisionVerdict.DEFER)
+            ):
+                raise ValueError(
+                    "session action_scope requires decision='block' or decision='defer'"
+                )
         return self
 
 

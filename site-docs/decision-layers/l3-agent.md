@@ -744,8 +744,8 @@ def _payload_complexity(self, payload) -> bool:
 | `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | advisory provider worker dry-run 安全闸门；只有显式 `false` 才允许桥接真实 LLM provider | `true` |
 | `CS_L3_ADVISORY_TEMPERATURE` | advisory provider 独立 temperature；部分 OpenAI-compatible 端点要求 `1` | `1.0` |
 | `CS_L3_ADVISORY_DEADLINE_MS` | advisory provider 单次 completion deadline（毫秒） | `30000` |
-| `CS_L3_ADVISORY_RUN_REAL_SMOKE` | pytest real-provider smoke gate；未显式启用时真实网络 smoke 默认 skip | `false` |
-| `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | manual smoke 默认剥离 proxy 环境变量，避免 SOCKS proxy 缺依赖污染 provider client | `true` |
+| `CS_L3_ADVISORY_RUN_REAL_SMOKE` | 测试套件里的真实 provider readiness gate；未显式启用时真实网络调用默认跳过 | `false` |
+| `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | 手动 readiness check 默认剥离 proxy 环境变量，避免 SOCKS proxy 缺依赖污染 provider client | `true` |
 | `CS_LLM_PROVIDER` | LLM 提供商 (L3 必须) | — |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | 对应 Provider 的 API 密钥 | — |
 | `CS_LLM_MODEL` | 覆盖模型名称 | 按 Provider 默认 |

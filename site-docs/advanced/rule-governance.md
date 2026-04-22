@@ -129,7 +129,7 @@ clawsentry rules report --output FILE [--events FILE] [--summary-markdown FILE] 
 | credential upload | 验证凭证上传/外传类事件能命中预期 pattern |
 | download and execute | 验证下载后执行类供应链风险能进入 dry-run/report 证据 |
 
-你可以把这些样本作为 CI smoke 的起点，再追加自己组织里的 benign、expected-match
+你可以把这些样本作为 CI readiness checks 的起点，再追加自己组织里的 benign、expected-match
 和 near-miss 事件。
 
 ### 示例
@@ -161,7 +161,7 @@ clawsentry rules dry-run --skills-dir /etc/clawsentry/skills \
 
 ### 与 release checklist 一起使用
 
-如果本次版本包含规则治理相关修改，发布前至少保留三条 smoke：
+如果本次版本包含规则治理相关修改，发布前至少保留三条 readiness checks：
 
 ```bash
 PYTHONPATH=src python -m clawsentry rules lint --json

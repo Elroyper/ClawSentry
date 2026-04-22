@@ -196,7 +196,11 @@ def add_resolve_endpoint(app, approval_client, defer_manager=None):
     Checks the local bridge manager first for any pending approval ID, then
     falls back to the OpenClaw approval_client.
     """
-    from .server import _make_auth_dependency, _read_auth_token
+    from .server import (
+        _make_auth_dependency,
+        _read_auth_token,
+        _validate_rewrite_resolution_payload,
+    )
 
     verify_auth = _make_auth_dependency(_read_auth_token())
 
@@ -216,6 +220,12 @@ def add_resolve_endpoint(app, approval_client, defer_manager=None):
         approval_id = body.get("approval_id")
         decision = body.get("decision")
         reason = body.get("reason", "")
+        resolution_payload = (
+            body.get("resolution_payload")
+            or body.get("rewrite_payload")
+            or body.get("replacement_payload")
+        )
+        resolver_identity = body.get("resolver_identity") or body.get("resolved_by")
 
         if not approval_id or not decision:
             return JSONResponse(
@@ -227,12 +237,34 @@ def add_resolve_endpoint(app, approval_client, defer_manager=None):
                 {"error": f"decision must be one of {sorted(VALID_RESOLVE_DECISIONS)}"},
                 status_code=400,
             )
+        if resolution_payload is not None:
+            try:
+                resolution_payload = _validate_rewrite_resolution_payload(
+                    resolution_payload
+                )
+            except ValueError as exc:
+                return JSONResponse(
+                    {"error": f"invalid rewrite payload: {exc}"},
+                    status_code=400,
+                )
 
         # --- P1: Try local bridge first for any pending approval ---
         if defer_manager is not None:
             approval = defer_manager.get_approval(approval_id)
             if approval.approval_state == "pending":
-                defer_manager.resolve_approval(approval_id, decision, reason)
+                defer_manager.resolve_approval(
+                    approval_id,
+                    decision,
+                    reason,
+                    resolution_payload=(
+                        resolution_payload if isinstance(resolution_payload, dict) else None
+                    ),
+                    resolver_identity=(
+                        str(resolver_identity)
+                        if resolver_identity is not None
+                        else None
+                    ),
+                )
                 return JSONResponse({"status": "ok", "approval_id": approval_id})
 
         # --- Fallback to OpenClaw approval client ---

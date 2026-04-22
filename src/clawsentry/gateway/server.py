@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import hashlib
 import hmac
 import json
 import argparse
@@ -45,9 +46,11 @@ from .trajectory_store import (
     MAX_WINDOW_SECONDS,
 )
 from .models import (
+    AdapterEffectResult,
     CanonicalDecision,
     CanonicalEvent,
     DecisionContext,
+    DecisionEffects,
     DecisionSource,
     DecisionTier,
     DecisionVerdict,
@@ -59,6 +62,10 @@ from .models import (
     SyncDecisionErrorResponse,
     SyncDecisionRequest,
     SyncDecisionResponse,
+    SessionEffectRequest,
+    adapter_effect_result_summary,
+    decision_effect_summary,
+    decision_effects_for_trajectory,
     utc_now_iso,
 )
 from .defer_manager import DeferManager
@@ -387,6 +394,91 @@ def _approval_resolution_meta(
         "approval_timeout_s": approval_timeout_s,
     }
 
+
+def _payload_hash(payload: Any) -> str:
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _redacted_preview(value: Any, *, max_len: int = 96) -> str:
+    if isinstance(value, dict):
+        for key in ("command", "input", "tool_input"):
+            if key in value:
+                value = value[key]
+                break
+    text = str(value or "").replace("\n", " ").strip()
+    for marker in ("token=", "password=", "secret=", "api_key="):
+        lower = text.lower()
+        idx = lower.find(marker)
+        if idx >= 0:
+            end = text.find(" ", idx)
+            if end < 0:
+                end = len(text)
+            text = text[: idx + len(marker)] + "…" + text[end:]
+    if len(text) > max_len:
+        return text[: max_len - 1] + "…"
+    return text
+
+
+def _validate_rewrite_resolution_payload(payload: Any) -> dict[str, Any]:
+    """Validate operator rewrite payloads before producing MODIFY decisions."""
+
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("rewrite resolution payload must contain command or tool_input")
+    if "prompt" in payload:
+        raise ValueError("prompt rewrite is out of scope for decision_effects.v1")
+
+    command = payload.get("command")
+    if command is not None:
+        command_text = str(command).strip()
+        if not command_text:
+            raise ValueError("rewrite command must be non-empty")
+        return {"command": command_text}
+
+    tool_input = payload.get("tool_input")
+    if isinstance(tool_input, dict) and tool_input:
+        if "prompt" in tool_input:
+            raise ValueError("prompt rewrite is out of scope for decision_effects.v1")
+        validated: dict[str, Any] = {"tool_input": dict(tool_input)}
+        tool_name = payload.get("tool_name") or payload.get("tool")
+        if tool_name is not None:
+            validated["tool_name"] = str(tool_name)
+        return validated
+
+    raise ValueError("rewrite resolution payload must contain command or tool_input")
+
+
+def _rewrite_effect_for_resolution(
+    *,
+    approval_id: str,
+    event: dict[str, Any],
+    replacement_payload: dict[str, Any],
+    resolver_identity: str | None,
+    policy_id: str,
+) -> DecisionEffects:
+    original_payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    original_command = original_payload.get("command") or original_payload.get("arguments") or original_payload
+    validated_payload = _validate_rewrite_resolution_payload(replacement_payload)
+    target = "command" if "command" in validated_payload else "tool_input"
+    return DecisionEffects(
+        effect_id=f"eff-{approval_id}-rewrite",
+        action_scope="action",
+        rewrite_effect={
+            "requested": True,
+            "target": target,
+            "approval_id": approval_id,
+            "original_hash": _payload_hash(original_command),
+            "original_preview_redacted": _redacted_preview(original_command),
+            "replacement_hash": _payload_hash(validated_payload),
+            "replacement_preview_redacted": _redacted_preview(validated_payload),
+            "replacement_payload": dict(validated_payload),
+            "redaction_policy_version": "cs.redaction.v1",
+            "rewrite_source": "operator" if resolver_identity else "system",
+            "policy_id": policy_id,
+            "post_rewrite_validation_id": f"validation-{approval_id}",
+        },
+    )
+
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
@@ -449,6 +541,7 @@ class SupervisionGateway:
         self,
         trajectory_db_path: Optional[str] = None,
         trajectory_retention_seconds: int = DEFAULT_TRAJECTORY_RETENTION_SECONDS,
+        trajectory_store: Optional[TrajectoryStore] = None,
         analyzer=None,
         session_enforcement: Optional[SessionEnforcementPolicy] = None,
         detection_config: Optional[DetectionConfig] = None,
@@ -459,7 +552,7 @@ class SupervisionGateway:
         effective_db_path = trajectory_db_path
         if effective_db_path is None:
             effective_db_path = os.getenv("CS_TRAJECTORY_DB_PATH", ":memory:")
-        self.trajectory_store = TrajectoryStore(
+        self.trajectory_store = trajectory_store or TrajectoryStore(
             db_path=effective_db_path,
             retention_seconds=trajectory_retention_seconds,
         )
@@ -626,10 +719,15 @@ class SupervisionGateway:
         record_id = 0
         try:
             trajectory_start = time.perf_counter()
+            stored_decision = dict(decision)
+            if stored_decision.get("decision_effects") is not None:
+                stored_decision["decision_effects"] = decision_effects_for_trajectory(
+                    stored_decision.get("decision_effects")
+                )
             if is_resolution:
                 record_id = self.trajectory_store.record_resolution(
                     event=event,
-                    decision=decision,
+                    decision=stored_decision,
                     snapshot=snapshot,
                     meta=meta,
                     l3_trace=l3_trace,
@@ -637,7 +735,7 @@ class SupervisionGateway:
             else:
                 record_id = self.trajectory_store.record(
                     event=event,
-                    decision=decision,
+                    decision=stored_decision,
                     snapshot=snapshot,
                     meta=meta,
                     l3_trace=l3_trace,
@@ -647,7 +745,7 @@ class SupervisionGateway:
             session_start = time.perf_counter()
             self.session_registry.record(
                 event=event,
-                decision=decision,
+                decision=stored_decision,
                 snapshot=snapshot,
                 meta=meta,
             )
@@ -659,6 +757,27 @@ class SupervisionGateway:
                 session_registry_seconds=session_registry_seconds,
             )
         return record_id
+
+    def record_adapter_effect_result(
+        self, result: AdapterEffectResult | dict[str, Any],
+    ) -> dict[str, Any]:
+        """Record an adapter-observed effect outcome without mutating decisions."""
+
+        model = result if isinstance(result, AdapterEffectResult) else AdapterEffectResult(**result)
+        payload = model.model_dump(mode="json")
+        write_result = self.trajectory_store.record_adapter_effect_result(payload)
+        self.session_registry.record_adapter_effect_result(write_result["result"])
+        summary = adapter_effect_result_summary(write_result["result"])
+        self.event_bus.broadcast({
+            "type": "adapter_effect_result",
+            "session_id": payload.get("session_id"),
+            "event_id": payload.get("event_id"),
+            "effect_id": payload.get("effect_id"),
+            "adapter_effect_result_summary": summary,
+            "created": write_result["created"],
+            "timestamp": utc_now_iso(),
+        })
+        return write_result
 
     async def handle_jsonrpc(self, raw_body: bytes) -> dict[str, Any]:
         """
@@ -812,6 +931,46 @@ class SupervisionGateway:
                 str(req.event.session_id or ""), req.event.tool_name
             )
 
+        # --- Phase 2A: compromised-session quarantine check (PRE_ACTION only) ---
+        quarantine = self.session_registry.get_quarantine(str(req.event.session_id or ""))
+        quarantine_applied = False
+        if quarantine is not None and req.event.event_type == EventType.PRE_ACTION:
+            decision = CanonicalDecision(
+                decision=DecisionVerdict.BLOCK,
+                reason="Session quarantined / mark-blocked; subsequent PRE_ACTION blocked",
+                policy_id="session-quarantine",
+                risk_level=RiskLevel.HIGH,
+                decision_source=DecisionSource.SYSTEM,
+                decision_effects=DecisionEffects(
+                    effect_id=str(
+                        quarantine.get("effect_id")
+                        or f"eff-{req.event.session_id}-{req.event.event_id}-session-quarantine"
+                    ),
+                    action_scope="session",
+                    session_effect=SessionEffectRequest(
+                        requested=True,
+                        mode="mark_blocked",
+                        reason_code=str(quarantine.get("reason_code") or "session_quarantined"),
+                        capability_required="clawsentry.session_control.mark_blocked.v1",
+                        fallback_on_unsupported="mark_blocked",
+                    ),
+                ),
+                final=True,
+            )
+            try:
+                remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                _, snapshot, _ = self.policy_engine.evaluate(
+                    req.event, req.context, DecisionTier.L1,
+                    deadline_budget_ms=remaining_ms,
+                    config=project_config,
+                )
+            except Exception:
+                logger.exception("Policy engine error during quarantine snapshot")
+                from .policy_engine import RiskSnapshot
+                snapshot = RiskSnapshot()
+            actual_tier = DecisionTier.L1
+            quarantine_applied = True
+
         # --- A-7: Session enforcement check (before policy_engine) ---
         enforcement = self.session_enforcement.check(
             str(req.event.session_id or "")
@@ -821,7 +980,9 @@ class SupervisionGateway:
         effective_requested_tier = req.decision_tier
         l3_runtime_reason_override: str | None = None
         l3_runtime_reason_code_override: str | None = None
-        if (
+        if quarantine_applied:
+            pass
+        elif (
             enforcement is not None
             and req.event.event_type == EventType.PRE_ACTION
         ):
@@ -1154,6 +1315,10 @@ class SupervisionGateway:
             decision_event["compat_event_type"] = compat_event_type
         if compat_observation is not None:
             decision_event["compat_observation"] = compat_observation
+        effect_summary = decision_effect_summary(decision_dict.get("decision_effects"))
+        if effect_summary is not None:
+            decision_event["effect_summary"] = effect_summary
+            decision_event["decision_effect_summary"] = effect_summary
         for key in (
             "approval_kind",
             "approval_state",
@@ -1408,25 +1573,63 @@ class SupervisionGateway:
                         if approval_state == "resolved"
                         else DecisionSource.SYSTEM
                     )
-                    decision = CanonicalDecision(
-                        decision=DecisionVerdict.ALLOW,
-                        reason=(
-                            f"Operator approved: {approval_reason}"
-                            if approval_state == "resolved" and approval_reason
-                            else "Operator approved"
-                            if approval_state == "resolved"
-                            else approval_reason or "Approval timeout auto-allow"
-                        ),
-                        policy_id="confirmation-bridge",
-                        risk_level=decision.risk_level,
-                        decision_source=decision_source,
-                        failure_class=(
-                            FailureClass.APPROVAL_TIMEOUT
-                            if approval_state == "timeout"
-                            else FailureClass.NONE
-                        ),
-                        final=True,
-                    )
+                    approval_payload = approval_record.resolution_payload
+                    if isinstance(approval_payload, dict) and approval_payload:
+                        try:
+                            validated_payload = _validate_rewrite_resolution_payload(approval_payload)
+                            rewrite_effects = _rewrite_effect_for_resolution(
+                                approval_id=approval_id,
+                                event=event_dict,
+                                replacement_payload=validated_payload,
+                                resolver_identity=approval_record.resolver_identity,
+                                policy_id="confirmation-bridge",
+                            )
+                        except ValueError as exc:
+                            decision = CanonicalDecision(
+                                decision=DecisionVerdict.BLOCK,
+                                reason=f"Rewrite validation failed: {exc}",
+                                policy_id="confirmation-bridge",
+                                risk_level=decision.risk_level,
+                                decision_source=DecisionSource.SYSTEM,
+                                failure_class=FailureClass.INPUT_INVALID,
+                                final=True,
+                            )
+                        else:
+                            decision = CanonicalDecision(
+                                decision=DecisionVerdict.MODIFY,
+                                reason=(
+                                    f"Operator approved rewrite: {approval_reason}"
+                                    if approval_state == "resolved" and approval_reason
+                                    else "Operator approved rewrite"
+                                ),
+                                policy_id="confirmation-bridge",
+                                risk_level=decision.risk_level,
+                                decision_source=decision_source,
+                                modified_payload=validated_payload,
+                                decision_effects=rewrite_effects,
+                                failure_class=FailureClass.NONE,
+                                final=True,
+                            )
+                    else:
+                        decision = CanonicalDecision(
+                            decision=DecisionVerdict.ALLOW,
+                            reason=(
+                                f"Operator approved: {approval_reason}"
+                                if approval_state == "resolved" and approval_reason
+                                else "Operator approved"
+                                if approval_state == "resolved"
+                                else approval_reason or "Approval timeout auto-allow"
+                            ),
+                            policy_id="confirmation-bridge",
+                            risk_level=decision.risk_level,
+                            decision_source=decision_source,
+                            failure_class=(
+                                FailureClass.APPROVAL_TIMEOUT
+                                if approval_state == "timeout"
+                                else FailureClass.NONE
+                            ),
+                            final=True,
+                        )
                 else:
                     decision_source = (
                         DecisionSource.OPERATOR
@@ -1570,29 +1773,68 @@ class SupervisionGateway:
 
                 # Convert to final CanonicalDecision
                 if _resolved_decision in ("allow", "allow-once"):
-                    decision = CanonicalDecision(
-                        decision=DecisionVerdict.ALLOW,
-                        reason=(
-                            f"Operator approved: {_resolved_reason}"
-                            if (approval_record.approval_state or "resolved") == "resolved" and _resolved_reason
-                            else "Operator approved"
-                            if (approval_record.approval_state or "resolved") == "resolved"
-                            else _resolved_reason or "Approval timeout auto-allow"
-                        ),
-                        policy_id="defer-bridge",
-                        risk_level=decision.risk_level,
-                        decision_source=(
-                            DecisionSource.OPERATOR
-                            if (approval_record.approval_state or "resolved") == "resolved"
-                            else DecisionSource.SYSTEM
-                        ),
-                        failure_class=(
-                            FailureClass.APPROVAL_TIMEOUT
-                            if (approval_record.approval_state or "resolved") == "timeout"
-                            else FailureClass.NONE
-                        ),
-                        final=True,
+                    decision_source = (
+                        DecisionSource.OPERATOR
+                        if (approval_record.approval_state or "resolved") == "resolved"
+                        else DecisionSource.SYSTEM
                     )
+                    approval_payload = approval_record.resolution_payload
+                    if isinstance(approval_payload, dict) and approval_payload:
+                        try:
+                            validated_payload = _validate_rewrite_resolution_payload(approval_payload)
+                            rewrite_effects = _rewrite_effect_for_resolution(
+                                approval_id=defer_id,
+                                event=event_dict,
+                                replacement_payload=validated_payload,
+                                resolver_identity=approval_record.resolver_identity,
+                                policy_id="defer-bridge",
+                            )
+                        except ValueError as exc:
+                            decision = CanonicalDecision(
+                                decision=DecisionVerdict.BLOCK,
+                                reason=f"Rewrite validation failed: {exc}",
+                                policy_id="defer-bridge",
+                                risk_level=decision.risk_level,
+                                decision_source=DecisionSource.SYSTEM,
+                                failure_class=FailureClass.INPUT_INVALID,
+                                final=True,
+                            )
+                        else:
+                            decision = CanonicalDecision(
+                                decision=DecisionVerdict.MODIFY,
+                                reason=(
+                                    f"Operator approved rewrite: {_resolved_reason}"
+                                    if (approval_record.approval_state or "resolved") == "resolved" and _resolved_reason
+                                    else "Operator approved rewrite"
+                                ),
+                                policy_id="defer-bridge",
+                                risk_level=decision.risk_level,
+                                decision_source=decision_source,
+                                modified_payload=validated_payload,
+                                decision_effects=rewrite_effects,
+                                failure_class=FailureClass.NONE,
+                                final=True,
+                            )
+                    else:
+                        decision = CanonicalDecision(
+                            decision=DecisionVerdict.ALLOW,
+                            reason=(
+                                f"Operator approved: {_resolved_reason}"
+                                if (approval_record.approval_state or "resolved") == "resolved" and _resolved_reason
+                                else "Operator approved"
+                                if (approval_record.approval_state or "resolved") == "resolved"
+                                else _resolved_reason or "Approval timeout auto-allow"
+                            ),
+                            policy_id="defer-bridge",
+                            risk_level=decision.risk_level,
+                            decision_source=decision_source,
+                            failure_class=(
+                                FailureClass.APPROVAL_TIMEOUT
+                                if (approval_record.approval_state or "resolved") == "timeout"
+                                else FailureClass.NONE
+                            ),
+                            final=True,
+                        )
                 else:
                     decision = CanonicalDecision(
                         decision=DecisionVerdict.BLOCK,
@@ -1722,6 +1964,19 @@ class SupervisionGateway:
                 f"Session enforcement: DEFER after {enforcement.high_risk_count} "
                 f"high-risk events (threshold reached)"
             )
+        decision_effects = None
+        if verdict == DecisionVerdict.BLOCK:
+            decision_effects = DecisionEffects(
+                effect_id=f"eff-{event.session_id}-{event.event_id}-session-quarantine",
+                action_scope="session",
+                session_effect=SessionEffectRequest(
+                    requested=True,
+                    mode="mark_blocked",
+                    reason_code="session_enforcement_threshold",
+                    capability_required="clawsentry.session_control.mark_blocked.v1",
+                    fallback_on_unsupported="mark_blocked",
+                ),
+            )
         return CanonicalDecision(
             decision=verdict,
             reason=reason,
@@ -1729,6 +1984,7 @@ class SupervisionGateway:
             risk_level=RiskLevel.HIGH,
             decision_source=DecisionSource.POLICY,
             policy_version="A7",
+            decision_effects=decision_effects,
             failure_class=FailureClass.NONE,
             final=True,
         )
@@ -2374,6 +2630,7 @@ def create_http_app(
         "l3_advisory_snapshot",
         "l3_advisory_review",
         "l3_advisory_job",
+        "adapter_effect_result",
     }
     enterprise_enabled = enterprise_mode_enabled()
 
@@ -2426,6 +2683,35 @@ def create_http_app(
                 media_type="application/json",
             )
         result = await gateway.handle_jsonrpc(body)
+        return Response(
+            content=json.dumps(result),
+            media_type="application/json",
+        )
+
+    @app.post("/ahp/adapter-effect-result")
+    async def adapter_effect_result_endpoint(request: Request):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        rl_result = _check_rate_limit(request)
+        if rl_result is not None:
+            return rl_result
+        try:
+            body = await request.json()
+            result = gateway.record_adapter_effect_result(body)
+        except ValidationError as exc:
+            return Response(
+                content=json.dumps({"error": f"adapter effect result validation failed: {exc.error_count()} error(s)"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("adapter effect result writeback failed")
+            return Response(
+                content=json.dumps({"error": f"adapter effect result writeback failed: {exc}"}),
+                status_code=500,
+                media_type="application/json",
+            )
         return Response(
             content=json.dumps(result),
             media_type="application/json",
@@ -2599,7 +2885,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -2657,7 +2943,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -3390,6 +3676,59 @@ def create_http_app(
         return {
             "session_id": session_id,
             "released": released,
+        }
+
+    @app.get("/report/session/{session_id}/quarantine")
+    async def get_quarantine_endpoint(request: Request, session_id: str):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        return {
+            "session_id": session_id,
+            "quarantine": gateway.session_registry.get_quarantine(session_id),
+        }
+
+    @app.post("/report/session/{session_id}/quarantine")
+    async def post_quarantine_endpoint(request: Request, session_id: str):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            body = await request.json()
+        except Exception:
+            return Response(
+                content=json.dumps({"error": "invalid JSON body"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        action = str(body.get("action", "")).lower()
+        if action != "release":
+            return Response(
+                content=json.dumps({"error": "action must be 'release'"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        released = gateway.session_registry.release_quarantine(
+            session_id,
+            released_by=str(body.get("released_by") or "operator"),
+            reason=(
+                str(body.get("reason"))
+                if body.get("reason") is not None
+                else None
+            ),
+        )
+        gateway.event_bus.broadcast({
+            "type": "session_enforcement_change",
+            "session_id": session_id,
+            "state": "quarantine_released" if released else "quarantine_not_found",
+            "action": None,
+            "high_risk_count": None,
+            "timestamp": utc_now_iso(),
+        })
+        return {
+            "session_id": session_id,
+            "released": released,
+            "quarantine": gateway.session_registry.get_quarantine(session_id),
         }
 
     # --- E-5: Self-evolving pattern endpoints ---

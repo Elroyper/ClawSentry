@@ -39,6 +39,33 @@ class TestParseSSELine:
         assert parse_sse_line("") is None
 
 
+class TestBuildStreamUrl:
+    def test_without_filters_returns_plain_stream_endpoint(self):
+        url = watch_command._build_stream_url("http://localhost:8080")
+        assert url == "http://localhost:8080/report/stream"
+
+    def test_priority_only_adds_operator_priority_types(self):
+        url = watch_command._build_stream_url(
+            "http://localhost:8080",
+            priority_only=True,
+        )
+        assert "types=" in url
+        assert "decision" in url
+        assert "defer_pending" in url
+        assert "l3_advisory_job" in url
+
+    def test_priority_only_merges_with_explicit_filter_without_duplicates(self):
+        url = watch_command._build_stream_url(
+            "http://localhost:8080",
+            filter_types="decision,alert,custom_event,decision",
+            priority_only=True,
+        )
+        parsed = url.split("types=", 1)[1]
+        decoded = parsed.replace("%2C", ",")
+        assert "custom_event" in decoded
+        assert decoded.count("decision") == 1
+
+
 # ---------------------------------------------------------------------------
 # TestFormatDecision  (existing tests updated for new mixed format)
 # ---------------------------------------------------------------------------
@@ -696,6 +723,24 @@ class TestFormatEvent:
         assert "Boundary:" in result
         assert "frozen snapshot; explicit run only" in result
 
+    def test_l3_advisory_job_shows_review_and_error_when_present(self):
+        event = {
+            "type": "l3_advisory_job",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "job_id": "l3job-ghi789",
+            "review_id": "l3adv-def456",
+            "job_state": "failed",
+            "runner": "llm_provider",
+            "error": "provider timeout",
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "Review:" in result
+        assert "l3adv-def456" in result
+        assert "Error:" in result
+        assert "provider timeout" in result
+
 
 # ---------------------------------------------------------------------------
 # TestFormatDeferEvents
@@ -958,7 +1003,7 @@ class TestWatchCLIParser:
 
 
 class TestNewCLIFlags:
-    """Tests for --verbose, --no-emoji, --compact flags on watch subcommand."""
+    """Tests for watch subcommand ergonomic output flags."""
 
     def _parse(self, extra_args: list[str]):
         from clawsentry.cli.main import _build_parser
@@ -995,11 +1040,20 @@ class TestNewCLIFlags:
         args = self._parse([])
         assert args.compact is False
 
+    def test_priority_only_flag(self):
+        args = self._parse(["--priority-only"])
+        assert args.priority_only is True
+
+    def test_priority_only_default_false(self):
+        args = self._parse([])
+        assert args.priority_only is False
+
     def test_all_new_flags_together(self):
-        args = self._parse(["--verbose", "--no-emoji", "--compact"])
+        args = self._parse(["--verbose", "--no-emoji", "--compact", "--priority-only"])
         assert args.verbose is True
         assert args.no_emoji is True
         assert args.compact is True
+        assert args.priority_only is True
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **3000+ regression tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **3050+ regression tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
@@ -463,7 +463,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (3000+ regression tests)
++-- tests/                             # Test suite (3050+ regression tests)
 ```
 
 ---
@@ -609,7 +609,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 3000+ passed; optional skips vary by repo surface
+# Expected: public repo 3054 passed, 7 skipped; development workspace 3057 passed, 4 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short
@@ -625,3 +625,11 @@ python -m pytest src/clawsentry/tests/test_ws_gateway_integration.py -v
 python -m pytest src/clawsentry/tests/test_openclaw_e2e.py -v
 python -m pytest src/clawsentry/tests/test_detection_config.py -v
 ```
+
+### Decision Effects, Session Quarantine, and Rewrite
+
+ClawSentry can attach request-only `decision_effects` metadata to canonical decisions without changing the stable `allow/block/modify/defer` verdict set.
+
+- `block + action_scope=session` marks a session as quarantined; v1 blocks subsequent same-session `pre_action` events but does not claim host process termination.
+- `modify + modified_payload + rewrite_effect` supports audited command/tool-input rewrite. The host response may include the replacement payload; persisted replay/reporting surfaces keep hashes and redacted previews by default.
+- Adapter outcomes are recorded separately via `adapter_effect_result` records and `/ahp/adapter-effect-result`, so unsupported hosts are reported as degraded/unsupported instead of falsely enforced.

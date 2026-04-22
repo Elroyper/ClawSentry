@@ -56,10 +56,10 @@ curl http://127.0.0.1:8080/health
 
 ### 认证
 
-由 `CS_METRICS_AUTH` 控制（默认 `true`）：
+由 `CS_METRICS_AUTH` 控制（默认 `false`）：
 
 - `CS_METRICS_AUTH=true`：需要 Bearer Token 认证
-- `CS_METRICS_AUTH=false`：允许无认证访问（适合 Prometheus 直接抓取）
+- `CS_METRICS_AUTH=false` 或未设置：允许无认证访问（适合受网络边界保护的 Prometheus 抓取）
 
 ### 降级行为
 
@@ -713,6 +713,22 @@ Operator-triggered full review：一次请求完成“冻结证据 + 排队 job 
 
 ---
 
+### 读取 L3 snapshot {#get-l3-advisory-snapshots}
+
+只读端点用于查看已冻结的 L3 advisory 证据，不会触发新的审查任务，也不会改写历史 CanonicalDecision。
+
+| 端点 | 说明 |
+| --- | --- |
+| `GET /report/session/{session_id}/l3-advisory/snapshots` | 列出某个 session 的 evidence snapshots。 |
+| `GET /report/l3-advisory/snapshot/{snapshot_id}` | 读取 snapshot 元数据，并回放该 snapshot 固定的 records。 |
+
+```bash
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  http://127.0.0.1:8080/report/session/sess-001/l3-advisory/snapshots
+```
+
+---
+
 ## GET /report/stream — SSE 实时事件流 {#get-report-stream}
 
 Server-Sent Events (SSE) 端点，提供实时的决策、告警和会话变更推送。
@@ -1273,5 +1289,93 @@ curl -X POST http://127.0.0.1:8080/ahp/patterns/confirm \
 ```json
 {
   "error": "Too many SSE subscribers"
+}
+```
+
+---
+
+## GET /report/session/{id}/page — 分页会话轨迹 {#get-report-session-page}
+
+当单个 session 事件很多时，使用分页端点按 cursor 读取，避免一次性拉取过多数据。
+
+### 查询参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `limit` | int | `100` | 每页记录数，服务端会限制上限。 |
+| `cursor` | int | `null` | 下一页起点；必须大于 0。 |
+| `window_seconds` | int | `null` | 限定时间窗口。 |
+
+### curl 示例
+
+```bash
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/report/session/sess-001/page?limit=100"
+```
+
+---
+
+## Enterprise 条件端点 {#enterprise-endpoints}
+
+Enterprise 端点只在企业模式启用时注册。它们与基础 `/report/*` 端点语义相近，但返回 enrich 后的企业视图。
+
+| 端点 | 说明 |
+| --- | --- |
+| `GET /enterprise/health` | 企业增强健康状态。 |
+| `GET /enterprise/report/summary` | 企业增强聚合统计。 |
+| `GET /enterprise/report/live` | 实时企业态势快照。 |
+| `GET /enterprise/report/stream` | 企业 SSE 事件流。 |
+| `GET /enterprise/report/sessions` | 企业会话列表。 |
+| `GET /enterprise/report/session/{id}` | 企业会话轨迹。 |
+| `GET /enterprise/report/session/{id}/page` | 企业分页会话轨迹。 |
+| `GET /enterprise/report/session/{id}/risk` | 企业会话风险详情。 |
+| `GET /enterprise/report/alerts` | 企业告警列表。 |
+
+!!! note "为什么单独分组"
+    这些端点是条件 surface，不应和基础 Gateway API 混在一起理解。`api-coverage.json` 使用 `public_status: enterprise` 标记。
+
+## GET /report/session/{id}/quarantine — session quarantine 状态 {#get-report-session-quarantine}
+
+查询 session quarantine / mark-blocked 状态。V1 quarantine 是 ClawSentry 内部的 session 标记：后续同 session `pre_action` 会被阻断；这不等同于主机进程强制终止。
+
+```bash
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  http://127.0.0.1:8080/report/session/sess-001/quarantine
+```
+
+示例响应：
+
+```json
+{
+  "session_id": "sess-001",
+  "quarantine": {
+    "state": "quarantined",
+    "effect_id": "eff-session-001",
+    "mode": "mark_blocked",
+    "reason_code": "policy_compromised_session",
+    "durability": "volatile",
+    "released_at": null
+  }
+}
+```
+
+## POST /report/session/{id}/quarantine — 释放 session quarantine {#post-report-session-quarantine}
+
+显式释放 compromised-session quarantine。该释放路径独立于旧的 session-enforcement cooldown，避免高影响 session 标记被静默清除。
+
+```bash
+curl -X POST -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  http://127.0.0.1:8080/report/session/sess-001/quarantine \
+  -d '{"action":"release","released_by":"operator","reason":"manual review cleared"}'
+```
+
+示例响应：
+
+```json
+{
+  "session_id": "sess-001",
+  "released": true,
+  "quarantine": null
 }
 ```

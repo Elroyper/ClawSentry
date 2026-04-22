@@ -134,7 +134,7 @@ Dashboard -> Sessions -> Session Detail
     ### 验证
 
     ```bash
-    clawsentry doctor   # 检查配置、连接、hooks 等 17 项
+    clawsentry doctor   # 检查配置、连接、hooks 等诊断项
     ```
 
     :material-arrow-right: 完整配置和高级用法：[Claude Code 集成指南](../integration/claude-code.md)

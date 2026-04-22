@@ -145,8 +145,8 @@ export OPENCLAW_WEBHOOK_SECRET="your-hmac-secret"
 
 请求头：
 ```
-X-Webhook-Signature: v1=<hex-digest>
-X-Webhook-Timestamp: <unix-timestamp>
+X-AHP-Signature: v1=<hex-digest>
+X-AHP-Timestamp: <unix-timestamp>
 ```
 
 签名计算方式：
@@ -175,7 +175,7 @@ export AHP_WEBHOOK_IP_WHITELIST="127.0.0.1,10.0.0.5,192.168.1.100"
 
 | 配置值 | 行为 |
 |--------|------|
-| 未设置 | 禁用 IP 白名单（接受所有 IP） |
+| 未设置 | 禁用 IP 白名单（不限制来源 IP） |
 | 空字符串 `""` | 拒绝所有 IP |
 | `"127.0.0.1,10.0.0.5"` | 仅接受列表中的 IP |
 

@@ -90,6 +90,9 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
+extra_css:
+  - stylesheets/clawsentry-docs.css
+
 copyright: Copyright &copy; 2026 ClawSentry Contributors
 
 nav:
@@ -111,10 +114,14 @@ nav:
     - 策略调优: configuration/policy-tuning.md
     - LLM 配置: configuration/llm-config.md
   - CLI 命令: cli/index.md
-  - REST API:
-    - 决策端点: api/decisions.md
-    - 报表与监控: api/reporting.md
-    - 认证: api/authentication.md
+  - API 文档:
+    - API 概览: api/overview.md
+    - 交互式 API Reference: api/reference.md
+    - 鉴权与安全: api/authentication.md
+    - 决策 / AHP 端点: api/decisions.md
+    - 报表 / SSE / L3 Advisory: api/reporting.md
+    - Webhook API: api/webhooks.md
+    - 模型与错误码: api/models-errors.md
   - 安全决策引擎:
     - L1 规则引擎: decision-layers/l1-rules.md
     - L2 语义分析: decision-layers/l2-semantic.md

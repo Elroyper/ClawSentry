@@ -1,5 +1,8 @@
 # OpenClaw 集成
 
+!!! tip "本页怎么读"
+    这页面向 OpenClaw 用户和二次开发者。先确认你使用 WebSocket、Webhook 还是审批回写，再查看 [Webhook API](../api/webhooks.md) 的 token/HMAC/idempotency 细节。
+
 将 OpenClaw 代理框架接入 ClawSentry，实现命令执行审批的实时安全监督。
 
 ---

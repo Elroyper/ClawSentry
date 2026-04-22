@@ -10,6 +10,7 @@ import asyncio
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class ApprovalRecord:
     reason: str = ""
     reason_code: str = ""
     timeout_s: float | None = None
+    resolution_payload: dict[str, Any] | None = None
+    resolver_identity: str | None = None
 
 
 @dataclass
@@ -40,6 +43,8 @@ class _PendingApproval:
     reason: str = ""
     reason_code: str = ""
     timeout_s: float | None = None
+    resolution_payload: dict[str, Any] | None = None
+    resolver_identity: str | None = None
 
 
 class DeferManager:
@@ -122,6 +127,8 @@ class DeferManager:
         reason: str,
         *,
         reason_code: str | None = None,
+        resolution_payload: dict[str, Any] | None = None,
+        resolver_identity: str | None = None,
     ) -> None:
         """Resolve a pending approval with an explicit decision."""
         pending = self._pending.pop(approval_id, None)
@@ -135,6 +142,8 @@ class DeferManager:
             if decision in {"allow", "allow-once", "allow-always"}
             else "approval_denied"
         )
+        pending.resolution_payload = dict(resolution_payload) if resolution_payload else None
+        pending.resolver_identity = resolver_identity
         self._store_finalized(approval_id, self._record_from_pending(approval_id, pending))
         pending.event.set()
 
@@ -192,6 +201,12 @@ class DeferManager:
             reason=pending.reason,
             reason_code=pending.reason_code,
             timeout_s=pending.timeout_s,
+            resolution_payload=(
+                dict(pending.resolution_payload)
+                if pending.resolution_payload is not None
+                else None
+            ),
+            resolver_identity=pending.resolver_identity,
         )
 
     def _store_finalized(self, approval_id: str, record: ApprovalRecord) -> None:

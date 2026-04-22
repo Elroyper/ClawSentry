@@ -120,6 +120,30 @@ class TrajectoryStore:
         )
         cur.execute(
             """
+            CREATE TABLE IF NOT EXISTS adapter_effect_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                effect_id TEXT NOT NULL,
+                session_id TEXT,
+                event_id TEXT,
+                tool_use_id TEXT,
+                adapter TEXT NOT NULL,
+                framework TEXT NOT NULL,
+                result_kind TEXT NOT NULL,
+                recorded_at_ts REAL NOT NULL,
+                recorded_at TEXT NOT NULL,
+                result_json TEXT NOT NULL
+            )
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_adapter_effect_session ON adapter_effect_results(session_id, recorded_at_ts)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_adapter_effect_event ON adapter_effect_results(event_id)"
+        )
+        cur.execute(
+            """
             CREATE TABLE IF NOT EXISTS l3_evidence_snapshots (
                 snapshot_id TEXT PRIMARY KEY,
                 session_id TEXT NOT NULL,
@@ -190,6 +214,125 @@ class TrajectoryStore:
         except sqlite3.OperationalError:
             pass  # Column already exists
         self._conn.commit()
+
+    def record_adapter_effect_result(
+        self,
+        result: dict[str, Any],
+        *,
+        recorded_at_ts: Optional[float] = None,
+    ) -> dict[str, Any]:
+        """Append an observed adapter effect result with idempotent writeback."""
+
+        ts = recorded_at_ts if recorded_at_ts is not None else time.time()
+        recorded_at = self._iso_from_ts(ts)
+        result_json = dict(result)
+        idempotency_key = str(
+            result_json.get("idempotency_key")
+            or ":".join(
+                [
+                    str(result_json.get("effect_id") or "unknown"),
+                    str(result_json.get("adapter") or "unknown"),
+                    str(
+                        result_json.get("tool_use_id")
+                        or result_json.get("event_id")
+                        or result_json.get("session_id")
+                        or "unknown"
+                    ),
+                    str(result_json.get("result_kind") or "observed"),
+                ]
+            )
+        )
+        result_json["idempotency_key"] = idempotency_key
+        try:
+            cur = self._conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO adapter_effect_results (
+                    idempotency_key,
+                    effect_id,
+                    session_id,
+                    event_id,
+                    tool_use_id,
+                    adapter,
+                    framework,
+                    result_kind,
+                    recorded_at_ts,
+                    recorded_at,
+                    result_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    idempotency_key,
+                    str(result_json.get("effect_id") or ""),
+                    result_json.get("session_id"),
+                    result_json.get("event_id"),
+                    result_json.get("tool_use_id"),
+                    str(result_json.get("adapter") or "unknown"),
+                    str(result_json.get("framework") or "unknown"),
+                    str(result_json.get("result_kind") or "observed"),
+                    ts,
+                    recorded_at,
+                    json.dumps(result_json),
+                ),
+            )
+            record_id = int(cur.lastrowid)
+            self._conn.commit()
+            return {
+                "created": True,
+                "record_id": record_id,
+                "idempotency_key": idempotency_key,
+                "result": result_json,
+            }
+        except sqlite3.IntegrityError:
+            row = self._conn.execute(
+                "SELECT id, result_json FROM adapter_effect_results WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            return {
+                "created": False,
+                "record_id": int(row["id"]) if row else None,
+                "idempotency_key": idempotency_key,
+                "result": json.loads(row["result_json"]) if row else result_json,
+            }
+
+    def _adapter_results_for_records(
+        self, records: list[dict[str, Any]]
+    ) -> dict[tuple[str | None, str | None], list[dict[str, Any]]]:
+        event_ids = [
+            str(rec.get("event", {}).get("event_id"))
+            for rec in records
+            if rec.get("event", {}).get("event_id") is not None
+        ]
+        session_ids = [
+            str(rec.get("event", {}).get("session_id"))
+            for rec in records
+            if rec.get("event", {}).get("session_id") is not None
+        ]
+        if not event_ids and not session_ids:
+            return {}
+
+        clauses: list[str] = []
+        params: list[Any] = []
+        if event_ids:
+            clauses.append(f"event_id IN ({','.join(['?'] * len(event_ids))})")
+            params.extend(event_ids)
+        if session_ids:
+            clauses.append(f"session_id IN ({','.join(['?'] * len(session_ids))})")
+            params.extend(session_ids)
+        rows = self._conn.execute(
+            """
+            SELECT event_id, session_id, result_json
+            FROM adapter_effect_results
+            WHERE """ + " OR ".join(clauses) + """
+            ORDER BY id ASC
+            """,
+            params,
+        ).fetchall()
+        grouped: dict[tuple[str | None, str | None], list[dict[str, Any]]] = defaultdict(list)
+        for row in rows:
+            result = json.loads(row["result_json"])
+            grouped[(row["event_id"], row["session_id"])].append(result)
+        return grouped
 
     @staticmethod
     def _iso_from_ts(ts: float) -> str:
@@ -1211,7 +1354,16 @@ class TrajectoryStore:
     ) -> list[dict[str, Any]]:
         start = time.perf_counter()
         try:
-            return self._query_records(session_id=session_id, limit=limit, since_seconds=since_seconds)
+            records = self._query_records(session_id=session_id, limit=limit, since_seconds=since_seconds)
+            adapter_results = self._adapter_results_for_records(records)
+            for record in records:
+                event = record.get("event", {})
+                key = (event.get("event_id"), event.get("session_id"))
+                session_key = (None, event.get("session_id"))
+                record["adapter_effect_results"] = (
+                    adapter_results.get(key, []) + adapter_results.get(session_key, [])
+                )
+            return records
         finally:
             _observe_io_metric(self._io_metrics["replay_session"], time.perf_counter() - start)
 
@@ -1234,6 +1386,14 @@ class TrajectoryStore:
             )
             has_more = len(records) > effective_limit
             page_records = records[-effective_limit:] if has_more else records
+            adapter_results = self._adapter_results_for_records(page_records)
+            for record in page_records:
+                event = record.get("event", {})
+                key = (event.get("event_id"), event.get("session_id"))
+                session_key = (None, event.get("session_id"))
+                record["adapter_effect_results"] = (
+                    adapter_results.get(key, []) + adapter_results.get(session_key, [])
+                )
             next_cursor = page_records[0]["record_id"] if has_more and page_records else None
             return {
                 "records": page_records,
@@ -1244,6 +1404,7 @@ class TrajectoryStore:
 
     def clear(self) -> None:
         self._conn.execute("DELETE FROM trajectory_records")
+        self._conn.execute("DELETE FROM adapter_effect_results")
         self._conn.execute("DELETE FROM l3_evidence_snapshots")
         self._conn.execute("DELETE FROM l3_advisory_reviews")
         self._conn.execute("DELETE FROM l3_advisory_jobs")

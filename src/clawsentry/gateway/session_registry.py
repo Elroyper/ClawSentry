@@ -7,7 +7,7 @@ import time
 from collections import defaultdict, deque
 from typing import Any, Optional
 
-from .models import utc_now_iso
+from .models import adapter_effect_result_summary, decision_effect_summary, utc_now_iso
 from .trajectory_store import _parse_iso_timestamp
 
 _RISK_LEVEL_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -592,6 +592,9 @@ class SessionRegistry:
                 "latest_approval_reason": None,
                 "latest_approval_reason_code": None,
                 "latest_approval_timeout_s": None,
+                "latest_decision_effect_summary": None,
+                "latest_adapter_effect_result_summary": None,
+                "quarantine": None,
                 "risk_timeline": deque(maxlen=self.max_timeline_per_session),
                 "workspace_root": "",
                 "transcript_path": "",
@@ -633,6 +636,10 @@ class SessionRegistry:
             timeline_entry["approval_timeout_s"] = float(approval_timeout_s)
         if evidence_summary is not None:
             timeline_entry["evidence_summary"] = evidence_summary
+
+        effect_summary = decision_effect_summary(decision.get("decision_effects"))
+        if effect_summary is not None:
+            timeline_entry["decision_effect_summary"] = effect_summary
 
         if record_type == "decision_resolution":
             matched = None
@@ -686,6 +693,24 @@ class SessionRegistry:
             session["latest_approval_reason_code"] = str(approval_reason_code)
         if approval_timeout_s is not None:
             session["latest_approval_timeout_s"] = float(approval_timeout_s)
+        if effect_summary is not None:
+            session["latest_decision_effect_summary"] = effect_summary
+            if (
+                decision_verdict == "block"
+                and effect_summary.get("action_scope") == "session"
+                and isinstance(effect_summary.get("session_effect"), dict)
+            ):
+                session["quarantine"] = {
+                    "state": "quarantined",
+                    "effect_id": effect_summary.get("effect_id"),
+                    "mode": effect_summary["session_effect"].get("mode") or "mark_blocked",
+                    "reason_code": effect_summary["session_effect"].get("reason_code"),
+                    "durability": "volatile",
+                    "released_at": None,
+                    "released_by": None,
+                    "released_reason": None,
+                    "updated_at": occurred_at,
+                }
         session["current_risk_level"] = risk_level
         if dimensions:
             session["cumulative_score"] = int(snapshot.get("composite_score") or 0)
@@ -703,6 +728,93 @@ class SessionRegistry:
             session["last_event_ts"] = occurred_at_ts
         self._sessions[session_id] = session
         self._evict_if_needed()
+
+    def record_adapter_effect_result(self, result: dict[str, Any]) -> None:
+        """Update live session summary from a separate adapter effect result."""
+
+        summary = adapter_effect_result_summary(result)
+        if summary is None:
+            return
+        session_id = str(result.get("session_id") or "")
+        if not session_id:
+            return
+        session = self._sessions.get(session_id)
+        if session is None:
+            session = {
+                "session_id": session_id,
+                "agent_id": "unknown",
+                "source_framework": str(result.get("framework") or "unknown"),
+                "caller_adapter": str(result.get("adapter") or "unknown"),
+                "current_risk_level": "low",
+                "cumulative_score": 0,
+                "event_count": 0,
+                "high_risk_event_count": 0,
+                "decision_distribution": defaultdict(int),
+                "actual_tier_distribution": defaultdict(int),
+                "first_event_at": utc_now_iso(),
+                "last_event_at": utc_now_iso(),
+                "last_event_ts": time.time(),
+                "d4_accumulation": 0,
+                "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "risk_hints_seen": set(),
+                "tools_used": set(),
+                "latest_evidence_summary": None,
+                "latest_l3_state": None,
+                "latest_l3_reason": None,
+                "latest_l3_reason_code": None,
+                "latest_approval_id": None,
+                "latest_approval_kind": None,
+                "latest_approval_state": None,
+                "latest_approval_reason": None,
+                "latest_approval_reason_code": None,
+                "latest_approval_timeout_s": None,
+                "latest_decision_effect_summary": None,
+                "latest_adapter_effect_result_summary": None,
+                "quarantine": None,
+                "risk_timeline": deque(maxlen=self.max_timeline_per_session),
+                "workspace_root": "",
+                "transcript_path": "",
+            }
+        session["latest_adapter_effect_result_summary"] = summary
+        session["last_event_at"] = utc_now_iso()
+        session["last_event_ts"] = time.time()
+        self._sessions[session_id] = session
+        self._evict_if_needed()
+
+    def get_quarantine(self, session_id: str) -> Optional[dict[str, Any]]:
+        session = self._sessions.get(session_id)
+        if not session:
+            return None
+        quarantine = session.get("quarantine")
+        if not isinstance(quarantine, dict):
+            return None
+        if quarantine.get("state") != "quarantined":
+            return None
+        return dict(quarantine)
+
+    def release_quarantine(
+        self,
+        session_id: str,
+        *,
+        released_by: str = "operator",
+        reason: str | None = None,
+    ) -> bool:
+        session = self._sessions.get(session_id)
+        if not session or not isinstance(session.get("quarantine"), dict):
+            return False
+        quarantine = dict(session["quarantine"])
+        if quarantine.get("state") != "quarantined":
+            return False
+        quarantine.update(
+            {
+                "state": "released",
+                "released_at": utc_now_iso(),
+                "released_by": released_by,
+                "released_reason": reason,
+            }
+        )
+        session["quarantine"] = quarantine
+        return True
 
     def list_sessions(
         self,
@@ -756,6 +868,13 @@ class SessionRegistry:
                     "first_event_at": session["first_event_at"],
                     "last_event_at": session["last_event_at"],
                     "d4_accumulation": session["d4_accumulation"],
+                    "quarantine": (
+                        dict(session["quarantine"])
+                        if isinstance(session.get("quarantine"), dict)
+                        else None
+                    ),
+                    "latest_decision_effect_summary": session.get("latest_decision_effect_summary"),
+                    "latest_adapter_effect_result_summary": session.get("latest_adapter_effect_result_summary"),
                 }
                 serialized_session.update(self._latest_session_annotations(session))
                 serialized_sessions.append(serialized_session)
@@ -788,6 +907,9 @@ class SessionRegistry:
                     "risk_hints_seen": [],
                     "tools_used": [],
                     "actual_tier_distribution": {},
+                    "quarantine": None,
+                    "latest_decision_effect_summary": None,
+                    "latest_adapter_effect_result_summary": None,
                 }
 
             timeline = list(session["risk_timeline"])
@@ -859,6 +981,11 @@ class SessionRegistry:
                             if item.get("evidence_summary") is not None
                             else {}
                         ),
+                        **(
+                            {"decision_effect_summary": item["decision_effect_summary"]}
+                            if item.get("decision_effect_summary") is not None
+                            else {}
+                        ),
                     }
                     for item in timeline
                 ],
@@ -870,6 +997,13 @@ class SessionRegistry:
                 "risk_hints_seen": sorted(session["risk_hints_seen"]),
                 "tools_used": sorted(session["tools_used"]),
                 "actual_tier_distribution": dict(session["actual_tier_distribution"]),
+                "quarantine": (
+                    dict(session["quarantine"])
+                    if isinstance(session.get("quarantine"), dict)
+                    else None
+                ),
+                "latest_decision_effect_summary": session.get("latest_decision_effect_summary"),
+                "latest_adapter_effect_result_summary": session.get("latest_adapter_effect_result_summary"),
                 **self._latest_session_annotations(session),
             }
         finally:
