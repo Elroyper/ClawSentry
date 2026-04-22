@@ -53,6 +53,8 @@
       
     
     
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -327,11 +329,11 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../api/decisions/" class="md-tabs__link">
+        <a href="../../api/overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -1503,7 +1505,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1519,7 +1521,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1532,14 +1534,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/decisions/" class="md-nav__link">
+      <a href="../../api/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1560,14 +1562,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/reporting/" class="md-nav__link">
+      <a href="../../api/reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1595,7 +1597,119 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
   
 
     
@@ -1741,6 +1855,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -1912,7 +2054,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -2630,6 +2772,10 @@
 
 
 <h1 id="latch">Latch 集成<a class="headerlink" href="#latch" title="Permanent link">&para;</a></h1>
+<div class="admonition tip">
+<p class="admonition-title">本页怎么读</p>
+<p>Latch 是可选增强，适合移动端查看告警和远程审批。先确认核心 Gateway 已跑通，再接入 Latch。</p>
+</div>
 <p>Latch 是 ClawSentry 的可选增强组件，提供移动端实时监控、跨设备事件推送和远程 DEFER 审批能力。通过 Latch Hub，运维人员可以在手机或平板上实时查看安全事件并审批高风险操作。</p>
 <div class="admonition info">
 <p class="admonition-title">Latch 是可选的</p>

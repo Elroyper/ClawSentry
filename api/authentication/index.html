@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://elroyper.github.io/ClawSentry/api/authentication/">
       
       
-        <link rel="prev" href="../reporting/">
+        <link rel="prev" href="../reference/">
       
       
-        <link rel="next" href="../../decision-layers/l1-rules/">
+        <link rel="next" href="../decisions/">
       
       
         
@@ -52,6 +52,8 @@
         <style>:root{--md-text-font:"Noto Sans SC";--md-code-font:"JetBrains Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -327,11 +329,11 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../decisions/" class="md-tabs__link">
+        <a href="../overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -1118,7 +1120,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1134,7 +1136,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1147,14 +1149,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../decisions/" class="md-nav__link">
+      <a href="../overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1175,14 +1177,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../reporting/" class="md-nav__link">
+      <a href="../reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1219,7 +1221,7 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
   
 
     
@@ -1237,7 +1239,7 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
   
 
     
@@ -1676,6 +1678,118 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1808,6 +1922,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -1979,7 +2121,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -2880,8 +3022,8 @@
 </span></code></pre></div>
 <p><strong>签名格式：</strong></p>
 <p>请求头：
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>X-Webhook-Signature: v1=&lt;hex-digest&gt;
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>X-Webhook-Timestamp: &lt;unix-timestamp&gt;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>X-AHP-Signature: v1=&lt;hex-digest&gt;
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>X-AHP-Timestamp: &lt;unix-timestamp&gt;
 </span></code></pre></div></p>
 <p>签名计算方式：
 <div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>HMAC-SHA256(secret, &quot;{timestamp}.{raw_body}&quot;)
@@ -2921,7 +3063,7 @@
 <tbody>
 <tr>
 <td>未设置</td>
-<td>禁用 IP 白名单（接受所有 IP）</td>
+<td>禁用 IP 白名单（不限制来源 IP）</td>
 </tr>
 <tr>
 <td>空字符串 <code>""</code></td>
@@ -3300,7 +3442,7 @@
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../reporting/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 报表与监控">
+          <a href="../reference/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 交互式 API Reference">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -3310,20 +3452,20 @@
                 上一页
               </span>
               <div class="md-ellipsis">
-                报表与监控
+                交互式 API Reference
               </div>
             </div>
           </a>
         
         
           
-          <a href="../../decision-layers/l1-rules/" class="md-footer__link md-footer__link--next" aria-label="下一页: L1 规则引擎">
+          <a href="../decisions/" class="md-footer__link md-footer__link--next" aria-label="下一页: 决策 / AHP 端点">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 下一页
               </span>
               <div class="md-ellipsis">
-                L1 规则引擎
+                决策 / AHP 端点
               </div>
             </div>
             <div class="md-footer__button md-icon">

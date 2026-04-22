@@ -53,6 +53,8 @@
       
     
     
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -327,11 +329,11 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../api/decisions/" class="md-tabs__link">
+        <a href="../../api/overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -1592,7 +1594,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1608,7 +1610,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1621,14 +1623,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/decisions/" class="md-nav__link">
+      <a href="../../api/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1649,14 +1651,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/reporting/" class="md-nav__link">
+      <a href="../../api/reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1684,7 +1686,119 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
   
 
     
@@ -1830,6 +1944,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -2001,7 +2143,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -2808,6 +2950,10 @@
 
 
 <h1 id="openclaw">OpenClaw 集成<a class="headerlink" href="#openclaw" title="Permanent link">&para;</a></h1>
+<div class="admonition tip">
+<p class="admonition-title">本页怎么读</p>
+<p>这页面向 OpenClaw 用户和二次开发者。先确认你使用 WebSocket、Webhook 还是审批回写，再查看 <a href="../../api/webhooks/">Webhook API</a> 的 token/HMAC/idempotency 细节。</p>
+</div>
 <p>将 OpenClaw 代理框架接入 ClawSentry，实现命令执行审批的实时安全监督。</p>
 <hr />
 <h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>

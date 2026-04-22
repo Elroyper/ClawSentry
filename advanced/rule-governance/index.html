@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="YAML 规则与技能的上线前治理：lint、dry-run、fingerprint 与 rollout 前检查">
+        <meta name="description" content="YAML 规则与技能的上线前治理：lint、dry-run、fingerprint 与 发布前检查">
       
       
       
@@ -52,6 +52,8 @@
         <style>:root{--md-text-font:"Noto Sans SC";--md-code-font:"JetBrains Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -325,11 +327,11 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../api/decisions/" class="md-tabs__link">
+        <a href="../../api/overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -1115,7 +1117,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1131,7 +1133,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1144,14 +1146,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/decisions/" class="md-nav__link">
+      <a href="../../api/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1172,14 +1174,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/reporting/" class="md-nav__link">
+      <a href="../../api/reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1207,7 +1209,119 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
   
 
     
@@ -1353,6 +1467,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -1536,7 +1678,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -1554,7 +1696,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -1668,6 +1810,17 @@
   
     <nav class="md-nav" aria-label="clawsentry rules report">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sample-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置 sample events 覆盖范围
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
@@ -2263,6 +2416,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#sample-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        内置 sample events 覆盖范围
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2432,7 +2596,7 @@
 
 
 <h1 id="_1">规则治理<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的<strong>上线前治理</strong>补齐：在 rollout 之前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。</p>
+<p>规则治理功能的目标不是把 ClawSentry 重写成一个横跨 L1/L2/L3 的全局运行时 DSL，而是把现有 YAML 规则和技能的<strong>上线前治理</strong>补齐：在 发布或策略变更前检查规则是否能加载、是否有冲突，以及 sample events 在当前规则面上会命中什么。</p>
 <div class="admonition abstract">
 <p class="admonition-title">本页快速导航</p>
 <p><a href="#scope">边界</a> · <a href="#rule-surfaces">规则面组成</a> · <a href="#rules-lint">clawsentry rules lint</a> · <a href="#rules-dry-run">clawsentry rules dry-run</a> · <a href="#rules-report">clawsentry rules report</a> · <a href="#workflow">典型工作流</a> · <a href="#outputs">输出字段</a></p>
@@ -2541,13 +2705,41 @@
 <li>完整 <code>lint</code> payload</li>
 <li>可选的完整 <code>dry_run</code> payload</li>
 </ul>
-<p>如果传入 <code>--summary-markdown</code>，<code>report</code> 还会写出一份面向 release /
-rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fingerprint
+<p>如果传入 <code>--summary-markdown</code>，<code>report</code> 还会写出一份面向 release / 策略变更审阅的人类可读 dashboard，列出总体状态、finding 数、fingerprint
 以及 sample events 的 pattern / skill 覆盖情况。</p>
 <p>如果同时传入 <code>--json</code>，报告也会输出到 stdout，便于流水线直接解析。</p>
 <p>仓库还提供了可同步到公开仓库的 GitHub Actions 示例：
 <code>examples/ci/rules-governance.yml</code>。公开仓库可将它复制到
-<code>.github/workflows/rules-governance.yml</code> 后按需调整触发条件。</p>
+<code>.github/workflows/rules-governance.yml</code> 后按需调整触发条件。模板会运行
+<code>rules lint</code>、<code>rules dry-run</code>、<code>rules report</code>，并上传 JSON/Markdown artifact，
+便于 reviewer 直接查看本次规则面是否可加载、样本是否按预期命中、fingerprint
+是否与审核材料一致。</p>
+<h3 id="sample-events">内置 sample events 覆盖范围<a class="headerlink" href="#sample-events" title="Permanent link">&para;</a></h3>
+<p>默认示例文件 <code>examples/sample-events.jsonl</code> 覆盖三类最小代表场景：</p>
+<table>
+<thead>
+<tr>
+<th>样本类型</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>safe read</td>
+<td>验证普通读取不会被规则面误判为高风险</td>
+</tr>
+<tr>
+<td>credential upload</td>
+<td>验证凭证上传/外传类事件能命中预期 pattern</td>
+</tr>
+<tr>
+<td>download and execute</td>
+<td>验证下载后执行类供应链风险能进入 dry-run/report 证据</td>
+</tr>
+</tbody>
+</table>
+<p>你可以把这些样本作为 CI readiness checks 的起点，再追加自己组织里的 benign、expected-match
+和 near-miss 事件。</p>
 <h3 id="_4">示例<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>clawsentry<span class="w"> </span>rules<span class="w"> </span>report<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--output<span class="w"> </span>artifacts/rules-report.json<span class="w"> </span><span class="se">\</span>
@@ -2566,7 +2758,7 @@ rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fin
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--events<span class="w"> </span>examples/sample-events.jsonl<span class="w"> </span>--json
 </span></code></pre></div>
 <h3 id="release-checklist">与 release checklist 一起使用<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h3>
-<p>如果本次版本包含规则治理相关修改，发布前至少保留三条 smoke：</p>
+<p>如果本次版本包含规则治理相关修改，发布前至少保留三条 readiness checks：</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">PYTHONPATH</span><span class="o">=</span>src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>clawsentry<span class="w"> </span>rules<span class="w"> </span>lint<span class="w"> </span>--json
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">PYTHONPATH</span><span class="o">=</span>src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>clawsentry<span class="w"> </span>rules<span class="w"> </span>dry-run<span class="w"> </span>--events<span class="w"> </span>examples/sample-events.jsonl<span class="w"> </span>--json
 </span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">PYTHONPATH</span><span class="o">=</span>src<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>clawsentry<span class="w"> </span>rules<span class="w"> </span>report<span class="w"> </span><span class="se">\</span>
@@ -2628,7 +2820,7 @@ rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fin
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--events<span class="w"> </span>examples/sample-events.jsonl<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--summary-markdown<span class="w"> </span>artifacts/rules-dashboard.md
 </span></code></pre></div>
-<p>如果 <code>status</code> 不是 <code>pass</code>，或 dashboard 中出现未解释的 FAIL finding，应先修规则或补充风险说明，再进入 rollout。</p>
+<p>如果 <code>status</code> 不是 <code>pass</code>，或 dashboard 中出现未解释的 FAIL finding，应先修规则或补充风险说明，再进入发布或策略变更。</p>
 <h2 id="outputs">输出字段<a class="headerlink" href="#outputs" title="Permanent link">&para;</a></h2>
 <h3 id="fingerprint"><code>fingerprint</code><a class="headerlink" href="#fingerprint" title="Permanent link">&para;</a></h3>
 <p>当前完整规则集的 deterministic digest。它会受以下内容影响：</p>
@@ -2695,7 +2887,7 @@ rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fin
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月21日 18:13:03 UTC">2026年4月21日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 08:40:27 UTC">2026年4月22日</span>
   </span>
 
     

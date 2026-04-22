@@ -53,6 +53,8 @@
       
     
     
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -327,11 +329,11 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../api/decisions/" class="md-tabs__link">
+        <a href="../../api/overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -1508,7 +1510,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1524,7 +1526,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1537,14 +1539,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/decisions/" class="md-nav__link">
+      <a href="../../api/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1565,14 +1567,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/reporting/" class="md-nav__link">
+      <a href="../../api/reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1600,7 +1602,119 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
   
 
     
@@ -1746,6 +1860,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -1917,7 +2059,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -3519,17 +3661,17 @@
 <tr>
 <td><code>CS_L3_ADVISORY_DEADLINE_MS</code></td>
 <td><code>30000</code></td>
-<td>advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 smoke 中调大</td>
+<td>advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 readiness check 中调大</td>
 </tr>
 <tr>
 <td><code>CS_L3_ADVISORY_RUN_REAL_SMOKE</code></td>
 <td><code>false</code></td>
-<td>仅用于 pytest real-provider smoke gate；默认跳过真实网络 smoke</td>
+<td>仅用于测试套件里的真实 provider readiness gate；默认跳过真实网络调用</td>
 </tr>
 <tr>
 <td><code>CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV</code></td>
 <td><code>true</code></td>
-<td>manual smoke 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 <code>false</code></td>
+<td>手动 readiness check 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 <code>false</code></td>
 </tr>
 </tbody>
 </table>
@@ -3549,12 +3691,9 @@
 </ul>
 </div>
 <div class="admonition info">
-<p class="admonition-title">L3 advisory foundation</p>
+<p class="admonition-title">L3 咨询审查</p>
 <p><code>CS_L3_ADVISORY_ASYNC_ENABLED</code> 和 <code>CS_L3_HEARTBEAT_REVIEW_ENABLED</code>
-是 advisory review 自动化的显式 opt-in 开关。当前实现落地 frozen
-evidence snapshot 与 <code>advisory_only=true</code> review 结果的持久化 / report /
-watch surface；打开 <code>CS_L3_ADVISORY_ASYNC_ENABLED</code> 只会自动创建 snapshot，
-不会运行真实后台 L3 review，也不会 retroactively 修改 canonical decision。</p>
+是 L3 咨询审查的显式 opt-in 开关。系统会持久化 frozen evidence snapshot 与 <code>advisory_only=true</code> review 结果，并通过 report / watch / UI 暴露状态；打开 <code>CS_L3_ADVISORY_ASYNC_ENABLED</code> 只会自动创建 snapshot，不会运行后台 L3 review，也不会修改 canonical decision。详见 <a href="../../decision-layers/l3-advisory/">L3 咨询审查</a>。</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Advisory provider safety gate</p>
@@ -3567,14 +3706,14 @@ runner 仍不发网络请求；所有未启用、
 <code>CS_L3_ADVISORY_PROVIDER_DRY_RUN=false</code> 后，<code>llm_provider</code> runner 才会桥接到真实 LLM provider。</p>
 </div>
 <div class="admonition tip">
-<p class="admonition-title">手动 smoke</p>
-<p>可用 <code>scripts/run_l3_advisory_provider_smoke.py</code> 做 operator-controlled
-readiness check。该脚本要求显式设置 <code>CS_L3_ADVISORY_PROVIDER_ENABLED=true</code>，
+<p class="admonition-title">手动 readiness check</p>
+<p>如需验证 advisory provider 链路，可用随包提供的 devtools 模块做 operator-controlled
+readiness check。该流程要求显式设置 <code>CS_L3_ADVISORY_PROVIDER_ENABLED=true</code>，
 会构造一个 frozen snapshot、排队并执行一个 <code>llm_provider</code> job，并可通过
-<code>--output-report &lt;path&gt;</code> 写出 markdown 证据。provider smoke 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；<code>--require-completed</code> 用作真实 provider
-execution gate。pytest 中的真实网络 smoke 还需要
-<code>CS_L3_ADVISORY_RUN_REAL_SMOKE=true</code>，否则默认 skip。当前已用
-OpenAI-compatible <code>kimi-k2.5</code> 完成一次 <code>--require-completed</code> real smoke。</p>
+<code>--output-report &lt;path&gt;</code> 写出 markdown 证据。provider readiness check 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；<code>--require-completed</code> 用作真实 provider
+execution gate。测试套件里的真实网络 gate 还需要
+<code>CS_L3_ADVISORY_RUN_REAL_SMOKE=true</code>，否则默认跳过。当前已用
+OpenAI-compatible <code>kimi-k2.5</code> 完成一次显式真实 provider readiness check。</p>
 </div>
 <hr />
 <h2 id="_9">完整配置示例<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
@@ -3669,7 +3808,7 @@ OpenAI-compatible <code>kimi-k2.5</code> 完成一次 <code>--require-completed<
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月21日 17:03:08 UTC">2026年4月21日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 08:40:27 UTC">2026年4月22日</span>
   </span>
 
     

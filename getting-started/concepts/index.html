@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="理解 AHP 协议、三层决策模型和 ClawSentry 的关键设计">
+        <meta name="description" content="用最少术语理解 ClawSentry 如何处理事件、判决和审计">
       
       
       
@@ -52,6 +52,8 @@
         <style>:root{--md-text-font:"Noto Sans SC";--md-code-font:"JetBrains Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -327,11 +329,11 @@
     
     
       <li class="md-tabs__item">
-        <a href="../../api/decisions/" class="md-tabs__link">
+        <a href="../../api/overview/" class="md-tabs__link">
           
   
   
-  REST API
+  API 文档
 
         </a>
       </li>
@@ -689,10 +691,60 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#ahp-protocol" class="md-nav__link">
+  <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. AHP 协议
+        先记住 3 件事
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="先记住 3 件事">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. ClawSentry 监控事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. ClawSentry 评估风险
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. ClawSentry 输出结果
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ahp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AHP 是什么
       
     </span>
   </a>
@@ -700,141 +752,57 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#canonical-event" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. CanonicalEvent — 归一化事件
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. CanonicalEvent — 归一化事件">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        字段说明
+        三种最常见结果
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#l1-l2-l3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L1 / L2 / L3 分层判断
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        事件类型
+        事件、判决、审计的区别
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么时候需要 LLM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        示例
+        术语速查
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#canonical-decision" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. CanonicalDecision — 统一判决
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. CanonicalDecision — 统一判决">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        字段说明
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#three-tier-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. 三层决策模型
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. 三层决策模型">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层级对比
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        L1 短路规则
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#l3-agent" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        L3 审查 Agent
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -842,249 +810,10 @@
   <a href="#risk-dimensions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. D1-D6 六维风险评分
+        风险维度
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="5. D1-D6 六维风险评分">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#d1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D1 评分示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#d2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D2 评分示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#d6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D6 — 注入检测 (Injection Detection)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verdicts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. 四种判决
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dual-channel" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. 双通道处理
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sidecar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. Sidecar 架构
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="8. Sidecar 架构">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        双传输通道
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#session-enforcement" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        9. 会话累积与强制策略
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="9. 会话累积与强制策略">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        会话风险追踪
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#session-enforcement_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        强制策略（Session Enforcement）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#post-action-fence" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. Post-action 围栏
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="10. Post-action 围栏">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        工作时机
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检测分层
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检测类别
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trajectory-analyzer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. TrajectoryAnalyzer — 多阶段攻击检测
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. TrajectoryAnalyzer — 多阶段攻击检测">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        工作原理
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#post-action" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        与 Post-action 的关系
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1092,201 +821,7 @@
   <a href="#eventbus-sse" class="md-nav__link">
     <span class="md-ellipsis">
       
-        12. EventBus 与 SSE 实时推送
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="12. EventBus 与 SSE 实时推送">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        推送架构
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sse" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SSE 事件类型
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        接入方式
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-presets" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        13. 安全预设与项目级配置
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="13. 安全预设与项目级配置">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        四个预设级别
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#clawsentrytoml" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        .clawsentry.toml — 项目级配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置优先级链
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        常用命令
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pattern-evolution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        14. 自进化模式库
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="14. 自进化模式库">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        模式生命周期
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#0010" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        信心评分（0.0–1.0）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用方法
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        REST API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fail-safe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        15. Fail-safe 原则
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_23" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        概念关系总览
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_24" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        下一步
+        EventBus 与 SSE
       
     </span>
   </a>
@@ -1770,7 +1305,7 @@
   <span class="md-ellipsis">
     
   
-    REST API
+    API 文档
   
 
     
@@ -1786,7 +1321,7 @@
             <span class="md-nav__icon md-icon"></span>
             
   
-    REST API
+    API 文档
   
 
           </label>
@@ -1799,14 +1334,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/decisions/" class="md-nav__link">
+      <a href="../../api/overview/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    决策端点
+    API 概览
   
 
     
@@ -1827,14 +1362,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../api/reporting/" class="md-nav__link">
+      <a href="../../api/reference/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    报表与监控
+    交互式 API Reference
   
 
     
@@ -1862,7 +1397,119 @@
   <span class="md-ellipsis">
     
   
-    认证
+    鉴权与安全
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    决策 / AHP 端点
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    报表 / SSE / L3 Advisory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/webhooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Webhook API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模型与错误码
   
 
     
@@ -2008,6 +1655,34 @@
     
   
     L3 审查 Agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
   
 
     
@@ -2179,7 +1854,7 @@
   <span class="md-ellipsis">
     
   
-    CS-01 规则治理
+    规则治理
   
 
     
@@ -2539,10 +2214,60 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#ahp-protocol" class="md-nav__link">
+  <a href="#3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        1. AHP 协议
+        先记住 3 件事
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="先记住 3 件事">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. ClawSentry 监控事件
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. ClawSentry 评估风险
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-clawsentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. ClawSentry 输出结果
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ahp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AHP 是什么
       
     </span>
   </a>
@@ -2550,141 +2275,57 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#canonical-event" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        2. CanonicalEvent — 归一化事件
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="2. CanonicalEvent — 归一化事件">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
   <a href="#_2" class="md-nav__link">
     <span class="md-ellipsis">
       
-        字段说明
+        三种最常见结果
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#l1-l2-l3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L1 / L2 / L3 分层判断
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        事件类型
+        事件、判决、审计的区别
       
     </span>
   </a>
   
 </li>
-        
-          <li class="md-nav__item">
+      
+        <li class="md-nav__item">
+  <a href="#llm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么时候需要 LLM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        示例
+        术语速查
       
     </span>
   </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#canonical-decision" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        3. CanonicalDecision — 统一判决
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="3. CanonicalDecision — 统一判决">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        字段说明
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#three-tier-model" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        4. 三层决策模型
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="4. 三层决策模型">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        层级对比
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#l1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        L1 短路规则
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#l3-agent" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        L3 审查 Agent
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2692,249 +2333,10 @@
   <a href="#risk-dimensions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        5. D1-D6 六维风险评分
+        风险维度
       
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="5. D1-D6 六维风险评分">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#d1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D1 评分示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#d2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D2 评分示例
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#d6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        D6 — 注入检测 (Injection Detection)
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verdicts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        6. 四种判决
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dual-channel" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        7. 双通道处理
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#sidecar" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        8. Sidecar 架构
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="8. Sidecar 架构">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        双传输通道
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#session-enforcement" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        9. 会话累积与强制策略
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="9. 会话累积与强制策略">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        会话风险追踪
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#session-enforcement_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        强制策略（Session Enforcement）
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#post-action-fence" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        10. Post-action 围栏
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="10. Post-action 围栏">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        工作时机
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_11" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检测分层
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_12" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检测类别
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_13" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trajectory-analyzer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        11. TrajectoryAnalyzer — 多阶段攻击检测
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="11. TrajectoryAnalyzer — 多阶段攻击检测">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_14" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        工作原理
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#post-action" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        与 Post-action 的关系
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_15" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -2942,201 +2344,7 @@
   <a href="#eventbus-sse" class="md-nav__link">
     <span class="md-ellipsis">
       
-        12. EventBus 与 SSE 实时推送
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="12. EventBus 与 SSE 实时推送">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_16" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        推送架构
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#sse" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SSE 事件类型
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_17" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        接入方式
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#security-presets" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        13. 安全预设与项目级配置
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="13. 安全预设与项目级配置">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_18" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        四个预设级别
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#clawsentrytoml" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        .clawsentry.toml — 项目级配置
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_19" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        配置优先级链
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_20" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        常用命令
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#pattern-evolution" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        14. 自进化模式库
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="14. 自进化模式库">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_21" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        模式生命周期
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#0010" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        信心评分（0.0–1.0）
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_22" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        启用方法
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#rest-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        REST API
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fail-safe" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        15. Fail-safe 原则
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_23" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        概念关系总览
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_24" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        下一步
+        EventBus 与 SSE
       
     </span>
   </a>
@@ -3164,1293 +2372,137 @@
 
 
 <h1 id="_1">核心概念<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>本页介绍 ClawSentry 的核心概念和设计原理。理解这些概念将帮助你更高效地配置和使用 ClawSentry 监督网关。</p>
-<hr />
-<h2 id="ahp-protocol">1. AHP 协议<a class="headerlink" href="#ahp-protocol" title="Permanent link">&para;</a></h2>
-<p><strong>AHP (Agent Harness Protocol)</strong> 是一套面向 AI Agent 运行时的通用安全监督协议。它定义了统一的事件格式和决策模型，使得不同 Agent 框架可以使用相同的监督基础设施。</p>
-<p>ClawSentry 是 AHP 协议的 Python 参考实现。</p>
-<pre class="mermaid"><code>graph LR
-    subgraph "AHP 协议层"
-        E[CanonicalEvent] --&gt; D[CanonicalDecision]
-    end
-
-    subgraph "Agent 框架"
-        A1[a3s-code] --&gt;|Adapter| E
-        A2[OpenClaw] --&gt;|Adapter| E
-        A3[自定义框架] --&gt;|Adapter| E
-    end
-
-    subgraph "ClawSentry 实现"
-        D --&gt; L1[L1 规则引擎]
-        D --&gt; L2[L2 语义分析]
-        D --&gt; L3[L3 审查 Agent]
-    end</code></pre>
-<p><strong>协议核心要素：</strong></p>
-<table>
-<thead>
-<tr>
-<th>要素</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>协议版本</td>
-<td><code>ahp.1.0</code>（schema_version 字段）</td>
-</tr>
-<tr>
-<td>事件模型</td>
-<td><code>CanonicalEvent</code> — 归一化的 Agent 事件</td>
-</tr>
-<tr>
-<td>决策模型</td>
-<td><code>CanonicalDecision</code> — 监督引擎的裁决</td>
-</tr>
-<tr>
-<td>传输通道</td>
-<td>UDS (Unix Domain Socket) 为主，HTTP 为备</td>
-</tr>
-<tr>
-<td>RPC 协议</td>
-<td><code>sync_decision.1.0</code> — 同步决策请求/响应</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition abstract">
-<p class="admonition-title">协议先行，策略后置</p>
-<p>AHP 协议只定义事件格式和决策接口，不绑定具体的策略逻辑。任何实现都可以自由定义自己的风险评估规则和决策策略。</p>
+<p>如果你只想先理解 ClawSentry 怎么工作，记住这句话：<strong>事件进入系统，经过分层判断，最后返回或记录 <code>allow / block / defer / modify</code>。</strong></p>
+<h2 id="3">先记住 3 件事<a class="headerlink" href="#3" title="Permanent link">&para;</a></h2>
+<div class="cs-card-grid">
+<div class="cs-card">
+<h3 id="1-clawsentry">1. ClawSentry 监控事件<a class="headerlink" href="#1-clawsentry" title="Permanent link">&para;</a></h3>
+<p>事件可能来自 Claude Code Hook、a3s-code Transport、OpenClaw Webhook/WebSocket、Codex session watcher 或自定义 Adapter。</p>
 </div>
-<hr />
-<h2 id="canonical-event">2. CanonicalEvent — 归一化事件<a class="headerlink" href="#canonical-event" title="Permanent link">&para;</a></h2>
-<p><code>CanonicalEvent</code> 是 AHP 协议的核心数据模型，将来自不同 Agent 框架的原始事件归一化为统一格式。无论事件来自 a3s-code 还是 OpenClaw，在进入决策引擎时都是同一结构。</p>
-<h3 id="_2">字段说明<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span> <span class="nc">CanonicalEvent</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="c1"># --- 必填字段 ---</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">schema_version</span><span class="p">:</span> <span class="nb">str</span>    <span class="c1"># 协议版本，如 &quot;ahp.1.0&quot;</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">event_id</span><span class="p">:</span> <span class="nb">str</span>          <span class="c1"># 事件唯一标识</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">trace_id</span><span class="p">:</span> <span class="nb">str</span>          <span class="c1"># 跨组件追踪 ID</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">event_type</span><span class="p">:</span> <span class="n">EventType</span>  <span class="c1"># 事件类型（见下方）</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span>        <span class="c1"># 会话标识</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">agent_id</span><span class="p">:</span> <span class="nb">str</span>          <span class="c1"># Agent 标识</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">source_framework</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># 来源框架（&quot;a3s-code&quot; / &quot;openclaw&quot;）</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">occurred_at</span><span class="p">:</span> <span class="nb">str</span>       <span class="c1"># UTC ISO8601 时间戳</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">payload</span><span class="p">:</span> <span class="nb">dict</span>          <span class="c1"># 事件载荷（命令、参数等）</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="c1"># --- 可选字段 ---</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span>         <span class="c1"># 工具名称（如 &quot;bash&quot;, &quot;exec&quot;）</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    <span class="n">risk_hints</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="c1"># 来源端提供的风险提示</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    <span class="n">approval_id</span><span class="p">:</span> <span class="nb">str</span>       <span class="c1"># 审批 ID（用于 DEFER 回调）</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">event_subtype</span><span class="p">:</span> <span class="nb">str</span>     <span class="c1"># 事件子类型</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>    <span class="n">framework_meta</span><span class="p">:</span> <span class="nb">dict</span>   <span class="c1"># 框架特定元数据</span>
-</span></code></pre></div>
-<h3 id="_3">事件类型<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<div class="cs-card">
+<h3 id="2-clawsentry">2. ClawSentry 评估风险<a class="headerlink" href="#2-clawsentry" title="Permanent link">&para;</a></h3>
+<p>系统先走快速规则，再按需要升级到语义分析或 L3 advisory 审查。</p>
+</div>
+<div class="cs-card">
+<h3 id="3-clawsentry">3. ClawSentry 输出结果<a class="headerlink" href="#3-clawsentry" title="Permanent link">&para;</a></h3>
+<p>结果可能是允许、阻断、等待审批、修改载荷，或仅作为审计/告警事件记录。</p>
+</div>
+</div>
+<h2 id="ahp">AHP 是什么<a class="headerlink" href="#ahp" title="Permanent link">&para;</a></h2>
+<p>AHP（Agent Harness Protocol）是 ClawSentry 用来统一不同 Agent 运行时事件和判决的协议。它解决的问题是：不同框架的原始事件不一样，但进入安全引擎后应该有统一模型。</p>
+<pre class="mermaid"><code>flowchart LR
+    A[框架原始事件] --&gt; B[Adapter / Normalizer]
+    B --&gt; C[CanonicalEvent]
+    C --&gt; D[Gateway 决策]
+    D --&gt; E[CanonicalDecision]</code></pre>
+<h2 id="_2">三种最常见结果<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>类型</th>
-<th>说明</th>
-<th>处理方式</th>
+<th>结果</th>
+<th>含义</th>
+<th>用户会看到什么</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>pre_action</code></td>
-<td>工具调用前</td>
-<td><strong>同步阻塞</strong> — 必须等待决策返回</td>
+<td><code>allow</code></td>
+<td>风险可接受</td>
+<td>工具调用继续，watch/UI 记录一次低风险或正常事件。</td>
 </tr>
 <tr>
-<td><code>post_action</code></td>
-<td>工具调用后</td>
-<td>异步审计 — 不阻塞 Agent</td>
+<td><code>block</code></td>
+<td>风险过高</td>
+<td>支持前置决策的框架会被阻断；监控模式会产生高风险告警。</td>
 </tr>
 <tr>
-<td><code>pre_prompt</code></td>
-<td>提示词发送前</td>
-<td>可选拦截</td>
+<td><code>defer</code></td>
+<td>需要人工判断</td>
+<td>进入审批/延后流程，等待 operator 处理。</td>
 </tr>
 <tr>
-<td><code>post_response</code></td>
-<td>LLM 响应后</td>
-<td>可选审计</td>
-</tr>
-<tr>
-<td><code>error</code></td>
-<td>错误事件</td>
-<td>日志记录</td>
-</tr>
-<tr>
-<td><code>session</code></td>
-<td>会话生命周期</td>
-<td>会话追踪</td>
+<td><code>modify</code></td>
+<td>允许但修改参数</td>
+<td>高级场景使用；是否生效取决于接入框架是否支持修改载荷。</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_4">示例<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>一个 a3s-code Agent 尝试执行 <code>rm -rf /tmp/test</code> 时生成的事件：</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">{</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">&quot;schema_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ahp.1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;evt-a1b2c3d4&quot;</span><span class="p">,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">&quot;trace_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tr-e5f6g7h8&quot;</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pre_action&quot;</span><span class="p">,</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;session-001&quot;</span><span class="p">,</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">&quot;agent_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agent-main&quot;</span><span class="p">,</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="nt">&quot;source_framework&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a3s-code&quot;</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">&quot;occurred_at&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-03-23T10:30:00Z&quot;</span><span class="p">,</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">&quot;tool_name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span><span class="p">,</span>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">&quot;event_subtype&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;tool_call&quot;</span><span class="p">,</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;rm -rf /tmp/test&quot;</span><span class="p">,</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;bash&quot;</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">}</span>
-</span></code></pre></div>
-<hr />
-<h2 id="canonical-decision">3. CanonicalDecision — 统一判决<a class="headerlink" href="#canonical-decision" title="Permanent link">&para;</a></h2>
-<p><code>CanonicalDecision</code> 是监督引擎对事件的裁决结果。判决由策略引擎产生，永远不会由 Adapter 产生。</p>
-<h3 id="_5">字段说明<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span> <span class="nc">CanonicalDecision</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">decision</span><span class="p">:</span> <span class="n">DecisionVerdict</span>      <span class="c1"># 判决：allow / block / modify / defer</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span>                    <span class="c1"># 判决理由（人类可读）</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">policy_id</span><span class="p">:</span> <span class="nb">str</span>                 <span class="c1"># 产生判决的策略 ID</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">risk_level</span><span class="p">:</span> <span class="n">RiskLevel</span>          <span class="c1"># 风险等级：low / medium / high / critical</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">decision_source</span><span class="p">:</span> <span class="n">DecisionSource</span>  <span class="c1"># 来源：policy / manual / system</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">policy_version</span><span class="p">:</span> <span class="nb">str</span>            <span class="c1"># 策略版本</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">decision_latency_ms</span><span class="p">:</span> <span class="nb">float</span>     <span class="c1"># 决策耗时（毫秒）</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">modified_payload</span><span class="p">:</span> <span class="nb">dict</span>         <span class="c1"># 修改后的载荷（仅 modify 判决）</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="n">failure_class</span><span class="p">:</span> <span class="n">FailureClass</span>    <span class="c1"># 失败分类（正常为 &quot;none&quot;）</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    <span class="n">final</span><span class="p">:</span> <span class="nb">bool</span>                    <span class="c1"># 是否为最终判决</span>
-</span></code></pre></div>
-<h3 id="_6">示例<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;block&quot;</span><span class="p">,</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Destructive file deletion targeting system path (SC-1 short-circuit)&quot;</span><span class="p">,</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">&quot;policy_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;L1-rule-engine&quot;</span><span class="p">,</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">&quot;risk_level&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">&quot;decision_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;policy&quot;</span><span class="p">,</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">&quot;policy_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">&quot;decision_latency_ms&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.42</span><span class="p">,</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">&quot;failure_class&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
-</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span><span class="nt">&quot;final&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
-</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="p">}</span>
-</span></code></pre></div>
-<hr />
-<h2 id="three-tier-model">4. 三层决策模型<a class="headerlink" href="#three-tier-model" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 实现了渐进式三层决策架构。低层级快速处理简单场景，只有当风险无法在当前层级确定时才向上升级。</p>
-<pre class="mermaid"><code>graph TD
-    E[CanonicalEvent] --&gt; L1
-
-    subgraph L1 ["L1 规则引擎 (&lt; 1ms)"]
-        L1_EVAL[D1-D6 六维评分]
-        L1_SC[短路规则 SC-1/2/3]
-    end
-
-    L1 --&gt;|"低风险 → ALLOW"| OUT_A[ALLOW]
-    L1 --&gt;|"短路命中 → BLOCK"| OUT_B[BLOCK]
-    L1 --&gt;|"中等风险 → 升级"| L2
-
-    subgraph L2 ["L2 语义分析 (&lt; 3s)"]
-        L2_LLM[LLM 语义理解]
-        L2_CTX[上下文关联分析]
-    end
-
-    L2 --&gt;|"确认安全 → 降级"| OUT_A
-    L2 --&gt;|"确认危险 → 升级"| OUT_B2[BLOCK]
-    L2 --&gt;|"仍不确定 → 升级"| L3
-
-    subgraph L3 ["L3 审查 Agent (&lt; 30s)"]
-        L3_AGENT[多轮工具调用]
-        L3_SKILL[专项审计 Skills]
-    end
-
-    L3 --&gt;|"最终判决"| OUT_F[ALLOW / BLOCK / DEFER]</code></pre>
-<h3 id="_7">层级对比<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<h2 id="l1-l2-l3">L1 / L2 / L3 分层判断<a class="headerlink" href="#l1-l2-l3" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>层级</th>
-<th>延迟</th>
-<th>技术</th>
-<th>适用场景</th>
-<th>是否需要 LLM</th>
+<th>作用</th>
+<th>什么时候触发</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>L1</strong></td>
-<td>&lt; 1ms</td>
-<td>规则引擎 + 模式匹配</td>
-<td>明确的白名单/黑名单命令</td>
-<td>否</td>
+<td>L1 规则</td>
+<td>快速识别明显安全/危险模式</td>
+<td>大多数事件都会先经过 L1。</td>
 </tr>
 <tr>
-<td><strong>L2</strong></td>
-<td>&lt; 3s</td>
-<td>LLM 语义分析</td>
-<td>需要理解命令意图的模糊场景</td>
-<td>是</td>
+<td>L2 语义</td>
+<td>需要理解上下文和意图时</td>
+<td>命令不明显、需要语义判断时。</td>
 </tr>
 <tr>
-<td><strong>L3</strong></td>
-<td>&lt; 30s</td>
-<td>多轮 Agent + 工具调用</td>
-<td>复杂场景需要主动调查（读文件、查历史）</td>
-<td>是</td>
+<td>L3 Advisory</td>
+<td>复杂场景需要更深证据时</td>
+<td>生成 snapshot/job/review，帮助 operator 判断；advisory-only，不改写历史判决。</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition info">
-<p class="admonition-title">L1 覆盖大多数场景</p>
-<p>在实际使用中，L1 规则引擎可以处理约 80% 的事件。只有真正需要语义理解的模糊场景才会触发 L2/L3。不配置 LLM 也能获得完整的 L1 防护能力。</p>
-</div>
-<h3 id="l1">L1 短路规则<a class="headerlink" href="#l1" title="Permanent link">&para;</a></h3>
-<p>L1 引擎内置三条短路规则，命中时立即产生判决，不进行完整的六维评分：</p>
-<table>
-<thead>
-<tr>
-<th>规则</th>
-<th>条件</th>
-<th>判决</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>SC-1</strong></td>
-<td>D1=3（高危工具）且 D2 ≥ 2（敏感路径）</td>
-<td>立即 CRITICAL</td>
-</tr>
-<tr>
-<td><strong>SC-2</strong></td>
-<td>D3=3（高危命令模式，如 <code>rm -rf /</code>、<code>:(){ :\|:&amp; };:</code>）</td>
-<td>立即 CRITICAL</td>
-</tr>
-<tr>
-<td><strong>SC-3</strong></td>
-<td>D1=0 且 D2=0 且 D3=0（纯只读操作）</td>
-<td>立即 LOW</td>
-</tr>
-</tbody>
-</table>
-<h3 id="l3-agent">L3 审查 Agent<a class="headerlink" href="#l3-agent" title="Permanent link">&para;</a></h3>
-<p>L3 是最强大的分析层级。它运行一个独立的审查 Agent，可以使用只读工具（ReadOnlyToolkit）进行多轮调查：</p>
+<h2 id="_3">事件、判决、审计的区别<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <ul>
-<li>读取相关文件以理解命令上下文</li>
-<li>查询会话历史以发现行为模式</li>
-<li>调用专项审计 Skill（shell 审计、凭证检查、代码审查等）</li>
-<li>综合所有信息生成最终判决</li>
+<li><strong>事件（Event）</strong>：Agent 发生了什么，例如一次 shell 命令、一次 session start、一次 post-action finding。</li>
+<li><strong>判决（Decision）</strong>：Gateway 对事件的结果，例如 <code>block</code>。</li>
+<li><strong>审计（Audit）</strong>：事件和判决被保存、聚合、展示，用于事后追踪和报表。</li>
+<li><strong>实时流（SSE）</strong>：Gateway 会把决策、告警、风险变化、L3 advisory job/review 等事件广播到 EventBus，并通过 <code>GET /report/stream</code> 提供给 <code>clawsentry watch</code>、Web UI 和二次开发前端。</li>
 </ul>
-<p>当前版本额外提供两个<strong>显式 opt-in</strong> 的 L3 触发增强语义：</p>
-<ul>
-<li><code>l3_routing_mode=replace_l2</code>：当事件命中 organic L2 入口时，直接跳过 L2 并无条件进入本地 L3。</li>
-<li><code>l3_trigger_profile=eager</code>：仍走正常模式，但比默认档位更容易把事件从 L2 提升到 L3。</li>
-</ul>
-<p>这两个开关默认都关闭，因此默认行为不变。若运行时没有本地 L3 能力，系统会继续走真实可执行的 L1/L2 路径，并通过 <code>l3_available=false</code> / <code>l3_reason_code=local_l3_unavailable</code> 诚实暴露“想跑 L3 但本机没有 L3”。</p>
-<div class="admonition warning">
-<p class="admonition-title">L3 永不降级</p>
-<p>如果 L3 执行过程中出现任何错误（LLM 调用失败、工具执行异常等），系统不会回退到低层级。而是返回 <code>confidence=0.0</code>，由 Gateway 根据 fail-safe 原则做出保守决策。</p>
-</div>
-<hr />
-<h2 id="risk-dimensions">5. D1-D6 六维风险评分<a class="headerlink" href="#risk-dimensions" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 通过六个维度对每个事件进行定量风险评估，生成不可变的 <code>RiskSnapshot</code>。</p>
+<h2 id="llm">什么时候需要 LLM<a class="headerlink" href="#llm" title="Permanent link">&para;</a></h2>
+<p>不配置 LLM 时，ClawSentry 仍可使用 L1 规则、审计、报表、Webhook 和 UI。只有 L2/L3 语义分析、复杂 advisory 审查等能力需要 LLM provider 配置。</p>
+<h2 id="_4">术语速查<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>维度</th>
-<th>名称</th>
-<th>范围</th>
-<th>评估内容</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>D1</strong></td>
-<td>命令危险度</td>
-<td>0-3</td>
-<td>工具类型的固有危险性</td>
-</tr>
-<tr>
-<td><strong>D2</strong></td>
-<td>参数敏感度</td>
-<td>0-3</td>
-<td>目标路径或参数是否涉及敏感区域</td>
-</tr>
-<tr>
-<td><strong>D3</strong></td>
-<td>命令模式危险度</td>
-<td>0-3</td>
-<td>命令字符串中的危险模式</td>
-</tr>
-<tr>
-<td><strong>D4</strong></td>
-<td>历史行为累积</td>
-<td>0-2</td>
-<td>当前会话的风险累积程度</td>
-</tr>
-<tr>
-<td><strong>D5</strong></td>
-<td>作用域权限</td>
-<td>0-2</td>
-<td>Agent 的信任等级</td>
-</tr>
-<tr>
-<td><strong>D6</strong></td>
-<td>注入检测</td>
-<td>0.0-3.0（连续值）</td>
-<td>提示词注入/命令注入/凭证泄露检测（三层：正则 + Canary + 向量相似度）</td>
-</tr>
-</tbody>
-</table>
-<p><strong>综合评分公式：</strong></p>
-<div class="arithmatex">\[
-\text{base\_score} = 0.4 \times \max(D1, D2, D3) + 0.25 \times D4 + 0.15 \times D5
-\]</div>
-<div class="arithmatex">\[
-\text{composite\_score} = \text{base\_score} \times \left(1.0 + 0.5 \times \frac{D6}{3.0}\right)
-\]</div>
-<p><strong>风险等级映射：</strong></p>
-<table>
-<thead>
-<tr>
-<th>合成分范围</th>
-<th>风险等级</th>
-<th>默认判决</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>&lt; 0.8</td>
-<td><code>low</code></td>
-<td>ALLOW</td>
-</tr>
-<tr>
-<td>0.8 – 1.5</td>
-<td><code>medium</code></td>
-<td>DEFER（或升级到 L2）</td>
-</tr>
-<tr>
-<td>1.5 – 2.2</td>
-<td><code>high</code></td>
-<td>BLOCK</td>
-</tr>
-<tr>
-<td>&gt;= 2.2</td>
-<td><code>critical</code></td>
-<td>BLOCK</td>
-</tr>
-</tbody>
-</table>
-<h3 id="d1">D1 评分示例<a class="headerlink" href="#d1" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>工具类型</th>
-<th>D1 评分</th>
-<th>示例</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>只读工具</td>
-<td>0</td>
-<td><code>read_file</code>, <code>grep</code>, <code>list_dir</code></td>
-</tr>
-<tr>
-<td>有限写入</td>
-<td>1</td>
-<td><code>write_file</code>, <code>edit_file</code></td>
-</tr>
-<tr>
-<td>系统交互</td>
-<td>2</td>
-<td><code>http_request</code>, <code>install_package</code></td>
-</tr>
-<tr>
-<td>高危工具</td>
-<td>3</td>
-<td><code>exec</code>, <code>sudo</code>, <code>chmod</code>, <code>kill</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="d2">D2 评分示例<a class="headerlink" href="#d2" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>目标路径</th>
-<th>D2 评分</th>
+<th>术语</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>项目工作区</td>
-<td>0</td>
-<td><code>./src/app.py</code></td>
+<td><code>CanonicalEvent</code></td>
+<td>归一化后的 Agent 事件。</td>
 </tr>
 <tr>
-<td>配置/dotenv 文件</td>
-<td>1</td>
-<td><code>~/.bashrc</code>, <code>.env.local</code>, <code>Makefile</code></td>
-</tr>
-<tr>
-<td>凭证/密钥文件</td>
-<td>2</td>
-<td><code>~/.ssh/id_rsa</code>, <code>server.pem</code></td>
-</tr>
-<tr>
-<td>系统关键路径</td>
-<td>3</td>
-<td><code>/etc/hosts</code>, <code>/etc/shadow</code>, <code>/boot/</code></td>
-</tr>
-</tbody>
-</table>
-<h3 id="d6">D6 — 注入检测 (Injection Detection)<a class="headerlink" href="#d6" title="Permanent link">&para;</a></h3>
-<p><strong>取值范围：0.0-3.0（连续浮点值）</strong></p>
-<p>D6 是 ClawSentry E-4 新增的第六个风险维度，专门检测提示词注入（Prompt Injection）和命令注入（Command Injection）企图。与 D1-D5 的整数评分不同，D6 采用连续浮点值，精度更高。</p>
-<p><strong>三层检测架构：</strong></p>
-<table>
-<thead>
-<tr>
-<th style="text-align: center;">层级</th>
-<th>名称</th>
-<th>机制</th>
-<th>分值贡献</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: center;"><strong>Layer 1</strong></td>
-<td>启发式正则</td>
-<td>弱模式 22 条（+0.3/条，上限 1.5）+ 强模式 17 条（+0.8/条，上限 2.4）+ 工具特定模式</td>
-<td>0.0–3.0</td>
-</tr>
-<tr>
-<td style="text-align: center;"><strong>Layer 2</strong></td>
-<td>Canary Token</td>
-<td>在载荷中嵌入随机 token，检测是否被外泄</td>
-<td>+1.5（若命中）</td>
-</tr>
-<tr>
-<td style="text-align: center;"><strong>Layer 3</strong></td>
-<td>向量相似度</td>
-<td>可插拔 <code>EmbeddingBackend</code> Protocol，与已知攻击语料比较相似度</td>
-<td>0.0–2.0</td>
-</tr>
-</tbody>
-</table>
-<p>最终 D6 = min(Layer1 + Layer2 + Layer3, 3.0)。</p>
-<p><strong>弱模式示例（ignore previous instructions、forget everything、忽略之前的指令、从现在开始 等）：</strong> 偏误导性话术（含 12 条中文注入模式），每条 +0.3 分，22 条上限 1.5</p>
-<p><strong>强模式示例（<code>&lt;script</code>、<code>eval(</code>、Unicode 零宽字符、<code>data:text/html;base64,</code>、关闭安全检查、系统提示标记 等）：</strong> 明确的注入技术特征（含 8 条中文注入模式），每条 +0.8 分，17 条上限 2.4</p>
-<p><strong>NFKC 穿透：</strong> 所有检测函数在匹配前先对输入执行 NFKC Unicode 归一化 + 393 个不可见码点剥离（排除 U+FE0F emoji 变体选择符），防止全角字符/不可见字符绕过。</p>
-<p><strong>D6 全局放大效应：</strong></p>
-<p>D6 通过乘数公式放大基础评分，而不是简单累加。例如 D6=3.0 时，基础评分放大 1.5 倍（1.0 + 0.5×1.0 = 1.5）。这使得注入尝试能够将原本中等风险的操作提升到高危区间。</p>
-<p><strong>D6 最低保证：</strong> 当 D6 &gt;= 2.0 且当前风险等级为 LOW 时，强制升级为 MEDIUM，防止高置信度注入被低评分掩盖。</p>
-<div class="admonition example">
-<p class="admonition-title">D6 放大效应示例</p>
-<p>假设一个有历史高危记录会话中的 <code>pip install</code> 命令（D4=1，base_score = 1.20，MEDIUM 区间）：</p>
-<table>
-<thead>
-<tr>
-<th>场景</th>
-<th style="text-align: center;">D6 分值</th>
-<th style="text-align: center;">乘数</th>
-<th style="text-align: center;">composite_score</th>
-<th style="text-align: center;">最终判决</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>无注入特征</td>
-<td style="text-align: center;">0.0</td>
-<td style="text-align: center;">1.00</td>
-<td style="text-align: center;">1.20</td>
-<td style="text-align: center;">MEDIUM → L2 分析</td>
-</tr>
-<tr>
-<td>含 2 条弱注入模式（+0.6）</td>
-<td style="text-align: center;">0.6</td>
-<td style="text-align: center;">1.10</td>
-<td style="text-align: center;">1.32</td>
-<td style="text-align: center;">MEDIUM → L2 分析</td>
-</tr>
-<tr>
-<td>强注入 + Canary 泄露（+2.3）</td>
-<td style="text-align: center;">2.3</td>
-<td style="text-align: center;">1.38</td>
-<td style="text-align: center;">1.66</td>
-<td style="text-align: center;">HIGH → BLOCK</td>
-</tr>
-<tr>
-<td>Layer 3 向量命中 + 强模式（3.0）</td>
-<td style="text-align: center;">3.0</td>
-<td style="text-align: center;">1.50</td>
-<td style="text-align: center;">1.80</td>
-<td style="text-align: center;">HIGH → BLOCK</td>
-</tr>
-</tbody>
-</table>
-<p>D6 达到强注入强度（≥ 1.5）后，将原本处于 MEDIUM 区间的操作直接提升为 HIGH 拦截。</p>
-</div>
-<hr />
-<h2 id="verdicts">6. 四种判决<a class="headerlink" href="#verdicts" title="Permanent link">&para;</a></h2>
-<p>每个 <code>CanonicalDecision</code> 包含以下四种判决之一：</p>
-<pre class="mermaid"><code>graph LR
-    subgraph "判决类型"
-        A["ALLOW&lt;br/&gt;放行"]
-        B["BLOCK&lt;br/&gt;拦截"]
-        M["MODIFY&lt;br/&gt;修改"]
-        D["DEFER&lt;br/&gt;延迟"]
-    end
-
-    A --&gt;|"final=true"| R1["Agent 继续执行"]
-    B --&gt;|"final=true"| R2["Agent 操作被拒绝"]
-    M --&gt;|"final=true"| R3["Agent 使用修改后的参数执行"]
-    D --&gt;|"final=false"| R4["等待人工审批后&lt;br/&gt;返回最终判决"]</code></pre>
-<table>
-<thead>
-<tr>
-<th>判决</th>
-<th>语义</th>
-<th><code>final</code></th>
-<th>适用场景</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>ALLOW</strong></td>
-<td>放行，允许 Agent 执行该操作</td>
-<td><code>true</code></td>
-<td>低风险的安全操作</td>
-</tr>
-<tr>
-<td><strong>BLOCK</strong></td>
-<td>拦截，拒绝 Agent 执行该操作</td>
-<td><code>true</code></td>
-<td>高危或违规操作</td>
-</tr>
-<tr>
-<td><strong>MODIFY</strong></td>
-<td>修改参数后放行</td>
-<td><code>true</code></td>
-<td>需要自动脱敏或参数校正的操作</td>
-</tr>
-<tr>
-<td><strong>DEFER</strong></td>
-<td>延迟等待人工审批</td>
-<td><code>false</code></td>
-<td>中等风险，需运维人员确认</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition note">
-<p class="admonition-title">MODIFY 判决</p>
-<p>当判决为 <code>MODIFY</code> 时，<code>CanonicalDecision</code> 必须包含 <code>modified_payload</code> 字段，Agent 应使用修改后的参数执行操作。例如，自动将明文密码替换为环境变量引用。</p>
-</div>
-<div class="admonition warning">
-<p class="admonition-title">DEFER 有时间限制</p>
-<p>DEFER 判决带有 <code>expires_at</code> 时间戳。如果运维人员在超时前未做出选择，系统将根据 fail-safe 原则自动拒绝（fail-closed）。</p>
-</div>
-<hr />
-<h2 id="dual-channel">7. 双通道处理<a class="headerlink" href="#dual-channel" title="Permanent link">&para;</a></h2>
-<p>AHP 协议区分两种处理模式，分别对应不同的时效要求：</p>
-<pre class="mermaid"><code>sequenceDiagram
-    participant Agent
-    participant Gateway as ClawSentry Gateway
-
-    rect rgb(200, 230, 200)
-        Note over Agent,Gateway: pre_action (同步阻塞通道)
-        Agent-&gt;&gt;+Gateway: pre_action 事件
-        Gateway-&gt;&gt;Gateway: 风险评估 + 决策
-        Gateway--&gt;&gt;-Agent: CanonicalDecision
-        Note right of Agent: Agent 必须等待判决后&lt;br/&gt;才能继续执行
-    end
-
-    rect rgb(200, 210, 240)
-        Note over Agent,Gateway: post_action (异步审计通道)
-        Agent-&gt;&gt;Gateway: post_action 事件
-        Note right of Gateway: 异步记录，不返回判决
-        Note right of Agent: Agent 无需等待，&lt;br/&gt;继续执行下一步
-    end</code></pre>
-<table>
-<thead>
-<tr>
-<th>通道</th>
-<th>事件类型</th>
-<th>行为</th>
-<th>SLA</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>同步阻塞</strong></td>
-<td><code>pre_action</code></td>
-<td>Agent 发送事件后必须等待判决返回</td>
-<td>L1 &lt; 1ms, L2 &lt; 3s, L3 &lt; 30s</td>
-</tr>
-<tr>
-<td><strong>异步审计</strong></td>
-<td><code>post_action</code></td>
-<td>Agent 发送事件后立即继续，Gateway 异步处理</td>
-<td>无硬性限制</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition tip">
-<p class="admonition-title">为什么需要双通道？</p>
-<p><code>pre_action</code> 通道是安全防线 — 它在操作执行前进行拦截决策。<code>post_action</code> 通道用于事后审计和行为分析，不影响 Agent 的执行速度，但提供完整的操作轨迹用于安全审查和 D4 历史行为累积评分。</p>
-</div>
-<hr />
-<h2 id="sidecar">8. Sidecar 架构<a class="headerlink" href="#sidecar" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 采用 Sidecar 模式部署，作为 Agent 的伴随进程运行，通过本地通信通道进行交互。</p>
-<pre class="mermaid"><code>graph TB
-    subgraph "主机 / 容器"
-        subgraph "Agent 进程"
-            A[AI Agent]
-            AH[AHP Hook / Adapter]
-        end
-
-        subgraph "ClawSentry Sidecar"
-            GW[Supervision Gateway]
-            PE[Policy Engine]
-            DB[(SQLite)]
-        end
-
-        AH --&gt;|"UDS (主通道)"| GW
-        AH -.-&gt;|"HTTP (备用通道)"| GW
-        GW --&gt; PE
-        PE --&gt; DB
-    end
-
-    subgraph "外部（可选）"
-        LLM[LLM API]
-        WEB[Web 仪表板]
-        OC[OpenClaw Gateway]
-    end
-
-    PE -.-&gt;|"L2/L3"| LLM
-    GW --&gt;|SSE| WEB
-    GW &lt;--&gt;|WebSocket| OC</code></pre>
-<h3 id="_8">双传输通道<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>通道</th>
-<th>协议</th>
-<th>优先级</th>
-<th>特点</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>UDS</strong></td>
-<td>Unix Domain Socket</td>
-<td>主通道</td>
-<td>低延迟、无网络开销、文件权限隔离</td>
-</tr>
-<tr>
-<td><strong>HTTP</strong></td>
-<td>REST API</td>
-<td>备用通道</td>
-<td>支持跨网络访问、便于调试</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition info">
-<p class="admonition-title">UDS 安全加固</p>
-<p>ClawSentry 在创建 UDS 文件后会设置 <code>chmod 600</code> 权限，确保只有同一用户的进程可以访问。结合 Bearer Token 认证，提供双重安全保障。</p>
-</div>
-<hr />
-<h2 id="session-enforcement">9. 会话累积与强制策略<a class="headerlink" href="#session-enforcement" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 通过 <code>SessionRegistry</code> 追踪每个会话的风险累积，通过 <code>SessionEnforcementPolicy</code> 在阈值触发时强制执行安全策略。</p>
-<h3 id="_9">会话风险追踪<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
-<p>每次事件评估后，会话的风险统计会更新：</p>
-<ul>
-<li>累计高危事件数</li>
-<li>最近 N 次事件的风险等级分布</li>
-<li>会话持续时间和活跃度</li>
-</ul>
-<h3 id="session-enforcement_1">强制策略（Session Enforcement）<a class="headerlink" href="#session-enforcement_1" title="Permanent link">&para;</a></h3>
-<p>当一个会话累积了 N 次高危事件后（默认阈值为 3），强制策略会被触发：</p>
-<pre class="mermaid"><code>stateDiagram-v2
-    [*] --&gt; NORMAL: 会话开始
-    NORMAL --&gt; NORMAL: 低/中风险事件
-    NORMAL --&gt; ENFORCED: 累积 &gt;= threshold 次高危事件
-    ENFORCED --&gt; ENFORCED: 所有后续 pre_action 强制为 DEFER/BLOCK
-    ENFORCED --&gt; NORMAL: 冷却超时（默认 600s）
-    ENFORCED --&gt; NORMAL: 运维人员手动释放</code></pre>
-<table>
-<thead>
-<tr>
-<th>配置项</th>
-<th>环境变量</th>
-<th>默认值</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>启用开关</td>
-<td><code>AHP_SESSION_ENFORCEMENT_ENABLED</code></td>
-<td><code>false</code></td>
-<td>是否启用会话强制策略</td>
-</tr>
-<tr>
-<td>触发阈值</td>
-<td><code>AHP_SESSION_ENFORCEMENT_THRESHOLD</code></td>
-<td><code>3</code></td>
-<td>累积多少次高危事件后触发</td>
-</tr>
-<tr>
-<td>强制动作</td>
-<td><code>AHP_SESSION_ENFORCEMENT_ACTION</code></td>
-<td><code>defer</code></td>
-<td>触发后的动作：<code>defer</code> / <code>block</code> / <code>l3_require</code></td>
-</tr>
-<tr>
-<td>冷却时间</td>
-<td><code>AHP_SESSION_ENFORCEMENT_COOLDOWN_SECONDS</code></td>
-<td><code>600</code></td>
-<td>自动释放的等待时间（秒）</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="post-action-fence">10. Post-action 围栏<a class="headerlink" href="#post-action-fence" title="Permanent link">&para;</a></h2>
-<p><strong>Post-action 围栏</strong> 是 ClawSentry 的异步后置检测层。与 <code>pre_action</code> 同步拦截不同，它在工具调用<strong>执行后</strong>对输出和副作用进行扫描，不阻塞 Agent，但会生成告警事件供运维人员审查。</p>
-<h3 id="_10">工作时机<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>sequenceDiagram
-    participant Agent
-    participant Gateway
-    participant PostAction as PostActionAnalyzer（异步）
-
-    Agent-&gt;&gt;Gateway: post_action 事件（含工具输出）
-    Gateway--&gt;&gt;Agent: 立即返回 ALLOW（不阻塞）
-    Gateway-&gt;&gt;PostAction: 异步扫描
-    PostAction-&gt;&gt;Gateway: 输出告警（若检测到威胁）</code></pre>
-<h3 id="_11">检测分层<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
-<p><code>PostActionAnalyzer</code> 分三档响应：</p>
-<table>
-<thead>
-<tr>
-<th>告警级别</th>
-<th>默认阈值</th>
-<th>行为</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Monitor</strong></td>
-<td>≥ 0.3</td>
-<td>记录日志，SSE 广播告警</td>
-</tr>
-<tr>
-<td><strong>Escalate</strong></td>
-<td>≥ 0.6</td>
-<td>升级告警，通知 watch / Web UI</td>
-</tr>
-<tr>
-<td><strong>Emergency</strong></td>
-<td>≥ 0.9</td>
-<td>最高级告警，触发 Latch 推送通知</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_12">检测类别<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>类别</th>
-<th>描述</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>提示词注入回显</strong></td>
-<td>检测 LLM 输出中是否含有注入指令被执行后的痕迹</td>
-</tr>
-<tr>
-<td><strong>数据外泄</strong></td>
-<td>含外部 URL 的 curl/wget/ftp/nc 命令、异常网络请求</td>
-</tr>
-<tr>
-<td><strong>凭证泄露</strong></td>
-<td>API Key、密码、证书在输出中明文出现</td>
-</tr>
-<tr>
-<td><strong>混淆内容</strong></td>
-<td>base64 解码后执行、eval(hex)、复杂字符串拼接执行链</td>
-</tr>
-<tr>
-<td><strong>外部内容放大</strong></td>
-<td>来自网络或用户输入的内容：D6 额外 +0.3，post-action 分数 ×1.3</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_13">配置<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>环境变量</th>
-<th>默认值</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CS_POST_ACTION_EMERGENCY</code></td>
-<td><code>0.9</code></td>
-<td>Emergency 告警阈值</td>
-</tr>
-<tr>
-<td><code>CS_POST_ACTION_ESCALATE</code></td>
-<td><code>0.6</code></td>
-<td>Escalate 告警阈值</td>
-</tr>
-<tr>
-<td><code>CS_POST_ACTION_MONITOR</code></td>
-<td><code>0.3</code></td>
-<td>Monitor 告警阈值</td>
-</tr>
-<tr>
-<td><code>CS_POST_ACTION_WHITELIST</code></td>
-<td>无</td>
-<td>逗号分隔的白名单域名，排除误报</td>
-</tr>
-<tr>
-<td><code>CS_EXTERNAL_CONTENT_D6_BOOST</code></td>
-<td><code>0.3</code></td>
-<td>外部内容来源时 D6 额外加分</td>
-</tr>
-<tr>
-<td><code>CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER</code></td>
-<td><code>1.3</code></td>
-<td>外部内容来源时 post-action 分数乘数</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition info">
-<p class="admonition-title">不阻塞但持续审计</p>
-<p>Post-action 围栏永远不会阻止 Agent 已完成的操作，但其告警会在 Web 仪表板和 <code>clawsentry watch</code> 中实时显示，并通过 Latch 推送到手机。</p>
-</div>
-<hr />
-<h2 id="trajectory-analyzer">11. TrajectoryAnalyzer — 多阶段攻击检测<a class="headerlink" href="#trajectory-analyzer" title="Permanent link">&para;</a></h2>
-<p><strong>TrajectoryAnalyzer</strong> 分析跨多个工具调用步骤的行为序列，检测单个事件无法识别的<strong>多阶段攻击模式</strong>（如 APT 侦察→外泄链路）。</p>
-<h3 id="_14">工作原理<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h3>
-<p>每个会话保留最近 N 步工具调用记录（默认 50 步）。TrajectoryAnalyzer 在每次 <code>post_action</code> 事件后异步扫描该会话的事件轨迹，对以下模式评分：</p>
-<table>
-<thead>
-<tr>
-<th>模式 ID</th>
-<th>名称</th>
-<th>典型特征序列</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>RECON_THEN_EXFIL</strong></td>
-<td>侦察后外泄</td>
-<td><code>ls/find/cat</code> 读取文件 → 随后 <code>curl/nc</code> 外发</td>
-</tr>
-<tr>
-<td><strong>PRIVILEGE_ESCALATION</strong></td>
-<td>权限提升</td>
-<td><code>id/whoami</code> 探测权限 → <code>sudo/chmod</code> 提升权限</td>
-</tr>
-<tr>
-<td><strong>LATERAL_MOVEMENT</strong></td>
-<td>横向移动</td>
-<td>读取 SSH 密钥/凭证 → 建立外部连接</td>
-</tr>
-<tr>
-<td><strong>PERSISTENCE</strong></td>
-<td>持久化</td>
-<td>修改 <code>.bashrc</code>/crontab/systemd → 写入后门</td>
-</tr>
-<tr>
-<td><strong>DATA_STAGING</strong></td>
-<td>数据预备外泄</td>
-<td>大量文件聚合压缩 → 准备传输</td>
-</tr>
-</tbody>
-</table>
-<p>每种模式都有阶段权重，当模式分 ≥ threshold 时触发告警。</p>
-<h3 id="post-action">与 Post-action 的关系<a class="headerlink" href="#post-action" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>graph TD
-    PA["PostActionAnalyzer&lt;br/&gt;单事件扫描"] --&gt; ALERT1[单次告警]
-    TA["TrajectoryAnalyzer&lt;br/&gt;跨事件序列分析"] --&gt; ALERT2[模式告警]
-    ALERT1 --&gt; EB[EventBus]
-    ALERT2 --&gt; EB
-    EB --&gt; W[watch CLI]
-    EB --&gt; UI[Web UI]
-    EB --&gt; L[Latch]</code></pre>
-<p>两者均为<strong>异步、非阻塞</strong>，互为补充：Post-action 针对单次事件的输出内容扫描，TrajectoryAnalyzer 在时间序列维度检测多步攻击链。</p>
-<h3 id="_15">配置<a class="headerlink" href="#_15" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>环境变量</th>
-<th>默认值</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CS_TRAJECTORY_MAX_EVENTS</code></td>
-<td><code>50</code></td>
-<td>每个会话保留的最大事件步数</td>
-</tr>
-<tr>
-<td><code>CS_TRAJECTORY_MAX_SESSIONS</code></td>
-<td><code>10000</code></td>
-<td>内存中保留的最大会话数</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="eventbus-sse">12. EventBus 与 SSE 实时推送<a class="headerlink" href="#eventbus-sse" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 内部使用 <strong>EventBus</strong> 作为事件总线，将决策、告警、会话、DEFER 等事件广播给所有订阅者。外部消费者通过 <strong>SSE（Server-Sent Events）</strong> 接收实时事件流。</p>
-<h3 id="_16">推送架构<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>graph LR
-    subgraph "Gateway 内部"
-        LE["L1/L2/L3 决策引擎"] --&gt;|决策事件| EB[EventBus]
-        PA[PostActionAnalyzer] --&gt;|告警事件| EB
-        DM[DeferManager] --&gt;|defer_pending / defer_resolved| EB
-        SR[SessionRegistry] --&gt;|会话事件| EB
-    end
-
-    subgraph "外部消费者"
-        EB --&gt;|"SSE  GET /events"| W[clawsentry watch]
-        EB --&gt;|"SSE  GET /events"| UI[Web UI]
-        EB --&gt;|HTTP 转发| LH[Latch Hub]
-    end</code></pre>
-<h3 id="sse">SSE 事件类型<a class="headerlink" href="#sse" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>事件类型</th>
-<th>触发时机</th>
-<th>主要字段</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>decision</code></td>
-<td>每次产生 allow/block/defer 判决</td>
-<td><code>session_id</code>, <code>verdict</code>, <code>risk_level</code>, <code>tool_name</code>, <code>reason</code></td>
-</tr>
-<tr>
-<td><code>alert</code></td>
-<td>PostActionAnalyzer / TrajectoryAnalyzer 检测到威胁</td>
-<td><code>session_id</code>, <code>alert_type</code>, <code>severity</code>, <code>detail</code></td>
-</tr>
-<tr>
-<td><code>defer_pending</code></td>
-<td>产生 DEFER 判决，等待人工审批</td>
-<td><code>session_id</code>, <code>approval_id</code>, <code>expires_at</code>, <code>command</code></td>
-</tr>
-<tr>
-<td><code>defer_resolved</code></td>
-<td>DEFER 被 Allow/Deny 或超时</td>
-<td><code>approval_id</code>, <code>resolved_by</code>, <code>resolution</code></td>
+<td><code>CanonicalDecision</code></td>
+<td>Gateway 输出的安全判决。</td>
 </tr>
 <tr>
 <td><code>session</code></td>
-<td>会话生命周期（start/end）</td>
-<td><code>session_id</code>, <code>agent_id</code>, <code>framework</code></td>
+<td>一次 Agent 会话。</td>
+</tr>
+<tr>
+<td><code>workspace</code></td>
+<td>Agent 工作目录或项目空间。</td>
+</tr>
+<tr>
+<td><code>approval_id</code></td>
+<td>DEFER/审批流程里的操作标识。</td>
+</tr>
+<tr>
+<td><code>SSE</code></td>
+<td><code>/report/stream</code> 实时事件流。</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_17">接入方式<a class="headerlink" href="#_17" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># clawsentry watch 自动订阅（推荐）</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>clawsentry<span class="w"> </span>watch
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># 手动 curl 调试</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer </span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">     </span>http://127.0.0.1:8080/events
-</span></code></pre></div>
-<div class="admonition tip">
-<p class="admonition-title">DEFER 交互式审批依赖 SSE</p>
-<p><code>clawsentry watch --interactive</code> 监听 <code>defer_pending</code> 事件，在终端提示 <code>[A]llow / [D]eny / [S]kip</code>。SSE 连接中断时 Web UI 和 Latch 仍可审批。</p>
-</div>
-<hr />
-<h2 id="security-presets">13. 安全预设与项目级配置<a class="headerlink" href="#security-presets" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 提供四个内置安全预设，通过 <code>.clawsentry.toml</code> 文件按项目独立配置——不同项目可以有不同的安全强度，互不干扰。</p>
-<h3 id="_18">四个预设级别<a class="headerlink" href="#_18" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>预设</th>
-<th>适用场景</th>
-<th style="text-align: center;">medium 阈值</th>
-<th style="text-align: center;">high 阈值</th>
-<th style="text-align: center;">critical 阈值</th>
-<th style="text-align: center;">DEFER 超时行为</th>
-<th style="text-align: center;">D6 放大系数</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>low</code></td>
-<td>个人项目、本地探索</td>
-<td style="text-align: center;">1.2</td>
-<td style="text-align: center;">2.0</td>
-<td style="text-align: center;">2.8</td>
-<td style="text-align: center;"><strong>超时放行</strong></td>
-<td style="text-align: center;">0.3</td>
-</tr>
-<tr>
-<td><code>medium</code> <strong>(默认)</strong></td>
-<td>日常开发</td>
-<td style="text-align: center;">0.8</td>
-<td style="text-align: center;">1.5</td>
-<td style="text-align: center;">2.2</td>
-<td style="text-align: center;">超时拒绝</td>
-<td style="text-align: center;">0.5</td>
-</tr>
-<tr>
-<td><code>high</code></td>
-<td>团队项目、敏感代码库</td>
-<td style="text-align: center;">0.5</td>
-<td style="text-align: center;">1.2</td>
-<td style="text-align: center;">1.8</td>
-<td style="text-align: center;">超时拒绝</td>
-<td style="text-align: center;">0.7</td>
-</tr>
-<tr>
-<td><code>strict</code></td>
-<td>CI/CD、安全审计</td>
-<td style="text-align: center;">0.3</td>
-<td style="text-align: center;">0.9</td>
-<td style="text-align: center;">1.3</td>
-<td style="text-align: center;">超时拒绝</td>
-<td style="text-align: center;">1.0</td>
-</tr>
-</tbody>
-</table>
-<p>预设值越高，检测敏感度越强（阈值越低 → 更多操作被视为高风险），D6 注入放大系数越大。</p>
-<h3 id="clawsentrytoml">.clawsentry.toml — 项目级配置<a class="headerlink" href="#clawsentrytoml" title="Permanent link">&para;</a></h3>
-<p>在项目根目录创建 <code>.clawsentry.toml</code>，Harness 在每次 hook 调用时自动读取（60s TTL 缓存，热更新无需重启）：</p>
-<div class="language-toml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[project]</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">preset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="w">         </span><span class="c1"># low / medium / high / strict</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">[overrides]</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># 可选：在预设基础上精细覆盖单个参数</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># threshold_critical = 2.0</span>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># defer_timeout_action = &quot;allow&quot;</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="c1"># post_action_emergency = 0.85</span>
-</span></code></pre></div>
-<h3 id="_19">配置优先级链<a class="headerlink" href="#_19" title="Permanent link">&para;</a></h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>CS_ 环境变量  &gt;  .clawsentry.toml [overrides]  &gt;  预设值  &gt;  DetectionConfig 默认值
-</span></code></pre></div>
-<h3 id="_20">常用命令<a class="headerlink" href="#_20" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>clawsentry<span class="w"> </span>config<span class="w"> </span>init<span class="w"> </span>--preset<span class="w"> </span>high<span class="w">   </span><span class="c1"># 在当前目录生成 .clawsentry.toml</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>clawsentry<span class="w"> </span>config<span class="w"> </span><span class="nb">set</span><span class="w"> </span>strict<span class="w">           </span><span class="c1"># 切换预设</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>clawsentry<span class="w"> </span>config<span class="w"> </span>show<span class="w">                 </span><span class="c1"># 查看当前生效配置和来源</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>clawsentry<span class="w"> </span>config<span class="w"> </span>disable<span class="w">              </span><span class="c1"># 临时禁用项目配置</span>
-</span></code></pre></div>
-<div class="admonition info">
-<p class="admonition-title">不同项目，不同预设</p>
-<p><code>.clawsentry.toml</code> 只影响从该目录（或其子目录）启动的会话。项目 A（preset=high）和项目 B（preset=low）各自独立，互不干扰。</p>
-</div>
-<hr />
-<h2 id="pattern-evolution">14. 自进化模式库<a class="headerlink" href="#pattern-evolution" title="Permanent link">&para;</a></h2>
-<p><strong>自进化模式库</strong>（PatternEvolution）是 ClawSentry 的可选增强功能。它从实际观察到的攻击尝试中自动提炼新的检测模式，经信心评分和状态机晋升后成为 L1 规则库的补充。</p>
-<div class="admonition warning">
-<p class="admonition-title">默认关闭</p>
-<p>自进化模式库默认未启用（<code>CS_EVOLVING_ENABLED=false</code>）。需明确设置 <code>CS_EVOLVING_ENABLED=true</code> 并配置持久化路径后才生效。</p>
-</div>
-<h3 id="_21">模式生命周期<a class="headerlink" href="#_21" title="Permanent link">&para;</a></h3>
-<pre class="mermaid"><code>stateDiagram-v2
-    [*] --&gt; candidate: 从高可信 D6 事件提炼
-    candidate --&gt; testing: 累积足够样本
-    testing --&gt; active: 信心分 &gt;= 0.8
-    active --&gt; retired: 误报率上升 / 长期未命中
-    testing --&gt; retired: 样本不足 / 信心过低</code></pre>
-<table>
-<thead>
-<tr>
-<th>状态</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>candidate</strong></td>
-<td>初始提炼阶段，尚未进入规则引擎</td>
-</tr>
-<tr>
-<td><strong>testing</strong></td>
-<td>影子模式运行，收集命中/误报数据</td>
-</tr>
-<tr>
-<td><strong>active</strong></td>
-<td>已激活，参与 L1 评分（作为额外 D3 模式）</td>
-</tr>
-<tr>
-<td><strong>retired</strong></td>
-<td>已退休，不再使用</td>
-</tr>
-</tbody>
-</table>
-<h3 id="0010">信心评分（0.0–1.0）<a class="headerlink" href="#0010" title="Permanent link">&para;</a></h3>
-<p>信心分由以下因素加权计算：命中频率、精确率（L2/L3 确认为真实威胁的比例）、新鲜度（近期观察权重更高）、覆盖度（跨会话命中更可信）。</p>
-<h3 id="_22">启用方法<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># .env.clawsentry 或环境变量</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">CS_EVOLVING_ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">CS_EVOLVED_PATTERNS_PATH</span><span class="o">=</span>/path/to/evolved_patterns.yaml
-</span></code></pre></div>
-<h3 id="rest-api">REST API<a class="headerlink" href="#rest-api" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>方法</th>
-<th>路径</th>
-<th>说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>GET</code></td>
-<td><code>/evolution/patterns</code></td>
-<td>列出所有进化模式（含状态和信心分）</td>
-</tr>
-<tr>
-<td><code>POST</code></td>
-<td><code>/evolution/patterns/{id}/retire</code></td>
-<td>手动将某个模式退休</td>
-</tr>
-<tr>
-<td><code>POST</code></td>
-<td><code>/evolution/patterns/{id}/activate</code></td>
-<td>手动激活候选模式</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition tip">
-<p class="admonition-title">何时开启？</p>
-<p>建议系统运行至少 2 周、积累充足事件后再启用，以保证提炼质量。</p>
-</div>
-<hr />
-<h2 id="fail-safe">15. Fail-safe 原则<a class="headerlink" href="#fail-safe" title="Permanent link">&para;</a></h2>
-<p>ClawSentry 遵循分级别的 fail-safe 策略，确保在系统异常时仍能维持安全基线：</p>
-<table>
-<thead>
-<tr>
-<th>风险等级</th>
-<th>异常时行为</th>
-<th>原则名称</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>high</code> / <code>critical</code></td>
-<td><strong>阻断</strong> — 拒绝执行</td>
-<td>Fail-closed</td>
-</tr>
-<tr>
-<td><code>low</code></td>
-<td><strong>放行</strong> — 允许执行</td>
-<td>Fail-open</td>
-</tr>
-<tr>
-<td><code>medium</code></td>
-<td><strong>延迟</strong> — 等待人工确认</td>
-<td>Fail-defer</td>
-</tr>
-</tbody>
-</table>
-<div class="admonition danger">
-<p class="admonition-title">高危操作永远不会因系统故障而被放行</p>
-<p>这是 ClawSentry 最核心的安全承诺。即使策略引擎崩溃、LLM 调用超时、数据库不可用，高危操作也会被拦截。</p>
-</div>
-<p><strong>具体场景：</strong></p>
-<table>
-<thead>
-<tr>
-<th>故障场景</th>
-<th>低风险事件</th>
-<th>高风险事件</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>L2 LLM 调用超时</td>
-<td>使用 L1 结果（ALLOW）</td>
-<td>使用 L1 结果（BLOCK）</td>
-</tr>
-<tr>
-<td>L3 Agent 执行失败</td>
-<td>回退到 L2 结果</td>
-<td>返回 <code>confidence=0.0</code>，保守拦截</td>
-</tr>
-<tr>
-<td>策略引擎不可达</td>
-<td>ALLOW（fail-open）</td>
-<td>BLOCK（fail-closed）</td>
-</tr>
-<tr>
-<td>数据库写入失败</td>
-<td>正常决策，日志告警</td>
-<td>正常决策，日志告警</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="_23">概念关系总览<a class="headerlink" href="#_23" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>graph TB
-    subgraph "AHP 协议规范"
-        CE[CanonicalEvent]
-        CD[CanonicalDecision]
-        RS[RiskSnapshot]
-    end
-
-    subgraph "ClawSentry 实现"
-        A1[a3s-code Adapter]
-        A2[OpenClaw Adapter]
-        L1[L1 PolicyEngine]
-        L2[L2 SemanticAnalyzer]
-        L3[L3 AgentAnalyzer]
-        SE[SessionEnforcementPolicy]
-        SR[SessionRegistry]
-        SSE[SSE EventBus]
-        PA[PostActionAnalyzer]
-        TA[TrajectoryAnalyzer]
-    end
-
-    subgraph "外部接口"
-        W[clawsentry watch]
-        UI[Web 仪表板]
-        API[REST API]
-        LH[Latch Hub]
-    end
-
-    A1 --&gt;|归一化| CE
-    A2 --&gt;|归一化| CE
-    CE --&gt; L1
-    L1 --&gt;|计算| RS
-    L1 --&gt;|生成| CD
-    L1 --&gt;|升级| L2
-    L2 --&gt;|升级| L3
-    L1 --&gt; SR
-    SR --&gt; SE
-    CD --&gt; SSE
-    CD --&gt; PA
-    PA --&gt; SSE
-    TA --&gt; SSE
-    SSE --&gt; W
-    SSE --&gt; UI
-    SSE --&gt; LH
-    CD --&gt; API</code></pre>
-<hr />
-<h2 id="_24">下一步<a class="headerlink" href="#_24" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../faq/">常见问题</a> — 常见疑问解答</li>
-<li><a href="../../configuration/detection-config/">检测管线配置</a> — 调整 D1-D6 阈值和安全预设参数</li>
-<li><a href="../../configuration/policy-tuning/">策略调优</a> — 精细控制各层判决行为</li>
-<li><a href="../../integration/a3s-code/">a3s-code 集成指南</a> — 完整的集成细节</li>
-<li><a href="../../decision-layers/l1-rules/">L1 规则引擎</a> — 深入理解三层决策策略配置</li>
-<li><a href="../../advanced/custom-analyzer/">自定义 L2 分析器</a> — 扩展语义分析能力</li>
-<li><a href="../../advanced/pattern-evolution/">自进化模式库</a> — 自动提炼项目特定检测规则</li>
-</ul>
+<p>继续阅读：<a href="../../api/overview/">API 概览</a> 或 <a href="../quickstart/">快速开始</a>。</p>
+<h2 id="risk-dimensions">风险维度<a class="headerlink" href="#risk-dimensions" title="Permanent link">&para;</a></h2>
+<p>ClawSentry 的规则层会综合工具类型、目标资源、命令模式、上下文累积和信任等级等信号。你不需要在第一次接入时调参；当误报或漏报出现时，再阅读 <a href="../../configuration/policy-tuning/">策略调优</a>。</p>
+<h2 id="eventbus-sse">EventBus 与 SSE<a class="headerlink" href="#eventbus-sse" title="Permanent link">&para;</a></h2>
+<p>实时流是事件、判决和审计进入 watch/UI/API 的通道。详情见上方“事件、判决、审计的区别”，API 调用见 <a href="../../api/overview/">API 概览</a>。</p>
 
 
 

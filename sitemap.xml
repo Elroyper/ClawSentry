@@ -45,7 +45,23 @@
          <lastmod>2026-04-22</lastmod>
     </url>
     <url>
+         <loc>https://elroyper.github.io/ClawSentry/api/models-errors/</loc>
+         <lastmod>2026-04-22</lastmod>
+    </url>
+    <url>
+         <loc>https://elroyper.github.io/ClawSentry/api/overview/</loc>
+         <lastmod>2026-04-22</lastmod>
+    </url>
+    <url>
+         <loc>https://elroyper.github.io/ClawSentry/api/reference/</loc>
+         <lastmod>2026-04-22</lastmod>
+    </url>
+    <url>
          <loc>https://elroyper.github.io/ClawSentry/api/reporting/</loc>
+         <lastmod>2026-04-22</lastmod>
+    </url>
+    <url>
+         <loc>https://elroyper.github.io/ClawSentry/api/webhooks/</loc>
          <lastmod>2026-04-22</lastmod>
     </url>
     <url>
@@ -78,6 +94,10 @@
     </url>
     <url>
          <loc>https://elroyper.github.io/ClawSentry/decision-layers/l2-semantic/</loc>
+         <lastmod>2026-04-22</lastmod>
+    </url>
+    <url>
+         <loc>https://elroyper.github.io/ClawSentry/decision-layers/l3-advisory/</loc>
          <lastmod>2026-04-22</lastmod>
     </url>
     <url>

