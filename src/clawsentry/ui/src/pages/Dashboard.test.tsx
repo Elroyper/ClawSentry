@@ -132,6 +132,10 @@ describe('Dashboard', () => {
     expect(screen.getByRole('region', { name: /llm usage drill-down/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /live activity feed/i })).toBeInTheDocument()
     expect(screen.getByText('Live Activity Feed')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /what to inspect first/i })).toBeInTheDocument()
+    expect(screen.getByText('1 · Start here')).toBeInTheDocument()
+    expect(screen.getByText('2 · Evidence')).toBeInTheDocument()
+    expect(screen.getByText('3 · Live stream')).toBeInTheDocument()
     expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
     expect(screen.getByText('Toolkit Evidence Budget')).toBeInTheDocument()
 

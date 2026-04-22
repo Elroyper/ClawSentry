@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, FolderTree, ScrollText, ShieldAlert } from 'lucide-react'
 import { api } from '../api/client'
 import { DecisionBadge, RiskBadge } from '../components/badges'
@@ -28,6 +28,14 @@ import {
 } from 'recharts'
 import { formatRelativeTime, workspaceLabel } from '../lib/sessionGroups'
 import { formatL3EvidenceSummary } from '../lib/l3EvidenceSummary'
+import { DEMO_FALLBACK_ENABLED, DEMO_REPLAY_PAGE, DEMO_SESSION_RISK } from '../lib/demoData'
+import { usePreferences } from '../lib/preferences'
+import {
+  appendReadableLabel,
+  formatOperatorAction,
+  formatOperatorLabel,
+  formatRunnerLabel,
+} from '../lib/operatorLabels'
 
 type ReportingEnvelope = {
   budget?: HealthBudgetSnapshot | null
@@ -56,6 +64,13 @@ const WINDOW_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: 'All', value: null },
   { label: 'Recent 1h', value: RECENT_WINDOW_SECONDS },
 ]
+
+function parseWindowSeconds(value: string | null): number | null {
+  if (!value || value === 'all') return null
+  if (value === 'recent-1h') return RECENT_WINDOW_SECONDS
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
 
 function classifyHint(hint: string): string {
   const normalized = hint.toLowerCase()
@@ -119,8 +134,60 @@ function normalizeSessionReplayPage(result: SessionReplayPageResponse): {
   }
 }
 
+function formatAdvisoryRecordRange(review: NonNullable<SessionRisk['l3_advisory']>['latest_review']): string {
+  const range = review?.source_record_range
+  if (!range) return 'Frozen boundary unavailable'
+  const count = review.evidence_record_count ?? review.evidence_event_ids?.length ?? 0
+  return `Records ${range.from_record_id}–${range.to_record_id} · ${count} event(s)`
+}
+
+function getOperatorRecommendation(
+  risk: SessionRisk | null,
+  showBudgetWarning: boolean,
+  latestAdvisoryReview: NonNullable<SessionRisk['l3_advisory']>['latest_review'] | null,
+) {
+  if (latestAdvisoryReview?.recommended_operator_action) {
+    return {
+      label: latestAdvisoryReview.recommended_operator_action,
+      detail: 'Follow the advisory-only recommendation while keeping the canonical decision unchanged.',
+    }
+  }
+
+  if (showBudgetWarning) {
+    return {
+      label: 'review budget evidence',
+      detail: 'Confirm LLM budget exhaustion before requesting additional L3 work.',
+    }
+  }
+
+  if (risk?.current_risk_level === 'critical') {
+    return {
+      label: 'escalate immediately',
+      detail: 'Critical posture detected; inspect replay evidence before releasing activity.',
+    }
+  }
+
+  if (risk?.current_risk_level === 'high') {
+    return {
+      label: 'inspect replay',
+      detail: 'High-risk activity is present; review recent decisions and L3 readiness.',
+    }
+  }
+
+  return {
+    label: 'monitor session',
+    detail: 'No urgent advisory action is attached; keep observing trajectory changes.',
+  }
+}
+
+function shouldUseSessionDetailDemoFallback(sessionId?: string): boolean {
+  return DEMO_FALLBACK_ENABLED && Boolean(sessionId?.startsWith('demo-'))
+}
+
 export default function SessionDetail() {
+  const { t, language } = usePreferences()
   const { sessionId } = useParams<{ sessionId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [risk, setRisk] = useState<SessionRisk | null>(null)
   const [trajectory, setTrajectory] = useState<TrajectoryRecord[]>([])
   const [replayNextCursor, setReplayNextCursor] = useState<number | null>(null)
@@ -130,8 +197,11 @@ export default function SessionDetail() {
   const [budgetExhaustionEvent, setBudgetExhaustionEvent] = useState<SSEBudgetExhaustedEvent | null>(null)
   const [initialLoadError, setInitialLoadError] = useState<string | null>(null)
   const [reloadNonce, setReloadNonce] = useState(0)
-  const [sessionWindowSeconds, setSessionWindowSeconds] = useState<number | null>(null)
+  const [sessionWindowSeconds, setSessionWindowSeconds] = useState<number | null>(
+    () => parseWindowSeconds(searchParams.get('windowSeconds') || searchParams.get('window')),
+  )
   const [loading, setLoading] = useState(true)
+  const [demoMode, setDemoMode] = useState(false)
   const [fullReviewStatus, setFullReviewStatus] = useState<string | null>(null)
   const [fullReviewError, setFullReviewError] = useState<string | null>(null)
   const [fullReviewRunning, setFullReviewRunning] = useState(false)
@@ -163,9 +233,31 @@ export default function SessionDetail() {
           ?? normalizedReplay.reporting.budget_exhaustion_event
           ?? null,
         )
+        setDemoMode(false)
       })
       .catch(() => {
-        setInitialLoadError('Could not load session detail. Try again.')
+        if (!shouldUseSessionDetailDemoFallback(sessionId)) {
+          setInitialLoadError('Could not load session detail. Try again.')
+          return
+        }
+        const normalizedRisk = normalizeSessionRisk({
+          ...DEMO_SESSION_RISK,
+          session_id: sessionId,
+        })
+        const normalizedReplay = normalizeSessionReplayPage({
+          ...DEMO_REPLAY_PAGE,
+          session_id: sessionId,
+        })
+        setRisk(normalizedRisk.risk)
+        setTrajectory(normalizedReplay.records)
+        setReplayNextCursor(normalizedReplay.nextCursor)
+        setBudget(normalizedRisk.reporting.budget ?? normalizedReplay.reporting.budget ?? null)
+        setBudgetExhaustionEvent(
+          normalizedRisk.reporting.budget_exhaustion_event
+          ?? normalizedReplay.reporting.budget_exhaustion_event
+          ?? null,
+        )
+        setDemoMode(true)
       })
       .finally(() => setLoading(false))
   }, [reloadNonce, sessionId, sessionWindowSeconds])
@@ -220,7 +312,7 @@ export default function SessionDetail() {
   if (loading) {
     return (
       <div>
-        <div style={{ height: 24, marginBottom: 20 }} />
+        <div className="session-skeleton-spacer" />
         <div className="session-detail-grid">
           {[0, 1, 2].map(index => <SkeletonCard key={index} rows={4} height={220} />)}
         </div>
@@ -236,14 +328,14 @@ export default function SessionDetail() {
           <ArrowLeft size={13} />
           Back to session inventory
         </Link>
-        <section className="card section-card" role="alert" style={{ marginTop: 20 }}>
+        <section className="card section-card session-error-card" role="alert">
           <div className="section-card-header">
             <div>
               <p className="section-kicker">Session detail</p>
               <h2>Unable to load session data</h2>
             </div>
           </div>
-          <p className="priority-session-meta" style={{ marginBottom: 16 }}>
+          <p className="priority-session-meta session-error-copy">
             {initialLoadError}
           </p>
           <button
@@ -272,17 +364,58 @@ export default function SessionDetail() {
   })) ?? []
   const showBudgetWarning = Boolean(budget?.exhausted || budgetExhaustionEvent)
   const workspaceName = workspaceLabel(risk?.workspace_root || '')
+  const latestAdvisoryReview = risk?.l3_advisory?.latest_review ?? null
+  const latestAdvisoryJob = risk?.l3_advisory?.latest_job ?? null
+  const latestRecord = trajectory[0] ?? null
+  const latestToolName = latestRecord ? String(latestRecord.event?.tool_name || 'unknown tool') : 'No tool observed'
+  const latestDecisionLabel = latestRecord ? String(latestRecord.decision.decision).toUpperCase() : 'NO REPLAY'
+  const workbenchWindowLabel = sessionWindowSeconds === null ? 'All recorded evidence' : 'Recent 1h replay scope'
+  const operatorRecommendation = getOperatorRecommendation(risk, showBudgetWarning, latestAdvisoryReview)
+  const evidenceBoundaryLabel = latestAdvisoryReview ? latestAdvisoryReview.snapshot_id : 'No frozen snapshot'
+  const evidenceBoundaryDetail = latestAdvisoryReview
+    ? formatAdvisoryRecordRange(latestAdvisoryReview)
+    : 'Request full review to freeze a bounded advisory snapshot.'
+  const capturedSummary = risk
+    ? `${formatRelativeTime(risk.first_event_at)} · ${risk.source_framework}`
+    : 'Waiting for session telemetry.'
+  const classifiedSummary = risk
+    ? `${risk.current_risk_level} posture · score ${risk.cumulative_score.toFixed(2)}`
+    : 'Risk posture unavailable.'
+  const replayEvidenceSummary = trajectory.length > 0
+    ? `${trajectory.length} decision event(s) loaded for operator review.`
+    : 'No replay records loaded yet.'
+  const advisoryActionSummary = latestAdvisoryReview
+    ? `L3 ${formatOperatorLabel('l3State', latestAdvisoryReview.l3_state, language)} · ${formatOperatorAction(latestAdvisoryReview.recommended_operator_action || 'inspect', language)}.`
+    : 'No advisory review attached yet.'
+  const latestAdvisoryRunner = latestAdvisoryReview?.review_runner
+    || latestAdvisoryReview?.worker_backend
+    || latestAdvisoryJob?.runner
+    || null
+
+  function updateSessionWindow(value: number | null) {
+    setSessionWindowSeconds(value)
+    const next = new URLSearchParams(searchParams)
+    if (value === null) {
+      next.delete('windowSeconds')
+      next.delete('window')
+    } else {
+      next.set('windowSeconds', String(value))
+      next.delete('window')
+    }
+    setSearchParams(next, { replace: true })
+  }
 
   return (
     <div className="session-detail-shell">
       <Link to="/sessions" className="back-link">
         <ArrowLeft size={13} />
-        Back to session inventory
+        {t('session.back')}
       </Link>
 
       <section className="session-hero">
         <div className="session-overview-copy">
-          <p className="section-kicker">Session detail</p>
+          <p className="section-kicker">{t('session.detail')}</p>
+          {demoMode && <span className="showcase-pill">Showcase mode · demo replay</span>}
           <h1>{workspaceName}</h1>
           <p className="hero-copy">
             {risk?.source_framework || 'unknown'} · {risk?.caller_adapter || 'unknown adapter'} ·
@@ -298,41 +431,99 @@ export default function SessionDetail() {
 
       <section className="session-surface session-analysis-surface" aria-labelledby="session-analysis-heading">
         <div className="section-card-header session-surface-header">
+          <div>
+            <p className="section-kicker">{t('session.analysis')}</p>
+            <h2 id="session-analysis-heading">{t('session.analysisTitle')}</h2>
+          </div>
+          <div className="session-surface-actions">
+            <span className="section-meta">{t('session.analysisMeta')}</span>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={requestFullReview}
+              disabled={fullReviewRunning || !sessionId}
+            >
+              {fullReviewRunning ? t('session.requestingReview') : t('session.requestReview')}
+            </button>
+          </div>
+        </div>
+        {(fullReviewStatus || fullReviewError) && (
+          <p
+            role={fullReviewError ? 'alert' : 'status'}
+            className="priority-session-meta"
+            data-tone={fullReviewError ? 'warning' : 'muted'}
+          >
+            {fullReviewError || fullReviewStatus}
+          </p>
+        )}
+        <div className="session-analysis-grid">
+          <section className="card section-card session-analysis-card-wide investigation-brief-card">
+            <div className="section-card-header">
               <div>
-                <p className="section-kicker">Analysis</p>
-                <h2 id="session-analysis-heading">Session analysis</h2>
+                <p className="section-kicker">{t('session.workbench')}</p>
+                <h3>{t('session.storyline')}</h3>
               </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <span className="section-meta">Risk posture, charts, evidence, and replay</span>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={requestFullReview}
-                  disabled={fullReviewRunning || !sessionId}
-                >
-                  {fullReviewRunning ? 'Requesting L3 full review…' : 'Request L3 full review'}
-                </button>
+              <span className="section-meta">{workbenchWindowLabel}</span>
+            </div>
+            <p className="investigation-lede">
+              {workspaceName} is being reconstructed from {trajectory.length} replay event(s),{' '}
+              {risk?.event_count ?? 0} tracked event(s), and {risk?.high_risk_event_count ?? 0} high-risk signal(s).
+              The workbench keeps the advisory path visible without changing canonical safety decisions.
+            </p>
+            <div className="investigation-brief-grid">
+              <div className="investigation-focus-card investigation-focus-card-primary">
+                <span className="workbench-summary-label">{t('session.operatorRecommendation')}</span>
+                <strong>{operatorRecommendation.label}</strong>
+                <p>{operatorRecommendation.detail}</p>
+              </div>
+              <div className="investigation-focus-card">
+                <span className="workbench-summary-label">{t('session.latestDecision')}</span>
+                <strong>{latestDecisionLabel}</strong>
+                <p>{latestToolName}</p>
+              </div>
+              <div className="investigation-focus-card">
+                <span className="workbench-summary-label">{t('session.evidenceBoundary')}</span>
+                <strong>{evidenceBoundaryLabel}</strong>
+                <p>{evidenceBoundaryDetail}</p>
               </div>
             </div>
-            {(fullReviewStatus || fullReviewError) && (
-              <p
-                role={fullReviewError ? 'alert' : 'status'}
-                className="priority-session-meta"
-                style={{
-                  marginTop: -8,
-                  marginBottom: 16,
-                  color: fullReviewError ? 'var(--color-warning, #f59e0b)' : 'var(--color-text-muted)',
-                }}
-              >
-                {fullReviewError || fullReviewStatus}
-              </p>
-            )}
-            <div className="session-analysis-grid">
+            <ol className="investigation-flow" aria-label="Investigation sequence">
+              <li>
+                <span>1</span>
+                <div>
+                  <strong>Session captured</strong>
+                  <p>{capturedSummary}</p>
+                </div>
+              </li>
+              <li>
+                <span>2</span>
+                <div>
+                  <strong>Risk classified</strong>
+                  <p>{classifiedSummary}</p>
+                </div>
+              </li>
+              <li>
+                <span>3</span>
+                <div>
+                  <strong>Replay evidence assembled</strong>
+                  <p>{replayEvidenceSummary}</p>
+                </div>
+              </li>
+              <li>
+                <span>4</span>
+                <div>
+                  <strong>Advisory action</strong>
+                  <p>{advisoryActionSummary}</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
           <section className="card section-card session-analysis-card-wide session-analysis-summary-card">
             <div className="section-card-header">
               <div>
                 <p className="section-kicker">Priority view</p>
-                <h3>Current posture</h3>
+                <h3>{t('session.currentPosture')}</h3>
               </div>
               <div className="hero-panel-header">
                 <ShieldAlert size={14} />
@@ -369,11 +560,72 @@ export default function SessionDetail() {
             </div>
           </section>
 
+          <section className="card section-card session-analysis-card-wide advisory-review-card">
+            <div className="section-card-header">
+              <div>
+                <p className="section-kicker">Advisory-only</p>
+                <h3>L3 advisory review</h3>
+              </div>
+              <span className="section-meta">Frozen evidence review, never a canonical decision rewrite</span>
+            </div>
+            {latestAdvisoryReview ? (
+              <>
+                <div className="advisory-review-grid">
+                  <div className="session-analysis-stat">
+                    <span>Review state</span>
+                    <strong className="mono">{formatOperatorLabel('l3State', latestAdvisoryReview.l3_state, language)}</strong>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Review ID</span>
+                    <strong className="mono">{latestAdvisoryReview.review_id}</strong>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Snapshot ID</span>
+                    <strong className="mono">{latestAdvisoryReview.snapshot_id}</strong>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Job ID</span>
+                    <strong className="mono">{latestAdvisoryJob?.job_id || 'Unavailable'}</strong>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Advisory risk</span>
+                    <div className="session-analysis-stat-value">
+                      <RiskBadge level={latestAdvisoryReview.risk_level} />
+                    </div>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Operator action</span>
+                    <strong className="mono">{formatOperatorAction(latestAdvisoryReview.recommended_operator_action || 'inspect', language)}</strong>
+                  </div>
+                  <div className="session-analysis-stat">
+                    <span>Review runner</span>
+                    <strong className="mono">{formatRunnerLabel(latestAdvisoryRunner, language)}</strong>
+                  </div>
+                </div>
+                <p className="priority-session-meta advisory-review-boundary">
+                  {formatAdvisoryRecordRange(latestAdvisoryReview)}
+                </p>
+                {latestAdvisoryReview.findings?.length > 0 && (
+                  <p className="priority-session-meta">
+                    Finding: <span className="mono">{latestAdvisoryReview.findings[0]}</span>
+                  </p>
+                )}
+                <p className="priority-session-meta">
+                  Canonical decision unchanged. Advisory-only review output is attached to the frozen snapshot.
+                </p>
+              </>
+            ) : (
+              <p className="empty-inline">
+                No L3 advisory review has been attached to this session yet. Use the full-review action to freeze evidence and run a deterministic advisory pass.
+              </p>
+            )}
+          </section>
+
           <section className="card section-card chart-card">
             <div className="section-card-header">
               <div>
                 <p className="section-kicker">Dimensions</p>
-                <h3>Risk composition</h3>
+                <h3>{t('session.riskComposition')}</h3>
               </div>
             </div>
             <div className="chart-card-body chart-card-radar">
@@ -396,7 +648,7 @@ export default function SessionDetail() {
             <div className="section-card-header">
               <div>
                 <p className="section-kicker">Timeline</p>
-                <h3>Risk score over time</h3>
+                <h3>{t('session.riskTimeline')}</h3>
               </div>
             </div>
             <div className="chart-card-body chart-card-area">
@@ -434,12 +686,12 @@ export default function SessionDetail() {
             <div className="section-card-header">
               <div>
                 <p className="section-kicker">Replay</p>
-                <h3>Decision timeline</h3>
+                <h3>{t('session.decisionTimeline')}</h3>
               </div>
               <div
                 role="group"
                 aria-label="Session time window"
-                style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}
+                className="session-window-controls"
               >
                 {WINDOW_OPTIONS.map(option => {
                   const isSelected = sessionWindowSeconds === option.value
@@ -449,13 +701,8 @@ export default function SessionDetail() {
                       type="button"
                       className="secondary-button"
                       aria-pressed={isSelected}
-                      onClick={() => setSessionWindowSeconds(option.value)}
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: 999,
-                        border: isSelected ? '1px solid rgba(94,165,255,0.55)' : '1px solid rgba(148,163,184,0.28)',
-                        background: isSelected ? 'rgba(94,165,255,0.16)' : 'rgba(255,255,255,0.03)',
-                      }}
+                      onClick={() => updateSessionWindow(option.value)}
+                      data-selected={isSelected ? 'true' : 'false'}
                     >
                       {option.label}
                     </button>
@@ -482,7 +729,7 @@ export default function SessionDetail() {
                         <TimelineLatency ms={record.decision.decision_latency_ms} />
                       </div>
                       {input && (
-                        <div className="cmd-snippet" style={{ maxWidth: '100%' }}>
+                        <div className="cmd-snippet decision-command">
                           {input.slice(0, 180)}
                         </div>
                       )}
@@ -506,12 +753,12 @@ export default function SessionDetail() {
                       )}
                       {record.meta.l3_reason_code && (
                         <p className="priority-session-meta">
-                          L3 reason code: <span className="mono">{record.meta.l3_reason_code}</span>
+                          L3 reason code: <span className="mono">{appendReadableLabel('l3ReasonCode', record.meta.l3_reason_code, language)}</span>
                         </p>
                       )}
                       {record.meta.l3_state && record.meta.l3_state !== 'completed' && (
                         <p className="priority-session-meta">
-                          L3 state: <span className="mono">{record.meta.l3_state}</span>
+                          L3 state: <span className="mono">{appendReadableLabel('l3State', record.meta.l3_state, language)}</span>
                         </p>
                       )}
                       {record.meta.l3_reason && record.meta.l3_state && record.meta.l3_state !== 'completed' && (
@@ -534,15 +781,15 @@ export default function SessionDetail() {
             </div>
             {replayLoadMoreError && (
               <p
-                className="priority-session-meta"
+                className="priority-session-meta replay-load-more-error"
                 role="alert"
-                style={{ marginTop: 14, textAlign: 'center', color: 'var(--color-warning, #f59e0b)' }}
+                data-tone="warning"
               >
                 {replayLoadMoreError}
               </p>
             )}
             {replayNextCursor !== null && (
-              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
+              <div className="replay-footer">
                 <button
                   type="button"
                   className="secondary-button"
@@ -562,7 +809,7 @@ export default function SessionDetail() {
                 <h3>Observed indicators</h3>
               </div>
             </div>
-            <div className="detail-pill-row" style={{ marginBottom: 16 }}>
+            <div className="detail-pill-row tier-distribution-row">
               {Object.entries(risk?.actual_tier_distribution || {}).map(([tier, count]) => (
                 <span key={tier}>
                   <TierBadge tier={tier} /> <span className="mono">{count}</span>
@@ -611,23 +858,11 @@ export default function SessionDetail() {
                   </div>
                 </div>
                 {showBudgetWarning && (
-                  <div
-                    className="mono"
-                    style={{
-                      marginTop: 4,
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      border: '1px solid rgba(239,68,68,0.3)',
-                      background: 'rgba(239,68,68,0.08)',
-                      color: 'var(--color-text)',
-                      fontSize: '0.72rem',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    <strong style={{ color: 'var(--color-block)' }}>Budget exhaustion event</strong>
+                  <div className="mono budget-warning-panel">
+                    <strong className="budget-warning-title">Budget exhaustion event</strong>
                     <span> · Operator attention required</span>
                     {budgetExhaustionEvent && (
-                      <div style={{ color: 'var(--color-text-muted)' }}>
+                      <div className="budget-warning-detail">
                         {budgetExhaustionEvent.provider || 'unknown'} · {budgetExhaustionEvent.tier || 'unknown'} · {formatUsd(budgetExhaustionEvent.cost_usd ?? 0)}
                       </div>
                     )}
@@ -642,8 +877,8 @@ export default function SessionDetail() {
       <section className="session-surface session-context-surface" aria-labelledby="session-context-heading">
         <div className="section-card-header session-surface-header">
           <div>
-            <p className="section-kicker">Context</p>
-            <h2 id="session-context-heading">Session context</h2>
+            <p className="section-kicker">{t('session.context')}</p>
+            <h2 id="session-context-heading">{t('session.contextTitle')}</h2>
           </div>
           <span className="section-meta">Workspace identity and recording metadata</span>
         </div>

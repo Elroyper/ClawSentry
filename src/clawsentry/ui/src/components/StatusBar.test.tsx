@@ -41,4 +41,41 @@ describe('StatusBar', () => {
     expect(screen.getByRole('status', { name: /gateway connection status/i })).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByRole('status', { name: /gateway connection status/i })).toHaveAttribute('aria-atomic', 'true')
   })
+
+  it('uses class-based styling for budget exhaustion copy', async () => {
+    vi.mocked(api.health).mockResolvedValue({
+      status: 'ok',
+      uptime_seconds: 120,
+      cache_size: 0,
+      trajectory_count: 42,
+      policy_engine: 'default',
+      auth_enabled: true,
+      budget: {
+        daily_budget_usd: 10,
+        daily_spend_usd: 10,
+        remaining_usd: 0,
+        exhausted: true,
+      },
+      budget_exhaustion_event: {
+        type: 'budget_exhausted',
+        timestamp: '2026-04-22T00:00:00Z',
+        provider: 'openai',
+        tier: 'L3',
+        status: 'degraded',
+        cost_usd: 0.25,
+        budget: {
+          daily_budget_usd: 10,
+          daily_spend_usd: 10,
+          remaining_usd: 0,
+          exhausted: true,
+        },
+      },
+    })
+
+    render(<StatusBar />)
+
+    expect(await screen.findByText(/BUDGET EXHAUSTED/i)).toHaveClass('status-budget-exhausted')
+    expect(screen.getByText(/Operator action required/i)).toHaveClass('status-budget-note')
+    expect(screen.getByText(/openai \/ L3 \/ \$0\.25/i)).toHaveClass('status-budget-note')
+  })
 })

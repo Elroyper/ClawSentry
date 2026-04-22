@@ -146,6 +146,99 @@ def _format_evidence_summary(summary: dict[str, Any] | None) -> str | None:
     return " · ".join(parts) if parts else None
 
 
+def _operator_action_hint(event: dict[str, Any]) -> str | None:
+    """Return a human scanning hint for action-oriented watch events.
+
+    The hint is display-only: it must never feed back into gateway safety
+    decisions or alter machine-readable output modes.
+    """
+    decision = str(event.get("decision") or "").lower()
+    risk = str(event.get("risk_level") or "").lower()
+    l3_state = str(event.get("l3_state") or "").lower()
+    l3_reason_code = str(event.get("l3_reason_code") or "").lower()
+
+    if decision == "defer":
+        return "operator approval pending"
+    if decision == "block":
+        return "blocked; inspect session evidence"
+    if l3_state and l3_state != "completed":
+        return f"L3 {l3_state}; monitor advisory review"
+    if l3_reason_code in {"toolkit_budget_exhausted", "hard_cap_exceeded"}:
+        return "evidence budget constrained; review retained context"
+    if risk in {"critical", "high"} and decision != "allow":
+        return "prioritize in operator queue"
+    return None
+
+
+def _l3_advisory_job_transition_hint(job_state: str) -> str | None:
+    """Return a display-only transition hint for advisory job lifecycle states."""
+    normalized = job_state.lower()
+    if normalized == "queued":
+        return "waiting for explicit operator run"
+    if normalized == "running":
+        return "worker executing frozen evidence review"
+    if normalized == "completed":
+        return "review available; canonical decision unchanged"
+    if normalized == "failed":
+        return "worker failed; inspect advisory job evidence"
+    if normalized == "degraded":
+        return "review degraded; inspect retained evidence boundary"
+    return None
+
+
+_OPERATOR_LABELS: dict[str, dict[str, str]] = {
+    "job_state": {
+        "queued": "Queued",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "degraded": "Degraded",
+    },
+    "l3_state": {
+        "pending": "Pending",
+        "running": "Running",
+        "completed": "Completed",
+        "failed": "Failed",
+        "degraded": "Degraded",
+        "skipped": "Skipped",
+        "not_triggered": "Not triggered",
+    },
+    "operator_action": {
+        "inspect": "Inspect",
+        "escalate": "Escalate",
+        "pause": "Pause",
+        "none": "None",
+    },
+    "runner": {
+        "deterministic_local": "Deterministic local",
+        "fake_llm": "Fake LLM",
+        "llm_provider": "LLM provider",
+    },
+}
+
+
+def _humanize_operator_id(value: str) -> str:
+    words = value.replace("_", " ").replace("-", " ").strip()
+    if not words:
+        return "Unknown"
+    return words[:1].upper() + words[1:].lower()
+
+
+def _operator_label(kind: str, value: str) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return "Unknown"
+    return _OPERATOR_LABELS.get(kind, {}).get(normalized.lower(), _humanize_operator_id(normalized))
+
+
+def _operator_display(kind: str, value: str) -> str:
+    normalized = str(value or "").strip()
+    label = _operator_label(kind, normalized)
+    if not normalized or label == normalized:
+        return label
+    return f"{label} ({normalized})"
+
+
 # ── SSE line parser ──────────────────────────────────────────────────────────
 
 
@@ -339,6 +432,10 @@ def format_decision(
     # Reason
     if reason:
         detail_items.append(f"Reason: {_c('grey', reason, color=color)}")
+
+    action_hint = _operator_action_hint(event)
+    if action_hint:
+        detail_items.append(f"Action: {_c('grey', action_hint, color=color)}")
 
     trigger_detail = str(event.get("trigger_detail") or "")
     if trigger_detail:
@@ -841,6 +938,8 @@ def _format_l3_advisory_review(
     risk_level = str(event.get("risk_level") or "unknown")
     action = str(event.get("recommended_operator_action") or "inspect")
     l3_state = str(event.get("l3_state") or "unknown")
+    action_label = _operator_display("operator_action", action)
+    l3_state_label = _operator_display("l3_state", l3_state)
 
     e = _emoji("l3_advisory", no_emoji=no_emoji)
     e_str = f"{e} " if e else ""
@@ -851,18 +950,26 @@ def _format_l3_advisory_review(
     if compact:
         return (
             f"{ts_str} {label}  {review_id}  "
-            f"Session={session_id} Risk={risk_level} State={l3_state} Action={action}"
+            f"Session={session_id} Risk={risk_level} State={l3_state_label} Action={action_label}"
         )
 
     lines = [f"{ts_str} {label}  {review_id}"]
-    for i, item in enumerate([
+    detail_items = [
         f"Session: {_c('grey', session_id, color=color)}",
         f"Snapshot: {_c('grey', snapshot_id, color=color)}",
         f"Risk: {risk}",
-        f"State: {_c('grey', l3_state, color=color)}",
-        f"Action: {_c('grey', action, color=color)}",
-    ]):
-        connector = "└─" if i == 4 else "├─"
+        f"State: {_c('grey', l3_state_label, color=color)}",
+        f"Action: {_c('grey', action_label, color=color)}",
+    ]
+    if event.get("advisory_only") is True:
+        if event.get("canonical_decision_mutated") is False:
+            boundary = "advisory only; canonical unchanged"
+        else:
+            boundary = "advisory only"
+        detail_items.append(f"Boundary: {_c('grey', boundary, color=color)}")
+
+    for i, item in enumerate(detail_items):
+        connector = "└─" if i == len(detail_items) - 1 else "├─"
         lines.append(f"{_TREE_INDENT}{connector} {item}")
     return "\n".join(lines)
 
@@ -880,6 +987,8 @@ def _format_l3_advisory_job(
     snapshot_id = str(event.get("snapshot_id") or "unknown")
     job_state = str(event.get("job_state") or "unknown")
     runner = str(event.get("runner") or "unknown")
+    job_state_label = _operator_display("job_state", job_state)
+    runner_label = _operator_display("runner", runner)
 
     e = _emoji("l3_advisory", no_emoji=no_emoji)
     e_str = f"{e} " if e else ""
@@ -889,17 +998,25 @@ def _format_l3_advisory_job(
     if compact:
         return (
             f"{ts_str} {label}  {job_id}  "
-            f"Session={session_id} State={job_state} Runner={runner}"
+            f"Session={session_id} State={job_state_label} Runner={runner_label}"
         )
 
     lines = [f"{ts_str} {label}  {job_id}"]
-    for i, item in enumerate([
+    detail_items = [
         f"Session: {_c('grey', session_id, color=color)}",
         f"Snapshot: {_c('grey', snapshot_id, color=color)}",
-        f"State: {_c('grey', job_state, color=color)}",
-        f"Runner: {_c('grey', runner, color=color)}",
-    ]):
-        connector = "└─" if i == 3 else "├─"
+        f"State: {_c('grey', job_state_label, color=color)}",
+        f"Runner: {_c('grey', runner_label, color=color)}",
+    ]
+    transition_hint = _l3_advisory_job_transition_hint(job_state)
+    if transition_hint:
+        detail_items.append(f"Next: {_c('grey', transition_hint, color=color)}")
+    detail_items.append(
+        f"Boundary: {_c('grey', 'frozen snapshot; explicit run only', color=color)}"
+    )
+
+    for i, item in enumerate(detail_items):
+        connector = "└─" if i == len(detail_items) - 1 else "├─"
         lines.append(f"{_TREE_INDENT}{connector} {item}")
     return "\n".join(lines)
 

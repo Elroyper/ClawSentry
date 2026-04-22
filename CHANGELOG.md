@@ -4,11 +4,21 @@
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-04-22
+
 ### 新增
 
-- **WebUI/watch P2 收尾** — 新增 operator-readable L3 状态/原因/runner 标签层，WebUI RuntimeFeed、Sessions、Session Detail 与 `clawsentry watch` 在保留底层 ID/边界语义的同时显示更易扫描的状态文案；L3 advisory job 现在同时展示 frozen snapshot / explicit-run-only 边界，不改变 JSON 输出、Gateway 判决、scheduler 或 canonical decision。
-- **L3 full-review operator visibility** — Session Detail 现在在 full-review action 之外持续展示最新 advisory review/job/snapshot ID、frozen record boundary 与 “canonical decision unchanged” 口径，根 README / 状态页同步到 `v0.5.2` 基线并增加版本一致性契约测试。
+- **WebUI/watch L3 状态可读化** — 新增 operator-readable L3 状态/原因/runner 标签层，WebUI RuntimeFeed、Sessions、Session Detail 与 `clawsentry watch` 在保留底层 ID/边界语义的同时显示更易扫描的状态文案；L3 advisory job 现在同时展示 frozen snapshot / explicit-run-only 边界，不改变 JSON 输出、Gateway 判决、scheduler 或 canonical decision。
+- **L3 full-review operator visibility** — Session Detail 现在在 full-review action 之外持续展示最新 advisory review/job/snapshot ID、frozen record boundary 与 “canonical decision unchanged” 口径，根 README / 状态页同步到 `v0.5.3` 基线并增加版本一致性契约测试。
+- **L3 咨询审查在线文档** — 在线文档新增独立 L3 咨询审查页面，面向使用者解释 full review、snapshot/job/review、runner 选择、Web UI/CLI/API 路径和 advisory-only 边界；Codex 集成页新增 hook 安装验证说明，规则治理页补充 CI artifact 与 sample events 覆盖范围。
 - **L3 advisory real-provider smoke hardening** — `llm_provider` advisory worker 的 provider completion budget 从 1024 提升到 4096 tokens，避免 reasoning-heavy OpenAI-compatible 模型在 reasoning 阶段耗尽输出预算而返回空 content；`openai/kimi-k2.5` 已重新通过 `--require-completed` 真实 smoke，证据见 `docs/validation/l3-advisory-provider-real-smoke-rerun-2026-04-21.md`。
+
+### 测试与验证
+
+- Python 回归：开发仓库 `3025 passed, 4 skipped`；公开仓库 `3022 passed, 7 skipped`
+- Web UI 回归：`39 passed`
+- `mkdocs build --strict`：PASS
+- `python -m build`：PASS
 
 ## [0.5.2] — 2026-04-21
 
@@ -929,6 +939,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.3
 [0.5.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.2
 [0.5.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.1
 [0.5.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.0

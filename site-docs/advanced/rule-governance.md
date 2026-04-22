@@ -107,15 +107,30 @@ clawsentry rules report --output FILE [--events FILE] [--summary-markdown FILE] 
 - 完整 `lint` payload
 - 可选的完整 `dry_run` payload
 
-如果传入 `--summary-markdown`，`report` 还会写出一份面向 release /
-rollout 审阅的人类可读 dashboard，列出总体状态、finding 数、fingerprint
+如果传入 `--summary-markdown`，`report` 还会写出一份面向 release / 策略变更审阅的人类可读 dashboard，列出总体状态、finding 数、fingerprint
 以及 sample events 的 pattern / skill 覆盖情况。
 
 如果同时传入 `--json`，报告也会输出到 stdout，便于流水线直接解析。
 
 仓库还提供了可同步到公开仓库的 GitHub Actions 示例：
 `examples/ci/rules-governance.yml`。公开仓库可将它复制到
-`.github/workflows/rules-governance.yml` 后按需调整触发条件。
+`.github/workflows/rules-governance.yml` 后按需调整触发条件。模板会运行
+`rules lint`、`rules dry-run`、`rules report`，并上传 JSON/Markdown artifact，
+便于 reviewer 直接查看本次规则面是否可加载、样本是否按预期命中、fingerprint
+是否与审核材料一致。
+
+### 内置 sample events 覆盖范围 {#sample-events}
+
+默认示例文件 `examples/sample-events.jsonl` 覆盖三类最小代表场景：
+
+| 样本类型 | 用途 |
+|----------|------|
+| safe read | 验证普通读取不会被规则面误判为高风险 |
+| credential upload | 验证凭证上传/外传类事件能命中预期 pattern |
+| download and execute | 验证下载后执行类供应链风险能进入 dry-run/report 证据 |
+
+你可以把这些样本作为 CI smoke 的起点，再追加自己组织里的 benign、expected-match
+和 near-miss 事件。
 
 ### 示例
 
@@ -180,7 +195,7 @@ clawsentry rules report \
   --summary-markdown artifacts/rules-dashboard.md
 ```
 
-如果 `status` 不是 `pass`，或 dashboard 中出现未解释的 FAIL finding，应先修规则或补充风险说明，再进入 rollout。
+如果 `status` 不是 `pass`，或 dashboard 中出现未解释的 FAIL finding，应先修规则或补充风险说明，再进入发布或策略变更。
 
 ## 输出字段 {#outputs}
 

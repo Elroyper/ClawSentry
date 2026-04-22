@@ -11,8 +11,10 @@ def _read_ui_file(relative_path: str) -> str:
 
 def test_dashboard_feed_subscribes_to_runtime_activity_events() -> None:
     source = _read_ui_file("components/RuntimeFeed.tsx")
+    locales = _read_ui_file("lib/locales.ts")
 
-    assert "Live Activity Feed" in source
+    assert "runtime.title" in source
+    assert "Live Activity Feed" in locales
     assert "trajectory_alert" in source
     assert "post_action_finding" in source
     assert "pattern_candidate" in source
@@ -53,8 +55,10 @@ def test_status_bar_surfaces_budget_snapshot_copy() -> None:
 
 def test_dashboard_surfaces_budget_snapshot_in_current_posture() -> None:
     source = _read_ui_file("pages/Dashboard.tsx")
+    locales = _read_ui_file("lib/locales.ts")
 
-    assert "Daily budget" in source
+    assert "dashboard.panel.dailyBudget" in source
+    assert "Daily budget" in locales
     assert "Spend" in source
     assert "Remaining" in source
     assert "Exhausted" in source
@@ -101,6 +105,7 @@ def test_defer_panel_uses_explicit_defer_lifecycle_events() -> None:
 
 def test_alerts_page_uses_backend_aligned_severity_taxonomy() -> None:
     source = _read_ui_file("pages/Alerts.tsx")
+    styles = (REPO_ROOT / "src" / "clawsentry" / "ui" / "src" / "styles.css").read_text(encoding="utf-8")
 
     assert '<option value="low">Low</option>' in source
     assert '<option value="medium">Medium</option>' in source
@@ -108,7 +113,8 @@ def test_alerts_page_uses_backend_aligned_severity_taxonomy() -> None:
     assert '<option value="critical">Critical</option>' in source
     assert '<option value="warning">' not in source
     assert '<option value="info">' not in source
-    assert "high: 'var(--color-block)'" in source
+    assert "alert-severity-text-high" in styles
+    assert "color: var(--color-block)" in styles
 
 
 def test_alert_types_bind_severity_to_risk_levels() -> None:
@@ -253,10 +259,11 @@ def test_status_bar_emphasizes_budget_exhaustion_for_operators() -> None:
 
 def test_dashboard_emphasizes_budget_exhaustion_for_operators() -> None:
     source = _read_ui_file("pages/Dashboard.tsx")
+    locales = _read_ui_file("lib/locales.ts")
 
     assert "budget_exhaustion_event" in source
-    assert "Budget exhaustion event" in source
-    assert "Operator attention required" in source
+    assert "dashboard.panel.budgetAlert" in source
+    assert "Budget alert" in locales
 
 
 def test_ui_types_model_reporting_envelope_for_session_detail_surfaces() -> None:
@@ -365,8 +372,10 @@ def test_dashboard_priority_sessions_surface_l3_reason_code_and_evidence_summary
 
 def test_dashboard_surfaces_toolkit_evidence_budget_hotspot_metric() -> None:
     source = _read_ui_file("pages/Dashboard.tsx")
+    locales = _read_ui_file("lib/locales.ts")
 
-    assert "Toolkit Evidence Budget" in source
+    assert "dashboard.metric.evidenceBudget" in source
+    assert "Toolkit Evidence Budget" in locales
     assert "Sessions hitting toolkit evidence budget" in source
     assert "No sessions are currently hitting toolkit evidence budget." in source
 
@@ -374,13 +383,15 @@ def test_dashboard_surfaces_toolkit_evidence_budget_hotspot_metric() -> None:
 def test_sessions_inventory_surface_l3_reason_code_and_evidence_summary() -> None:
     source = _read_ui_file("pages/Sessions.tsx")
     helper_source = _read_ui_file("lib/sessionL3Annotations.ts")
+    locales = _read_ui_file("lib/locales.ts")
 
     assert "formatSessionL3Annotation" in source
     assert "session.l3_reason_code" in helper_source
     assert "session.evidence_summary" in helper_source
     assert "formatL3EvidenceSummary" in helper_source
     assert "session.evidence_summary?.toolkit_budget_exhausted" in source
-    assert "Budget exhausted only" in source
+    assert "sessions.budgetOnly" in source
+    assert "Budget exhausted only" in locales
     assert "aria-pressed" in source
 
 

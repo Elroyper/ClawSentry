@@ -20,6 +20,14 @@ vi.mock('../api/sse', () => ({
   connectSSE: vi.fn(),
 }))
 
+vi.mock('../lib/demoData', async () => {
+  const actual = await vi.importActual<typeof import('../lib/demoData')>('../lib/demoData')
+  return {
+    ...actual,
+    DEMO_FALLBACK_ENABLED: false,
+  }
+})
+
 vi.mock('../components/CountdownTimer', () => ({
   default: ({ expiresAt, onExpired }: { expiresAt: number, onExpired?: () => void }) => (
     <div>

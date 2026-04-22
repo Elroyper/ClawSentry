@@ -55,11 +55,14 @@ def test_runtime_feed_surfaces_l3_evidence_summary() -> None:
 
 def test_runtime_feed_exposes_event_type_and_priority_filters() -> None:
     source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
+    locales = (ROOT / "lib" / "locales.ts").read_text()
 
     assert "eventTypeFilter" in source
     assert "HIGH_PRIORITY_EVENT_TYPES" in source
-    assert "High priority only" in source
-    assert "All events" in source
+    assert "runtime.highPriorityOnly" in source
+    assert "runtime.allEvents" in source
+    assert "High priority only" in locales
+    assert "All events" in locales
     assert "matchesRuntimeFilters" in source
 
 
@@ -79,10 +82,13 @@ def test_runtime_feed_defines_operator_high_priority_event_set() -> None:
 
 def test_runtime_feed_surfaces_pause_backlog_and_cap_state() -> None:
     source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
+    locales = (ROOT / "lib" / "locales.ts").read_text()
 
-    assert "Pause feed" in source
-    assert "Resume feed" in source
+    assert "runtime.pause" in source
+    assert "runtime.resume" in source
+    assert "Pause feed" in locales
+    assert "Resume feed" in locales
     assert "bufferedCount" in source
     assert "FEED_MAX_EVENTS = 80" in source
-    assert "Feed paused" in source
-    assert "older events hidden" in source
+    assert "runtime.hiddenByCap" in source
+    assert "hidden by cap" in locales

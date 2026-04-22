@@ -741,7 +741,7 @@ class LLMProviderAdvisoryWorker:
             deadline_ms=self.config.deadline_ms,
             budget={
                 "max_tool_calls": 0,
-                "max_tokens": 1024,
+                "max_tokens": 4096,
                 "network_calls_enabled": False,
                 "dry_run": True,
             },

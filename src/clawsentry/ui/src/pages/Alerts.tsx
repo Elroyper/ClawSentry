@@ -1,18 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, AlertTriangle, WifiOff } from 'lucide-react'
 import { api } from '../api/client'
 import { connectSSE } from '../api/sse'
 import { RiskBadge } from '../components/badges'
 import EmptyState from '../components/EmptyState'
 import type { Alert, AlertSeverity, SSEAlertEvent } from '../api/types'
-
-const SEVERITY_COLORS: Record<AlertSeverity, string> = {
-  low: 'var(--color-allow)',
-  medium: 'var(--color-defer)',
-  high: 'var(--color-block)',
-  critical: 'var(--color-block)',
-}
+import { usePreferences } from '../lib/preferences'
 
 function normalizeAlertSeverity(severity: string | undefined): AlertSeverity {
   if (severity === 'warning') return 'medium'
@@ -46,17 +40,23 @@ const matchesAlertFilters = (
 }
 
 export default function Alerts() {
+  const { t } = usePreferences()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [severity, setSeverity] = useState<AlertSeverity | ''>('')
   const [showAcknowledged, setShowAcknowledged] = useState<boolean | undefined>(undefined)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(false)
     try {
       const data = await api.alerts({ severity: severity || undefined, acknowledged: showAcknowledged, limit: 100 })
       setAlerts(data.map(normalizeAlert))
-    } catch { /* ignore */ }
+    } catch {
+      setAlerts([])
+      setLoadError(true)
+    }
     setLoading(false)
   }, [severity, showAcknowledged])
 
@@ -103,13 +103,13 @@ export default function Alerts() {
     <div className="workbench-shell">
       <section className="workbench-hero alerts-hero" aria-labelledby="alerts-workbench-title">
         <div className="workbench-hero-copy">
-          <div className="eyebrow">Incident Operations</div>
+          <div className="eyebrow">{t('alerts.hero.kicker')}</div>
           <h1 id="alerts-workbench-title">
-            <AlertTriangle size={20} style={{ color: 'var(--color-defer)' }} />
-            Alerts Workbench
+            <AlertTriangle size={20} className="alerts-title-icon" />
+            {t('alerts.hero.title')}
           </h1>
           <p className="workbench-hero-text">
-            Triage live monitor signals with a tighter view of severity, session context, and operator action state.
+            {t('alerts.hero.copy')}
           </p>
         </div>
         <div className="workbench-hero-side">
@@ -125,8 +125,8 @@ export default function Alerts() {
       <section className="workbench-section" aria-label="Alerts overview">
         <div className="section-card-header workbench-section-header">
           <div>
-            <div className="section-kicker">Overview</div>
-            <h2>Alert posture</h2>
+            <div className="section-kicker">{t('alerts.overview.kicker')}</div>
+            <h2>{t('alerts.overview.title')}</h2>
           </div>
           <div className="section-meta">Refreshes every 30 seconds and accepts live SSE inserts.</div>
         </div>
@@ -157,12 +157,12 @@ export default function Alerts() {
       <section className="workbench-section" aria-label="Alerts filters">
         <div className="section-card-header workbench-section-header">
           <div>
-            <div className="section-kicker">Filters</div>
-            <h2>Triage controls</h2>
+            <div className="section-kicker">{t('alerts.filters.kicker')}</div>
+            <h2>{t('alerts.filters.title')}</h2>
           </div>
           <button className="btn" onClick={load} disabled={loading} aria-label="Refresh alerts">
-            <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
-            Refresh
+            <RefreshCw size={13} className={loading ? 'spin-icon' : undefined} />
+            {t('common.refresh')}
           </button>
         </div>
         <div className="workbench-filter-grid">
@@ -198,19 +198,27 @@ export default function Alerts() {
       <section className="workbench-section" aria-label="Alerts triage queue">
         <div className="section-card-header workbench-section-header">
           <div>
-            <div className="section-kicker">Queue</div>
-            <h2>Alerts triage queue</h2>
+            <div className="section-kicker">{t('alerts.queue.kicker')}</div>
+            <h2>{t('alerts.queue.title')}</h2>
           </div>
           <div className="section-meta">Severity, session, and action state are grouped per alert.</div>
         </div>
 
         {alerts.length === 0 && !loading ? (
           <div className="card workbench-empty-card">
-            <EmptyState
-              icon={<AlertTriangle size={20} />}
-              title="No alerts"
-              subtitle="Alerts will appear here when risk thresholds are exceeded"
-            />
+            {loadError ? (
+              <EmptyState
+                icon={<WifiOff size={20} />}
+                title={t('alerts.error.title')}
+                subtitle={t('alerts.error.subtitle')}
+              />
+            ) : (
+              <EmptyState
+                icon={<AlertTriangle size={20} />}
+                title={t('alerts.empty.title')}
+                subtitle={t('alerts.empty.subtitle')}
+              />
+            )}
           </div>
         ) : (
           <div className="operator-list">
@@ -264,7 +272,7 @@ export default function Alerts() {
                 <div className="operator-card-side">
                   <div className="operator-side-panel">
                     <span className="operator-meta-label">Severity</span>
-                    <strong style={{ color: SEVERITY_COLORS[alert.severity] || 'var(--color-text)' }}>
+                    <strong className={`alert-severity-text alert-severity-text-${alert.severity}`}>
                       {alert.severity}
                     </strong>
                     <span className="text-muted">

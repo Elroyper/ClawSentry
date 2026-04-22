@@ -169,6 +169,8 @@ class TestDecisionFormatterMixedFormat:
         assert "high" in result
         assert "Reason:" in result
         assert "D1: pattern" in result
+        assert "Action:" in result
+        assert "inspect session evidence" in result
 
     # --- DEFER with expiry ---
 
@@ -181,6 +183,7 @@ class TestDecisionFormatterMixedFormat:
         )
         result = format_decision(event, color=False)
         assert "Expires in:" in result
+        assert "operator approval pending" in result
 
     def test_defer_without_expires_no_countdown(self):
         event = self._make(decision="defer", risk_level="high", reason="needs approval")
@@ -627,6 +630,24 @@ class TestFormatEvent:
         assert "running" in result
         assert "inspect" in result
 
+    def test_l3_advisory_review_shows_advisory_boundary(self):
+        event = {
+            "type": "l3_advisory_review",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "review_id": "l3adv-def456",
+            "risk_level": "high",
+            "l3_state": "completed",
+            "recommended_operator_action": "inspect",
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "Boundary:" in result
+        assert "advisory only" in result
+        assert "canonical unchanged" in result
+
     def test_l3_advisory_job_dispatch(self):
         event = {
             "type": "l3_advisory_job",
@@ -642,6 +663,38 @@ class TestFormatEvent:
         assert "l3job-ghi789" in result
         assert "queued" in result
         assert "deterministic_local" in result
+
+    def test_l3_advisory_job_shows_transition_hint(self):
+        event = {
+            "type": "l3_advisory_job",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "job_id": "l3job-ghi789",
+            "job_state": "queued",
+            "runner": "deterministic_local",
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "Next:" in result
+        assert "waiting for explicit operator run" in result
+
+    def test_l3_advisory_job_shows_operator_labels_and_frozen_boundary(self):
+        event = {
+            "type": "l3_advisory_job",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "job_id": "l3job-ghi789",
+            "job_state": "queued",
+            "runner": "deterministic_local",
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "State:" in result
+        assert "Queued" in result
+        assert "Runner:" in result
+        assert "Deterministic local" in result
+        assert "Boundary:" in result
+        assert "frozen snapshot; explicit run only" in result
 
 
 # ---------------------------------------------------------------------------

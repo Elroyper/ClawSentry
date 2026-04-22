@@ -52,6 +52,8 @@ describe('RuntimeFeed', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
     expect(screen.getByText(/1\/1 events/i)).toBeInTheDocument()
+    expect(screen.getByText('Operations stream · action-first event language')).toBeInTheDocument()
+    expect(screen.getByText(/action-needed/)).toBeInTheDocument()
     expect(screen.getByText('Budget Exhausted', { selector: 'span' })).toBeInTheDocument()
     expect(screen.getByText('Budget exhausted')).toHaveClass('badge-block')
     expect(screen.getByText('Provider')).toBeInTheDocument()
@@ -188,5 +190,34 @@ describe('RuntimeFeed', () => {
     expectSecondaryLine('L3 reason code: completed')
     expect(screen.queryByText(/L3 state:/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/L3 reason:/i)).not.toBeInTheDocument()
+  })
+
+  it('renders operator-readable labels for L3 advisory job lifecycle events', async () => {
+    vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
+      void types
+      callbacks.onStatusChange('connected')
+      callbacks.onEvent('l3_advisory_job', {
+        type: 'l3_advisory_job',
+        session_id: 'sess-l3',
+        snapshot_id: 'snap-l3',
+        job_id: 'job-l3',
+        job_state: 'queued',
+        runner: 'deterministic_local',
+        timestamp: '2026-04-14T07:10:00.000Z',
+      })
+      return () => {}
+    })
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <RuntimeFeed />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
+    expect(screen.getByText('Queued')).toHaveClass('badge-modify')
+    expectSecondaryLine('Runner Deterministic local')
+    expectSecondaryLine('waiting for explicit operator run')
+    expectSecondaryLine('Frozen snapshot snap-l3')
   })
 })

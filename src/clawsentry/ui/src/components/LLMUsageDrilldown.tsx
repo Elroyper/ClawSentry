@@ -1,4 +1,5 @@
 import type { LLMUsageBucket, LLMUsageSnapshot } from '../api/types'
+import { usePreferences } from '../lib/preferences'
 
 type LLMUsageDrilldownProps = {
   snapshot: LLMUsageSnapshot | null | undefined
@@ -13,8 +14,8 @@ function formatUsd(amount: number): string {
   }).format(amount)
 }
 
-function formatTokens(inputTokens: number, outputTokens: number): string {
-  return `${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`
+function formatTokens(inputTokens: number, outputTokens: number, inputLabel: string, outputLabel: string): string {
+  return `${inputTokens.toLocaleString()} ${inputLabel} / ${outputTokens.toLocaleString()} ${outputLabel}`
 }
 
 function selectTopBuckets(buckets: Record<string, LLMUsageBucket>): Array<[string, LLMUsageBucket]> {
@@ -43,7 +44,11 @@ function hasUsageData(snapshot: LLMUsageSnapshot | null | undefined): snapshot i
   )
 }
 
-function renderBucketPanel(title: string, buckets: Record<string, LLMUsageBucket>) {
+function renderBucketPanel(
+  title: string,
+  buckets: Record<string, LLMUsageBucket>,
+  labels: { highlighted: string; noEntries: string; calls: string; input: string; output: string },
+) {
   const rows = selectTopBuckets(buckets)
 
   return (
@@ -51,21 +56,21 @@ function renderBucketPanel(title: string, buckets: Record<string, LLMUsageBucket
       <div className="framework-panel-top">
         <div>
           <h3>{title}</h3>
-          <p>{rows.length ? `${rows.length} highlighted` : 'No entries'}</p>
+          <p>{rows.length ? `${rows.length} ${labels.highlighted}` : labels.noEntries}</p>
         </div>
       </div>
 
       <div className="framework-workspace-list">
         {rows.map(([label, bucket], index) => (
-          <div key={label} className="framework-workspace-row" style={{ alignItems: 'flex-start' }}>
-            <div style={{ display: 'grid', gap: 4 }}>
+          <div key={label} className="framework-workspace-row llm-bucket-row">
+            <div className="llm-bucket-copy">
               <strong>{label}</strong>
               <span>
-                {bucket.calls.toLocaleString()} calls · {formatTokens(bucket.input_tokens, bucket.output_tokens)} ·{' '}
+                {bucket.calls.toLocaleString()} {labels.calls} · {formatTokens(bucket.input_tokens, bucket.output_tokens, labels.input, labels.output)} ·{' '}
                 {formatUsd(bucket.cost_usd)}
               </span>
             </div>
-            <span className="mono" style={{ color: 'var(--color-text-muted)', fontSize: '0.72rem' }}>
+            <span className="mono llm-bucket-rank">
               #{index + 1}
             </span>
           </div>
@@ -76,60 +81,63 @@ function renderBucketPanel(title: string, buckets: Record<string, LLMUsageBucket
 }
 
 export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) {
+  const { t } = usePreferences()
+
   if (!hasUsageData(snapshot)) {
     return (
-      <section className="card section-card" aria-label="LLM usage drill-down" style={{ marginBottom: 18 }}>
+      <section className="card section-card llm-usage-section" aria-label={t('llm.title')}>
         <div className="section-card-header">
           <div>
-            <p className="section-kicker">LLM telemetry</p>
-            <h2>LLM usage drill-down</h2>
+            <p className="section-kicker">{t('llm.kicker')}</p>
+            <h2>{t('llm.title')}</h2>
           </div>
-          <span className="section-meta">Snapshot unavailable</span>
+          <span className="section-meta">{t('llm.snapshotUnavailable')}</span>
         </div>
-        <div className="empty-inline">No LLM usage snapshot available.</div>
+        <div className="empty-inline">{t('llm.empty')}</div>
       </section>
     )
   }
 
   const totalTokens = snapshot.total_input_tokens + snapshot.total_output_tokens
+  const bucketLabels = {
+    highlighted: t('llm.highlighted'),
+    noEntries: t('llm.noEntries'),
+    calls: t('llm.calls'),
+    input: t('llm.in'),
+    output: t('llm.out'),
+  }
 
   return (
-    <section className="card section-card" aria-label="LLM usage drill-down" style={{ marginBottom: 18 }}>
+    <section className="card section-card llm-usage-section" aria-label={t('llm.title')}>
       <div className="section-card-header">
         <div>
-          <p className="section-kicker">LLM telemetry</p>
-          <h2>LLM usage drill-down</h2>
+          <p className="section-kicker">{t('llm.kicker')}</p>
+          <h2>{t('llm.title')}</h2>
         </div>
         <span className="section-meta">
-          {snapshot.total_calls.toLocaleString()} calls · {formatUsd(snapshot.total_cost_usd)}
+          {snapshot.total_calls.toLocaleString()} {t('llm.calls')} · {formatUsd(snapshot.total_cost_usd)}
         </span>
       </div>
 
-      <div className="framework-panel-metrics" style={{ marginBottom: 16 }}>
+      <div className="framework-panel-metrics llm-metric-grid">
         <div>
-          <span>Total calls</span>
+          <span>{t('llm.totalCalls')}</span>
           <strong>{snapshot.total_calls.toLocaleString()}</strong>
         </div>
         <div>
-          <span>Total tokens</span>
+          <span>{t('llm.totalTokens')}</span>
           <strong>{totalTokens.toLocaleString()}</strong>
         </div>
         <div>
-          <span>Total cost</span>
+          <span>{t('llm.totalCost')}</span>
           <strong>{formatUsd(snapshot.total_cost_usd)}</strong>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 14,
-        }}
-      >
-        {renderBucketPanel('Top providers', snapshot.by_provider)}
-        {renderBucketPanel('Top tiers', snapshot.by_tier)}
-        {renderBucketPanel('Top statuses', snapshot.by_status)}
+      <div className="llm-bucket-grid">
+        {renderBucketPanel(t('llm.topProviders'), snapshot.by_provider, bucketLabels)}
+        {renderBucketPanel(t('llm.topTiers'), snapshot.by_tier, bucketLabels)}
+        {renderBucketPanel(t('llm.topStatuses'), snapshot.by_status, bucketLabels)}
       </div>
     </section>
   )

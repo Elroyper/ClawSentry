@@ -5,6 +5,8 @@ import { connectSSE } from '../api/sse'
 import CountdownTimer from '../components/CountdownTimer'
 import EmptyState from '../components/EmptyState'
 import type { SSEDeferPendingEvent, SSEDeferResolvedEvent } from '../api/types'
+import { DEMO_FALLBACK_ENABLED, DEMO_RUNTIME_EVENTS } from '../lib/demoData'
+import { usePreferences } from '../lib/preferences'
 
 type DeferStatus = 'pending' | 'allowed' | 'denied' | 'expired'
 
@@ -30,8 +32,10 @@ function formatResolveActionLabel(
 }
 
 export default function DeferPanel() {
+  const { t } = usePreferences()
   const [items, setItems] = useState<DeferItem[]>([])
   const [resolveAvailable, setResolveAvailable] = useState(true)
+  const [demoMode, setDemoMode] = useState(false)
 
   useEffect(() => {
     const es = connectSSE(['defer_pending', 'defer_resolved'])
@@ -74,6 +78,28 @@ export default function DeferPanel() {
     return () => es.close()
   }, [])
 
+  useEffect(() => {
+    if (!DEMO_FALLBACK_ENABLED || items.length > 0) return undefined
+    const timer = setTimeout(() => {
+      const demoPending = DEMO_RUNTIME_EVENTS.find((event): event is SSEDeferPendingEvent & { type: 'defer_pending' } =>
+        event.type === 'defer_pending',
+      )
+      if (!demoPending) return
+      setItems([{
+        approval_id: demoPending.approval_id,
+        session_id: demoPending.session_id,
+        tool_name: demoPending.tool_name,
+        command: demoPending.command,
+        reason: demoPending.reason,
+        timestamp: demoPending.timestamp,
+        expires_at: Date.now() / 1000 + demoPending.timeout_s,
+        status: 'pending',
+      }])
+      setDemoMode(true)
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [items.length])
+
   const handleResolve = useCallback(async (approvalId: string, decision: 'allow-once' | 'deny') => {
     try {
       await api.resolve(approvalId, decision, decision === 'deny' ? 'operator denied via dashboard' : '')
@@ -108,21 +134,22 @@ export default function DeferPanel() {
     <div className="workbench-shell">
       <section className="workbench-hero defer-hero" aria-labelledby="defer-approvals-title">
         <div className="workbench-hero-copy">
-          <div className="eyebrow">Operator Approval Queue</div>
+          <div className="eyebrow">{t('defer.hero.kicker')}</div>
           <h1 id="defer-approvals-title">
-            <ShieldCheck size={20} style={{ color: 'var(--color-accent)' }} />
-            Defer Approvals
+            <ShieldCheck size={20} className="workbench-title-icon" />
+            {t('defer.hero.title')}
           </h1>
+          {demoMode && <span className="showcase-pill">Showcase mode · demo approval</span>}
           <p className="workbench-hero-text">
-            Review pending approvals with due-time pressure, operator actions, and approval outcomes in one queue surface.
+            {t('defer.hero.copy')}
           </p>
         </div>
         <div className="workbench-hero-side">
           <span className={`badge ${pendingItems.length > 0 ? 'badge-defer' : 'badge-allow'}`}>
-            {pendingItems.length} pending
+            {pendingItems.length} {t('defer.pending')}
           </span>
           <span className="workbench-hero-note">
-            {resolveAvailable ? 'Resolve endpoint connected' : 'Resolve endpoint unavailable'}
+            {resolveAvailable ? t('defer.resolveConnected') : t('defer.resolveUnavailable')}
           </span>
         </div>
       </section>
@@ -130,8 +157,8 @@ export default function DeferPanel() {
       <section className="workbench-section" aria-label="Defer approvals overview">
         <div className="section-card-header workbench-section-header">
           <div>
-            <div className="section-kicker">Overview</div>
-            <h2>Queue posture</h2>
+            <div className="section-kicker">{t('defer.overview')}</div>
+            <h2>{t('defer.posture')}</h2>
           </div>
           <div className="section-meta">Pending decisions stream in over SSE and stay local to the operator view.</div>
         </div>
@@ -161,7 +188,7 @@ export default function DeferPanel() {
 
       {!resolveAvailable && (
         <div className="card workbench-banner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-defer)', fontSize: '0.83rem' }}>
+          <div className="workbench-banner-content">
             <ShieldAlert size={15} />
             Resolve not available — OpenClaw enforcement is not connected
           </div>
@@ -171,8 +198,8 @@ export default function DeferPanel() {
       <section className="workbench-section" aria-label="Pending approvals queue">
         <div className="section-card-header workbench-section-header">
           <div>
-            <div className="section-kicker">Pending queue</div>
-            <h2>Pending approvals queue</h2>
+            <div className="section-kicker">{t('defer.pendingQueue')}</div>
+            <h2>{t('defer.pendingQueueTitle')}</h2>
           </div>
           <div className="section-meta">Due time, command scope, and operator actions are grouped per approval.</div>
         </div>
@@ -180,8 +207,8 @@ export default function DeferPanel() {
           <div className="card workbench-empty-card">
             <EmptyState
               icon={<ShieldCheck size={20} />}
-              title="No pending DEFER decisions"
-              subtitle="DEFER decisions will appear here in real-time when agents require approval"
+              title={t('defer.noPendingTitle')}
+              subtitle={t('defer.noPendingSubtitle')}
             />
           </div>
         ) : (
@@ -235,9 +262,9 @@ export default function DeferPanel() {
                           onExpired={() => handleExpired(item.approval_id)}
                         />
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div className="operator-no-timeout">
                           <Clock size={13} className="text-muted" />
-                          <span className="mono text-muted" style={{ fontSize: '0.72rem' }}>No timeout</span>
+                          <span className="mono text-muted operator-no-timeout-copy">{t('defer.noTimeout')}</span>
                         </div>
                       )}
                     </div>
@@ -249,7 +276,7 @@ export default function DeferPanel() {
                         disabled={!resolveAvailable}
                         aria-label={formatResolveActionLabel('Allow', item)}
                       >
-                        Allow
+                        {t('defer.allow')}
                       </button>
                       <button
                         className="btn btn-deny"
@@ -257,7 +284,7 @@ export default function DeferPanel() {
                         disabled={!resolveAvailable}
                         aria-label={formatResolveActionLabel('Deny', item)}
                       >
-                        Deny
+                        {t('defer.deny')}
                       </button>
                     </div>
                   </div>
@@ -271,8 +298,8 @@ export default function DeferPanel() {
       <section className="workbench-section" aria-label="Approval outcomes history">
           <div className="section-card-header workbench-section-header">
             <div>
-              <div className="section-kicker">History</div>
-              <h2>Approval outcomes history</h2>
+              <div className="section-kicker">{t('defer.history')}</div>
+              <h2>{t('defer.historyTitle')}</h2>
             </div>
             <div className="section-meta">Operator decisions and timed-out requests stay visible for quick operator audit.</div>
           </div>
@@ -280,8 +307,8 @@ export default function DeferPanel() {
             <div className="card workbench-empty-card">
               <EmptyState
                 icon={<ShieldCheck size={20} />}
-                title="No approval outcomes yet"
-                subtitle="Operator decisions and timed-out requests will appear here once approvals leave the queue"
+                title={t('defer.noOutcomesTitle')}
+                subtitle={t('defer.noOutcomesSubtitle')}
               />
             </div>
           ) : (
@@ -292,11 +319,11 @@ export default function DeferPanel() {
                     {item.status}
                   </span>
                   <span className="mono">{item.tool_name}</span>
-                  <span className="cmd-snippet" style={{ flex: 1 }}>{item.command || '—'}</span>
+                  <span className="cmd-snippet operator-history-command">{item.command || '—'}</span>
                   {item.status === 'expired' && (
                     <span className="text-muted">Timed out without an operator decision</span>
                   )}
-                  <span className="text-muted mono" style={{ fontSize: '0.68rem' }}>
+                  <span className="text-muted mono operator-history-time">
                     {new Date(item.timestamp).toLocaleTimeString()}
                   </span>
                 </div>

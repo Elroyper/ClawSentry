@@ -43,9 +43,9 @@ function makeSession(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderSessions() {
+function renderSessions(initialEntries = ['/sessions']) {
   return render(
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <MemoryRouter initialEntries={initialEntries} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Sessions />
     </MemoryRouter>,
   )
@@ -100,5 +100,19 @@ describe('Sessions inventory', () => {
         expect.objectContaining({ min_risk: 'high' }),
       )
     })
+  })
+
+  it('hydrates URL-backed action, risk, framework, and search filters', async () => {
+    renderSessions(['/sessions?minRisk=high&framework=codex&q=agent-alpha&action=budget&budget=exhausted'])
+
+    expect(await screen.findByText('sess-budget-codex')).toBeInTheDocument()
+    expect(screen.queryByText('sess-normal-codex')).not.toBeInTheDocument()
+    expect(screen.queryByText('sess-budget-openclaw')).not.toBeInTheDocument()
+
+    expect(screen.getByRole('combobox', { name: 'Risk filter' })).toHaveValue('high')
+    expect(screen.getByRole('combobox', { name: 'Framework filter' })).toHaveValue('codex')
+    expect(screen.getByRole('combobox', { name: 'Action filter' })).toHaveValue('budget')
+    expect(screen.getByRole('textbox', { name: 'Search sessions' })).toHaveValue('agent-alpha')
+    expect(screen.getByRole('button', { name: 'Budget exhausted only' })).toHaveAttribute('aria-pressed', 'true')
   })
 })

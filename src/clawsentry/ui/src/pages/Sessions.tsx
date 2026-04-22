@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { RefreshCw, Search, Users } from 'lucide-react'
 import { api } from '../api/client'
 import { createManagedSSE } from '../api/sse'
@@ -12,58 +12,89 @@ import {
   groupSessions,
 } from '../lib/sessionGroups'
 import { formatSessionL3Annotation } from '../lib/sessionL3Annotations'
+import { DEMO_FALLBACK_ENABLED, DEMO_SESSIONS } from '../lib/demoData'
+import { usePreferences } from '../lib/preferences'
 
-const VERDICT_COLORS: Record<string, string> = {
-  allow: '#32c48d',
-  block: '#ef4444',
-  defer: '#f59e0b',
-  modify: '#5ea5ff',
+function verdictTone(decision: string): string {
+  return ['allow', 'block', 'defer', 'modify'].includes(decision) ? decision : 'unknown'
+}
+
+function scoreTone(score: number): 'critical' | 'high' | 'medium' | 'low' {
+  if (score >= 0.75) return 'critical'
+  if (score >= 0.5) return 'high'
+  if (score >= 0.25) return 'medium'
+  return 'low'
 }
 
 function VerdictBar({ dist }: { dist: Record<string, number> }) {
   const total = Object.values(dist).reduce((sum, value) => sum + value, 0)
   if (total === 0) return <span className="text-muted mono">—</span>
+  let offset = 0
   return (
-    <div className="verdict-bar verdict-bar-wide">
-      {Object.entries(dist).map(([key, count]) => (
-        count > 0 ? (
-          <div
+    <svg className="verdict-bar verdict-bar-wide" viewBox="0 0 100 7" role="img" aria-label="Decision distribution">
+      <title>
+        {Object.entries(dist).map(([key, count]) => `${key}: ${count}`).join(', ')}
+      </title>
+      {Object.entries(dist).map(([key, count]) => {
+        if (count <= 0) return null
+        const width = (count / total) * 100
+        const x = offset
+        offset += width
+        return (
+          <rect
             key={key}
-            className="verdict-bar-segment"
-            style={{
-              width: `${(count / total) * 100}%`,
-              background: VERDICT_COLORS[key] || '#475569',
-            }}
-            title={`${key}: ${count}`}
+            className={`verdict-bar-segment verdict-bar-segment-${verdictTone(key)}`}
+            x={x}
+            y={0}
+            width={width}
+            height={7}
           />
-        ) : null
-      ))}
-    </div>
+        )
+      })}
+    </svg>
   )
 }
 
 function ScoreBar({ score }: { score: number }) {
-  const color = score >= 0.75 ? '#ef4444' : score >= 0.5 ? '#f97316' : score >= 0.25 ? '#f59e0b' : '#32c48d'
+  const tone = scoreTone(score)
+  const width = Math.max(0, Math.min(score, 1)) * 100
   return (
     <div className="score-bar-wrap">
-      <div className="score-bar score-bar-wide">
-        <div className="score-bar-fill" style={{ width: `${score * 100}%`, background: color }} />
-      </div>
-      <span className="mono" style={{ color }}>{score.toFixed(2)}</span>
+      <svg className="score-bar score-bar-wide" viewBox="0 0 100 6" role="img" aria-label={`Risk score ${score.toFixed(2)}`}>
+        <rect className="score-bar-track" x={0} y={0} width={100} height={6} rx={3} />
+        <rect className={`score-bar-fill score-bar-fill-${tone}`} x={0} y={0} width={width} height={6} rx={3} />
+      </svg>
+      <span className={`mono score-value score-value-${tone}`}>{score.toFixed(2)}</span>
     </div>
   )
 }
 
 export default function Sessions() {
+  const { t, language } = usePreferences()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [minRisk, setMinRisk] = useState('')
-  const [framework, setFramework] = useState('')
-  const [query, setQuery] = useState('')
-  const [budgetExhaustedOnly, setBudgetExhaustedOnly] = useState(false)
+  const [demoMode, setDemoMode] = useState(false)
+  const [minRisk, setMinRisk] = useState(() => searchParams.get('minRisk') || searchParams.get('min_risk') || '')
+  const [framework, setFramework] = useState(() => searchParams.get('framework') || '')
+  const [query, setQuery] = useState(() => searchParams.get('q') || '')
+  const [actionFilter, setActionFilter] = useState(() => searchParams.get('action') || '')
+  const [budgetExhaustedOnly, setBudgetExhaustedOnly] = useState(
+    () => searchParams.get('budget') === 'exhausted' || searchParams.get('action') === 'budget',
+  )
   const [refreshNonce, setRefreshNonce] = useState(0)
   const deferredQuery = useDeferredValue(query.trim().toLowerCase())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const next = new URLSearchParams()
+    if (minRisk) next.set('minRisk', minRisk)
+    if (framework) next.set('framework', framework)
+    if (query.trim()) next.set('q', query.trim())
+    if (actionFilter) next.set('action', actionFilter)
+    if (budgetExhaustedOnly) next.set('budget', 'exhausted')
+    setSearchParams(next, { replace: true })
+  }, [actionFilter, budgetExhaustedOnly, framework, minRisk, query, setSearchParams])
 
   useEffect(() => {
     const load = async () => {
@@ -74,9 +105,18 @@ export default function Sessions() {
           limit: 200,
           min_risk: minRisk || undefined,
         })
-        setSessions(data)
+        if (DEMO_FALLBACK_ENABLED && data.length === 0) {
+          setSessions(DEMO_SESSIONS)
+          setDemoMode(true)
+        } else {
+          setSessions(data)
+          setDemoMode(false)
+        }
       } catch {
-        // ignored: StatusBar and auth flow already expose connectivity/auth problems
+        if (DEMO_FALLBACK_ENABLED) {
+          setSessions(DEMO_SESSIONS)
+          setDemoMode(true)
+        }
       }
       setLoading(false)
     }
@@ -107,6 +147,9 @@ export default function Sessions() {
   const filteredSessions = sessions.filter(session => {
     if (framework && session.source_framework !== framework) return false
     if (budgetExhaustedOnly && session.evidence_summary?.toolkit_budget_exhausted !== true) return false
+    if (actionFilter === 'l3' && !session.l3_state && !session.l3_reason_code && !session.l3_advisory_latest) return false
+    if (actionFilter === 'high-risk' && session.high_risk_event_count === 0 && session.current_risk_level !== 'critical') return false
+    if (actionFilter === 'defer' && (session.decision_distribution.defer ?? 0) === 0) return false
     if (!deferredQuery) return true
     const haystack = [
       session.session_id,
@@ -124,49 +167,86 @@ export default function Sessions() {
     <div className="sessions-shell">
       <section className="card sessions-toolbar" aria-labelledby="session-filters-heading">
         <div>
-          <p className="section-kicker">Workbench</p>
-          <h2 id="session-filters-heading" className="section-header" style={{ marginBottom: 0 }}>
-            <Users size={18} style={{ color: 'var(--color-accent)' }} />
-            Session filters
+          <p className="section-kicker">{t('sessions.workbench')}</p>
+          <h2 id="session-filters-heading" className="section-header sessions-filter-heading">
+            <Users size={18} className="section-header-icon" />
+            {t('sessions.filters')}
           </h2>
+          {demoMode && <span className="showcase-pill">Showcase mode · demo sessions</span>}
           <p className="toolbar-subtitle">
-            Search, framework, risk, and budget controls stay above the inventory so dense session rows remain easy to scan.
+            {t('sessions.subtitle')}
           </p>
         </div>
 
-        <div className="toolbar-controls" role="group" aria-label="Session filters controls">
+        <div className="toolbar-controls" role="group" aria-label={t('sessions.filters')}>
           <label className="search-box">
             <Search size={14} />
             <input
-              aria-label="Search sessions"
+              aria-label={t('sessions.search')}
               value={query}
               onChange={event => setQuery(event.target.value)}
-              placeholder="Search session, framework, workspace, agent"
+              placeholder={t('sessions.searchPlaceholder')}
             />
           </label>
-          <select aria-label="Framework filter" value={framework} onChange={event => setFramework(event.target.value)}>
-            <option value="">All Frameworks</option>
+          <select aria-label={t('sessions.frameworkFilter')} value={framework} onChange={event => setFramework(event.target.value)}>
+            <option value="">{t('sessions.allFrameworks')}</option>
             {frameworks.map(item => (
               <option key={item} value={item}>{item}</option>
             ))}
           </select>
-          <select aria-label="Risk filter" value={minRisk} onChange={event => setMinRisk(event.target.value)}>
-            <option value="">All Risk Levels</option>
-            <option value="medium">Medium+</option>
-            <option value="high">High+</option>
-            <option value="critical">Critical Only</option>
+          <select aria-label={t('sessions.riskFilter')} value={minRisk} onChange={event => setMinRisk(event.target.value)}>
+            <option value="">{t('sessions.allRisk')}</option>
+            <option value="medium">{t('sessions.mediumPlus')}</option>
+            <option value="high">{t('sessions.highPlus')}</option>
+            <option value="critical">{t('sessions.criticalOnly')}</option>
+          </select>
+          <select
+            aria-label={t('sessions.actionFilter')}
+            value={actionFilter}
+            onChange={event => {
+              const value = event.target.value
+              setActionFilter(value)
+              if (value === 'budget') {
+                setBudgetExhaustedOnly(true)
+              }
+            }}
+          >
+            <option value="">{t('sessions.allActions')}</option>
+            <option value="high-risk">{t('sessions.highRiskActivity')}</option>
+            <option value="defer">{t('sessions.deferApprovals')}</option>
+            <option value="l3">{t('sessions.l3Attention')}</option>
+            <option value="budget">{t('sessions.budgetEvidence')}</option>
           </select>
           <button
             type="button"
             className={`btn ${budgetExhaustedOnly ? 'btn-primary' : ''}`}
-            onClick={() => setBudgetExhaustedOnly(value => !value)}
+            onClick={() => {
+              const next = !budgetExhaustedOnly
+              setBudgetExhaustedOnly(next)
+              if (!next && actionFilter === 'budget') setActionFilter('')
+            }}
             aria-pressed={budgetExhaustedOnly}
           >
-            Budget exhausted only
+            {t('sessions.budgetOnly')}
           </button>
+          {(minRisk || framework || query || actionFilter || budgetExhaustedOnly) && (
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setMinRisk('')
+                setFramework('')
+                setQuery('')
+                setActionFilter('')
+                setBudgetExhaustedOnly(false)
+              }}
+            >
+              {t('common.clearFilters')}
+            </button>
+          )}
           <button className="btn" onClick={() => setRefreshNonce(value => value + 1)} disabled={loading}>
-            <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
-            Refresh
+            <RefreshCw size={13} className={loading ? 'spin-icon' : undefined} />
+            {t('common.refresh')}
           </button>
         </div>
       </section>
@@ -174,8 +254,8 @@ export default function Sessions() {
       <section className="card sessions-region" aria-labelledby="framework-overview-heading">
         <div className="section-card-header">
           <div>
-            <p className="section-kicker">Overview</p>
-            <h2 id="framework-overview-heading">Framework Overview</h2>
+            <p className="section-kicker">{t('sessions.overview')}</p>
+            <h2 id="framework-overview-heading">{t('sessions.frameworkOverview')}</h2>
             <p className="toolbar-subtitle">
               Grouped by framework and workspace so concurrent agent sessions stay distinguishable.
             </p>
@@ -214,8 +294,8 @@ export default function Sessions() {
       <section className="card sessions-region" aria-labelledby="session-inventory-heading">
         <div className="section-card-header">
           <div>
-            <p className="section-kicker">Inventory</p>
-            <h2 id="session-inventory-heading">Session inventory</h2>
+            <p className="section-kicker">{t('sessions.inventory')}</p>
+            <h2 id="session-inventory-heading">{t('sessions.sessionInventory')}</h2>
             <p className="toolbar-subtitle">
               Frameworks stay stacked by workspace and session so the working set remains high-density without collapsing the detail.
             </p>
@@ -266,7 +346,7 @@ export default function Sessions() {
 
                     <div className="session-card-stack">
                       {workspace.sessions.map(session => {
-                        const sessionL3Annotation = formatSessionL3Annotation(session)
+                        const sessionL3Annotation = formatSessionL3Annotation(session, language)
                         return (
                           <Link
                             key={session.session_id}
@@ -282,7 +362,7 @@ export default function Sessions() {
                                 {session.agent_id || 'unknown agent'} · {session.caller_adapter}
                               </p>
                               {sessionL3Annotation && (
-                                <p className="session-card-meta mono" style={{ fontSize: '0.72rem' }}>
+                                <p className="session-card-meta session-card-annotation mono">
                                   {sessionL3Annotation}
                                 </p>
                               )}
@@ -311,8 +391,8 @@ export default function Sessions() {
             <div className="card">
               <EmptyState
                 icon={<Users size={20} />}
-                title="No sessions found"
-                subtitle="Sessions will appear here once frameworks start sending monitored activity."
+                title={t('sessions.noSessionsTitle')}
+                subtitle={t('sessions.noSessionsSubtitle')}
               />
             </div>
           )}

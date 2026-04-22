@@ -472,6 +472,7 @@ def test_llm_provider_bridge_can_complete_from_mock_async_provider() -> None:
 
         async def complete(self, system_prompt, user_message, timeout_ms, max_tokens=256):
             assert "cs.l3_advisory.worker_request.v1" in user_message
+            assert max_tokens >= 4096
             return json.dumps(
                 {
                     "schema_version": "cs.l3_advisory.worker_response.v1",

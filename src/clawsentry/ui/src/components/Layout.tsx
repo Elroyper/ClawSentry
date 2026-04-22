@@ -1,37 +1,51 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, Users, AlertTriangle, ShieldCheck, Radio } from 'lucide-react'
 import StatusBar from './StatusBar'
 import ErrorBoundary from './ErrorBoundary'
+import { usePreferences } from '../lib/preferences'
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/sessions', icon: Users, label: 'Sessions' },
-  { to: '/alerts', icon: AlertTriangle, label: 'Alerts' },
-  { to: '/defer', icon: ShieldCheck, label: 'DEFER Panel' },
+  { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
+  { to: '/sessions', icon: Users, labelKey: 'nav.sessions' },
+  { to: '/alerts', icon: AlertTriangle, labelKey: 'nav.alerts' },
+  { to: '/defer', icon: ShieldCheck, labelKey: 'nav.defer' },
 ]
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'Security Console',
-  '/sessions': 'Session Inventory',
-  '/alerts': 'Alerts',
-  '/defer': 'DEFER Panel',
+  '/': 'page.dashboard',
+  '/sessions': 'page.sessions',
+  '/alerts': 'page.alerts',
+  '/defer': 'page.defer',
 }
 
 export default function Layout() {
   const location = useLocation()
-  const title = Object.entries(PAGE_TITLES)
+  const { language, theme, toggleLanguage, toggleTheme, t } = usePreferences()
+  const titleKey = Object.entries(PAGE_TITLES)
     .sort(([a], [b]) => b.length - a.length)
-    .find(([path]) => location.pathname.startsWith(path))?.[1] ?? 'ClawSentry'
+    .find(([path]) => location.pathname.startsWith(path))?.[1] ?? 'page.dashboard'
+  const title = t(titleKey as Parameters<typeof t>[0])
 
   return (
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="sidebar-logo">ClawSentry</div>
-          <div className="subtitle">Security Operations Console</div>
+          <div className="sidebar-brand-row">
+            <div className="sidebar-logo">ClawSentry</div>
+            <span className="sidebar-signal" aria-hidden="true">
+              <Radio size={15} />
+            </span>
+          </div>
+          <div className="subtitle">{t('app.subtitle')}</div>
+          <div className="sidebar-command-strip" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
         </div>
         <nav className="sidebar-nav" aria-label="Primary">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          <div className="sidebar-nav-label">Console</div>
+          {navItems.map(({ to, icon: Icon, labelKey }) => (
             <NavLink
               key={to}
               to={to}
@@ -39,19 +53,29 @@ export default function Layout() {
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
             >
               <Icon />
-              {label}
+              {t(labelKey as Parameters<typeof t>[0])}
             </NavLink>
           ))}
         </nav>
         <div className="sidebar-footer">
-          Framework / Workspace / Session
+          <span className="sidebar-footer-label">{t('app.footer')}</span>
+          <span className="sidebar-footer-state">HARDENED · LIVE</span>
         </div>
       </aside>
       <section className="main-content">
         <header className="topbar" role="banner">
           <div className="topbar-heading">
-            <p className="topbar-kicker">Operator Console</p>
+            <p className="topbar-kicker">{t('topbar.kicker')}</p>
             <span className="topbar-title">{title}</span>
+          </div>
+          <div className="preference-controls" aria-label="Display preferences">
+            <button type="button" className="preference-toggle" onClick={toggleLanguage} aria-label={t('prefs.languageLabel')}>
+              {t('prefs.language')}
+            </button>
+            <button type="button" className="preference-toggle" onClick={toggleTheme} aria-label={t('prefs.themeLabel')} aria-pressed={theme === 'dark'}>
+              {theme === 'dark' ? t('prefs.theme.light') : t('prefs.theme.dark')}
+            </button>
+            <span className="preference-state mono">{language.toUpperCase()} · {theme.toUpperCase()}</span>
           </div>
           <StatusBar />
         </header>

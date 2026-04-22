@@ -133,4 +133,14 @@ describe('Alerts workbench', () => {
     expect(within(triageQueue).getAllByText('medium').length).toBeGreaterThan(0)
     expect(screen.getAllByText('2 open').length).toBeGreaterThan(0)
   })
+
+  it('distinguishes an unavailable alerts source from an empty queue', async () => {
+    vi.mocked(api.alerts).mockRejectedValueOnce(new Error('gateway unavailable') as never)
+
+    renderAlerts()
+
+    expect(await screen.findByText('Alerts source unavailable')).toBeInTheDocument()
+    expect(screen.getByText(/gateway alerts endpoint could not be reached/i)).toBeInTheDocument()
+    expect(screen.queryByText('No alerts match the current filters')).not.toBeInTheDocument()
+  })
 })

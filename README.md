@@ -34,7 +34,7 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.2
+## What's New in v0.5.3
 
 - **L3 advisory review and full-review workflow**: frozen evidence snapshots, advisory job queue, explicit worker execution, provider safety gates, and manual real-provider smoke evidence while keeping canonical decisions unchanged.
 - **Operator-triggered full review**: `POST /report/session/{session_id}/l3-advisory/full-review` and `clawsentry l3 full-review --session ...` let operators request bounded advisory reviews without scheduler/enforcement.

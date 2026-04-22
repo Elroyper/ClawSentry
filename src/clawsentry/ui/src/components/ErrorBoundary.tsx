@@ -22,17 +22,9 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 40 }}>
-          <h3 style={{ color: 'var(--color-block)', marginBottom: 12 }}>Page Error</h3>
-          <pre style={{
-            color: 'var(--color-text-muted)',
-            fontSize: '0.75rem',
-            background: 'var(--color-surface-raised)',
-            padding: 16,
-            borderRadius: 'var(--radius)',
-            overflow: 'auto',
-            marginBottom: 16,
-          }}>
+        <div className="error-boundary">
+          <h3 className="error-boundary-title">Page Error</h3>
+          <pre className="error-boundary-message">
             {this.state.error.message}
           </pre>
           <button className="btn" onClick={() => this.setState({ error: null })}>

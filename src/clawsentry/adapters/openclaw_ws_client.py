@@ -11,6 +11,7 @@ Design basis:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -127,13 +128,23 @@ class OpenClawApprovalClient:
             return
 
         try:
-            self._ws = await websockets.connect(
-                self._config.ws_url,
-                open_timeout=self._config.connect_timeout_s,
-                additional_headers={
+            connect_kwargs: dict[str, Any] = {
+                "open_timeout": self._config.connect_timeout_s,
+                "additional_headers": {
                     "Authorization": f"Bearer {self._config.operator_token}",
                     "Origin": self._config.ws_url.replace("ws://", "http://").replace("wss://", "https://"),
                 },
+            }
+            if "proxy" in inspect.signature(websockets.connect).parameters:
+                # websockets >= 15 inherits proxy settings from the environment by
+                # default. OpenClaw is normally a direct local/private gateway; a
+                # host HTTP/SOCKS proxy can close the connection before the WS
+                # handshake and make local integration tests flaky.
+                connect_kwargs["proxy"] = None
+
+            self._ws = await websockets.connect(
+                self._config.ws_url,
+                **connect_kwargs,
             )
             # Wait for connect.challenge
             challenge_raw = await asyncio.wait_for(

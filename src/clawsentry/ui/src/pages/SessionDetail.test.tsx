@@ -124,10 +124,10 @@ function makeReplayPageResponse(overrides: Record<string, unknown> = {}) {
 
 const RECENT_WINDOW_SECONDS = 60 * 60
 
-function renderSessionDetail() {
+function renderSessionDetail(initialEntry = '/sessions/sess-123') {
   return render(
     <MemoryRouter
-      initialEntries={['/sessions/sess-123']}
+      initialEntries={[initialEntry]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
@@ -162,6 +162,7 @@ describe('SessionDetail', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: 'Session analysis' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Session context' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Incident storyline' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Risk composition' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Risk score over time' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Decision timeline' })).toBeInTheDocument()
@@ -182,6 +183,24 @@ describe('SessionDetail', () => {
     expect(within(contextRegion).getByText('agent-1')).toBeInTheDocument()
   })
 
+  it('renders an investigation workbench brief before charts and replay controls', async () => {
+    renderSessionDetail()
+
+    const storylineHeading = await screen.findByRole('heading', { level: 3, name: 'Incident storyline' })
+    const workbenchCard = storylineHeading.closest('section')
+
+    expect(workbenchCard).not.toBeNull()
+    expect(within(workbenchCard as HTMLElement).getByText('Operator recommendation')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('monitor session')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('Latest replay decision')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('ALLOW')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('bash')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('Evidence boundary')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('No frozen snapshot')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('Session captured')).toBeInTheDocument()
+    expect(within(workbenchCard as HTMLElement).getByText('Advisory action')).toBeInTheDocument()
+  })
+
   it('renders the current budget snapshot without an exhaustion warning when budget is active', async () => {
     renderSessionDetail()
 
@@ -190,6 +209,14 @@ describe('SessionDetail', () => {
     expect(screen.getByText('$10.00')).toBeInTheDocument()
     expect(screen.getByText(/Spend \$3\.25 · Remaining \$6\.75 · Exhausted No/i)).toBeInTheDocument()
     expect(screen.queryByText('Budget exhaustion event')).not.toBeInTheDocument()
+  })
+
+  it('hydrates the replay time window from URL-backed state', async () => {
+    renderSessionDetail('/sessions/sess-123?windowSeconds=3600')
+
+    expect(await screen.findByRole('button', { name: 'Recent 1h' })).toHaveAttribute('aria-pressed', 'true')
+    expect(api.sessionRisk).toHaveBeenCalledWith('sess-123', { windowSeconds: RECENT_WINDOW_SECONDS })
+    expect(api.sessionReplayPage).toHaveBeenCalledWith('sess-123', { windowSeconds: RECENT_WINDOW_SECONDS })
   })
 
   it('renders toolkit budget telemetry inside the compact evidence summary', async () => {
@@ -211,6 +238,64 @@ describe('SessionDetail', () => {
     })
     expect(await screen.findByRole('status')).toHaveTextContent('Full review completed: review-full-review')
     expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
+  })
+
+  it('summarizes the latest advisory review IDs and frozen boundary from session risk', async () => {
+    vi.mocked(api.sessionRisk).mockResolvedValueOnce(makeRiskResponse({
+      l3_advisory: {
+        snapshots: [],
+        reviews: [],
+        jobs: [],
+        latest_job: {
+          job_id: 'job-risk-1',
+          snapshot_id: 'snap-risk-1',
+          session_id: 'sess-123',
+          review_id: 'review-risk-1',
+          job_state: 'completed',
+          runner: 'deterministic_local',
+          created_at: '2026-04-21T08:00:00Z',
+          updated_at: '2026-04-21T08:00:01Z',
+          completed_at: '2026-04-21T08:00:01Z',
+        },
+        latest_review: {
+          review_id: 'review-risk-1',
+          type: 'l3_advisory_review',
+          snapshot_id: 'snap-risk-1',
+          session_id: 'sess-123',
+          risk_level: 'high',
+          findings: ['operator requested bounded replay inspection'],
+          confidence: 0.72,
+          advisory_only: true,
+          recommended_operator_action: 'escalate',
+          l3_state: 'completed',
+          l3_reason_code: null,
+          created_at: '2026-04-21T08:00:00Z',
+          completed_at: '2026-04-21T08:00:01Z',
+          evidence_record_count: 5,
+          evidence_event_ids: ['evt-4', 'evt-8'],
+          source_record_range: {
+            from_record_id: 4,
+            to_record_id: 8,
+          },
+          review_runner: 'deterministic_local',
+          worker_backend: 'deterministic_local',
+        },
+      },
+    }) as never)
+
+    renderSessionDetail()
+
+    const advisory = await screen.findByRole('heading', { level: 3, name: 'L3 advisory review' })
+    const advisoryCard = advisory.closest('section')
+    expect(advisoryCard).not.toBeNull()
+    expect(within(advisoryCard as HTMLElement).getByText('review-risk-1')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('snap-risk-1')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('job-risk-1')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('Completed')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('Escalate')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('Deterministic local')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText('Records 4–8 · 5 event(s)')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText(/canonical decision unchanged/i)).toBeInTheDocument()
   })
 
   it('switches the initial window and re-fetches the first replay page for the new scope', async () => {

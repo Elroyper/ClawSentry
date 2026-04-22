@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { usePreferences } from '../lib/preferences'
 
 interface CountdownTimerProps {
   expiresAt: number       // Unix timestamp (seconds)
@@ -7,6 +8,7 @@ interface CountdownTimerProps {
 }
 
 export default function CountdownTimer({ expiresAt, totalSeconds = 30, onExpired }: CountdownTimerProps) {
+  const { t } = usePreferences()
   const [remaining, setRemaining] = useState(() => Math.max(0, expiresAt - Date.now() / 1000))
 
   useEffect(() => {
@@ -19,11 +21,10 @@ export default function CountdownTimer({ expiresAt, totalSeconds = 30, onExpired
   }, [expiresAt, onExpired])
 
   if (remaining <= 0) {
-    return <span className="mono" style={{ fontSize: '0.75rem', color: 'var(--color-block)', fontWeight: 700 }}>EXPIRED</span>
+    return <span className="mono countdown-expired">{t('countdown.expired')}</span>
   }
 
   const isUrgent = remaining < 10
-  const color = isUrgent ? 'var(--color-block)' : 'var(--color-defer)'
   const pct = Math.min(1, remaining / totalSeconds)
 
   // SVG ring
@@ -36,20 +37,19 @@ export default function CountdownTimer({ expiresAt, totalSeconds = 30, onExpired
   const display = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <svg width={40} height={40} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={20} cy={20} r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={3} />
+    <div className={`countdown-timer${isUrgent ? ' countdown-timer-urgent' : ''}`}>
+      <svg width={40} height={40} className="countdown-ring">
+        <circle className="countdown-ring-track" cx={20} cy={20} r={R} fill="none" strokeWidth={3} />
         <circle
+          className="countdown-ring-progress"
           cx={20} cy={20} r={R}
           fill="none"
-          stroke={color}
           strokeWidth={3}
           strokeDasharray={`${dash} ${C}`}
           strokeLinecap="round"
-          style={{ transition: 'stroke-dasharray 0.5s ease, stroke 0.3s ease' }}
         />
       </svg>
-      <span className="mono" style={{ fontSize: '0.85rem', fontWeight: 700, color, minWidth: 32 }}>
+      <span className="mono countdown-value">
         {display}
       </span>
     </div>

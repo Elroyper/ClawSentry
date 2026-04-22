@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import type { HealthResponse, LLMUsageBucket, LLMUsageSnapshot } from '../api/types'
+import { usePreferences } from '../lib/preferences'
 
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${Math.floor(seconds)}s`
@@ -49,6 +50,7 @@ function formatLlmUsageSummary(snapshot: LLMUsageSnapshot): string {
 }
 
 export default function StatusBar() {
+  const { t } = usePreferences()
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [status, setStatus] = useState<'online' | 'offline' | 'checking'>('checking')
   const budgetExhaustionEvent = health?.budget_exhaustion_event
@@ -87,10 +89,10 @@ export default function StatusBar() {
           {' '}
           {health.budget.exhausted ? (
             <>
-              <span style={{ color: 'var(--color-block)', fontWeight: 700 }}>BUDGET EXHAUSTED</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> · Operator action required</span>
+              <span className="status-budget-exhausted">BUDGET EXHAUSTED</span>
+              <span className="status-budget-note"> · Operator action required</span>
               {budgetExhaustionEvent && (
-                <span style={{ color: 'var(--color-text-muted)' }}>
+                <span className="status-budget-note">
                   {' '}
                   · {budgetExhaustionEvent.provider} / {budgetExhaustionEvent.tier} / {formatUsd(budgetExhaustionEvent.cost_usd)}
                 </span>
@@ -106,7 +108,7 @@ export default function StatusBar() {
         aria-live="polite"
         aria-atomic="true"
       >
-        {status === 'online' ? 'CONNECTED' : status === 'offline' ? 'DISCONNECTED' : 'CHECKING…'}
+        {status === 'online' ? t('status.connected') : status === 'offline' ? t('status.disconnected') : t('status.checking')}
       </span>
     </div>
   )

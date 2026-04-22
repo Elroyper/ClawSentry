@@ -18,7 +18,9 @@ def test_dashboard_surfaces_framework_and_workspace_coverage_sections() -> None:
 
 def test_sessions_page_groups_by_framework_and_workspace() -> None:
     source = (ROOT / "pages" / "Sessions.tsx").read_text(encoding="utf-8")
+    locales = (ROOT / "lib" / "locales.ts").read_text(encoding="utf-8")
 
-    assert "Framework Overview" in source
+    assert "sessions.frameworkOverview" in source
+    assert "Framework Overview" in locales
     assert "workspace_root" in source
     assert "groupedSessions" in source

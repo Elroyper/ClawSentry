@@ -3,14 +3,45 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+ROOT_README = REPO_ROOT / "README.md"
+PROJECT_STATUS = REPO_ROOT / "docs" / "PROJECT_STATUS.md"
+PYPROJECT = REPO_ROOT / "pyproject.toml"
+PACKAGE_INIT = REPO_ROOT / "src" / "clawsentry" / "__init__.py"
 ENV_VARS_DOC = REPO_ROOT / "site-docs" / "configuration" / "env-vars.md"
 RELEASE_CHECKLIST = REPO_ROOT / "docs" / "management" / "RELEASE_CHECKLIST.md"
 RULES_CI_EXAMPLE = REPO_ROOT / "examples" / "ci" / "rules-governance.yml"
+
+
+def _extract(pattern: str, source: str) -> str:
+    match = re.search(pattern, source, flags=re.MULTILINE)
+    assert match is not None
+    return match.group(1)
+
+
+def test_workspace_readme_status_and_package_versions_stay_aligned() -> None:
+    pyproject = PYPROJECT.read_text(encoding="utf-8")
+    package_init = PACKAGE_INIT.read_text(encoding="utf-8")
+    readme = ROOT_README.read_text(encoding="utf-8")
+    project_status = (
+        PROJECT_STATUS.read_text(encoding="utf-8") if PROJECT_STATUS.exists() else ""
+    )
+
+    package_version = _extract(r'^version = "([^"]+)"$', pyproject)
+    init_version = _extract(r'^__version__ = "([^"]+)"$', package_init)
+
+    assert init_version == package_version
+    if project_status:
+        assert f"workspace baseline: v{package_version}" in readme
+        assert f"public PyPI/docs live for v{package_version}" in readme
+        assert f"**Released baseline**: `v{package_version}`" in project_status
+    else:
+        assert f"What's New in v{package_version}" in readme
 
 
 def test_env_vars_doc_mentions_public_l3_trigger_controls() -> None:

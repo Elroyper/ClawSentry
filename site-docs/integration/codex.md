@@ -145,6 +145,33 @@ Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event
 
 ClawSentry 的 hook installer 使用 managed entry 标记进行非破坏式合并：它会保留已有用户 hooks 和 OMX hooks，卸载时只移除 ClawSentry 管理的 entries。用 `clawsentry doctor` 可核对当前形态是否仍为 `PreToolUse(Bash): sync`、其他 native events 为 `async`。
 
+### 验证安装与防护是否生效 {#verify-codex-hooks}
+
+完成 `clawsentry init codex --setup` 后，先用 `doctor` 检查 hook 形态：
+
+```bash
+clawsentry doctor
+```
+
+期望看到类似输出：
+
+```text
+[PASS] CODEX_NATIVE_HOOKS Codex native hooks installed
+       PreToolUse(Bash): sync
+       PostToolUse(Bash): async
+       UserPromptSubmit: async
+       Stop: async
+       SessionStart(startup|resume): async
+```
+
+这只能证明安装形态正确。要确认真实阻断链路，还需要让 Codex 触发一次安全的
+Bash preflight，并观察 Gateway / `clawsentry watch` 中是否出现对应 decision。
+建议在临时目录或测试项目里执行，不要用生产仓库做破坏性验证。
+
+维护者如果需要复现完整 host-deny 链路，可以使用仓库提供的 Codex → Gateway
+smoke 工具；它会使用临时 `CODEX_HOME`、临时 Gateway 和测试命令，不会改写你的真实
+Codex 配置。普通用户通常只需要 `doctor` + 一次安全的手动 smoke。
+
 ### 配置变量
 
 | 变量 | 默认值 | 说明 |
