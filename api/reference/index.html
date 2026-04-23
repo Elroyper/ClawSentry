@@ -16,7 +16,7 @@
         <link rel="prev" href="../overview/">
       
       
-        <link rel="next" href="../validity-report/">
+        <link rel="next" href="../authentication/">
       
       
         
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#interactive-api-reference" class="md-skip">
+        <a href="#api-reference" class="md-skip">
           跳转至
         </a>
       
@@ -1237,21 +1237,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查字段、schema、示例与错误码
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        如何给前端开发使用
+        快速入口
       
     </span>
   </a>
@@ -1273,34 +1262,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../validity-report/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    API 有效性报告
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -2137,21 +2098,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#schema" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        查字段、schema、示例与错误码
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        如何给前端开发使用
+        快速入口
       
     </span>
   </a>
@@ -2189,108 +2139,51 @@
   
 
 
-<h1 id="interactive-api-reference">交互式 API Reference<a class="headerlink" href="#interactive-api-reference" title="Permanent link">&para;</a></h1>
-<section class="cs-doc-hero cs-doc-hero--reference">
-<div class="cs-eyebrow">Interactive Reference</div>
-<h2 id="schema">查字段、schema、示例与错误码<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h2>
-<p>本页加载静态 <code>openapi.json</code> 并用 Scalar 渲染。若你还在判断“该调用哪类 API”，先看 <a href="../overview/">API 概览</a>；若你已经知道端点，留在本页查请求体、响应示例、鉴权和错误码。</p>
-<div class="cs-actions">
-<p><a class="md-button md-button--primary" href="../openapi.json">原始 OpenAPI JSON</a>
-<a class="md-button" href="../api-coverage.json">覆盖矩阵</a>
-<a class="md-button" href="../validity-report/">有效性报告</a>
-<a class="md-button" href="../api-validity.json">机器可读报告</a></p>
+<h1 id="api-reference">交互式 API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<p>本页用于查端点、schema、请求/响应示例和错误码。学习路径请先看 <a href="../overview/">API 概览</a>。</p>
+<div class="cs-callout">
+<p><strong>阅读路径</strong> 如果你在判断“该调用哪类 API”，先看 <a href="../overview/">API 概览</a>；如果你已经知道端点，留在本页查字段、schema、示例和错误码。</p>
 </div>
-</section>
 <div class="admonition info">
 <p class="admonition-title">文档生成策略</p>
 <p>下面的 OpenAPI artifact 是<strong>文档侧静态产物</strong>，由 route inventory + curated semantic overlay 生成。它不会修改 ClawSentry 运行时 API 行为。</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Scalar 资源权衡</p>
-<p>本阶段不引入新的构建依赖。页面使用 pinned CDN 版本加载 Scalar API Reference；<code>mkdocs build --strict</code> 不依赖远程 JS 是否可达。若你的环境无法访问 CDN，请直接查看 <a href="../openapi.json">原始 OpenAPI JSON</a>。页面还对 Scalar 1.52.5 的 <code>Invalid YAML object</code> 已知 false-positive 做了窄范围 console 兼容处理；源 JSON 与有效性报告仍是核验依据。</p>
+<p>本阶段不引入新的构建依赖。页面使用 pinned CDN 版本加载 Scalar API Reference；<code>mkdocs build --strict</code> 不依赖远程 JS 是否可达。若你的环境无法访问 CDN，请直接查看 <a href="../openapi.json">原始 OpenAPI JSON</a>。</p>
 </div>
-<div class="cs-reference-toolbar">
-<table>
-<thead>
-<tr>
-<th>交接包</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="../openapi.json"><code>openapi.json</code></a></td>
-<td>前端/SDK/HTTP client 生成与字段核对</td>
-</tr>
-<tr>
-<td><a href="../api-coverage.json"><code>api-coverage.json</code></a></td>
-<td>查看 service、auth、source、Markdown ref 和示例覆盖</td>
-</tr>
-<tr>
-<td><a href="../validity-report/"><code>validity-report.md</code></a></td>
-<td>人类可读的 API 真实性核验结果</td>
-</tr>
-<tr>
-<td><a href="../api-validity.json"><code>api-validity.json</code></a></td>
-<td>可导入脚本或 CI 的机器可读核验结果</td>
-</tr>
-</tbody>
-</table>
-</div>
-<p><div
-  id="api-reference"
-  data-url="../openapi.json"
-  data-configuration='{ "theme": "purple", "layout": "modern", "hideDownloadButton": false, "hideModels": false, "defaultHttpClient": { "targetKey": "shell", "clientKey": "curl" } }'>
-</div>
-</p>
+<div id="scalar-api-reference"></div>
+
 <noscript>
   JavaScript 未启用。请打开 <a href="../openapi.json">原始 OpenAPI JSON</a>。
 </noscript>
 
+<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.52.5"></script>
 <script>
-  window.__clawsentryScalarConsoleError = console.error.bind(console)
-  console.error = function filterScalarInvalidYamlObject() {
-    const message = Array.from(arguments).map(String).join(' ')
-    if (message.includes('Invalid YAML object')) {
-      console.info('Scalar parser notice filtered: OpenAPI JSON is valid; see api-validity.json for traceability.')
-      return
-    }
-    window.__clawsentryScalarConsoleError.apply(console, arguments)
+  if (window.Scalar) {
+    window.Scalar.createApiReference('#scalar-api-reference', {
+      url: '../openapi.json',
+      theme: 'purple',
+      layout: 'modern',
+      hideDownloadButton: false,
+      hideModels: false,
+      defaultHttpClient: {
+        targetKey: 'shell',
+        clientKey: 'curl'
+      }
+    })
   }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.52.5"></script>
 
-<h2 id="_1">如何给前端开发使用<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>场景</th>
-<th>推荐做法</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>生成类型或 client</td>
-<td>使用 <a href="../openapi.json"><code>openapi.json</code></a>，只把 <code>public</code> 和明确启用的 <code>enterprise</code> 端点纳入目标环境。</td>
-</tr>
-<tr>
-<td>构建 Dashboard 首屏</td>
-<td>先接 <code>GET /report/summary</code>、<code>GET /report/sessions</code>、<code>GET /report/session/{session_id}/page</code>。</td>
-</tr>
-<tr>
-<td>构建实时流</td>
-<td>使用 <code>GET /report/stream</code>；浏览器侧可用 query token，服务端集成优先 Bearer token。</td>
-</tr>
-<tr>
-<td>构建处置动作</td>
-<td>acknowledge / enforcement / quarantine / L3 advisory 写入端点都按 contract 验证，不在报告生成时盲目 live 调用。</td>
-</tr>
-<tr>
-<td>核对 API 是否真实存在</td>
-<td>打开 <a href="../validity-report/">API 有效性报告</a>，查看 source file:line、Markdown anchor 和 OpenAPI operation。</td>
-</tr>
-</tbody>
-</table>
+<h2 id="_1">快速入口<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../openapi.json">下载 / 查看 OpenAPI JSON</a></li>
+<li><a href="../api-coverage.json">API 覆盖矩阵</a></li>
+<li><a href="../authentication/">鉴权与安全</a></li>
+<li><a href="../decisions/">决策端点说明</a></li>
+<li><a href="../reporting/">报表、SSE 与 L3 Advisory</a></li>
+<li><a href="../webhooks/">OpenClaw Webhook API</a></li>
+</ul>
 <h2 id="reference">如何阅读这个 Reference<a class="headerlink" href="#reference" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2304,7 +2197,7 @@
 <tr>
 <td>AHP 决策</td>
 <td>二次开发者</td>
-<td><code>POST /ahp</code>、<code>POST /ahp/a3s</code>、<code>POST /ahp/codex</code>、<code>POST /ahp/resolve</code> 的请求/响应结构</td>
+<td><code>/ahp</code>、<code>/ahp/a3s</code>、<code>/ahp/codex</code>、<code>/ahp/resolve</code> 的请求/响应结构</td>
 </tr>
 <tr>
 <td>报表与监控</td>
@@ -2315,16 +2208,6 @@
 <td>L3 Advisory</td>
 <td>运维 / 安全审查</td>
 <td>snapshot、job、review、full-review 的 advisory-only 边界</td>
-</tr>
-<tr>
-<td>Enterprise 条件端点</td>
-<td>企业部署运维</td>
-<td><code>/enterprise/*</code> 的条件注册状态，不代表默认环境开启</td>
-</tr>
-<tr>
-<td>Excluded</td>
-<td>文档维护者</td>
-<td><code>GET /ui</code>、<code>GET /ui/{path:path}</code> 和 webhook-local <code>GET /health</code> 不进入共享 OpenAPI 的原因</td>
 </tr>
 <tr>
 <td>Webhook</td>
@@ -2355,7 +2238,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 07:53:05 UTC">2026年4月23日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 17:22:35 UTC">2026年4月22日</span>
   </span>
 
     
@@ -2365,7 +2248,7 @@
     <span class="md-icon" title="创建日期">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 17:17:08 UTC">2026年4月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 17:22:35 UTC">2026年4月22日</span>
   </span>
 
     
@@ -2419,13 +2302,13 @@
         
         
           
-          <a href="../validity-report/" class="md-footer__link md-footer__link--next" aria-label="下一页: API 有效性报告">
+          <a href="../authentication/" class="md-footer__link md-footer__link--next" aria-label="下一页: 鉴权与安全">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 下一页
               </span>
               <div class="md-ellipsis">
-                API 有效性报告
+                鉴权与安全
               </div>
             </div>
             <div class="md-footer__button md-icon">
