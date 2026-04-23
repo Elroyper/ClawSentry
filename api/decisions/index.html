@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="ClawSentry 决策相关 API 端点的完整参考，包括 Webhook、HTTP Transport、DEFER 代理和 UDS 传输">
+        <meta name="description" content="ClawSentry 决策相关 API 端点完整参考，包括 Webhook、HTTP 传输、DEFER 代理和 UDS 传输">
       
       
       
@@ -1205,6 +1205,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../validity-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API 有效性报告
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../authentication/" class="md-nav__link">
         
   
@@ -1390,12 +1418,12 @@
   <a href="#post-ahp-a3s" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/a3s — a3s-code HTTP Transport
+        POST /ahp/a3s — a3s-code HTTP 传输
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/a3s — a3s-code HTTP Transport">
+    <nav class="md-nav" aria-label="POST /ahp/a3s — a3s-code HTTP 传输">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1424,7 +1452,7 @@
   <a href="#handshake" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handshake 请求
+        握手请求（handshake）
       
     </span>
   </a>
@@ -1435,7 +1463,7 @@
   <a href="#handshake_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handshake 响应
+        握手响应（handshake）
       
     </span>
   </a>
@@ -1495,12 +1523,12 @@
   <a href="#post-ahp-codex" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/codex — Codex CLI HTTP Transport
+        POST /ahp/codex — Codex CLI HTTP 传输
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP Transport">
+    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP 传输">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1661,12 +1689,12 @@
   <a href="#uds-transport" class="md-nav__link">
     <span class="md-ellipsis">
       
-        UDS Transport — Unix Domain Socket
+        UDS 传输（Unix Domain Socket）
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="UDS Transport — Unix Domain Socket">
+    <nav class="md-nav" aria-label="UDS 传输（Unix Domain Socket）">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1776,6 +1804,67 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decision-effects-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AHP 效果生命周期 —— 请求、执行、回写分离
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AHP 效果生命周期 —— 请求、执行、回写分离">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么时候会看到它？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        适配器处理步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        期望输出与恢复路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-ahp-adapter-effect-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /ahp/adapter-effect-result — 适配器效果结果回写
+      
+    </span>
+  </a>
   
 </li>
       
@@ -2660,12 +2749,12 @@
   <a href="#post-ahp-a3s" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/a3s — a3s-code HTTP Transport
+        POST /ahp/a3s — a3s-code HTTP 传输
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/a3s — a3s-code HTTP Transport">
+    <nav class="md-nav" aria-label="POST /ahp/a3s — a3s-code HTTP 传输">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2694,7 +2783,7 @@
   <a href="#handshake" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handshake 请求
+        握手请求（handshake）
       
     </span>
   </a>
@@ -2705,7 +2794,7 @@
   <a href="#handshake_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Handshake 响应
+        握手响应（handshake）
       
     </span>
   </a>
@@ -2765,12 +2854,12 @@
   <a href="#post-ahp-codex" class="md-nav__link">
     <span class="md-ellipsis">
       
-        POST /ahp/codex — Codex CLI HTTP Transport
+        POST /ahp/codex — Codex CLI HTTP 传输
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP Transport">
+    <nav class="md-nav" aria-label="POST /ahp/codex — Codex CLI HTTP 传输">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2931,12 +3020,12 @@
   <a href="#uds-transport" class="md-nav__link">
     <span class="md-ellipsis">
       
-        UDS Transport — Unix Domain Socket
+        UDS 传输（Unix Domain Socket）
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="UDS Transport — Unix Domain Socket">
+    <nav class="md-nav" aria-label="UDS 传输（Unix Domain Socket）">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -3049,6 +3138,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#decision-effects-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AHP 效果生命周期 —— 请求、执行、回写分离
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AHP 效果生命周期 —— 请求、执行、回写分离">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        什么时候会看到它？
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_29" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        适配器处理步骤
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        期望输出与恢复路径
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#post-ahp-adapter-effect-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /ahp/adapter-effect-result — 适配器效果结果回写
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3070,7 +3220,7 @@
 
 
 <h1 id="_1">决策端点<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
-<p>ClawSentry Gateway 提供多种传输通道接收 AI Agent 运行时事件，并返回统一的 <code>CanonicalDecision</code> 安全决策。本页覆盖所有决策相关端点。</p>
+<p>ClawSentry 网关接收 AI Agent 运行时事件，并返回统一的 <code>CanonicalDecision</code>。本页列出所有决策相关端点。</p>
 <h2 id="_2">决策模型概览<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>所有端点最终返回统一的 <strong>CanonicalDecision</strong>：</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">{</span>
@@ -3335,8 +3485,8 @@
 </span><span id="__span-4-27"><a id="__codelineno-4-27" name="__codelineno-4-27" href="#__codelineno-4-27"></a><span class="s1">  }&#39;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="post-ahp-a3s">POST /ahp/a3s — a3s-code HTTP Transport<a class="headerlink" href="#post-ahp-a3s" title="Permanent link">&para;</a></h2>
-<p>为 a3s-code 提供直接 HTTP 接入的 AHP 事件提交端点。支持 handshake（握手）和 event（事件）两种消息类型。</p>
+<h2 id="post-ahp-a3s">POST /ahp/a3s — a3s-code HTTP 传输<a class="headerlink" href="#post-ahp-a3s" title="Permanent link">&para;</a></h2>
+<p>为 a3s-code 提供直接 HTTP 接入，支持 <code>handshake</code>（握手）和 <code>event</code>（事件）两种消息类型。</p>
 <h3 id="_8">认证<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Bearer Token</strong>: <code>Authorization: Bearer &lt;CS_AUTH_TOKEN&gt;</code></li>
@@ -3353,7 +3503,7 @@
 </span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>  |--- event (post_action) --------&gt;  |
 </span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>  |&lt;-- decision -------------------  |
 </span></code></pre></div>
-<h3 id="handshake">Handshake 请求<a class="headerlink" href="#handshake" title="Permanent link">&para;</a></h3>
+<h3 id="handshake">握手请求（<code>handshake</code>）<a class="headerlink" href="#handshake" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
@@ -3361,7 +3511,7 @@
 </span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">&quot;params&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
 </span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="p">}</span>
 </span></code></pre></div>
-<h3 id="handshake_1">Handshake 响应<a class="headerlink" href="#handshake_1" title="Permanent link">&para;</a></h3>
+<h3 id="handshake_1">握手响应（<code>handshake</code>）<a class="headerlink" href="#handshake_1" title="Permanent link">&para;</a></h3>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="p">{</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">&quot;jsonrpc&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0&quot;</span><span class="p">,</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
@@ -3476,7 +3626,7 @@
 </span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="s1">  }&#39;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="post-ahp-codex">POST /ahp/codex — Codex CLI HTTP Transport<a class="headerlink" href="#post-ahp-codex" title="Permanent link">&para;</a></h2>
+<h2 id="post-ahp-codex">POST /ahp/codex — Codex CLI HTTP 传输<a class="headerlink" href="#post-ahp-codex" title="Permanent link">&para;</a></h2>
 <p>为 OpenAI Codex CLI 提供简化的 HTTP 接入端点。无需 JSON-RPC 封装，直接提交事件获取安全决策。</p>
 <h3 id="_12">认证<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
 <ul>
@@ -3571,7 +3721,7 @@
 </span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="_16">安全默认<a class="headerlink" href="#_16" title="Permanent link">&para;</a></h3>
-<p>当 Gateway 内部发生异常时，Codex 端点返回 <strong>block</strong>（fail-closed），而非 continue：</p>
+<p>当网关内部发生异常时，Codex 端点返回 <strong><code>block</code></strong>（fail-closed），而不是继续放行（<code>continue</code>）：</p>
 <div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="p">{</span>
 </span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">&quot;action&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;block&quot;</span><span class="p">,</span>
 </span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal error (fail-closed)&quot;</span>
@@ -3677,8 +3827,8 @@
 </span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;approval_id&quot;: &quot;apr-001&quot;, &quot;decision&quot;: &quot;deny&quot;, &quot;reason&quot;: &quot;suspicious operation&quot;}&#39;</span>
 </span></code></pre></div>
 <hr />
-<h2 id="uds-transport">UDS Transport — Unix Domain Socket<a class="headerlink" href="#uds-transport" title="Permanent link">&para;</a></h2>
-<p>UDS 是 ClawSentry 的<strong>主传输通道</strong>，提供最低延迟的进程间通信。a3s-code Harness 默认通过 UDS 连接 Gateway。</p>
+<h2 id="uds-transport">UDS 传输（Unix Domain Socket）<a class="headerlink" href="#uds-transport" title="Permanent link">&para;</a></h2>
+<p>UDS 是 ClawSentry 的<strong>主传输通道</strong>，提供最低延迟的进程间通信；a3s-code harness 默认通过它连接网关。</p>
 <h3 id="_22">连接信息<a class="headerlink" href="#_22" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3917,6 +4067,138 @@
 </tr>
 </tbody>
 </table>
+<h2 id="decision-effects-lifecycle">AHP 效果生命周期 —— 请求、执行、回写分离<a class="headerlink" href="#decision-effects-lifecycle" title="Permanent link">&para;</a></h2>
+<p>从 v0.5.4 开始，<code>CanonicalDecision</code> 在保持顶层
+<code>allow / block / defer / modify</code> 判决稳定的同时，可以携带
+<code>decision_effects</code>。它只表达 <strong>网关请求了哪类额外效果</strong>，
+不声明宿主已经执行成功。</p>
+<div class="admonition important">
+<p class="admonition-title">请求意图不等于实际执行</p>
+<p><code>decision_effects</code> 是网关的请求意图；真实宿主行为由 adapter 后续用
+<code>adapter_effect_result</code> 回写。这样可以区分“策略要求隔离 session / 改写命令”和
+“Codex、a3s-code、OpenClaw 等宿主实际支持、降级或不支持的效果”。</p>
+</div>
+<h3 id="_28">什么时候会看到它？<a class="headerlink" href="#_28" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>顶层判决</th>
+<th>effect 字段</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>会话被判定为受损（compromised session）</td>
+<td><code>block</code> 或 <code>defer</code></td>
+<td><code>session_effect.mode=mark_blocked</code>、<code>action_scope=session</code></td>
+<td>后续同 session 的 <code>pre_action</code> 会被阻断；operator 可查询并释放 quarantine。</td>
+</tr>
+<tr>
+<td>人工审批改写命令 / <code>tool_input</code></td>
+<td><code>modify</code></td>
+<td><code>rewrite_effect</code> + <code>modified_payload</code></td>
+<td>adapter 使用 <code>modified_payload</code> 的替换内容执行；轨迹与 watch 只展示 hash / redacted preview。</td>
+</tr>
+<tr>
+<td>宿主不支持某个 effect</td>
+<td>原判决不变</td>
+<td>adapter 回写 <code>degraded</code> 或 <code>unsupported</code></td>
+<td>查看 <code>degrade_reason</code>，决定是否升级到人工处置或改用支持该 effect 的接入方式。</td>
+</tr>
+</tbody>
+</table>
+<p>示例响应：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="p">{</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">&quot;decision&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;modify&quot;</span><span class="p">,</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span><span class="nt">&quot;modified_payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;rm -ri /tmp/example&quot;</span><span class="p">},</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">  </span><span class="nt">&quot;decision_effects&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">    </span><span class="nt">&quot;effect_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;cs.decision_effects.v1&quot;</span><span class="p">,</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">    </span><span class="nt">&quot;effect_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eff-rewrite-001&quot;</span><span class="p">,</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">    </span><span class="nt">&quot;action_scope&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;action&quot;</span><span class="p">,</span>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">    </span><span class="nt">&quot;rewrite_effect&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">      </span><span class="nt">&quot;requested&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-27-10"><a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="w">      </span><span class="nt">&quot;target&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;command&quot;</span><span class="p">,</span>
+</span><span id="__span-27-11"><a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="w">      </span><span class="nt">&quot;approval_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;apr-001&quot;</span><span class="p">,</span>
+</span><span id="__span-27-12"><a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="w">      </span><span class="nt">&quot;original_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:old&quot;</span><span class="p">,</span>
+</span><span id="__span-27-13"><a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="w">      </span><span class="nt">&quot;original_preview_redacted&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;rm -rf …&quot;</span><span class="p">,</span>
+</span><span id="__span-27-14"><a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a><span class="w">      </span><span class="nt">&quot;replacement_hash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:new&quot;</span><span class="p">,</span>
+</span><span id="__span-27-15"><a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="w">      </span><span class="nt">&quot;replacement_preview_redacted&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;rm -ri …&quot;</span><span class="p">,</span>
+</span><span id="__span-27-16"><a id="__codelineno-27-16" name="__codelineno-27-16" href="#__codelineno-27-16"></a><span class="w">      </span><span class="nt">&quot;rewrite_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;operator_resolution&quot;</span>
+</span><span id="__span-27-17"><a id="__codelineno-27-17" name="__codelineno-27-17" href="#__codelineno-27-17"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-27-18"><a id="__codelineno-27-18" name="__codelineno-27-18" href="#__codelineno-27-18"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-27-19"><a id="__codelineno-27-19" name="__codelineno-27-19" href="#__codelineno-27-19"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="_29">适配器处理步骤<a class="headerlink" href="#_29" title="Permanent link">&para;</a></h3>
+<ol>
+<li>先按顶层判决处理 <code>allow / block / defer / modify</code>。</li>
+<li>有 <code>modified_payload</code> 时，只使用允许的 <code>command</code> 或 <code>tool_input</code>
+   替换内容；<code>prompt</code> rewrite 不在 v1 范围内。</li>
+<li>读取 <code>decision_effects.effect_id</code>，把本次宿主执行结果回写到
+   <code>POST /ahp/adapter-effect-result</code>。</li>
+<li>如果无法执行效果，不要伪装成功；写入 <code>degraded</code> 或 <code>unsupported</code>，
+   并提供 <code>degrade_reason</code>。</li>
+</ol>
+<h3 id="_30">期望输出与恢复路径<a class="headerlink" href="#_30" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>确认项</th>
+<th>查看位置</th>
+<th>恢复 / 后续动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>adapter 是否执行了 effect</td>
+<td><code>adapter_effect_result</code> SSE / replay / Session Detail summary</td>
+<td>若 <code>degraded</code> 或 <code>unsupported</code>，查看 <code>degrade_reason</code>，并切换接入方式或人工处置。</td>
+</tr>
+<tr>
+<td>session 是否处于 quarantine</td>
+<td><code>GET /report/session/{session_id}/quarantine</code></td>
+<td>人工确认风险解除后，用 <code>POST /report/session/{session_id}/quarantine</code> 释放。</td>
+</tr>
+<tr>
+<td>rewrite 是否泄露完整 payload</td>
+<td>replay / SSE / watch</td>
+<td>正常情况下只保留 <code>replacement_hash</code> 与 <code>replacement_preview_redacted</code>；完整替换内容只用于实时 adapter 响应。</td>
+</tr>
+</tbody>
+</table>
+<p>相关参考：</p>
+<ul>
+<li><a href="../reporting/#get-report-session-quarantine">会话 quarantine 查询与释放</a></li>
+<li><a href="../reporting/#l3-advisory-endpoints">L3 advisory 与 SSE 事件流</a></li>
+<li><a href="../../integration/a3s-code/">a3s-code 对 <code>modify</code> / <code>modified_payload</code> 的接入说明</a></li>
+</ul>
+<h2 id="post-ahp-adapter-effect-result">POST /ahp/adapter-effect-result — 适配器效果结果回写<a class="headerlink" href="#post-ahp-adapter-effect-result" title="Permanent link">&para;</a></h2>
+<p>该端点用于在宿主侧完成效果翻译后，回写<strong>实际观测结果</strong>。它只记录适配器最终执行状态（<code>enforced</code> / <code>degraded</code> / <code>unsupported</code>），不会反向改写原始 <code>CanonicalDecision</code>。同一个 <code>effect_id + adapter + event/tool/session + result_kind</code> 会形成幂等键；重复写回会返回既有结果。</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="p">{</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">&quot;effect_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eff-rewrite-001&quot;</span><span class="p">,</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span><span class="nt">&quot;framework&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex&quot;</span><span class="p">,</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="nt">&quot;adapter&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex-native-hook&quot;</span><span class="p">,</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span><span class="nt">&quot;requested&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;command_rewrite&quot;</span><span class="p">],</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span><span class="nt">&quot;degraded&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;command_rewrite&quot;</span><span class="p">],</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span><span class="nt">&quot;degrade_reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;codex_pretool_updated_input_unsupported&quot;</span><span class="p">,</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span><span class="nt">&quot;event_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;evt-001&quot;</span><span class="p">,</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span><span class="nt">&quot;session_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sess-001&quot;</span>
+</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>响应示例：</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="p">{</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">&quot;created&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="nt">&quot;idempotency_key&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;eff-rewrite-001:codex-native-hook:evt-001:degraded&quot;</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="p">}</span>
+</span></code></pre></div>
+<p>说明：</p>
+<ul>
+<li><code>decision_effects</code> 表示网关的<strong>请求意图</strong>；<code>adapter_effect_result</code> 表示宿主侧<strong>实际观测结果</strong>。</li>
+<li>当结果是 <code>degraded</code> 或 <code>unsupported</code> 时，必须提供 <code>degrade_reason</code>。</li>
+<li>重复回写会命中幂等键（<code>idempotency_key</code>），并返回已存在结果。</li>
+<li>该端点不需要完整 rewrite 替换载荷，不应发送敏感替换正文。</li>
+</ul>
 
 
 
@@ -3939,7 +4221,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年3月29日 14:44:41 UTC">2026年3月29日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 08:19:02 UTC">2026年4月23日</span>
   </span>
 
     

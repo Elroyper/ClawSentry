@@ -1390,6 +1390,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/validity-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API 有效性报告
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/authentication/" class="md-nav__link">
         
   
@@ -2473,20 +2501,40 @@
 </thead>
 <tbody>
 <tr>
+<td><code>DEFER</code></td>
+<td>延后/审批结果：系统暂停自动放行，等待 operator allow/deny；不是最终 block。</td>
+</tr>
+<tr>
+<td><code>L3 advisory</code></td>
+<td>深度证据审查，生成 snapshot/job/review 供 operator 判断。</td>
+</tr>
+<tr>
+<td><code>advisory-only</code></td>
+<td>L3 结论只提供建议和证据，不改写既有 canonical decision。</td>
+</tr>
+<tr>
+<td><code>toolkit evidence budget</code></td>
+<td>L3 审查可调用工具收集证据的上限；耗尽时会展示证据边界和降级原因。</td>
+</tr>
+<tr>
+<td><code>framework</code></td>
+<td>事件来源的 Agent 运行时，例如 <code>codex</code>、<code>claude-code</code>、<code>a3s-code</code>、<code>openclaw</code>。</td>
+</tr>
+<tr>
+<td><code>workspace</code></td>
+<td>Agent 正在操作的项目目录或工作区。</td>
+</tr>
+<tr>
+<td><code>session</code></td>
+<td>某个 workspace 中的一次 Agent 会话，通常对应一段 transcript / event stream。</td>
+</tr>
+<tr>
 <td><code>CanonicalEvent</code></td>
 <td>归一化后的 Agent 事件。</td>
 </tr>
 <tr>
 <td><code>CanonicalDecision</code></td>
 <td>Gateway 输出的安全判决。</td>
-</tr>
-<tr>
-<td><code>session</code></td>
-<td>一次 Agent 会话。</td>
-</tr>
-<tr>
-<td><code>workspace</code></td>
-<td>Agent 工作目录或项目空间。</td>
 </tr>
 <tr>
 <td><code>approval_id</code></td>
@@ -2525,7 +2573,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月17日 10:41:23 UTC">2026年4月17日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 05:37:32 UTC">2026年4月23日</span>
   </span>
 
     

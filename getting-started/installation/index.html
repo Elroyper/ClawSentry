@@ -1385,6 +1385,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../api/validity-report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API 有效性报告
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../api/authentication/" class="md-nav__link">
         
   
@@ -2599,6 +2627,10 @@
 <p class="admonition-title"><code>-e</code> 参数</p>
 <p><code>-e</code> (editable) 模式会将源码目录直接链接到 Python 环境中。修改源码后无需重新安装即可生效。</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">editable 安装与 stale global 包</p>
+<p>如果你同时装过全局 <code>clawsentry</code>（例如 <code>pip install clawsentry</code> 或 <code>uv tool install clawsentry</code>）又在源码目录里调试，可能会遇到 stale global package：命令行实际加载的是旧的全局包，而不是当前仓库。排查时先运行 <code>python -c "import clawsentry, pathlib; print(pathlib.Path(clawsentry.__file__).resolve())"</code>，确认路径指向本仓库；开发调试优先使用 <code>pip install -e ".[dev]"</code> 并激活对应虚拟环境。</p>
+</div>
 <hr />
 <h2 id="_7">验证安装<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <h3 id="cli">检查 CLI 是否可用<a class="headerlink" href="#cli" title="Permanent link">&para;</a></h3>
@@ -2695,12 +2727,12 @@
 </span></code></pre></div>
 <p>预期看到类似输出（具体数量以当前发布的 CI/验证报告为准）：</p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>========================= test session starts ==========================
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>collected 3000+ items
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>collected 3061 items
 </span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
 </span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 </span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 </span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>...
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>========================= 3000+ passed, &lt;若干 skipped&gt; ===============
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>========================= 3054 passed, 7 skipped ===============
 </span></code></pre></div>
 <div class="admonition success">
 <p class="admonition-title">全部通过即安装成功</p>
@@ -2754,7 +2786,7 @@
     <span class="md-icon" title="最后更新">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月22日 08:40:27 UTC">2026年4月22日</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 05:37:32 UTC">2026年4月23日</span>
   </span>
 
     
