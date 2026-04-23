@@ -6,29 +6,35 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Agent Harness Protocol (AHP) 参考实现 — 面向 AI Agent 运行时的统一安全监督网关">
+        <meta name="description" content="ClawSentry API 文档、源码 route、OpenAPI 与示例的可溯源核验结果">
       
       
       
+        <link rel="canonical" href="https://elroyper.github.io/ClawSentry/api/validity-report/">
       
+      
+        <link rel="prev" href="../reference/">
+      
+      
+        <link rel="next" href="../authentication/">
       
       
         
       
       
-      <link rel="icon" href="/ClawSentry/assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>ClawSentry</title>
+        <title>API 有效性报告 - ClawSentry</title>
       
     
     
-      <link rel="stylesheet" href="/ClawSentry/assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="/ClawSentry/assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -47,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="/ClawSentry/stylesheets/clawsentry-docs.css">
+      <link rel="stylesheet" href="../../stylesheets/clawsentry-docs.css">
     
-    <script>__md_scope=new URL("/ClawSentry/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -73,6 +79,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#api" class="md-skip">
+          跳转至
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -83,7 +94,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="页眉">
-    <a href="/ClawSentry/." title="ClawSentry" class="md-header__button md-logo" aria-label="ClawSentry" data-md-component="logo">
+    <a href="../.." title="ClawSentry" class="md-header__button md-logo" aria-label="ClawSentry" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -103,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              API 有效性报告
             
           </span>
         </div>
@@ -216,7 +227,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/ClawSentry/." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -237,7 +248,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/getting-started/quickstart/" class="md-tabs__link">
+        <a href="../../getting-started/quickstart/" class="md-tabs__link">
           
   
   
@@ -257,7 +268,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/integration/a3s-code/" class="md-tabs__link">
+        <a href="../../integration/a3s-code/" class="md-tabs__link">
           
   
   
@@ -277,7 +288,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/configuration/env-vars/" class="md-tabs__link">
+        <a href="../../configuration/env-vars/" class="md-tabs__link">
           
   
   
@@ -295,7 +306,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/ClawSentry/cli/" class="md-tabs__link">
+      <a href="../../cli/" class="md-tabs__link">
         
   
   
@@ -312,11 +323,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="/ClawSentry/api/overview/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../overview/" class="md-tabs__link">
           
   
   
@@ -336,7 +349,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/decision-layers/l1-rules/" class="md-tabs__link">
+        <a href="../../decision-layers/l1-rules/" class="md-tabs__link">
           
   
   
@@ -354,7 +367,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/ClawSentry/dashboard/" class="md-tabs__link">
+      <a href="../../dashboard/" class="md-tabs__link">
         
   
   
@@ -375,7 +388,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/advanced/rule-governance/" class="md-tabs__link">
+        <a href="../../advanced/rule-governance/" class="md-tabs__link">
           
   
   
@@ -395,7 +408,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/ClawSentry/operations/deployment/" class="md-tabs__link">
+        <a href="../../operations/deployment/" class="md-tabs__link">
           
   
   
@@ -413,7 +426,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/ClawSentry/changelog/" class="md-tabs__link">
+      <a href="../../changelog/" class="md-tabs__link">
         
   
   
@@ -448,7 +461,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="导航栏" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/ClawSentry/." title="ClawSentry" class="md-nav__button md-logo" aria-label="ClawSentry" data-md-component="logo">
+    <a href="../.." title="ClawSentry" class="md-nav__button md-logo" aria-label="ClawSentry" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -478,7 +491,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -559,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/getting-started/quickstart/" class="md-nav__link">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
         
   
   
@@ -587,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/getting-started/installation/" class="md-nav__link">
+      <a href="../../getting-started/installation/" class="md-nav__link">
         
   
   
@@ -615,7 +628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/getting-started/concepts/" class="md-nav__link">
+      <a href="../../getting-started/concepts/" class="md-nav__link">
         
   
   
@@ -643,7 +656,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/getting-started/faq/" class="md-nav__link">
+      <a href="../../getting-started/faq/" class="md-nav__link">
         
   
   
@@ -732,7 +745,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/integration/a3s-code/" class="md-nav__link">
+      <a href="../../integration/a3s-code/" class="md-nav__link">
         
   
   
@@ -760,7 +773,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/integration/claude-code/" class="md-nav__link">
+      <a href="../../integration/claude-code/" class="md-nav__link">
         
   
   
@@ -788,7 +801,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/integration/codex/" class="md-nav__link">
+      <a href="../../integration/codex/" class="md-nav__link">
         
   
   
@@ -816,7 +829,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/integration/openclaw/" class="md-nav__link">
+      <a href="../../integration/openclaw/" class="md-nav__link">
         
   
   
@@ -844,7 +857,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/integration/latch/" class="md-nav__link">
+      <a href="../../integration/latch/" class="md-nav__link">
         
   
   
@@ -933,7 +946,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/configuration/env-vars/" class="md-nav__link">
+      <a href="../../configuration/env-vars/" class="md-nav__link">
         
   
   
@@ -961,7 +974,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/configuration/detection-config/" class="md-nav__link">
+      <a href="../../configuration/detection-config/" class="md-nav__link">
         
   
   
@@ -989,7 +1002,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/configuration/policy-tuning/" class="md-nav__link">
+      <a href="../../configuration/policy-tuning/" class="md-nav__link">
         
   
   
@@ -1017,7 +1030,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/configuration/llm-config/" class="md-nav__link">
+      <a href="../../configuration/llm-config/" class="md-nav__link">
         
   
   
@@ -1052,7 +1065,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/cli/" class="md-nav__link">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -1076,28 +1089,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
-        
-          
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
             
   
   
@@ -1115,7 +1131,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1133,7 +1149,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/overview/" class="md-nav__link">
+      <a href="../overview/" class="md-nav__link">
         
   
   
@@ -1161,7 +1177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/reference/" class="md-nav__link">
+      <a href="../reference/" class="md-nav__link">
         
   
   
@@ -1186,10 +1202,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/ClawSentry/api/validity-report/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API 有效性报告
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1205,6 +1248,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        摘要
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态分布
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        反向验证规则
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        端点核验矩阵
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        复跑命令
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1217,7 +1335,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/authentication/" class="md-nav__link">
+      <a href="../authentication/" class="md-nav__link">
         
   
   
@@ -1245,7 +1363,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/decisions/" class="md-nav__link">
+      <a href="../decisions/" class="md-nav__link">
         
   
   
@@ -1273,7 +1391,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/reporting/" class="md-nav__link">
+      <a href="../reporting/" class="md-nav__link">
         
   
   
@@ -1301,7 +1419,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/webhooks/" class="md-nav__link">
+      <a href="../webhooks/" class="md-nav__link">
         
   
   
@@ -1329,7 +1447,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/api/models-errors/" class="md-nav__link">
+      <a href="../models-errors/" class="md-nav__link">
         
   
   
@@ -1418,7 +1536,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/l1-rules/" class="md-nav__link">
+      <a href="../../decision-layers/l1-rules/" class="md-nav__link">
         
   
   
@@ -1446,7 +1564,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/l2-semantic/" class="md-nav__link">
+      <a href="../../decision-layers/l2-semantic/" class="md-nav__link">
         
   
   
@@ -1474,7 +1592,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/l3-agent/" class="md-nav__link">
+      <a href="../../decision-layers/l3-agent/" class="md-nav__link">
         
   
   
@@ -1502,7 +1620,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/l3-advisory/" class="md-nav__link">
+      <a href="../../decision-layers/l3-advisory/" class="md-nav__link">
         
   
   
@@ -1530,7 +1648,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/post-action/" class="md-nav__link">
+      <a href="../../decision-layers/post-action/" class="md-nav__link">
         
   
   
@@ -1558,7 +1676,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/decision-layers/trajectory-analyzer/" class="md-nav__link">
+      <a href="../../decision-layers/trajectory-analyzer/" class="md-nav__link">
         
   
   
@@ -1593,7 +1711,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/dashboard/" class="md-nav__link">
+      <a href="../../dashboard/" class="md-nav__link">
         
   
   
@@ -1674,7 +1792,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/rule-governance/" class="md-nav__link">
+      <a href="../../advanced/rule-governance/" class="md-nav__link">
         
   
   
@@ -1702,7 +1820,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/custom-skills/" class="md-nav__link">
+      <a href="../../advanced/custom-skills/" class="md-nav__link">
         
   
   
@@ -1730,7 +1848,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/custom-analyzer/" class="md-nav__link">
+      <a href="../../advanced/custom-analyzer/" class="md-nav__link">
         
   
   
@@ -1758,7 +1876,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/custom-adapter/" class="md-nav__link">
+      <a href="../../advanced/custom-adapter/" class="md-nav__link">
         
   
   
@@ -1786,7 +1904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/pattern-evolution/" class="md-nav__link">
+      <a href="../../advanced/pattern-evolution/" class="md-nav__link">
         
   
   
@@ -1814,7 +1932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/attack-patterns/" class="md-nav__link">
+      <a href="../../advanced/attack-patterns/" class="md-nav__link">
         
   
   
@@ -1842,7 +1960,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/advanced/embedding-backend/" class="md-nav__link">
+      <a href="../../advanced/embedding-backend/" class="md-nav__link">
         
   
   
@@ -1931,7 +2049,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/operations/deployment/" class="md-nav__link">
+      <a href="../../operations/deployment/" class="md-nav__link">
         
   
   
@@ -1959,7 +2077,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/operations/troubleshooting/" class="md-nav__link">
+      <a href="../../operations/troubleshooting/" class="md-nav__link">
         
   
   
@@ -1994,7 +2112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/ClawSentry/changelog/" class="md-nav__link">
+      <a href="../../changelog/" class="md-nav__link">
         
   
   
@@ -2031,6 +2149,71 @@
   
   
   
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        摘要
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        状态分布
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        反向验证规则
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        端点核验矩阵
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        复跑命令
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -2043,8 +2226,612 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+  
+  
+
+
+<h1 id="api">API 有效性报告<a class="headerlink" href="#api" title="Permanent link">&para;</a></h1>
+<p>生成时间：<code>2026-04-23T07:52:17+00:00</code><br />
+核验状态：<strong>通过</strong></p>
+<p>本报告从同一份 docs-owned inventory 生成，核对源码 route decorator/registration、Markdown anchor、OpenAPI operation 和端点提及规则。它不修改后端 API 行为，也不会对写入型 API 做盲目 live 调用。</p>
+<h2 id="_1">摘要<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th style="text-align: right;">数值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Coverage entries</td>
+<td style="text-align: right;">47</td>
+</tr>
+<tr>
+<td>OpenAPI operations</td>
+<td style="text-align: right;">44</td>
+</tr>
+<tr>
+<td>Docs endpoint mentions matched</td>
+<td style="text-align: right;">119</td>
+</tr>
+<tr>
+<td>Docs endpoint mentions unmatched</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">状态分布<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th style="text-align: right;">数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enterprise</code></td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr>
+<td><code>excluded</code></td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td><code>public</code></td>
+<td style="text-align: right;">35</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_3">反向验证规则<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Exact METHOD /path mentions map directly to coverage.</li>
+<li>GET /report/* is treated as a group alias for concrete report routes, not a runtime route.</li>
+<li>Parameter aliases such as {id} are normalized by route-template shape when the method/path is unambiguous.</li>
+<li>GET /ui and GET /ui/{path:path} map to excluded dashboard static routes.</li>
+<li>Duplicate GET /health is service-disambiguated: API pages default to gateway; webhooks.md maps webhook health.</li>
+</ul>
+<h2 id="_4">端点核验矩阵<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Method</th>
+<th>Path</th>
+<th>Status</th>
+<th>Source line</th>
+<th>Markdown</th>
+<th>OpenAPI</th>
+<th>Runtime check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/ahp</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:2981</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/ahp/a3s</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3038</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/ahp/codex</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3072</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/ahp/adapter-effect-result</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3002</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>stack</td>
+<td><code>POST</code></td>
+<td><code>/ahp/resolve</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/stack.py:207</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/health</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3111</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/metrics</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3125</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/summary</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3137</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/stream</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3177</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/sessions</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3291</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}/risk</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3384</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3807</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}/page</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3855</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/alerts</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3919</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/alerts/{alert_id}/acknowledge</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4002</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}/enforcement</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4026</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/session/{session_id}/enforcement</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4033</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}/quarantine</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4070</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/session/{session_id}/quarantine</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4080</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/ahp/patterns</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4125</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/ahp/patterns/confirm</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:4139</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>openclaw-webhook</td>
+<td><code>POST</code></td>
+<td><code>/webhook/openclaw</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/adapters/openclaw_webhook_receiver.py:45</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/session/{session_id}/l3-advisory/snapshots</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3407</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/session/{session_id}/l3-advisory/snapshots</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3447</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/l3-advisory/snapshot/{snapshot_id}</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3460</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>GET</code></td>
+<td><code>/report/l3-advisory/jobs</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3480</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/jobs/run-next</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3503</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/jobs/drain</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3530</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/snapshot/{snapshot_id}/jobs</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3558</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/reviews</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3581</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>PATCH</code></td>
+<td><code>/report/l3-advisory/review/{review_id}</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3625</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/snapshot/{snapshot_id}/run-local-review</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3677</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/job/{job_id}/run-local</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3696</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/l3-advisory/job/{job_id}/run-worker</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3715</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway</td>
+<td><code>POST</code></td>
+<td><code>/report/session/{session_id}/l3-advisory/full-review</code></td>
+<td><code>public</code></td>
+<td><code>src/clawsentry/gateway/server.py:3738</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/health</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3115</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/summary</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3150</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/live</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3170</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/stream</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3235</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/sessions</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3336</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/session/{session_id}/risk</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3781</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/session/{session_id}</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3830</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/session/{session_id}/page</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3886</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-enterprise</td>
+<td><code>GET</code></td>
+<td><code>/enterprise/report/alerts</code></td>
+<td><code>enterprise</code></td>
+<td><code>src/clawsentry/gateway/server.py:3959</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>contract-verified</code></td>
+</tr>
+<tr>
+<td>gateway-ui</td>
+<td><code>GET</code></td>
+<td><code>/ui</code></td>
+<td><code>excluded</code></td>
+<td><code>src/clawsentry/gateway/server.py:4206</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>excluded-from-reference</code></td>
+</tr>
+<tr>
+<td>gateway-ui</td>
+<td><code>GET</code></td>
+<td><code>/ui/{path:path}</code></td>
+<td><code>excluded</code></td>
+<td><code>src/clawsentry/gateway/server.py:4195</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>excluded-from-reference</code></td>
+</tr>
+<tr>
+<td>openclaw-webhook</td>
+<td><code>GET</code></td>
+<td><code>/health</code></td>
+<td><code>excluded</code></td>
+<td><code>src/clawsentry/adapters/openclaw_webhook_receiver.py:41</code></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>excluded-from-reference</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="_5">复跑命令<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>scripts/docs_api_inventory.py<span class="w"> </span>validate
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>scripts/docs_api_inventory.py<span class="w"> </span>report<span class="w"> </span>--output-dir<span class="w"> </span>.omx/reports<span class="w"> </span>--docs-output<span class="w"> </span>site-docs/api
+</span></code></pre></div>
+<p>机器可读副本：<a href="../api-validity.json"><code>api-validity.json</code></a>。</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="最后更新">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 07:53:05 UTC">2026年4月23日</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="创建日期">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="2026年4月23日 07:53:05 UTC">2026年4月23日</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -2064,6 +2851,44 @@
       
         <footer class="md-footer">
   
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="页脚" >
+        
+          
+          <a href="../reference/" class="md-footer__link md-footer__link--prev" aria-label="上一页: 交互式 API Reference">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                上一页
+              </span>
+              <div class="md-ellipsis">
+                交互式 API Reference
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../authentication/" class="md-footer__link md-footer__link--next" aria-label="下一页: 鉴权与安全">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                下一页
+              </span>
+              <div class="md-ellipsis">
+                鉴权与安全
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
     
   
   <div class="md-footer-meta md-typeset">
@@ -2111,12 +2936,12 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "/ClawSentry/", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "/ClawSentry/assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "navigation.footer", "search.suggest", "search.highlight", "content.code.copy", "content.tabs.link", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
     
     
-      <script src="/ClawSentry/assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
-        <script src="/ClawSentry/javascripts/mathjax.js"></script>
+        <script src="../../javascripts/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
