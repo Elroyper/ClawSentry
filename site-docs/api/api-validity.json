@@ -1,0 +1,3285 @@
+{
+  "schema_version": "clawsentry-api-validity.v1",
+  "generated_at": "2026-04-23T08:51:48+00:00",
+  "source_artifacts": {
+    "coverage": "site-docs/api/api-coverage.json",
+    "openapi": "site-docs/api/openapi.json",
+    "inventory_script": "scripts/docs_api_inventory.py"
+  },
+  "summary": {
+    "total_coverage_entries": 47,
+    "openapi_operations": 44,
+    "status_counts": {
+      "enterprise": 9,
+      "excluded": 3,
+      "public": 35
+    },
+    "group_counts": {
+      "AHP 决策": 5,
+      "Enterprise 条件端点": 9,
+      "Excluded": 3,
+      "L3 Advisory": 13,
+      "Webhook": 1,
+      "告警与处置": 6,
+      "报表与监控": 6,
+      "规则与模式": 2,
+      "运行状态": 2
+    },
+    "docs_endpoint_mentions_matched": 119,
+    "docs_endpoint_mentions_unmatched": 0,
+    "valid": true
+  },
+  "docs_reverse_validation": {
+    "rules": [
+      "Exact METHOD /path mentions map directly to coverage.",
+      "GET /report/* is treated as a group alias for concrete report routes, not a runtime route.",
+      "Parameter aliases such as {id} are normalized by route-template shape when the method/path is unambiguous.",
+      "GET /ui and GET /ui/{path:path} map to excluded dashboard static routes.",
+      "Duplicate GET /health is service-disambiguated: API pages default to gateway; webhooks.md maps webhook health."
+    ],
+    "matched": [
+      {
+        "page": "api/authentication.md",
+        "line": 50,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/authentication.md",
+        "line": 61,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 39,
+        "method": "POST",
+        "path": "/ahp",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 201,
+        "method": "POST",
+        "path": "/ahp/a3s",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/a3s"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 349,
+        "method": "POST",
+        "path": "/ahp/codex",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/codex"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 428,
+        "method": "POST",
+        "path": "/ahp/resolve",
+        "rule": "exact",
+        "coverage_key": "stack POST /ahp/resolve"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 720,
+        "method": "POST",
+        "path": "/ahp/adapter-effect-result",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/adapter-effect-result"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 729,
+        "method": "GET",
+        "path": "/report/session/{session_id}/quarantine",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 729,
+        "method": "POST",
+        "path": "/report/session/{session_id}/quarantine",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/session/{session_id}/quarantine"
+      },
+      {
+        "page": "api/decisions.md",
+        "line": 738,
+        "method": "POST",
+        "path": "/ahp/adapter-effect-result",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/adapter-effect-result"
+      },
+      {
+        "page": "api/models-errors.md",
+        "line": 62,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 32,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 32,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 33,
+        "method": "GET",
+        "path": "/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 33,
+        "method": "GET",
+        "path": "/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 33,
+        "method": "GET",
+        "path": "/report/session/{session_id}/page",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/session/{session_id}/page"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 34,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 39,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 40,
+        "method": "GET",
+        "path": "/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 41,
+        "method": "GET",
+        "path": "/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 42,
+        "method": "GET",
+        "path": "/report/session/{session_id}/page",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/session/{session_id}/page"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 43,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 44,
+        "method": "GET",
+        "path": "/report/alerts",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/alerts"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 44,
+        "method": "POST",
+        "path": "/report/alerts/{alert_id}/acknowledge",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 52,
+        "method": "POST",
+        "path": "/ahp",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 52,
+        "method": "POST",
+        "path": "/ahp/a3s",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/a3s"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 52,
+        "method": "POST",
+        "path": "/ahp/codex",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/codex"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 52,
+        "method": "POST",
+        "path": "/ahp/resolve",
+        "rule": "exact",
+        "coverage_key": "stack POST /ahp/resolve"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}/risk"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}/page"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/alerts"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}/enforcement"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/session/{session_id}/l3-advisory/snapshots"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/l3-advisory/snapshot/{snapshot_id}"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/report/*",
+        "rule": "group-alias:/report/*",
+        "coverage_key": "gateway GET /report/l3-advisory/jobs"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 59,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 66,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 73,
+        "method": "POST",
+        "path": "/webhook/openclaw",
+        "rule": "exact",
+        "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 85,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 86,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 87,
+        "method": "POST",
+        "path": "/webhook/openclaw",
+        "rule": "exact",
+        "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 88,
+        "method": "POST",
+        "path": "/webhook/openclaw",
+        "rule": "exact",
+        "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 92,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 92,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 104,
+        "method": "POST",
+        "path": "/ahp",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp"
+      },
+      {
+        "page": "api/overview.md",
+        "line": 104,
+        "method": "POST",
+        "path": "/ahp/a3s",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/a3s"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 66,
+        "method": "GET",
+        "path": "/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 66,
+        "method": "GET",
+        "path": "/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 66,
+        "method": "GET",
+        "path": "/report/session/{session_id}/page",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/session/{session_id}/page"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 67,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 75,
+        "method": "POST",
+        "path": "/ahp",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 75,
+        "method": "POST",
+        "path": "/ahp/a3s",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/a3s"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 75,
+        "method": "POST",
+        "path": "/ahp/codex",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/codex"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 75,
+        "method": "POST",
+        "path": "/ahp/resolve",
+        "rule": "exact",
+        "coverage_key": "stack POST /ahp/resolve"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 79,
+        "method": "GET",
+        "path": "/ui",
+        "rule": "exact",
+        "coverage_key": "gateway-ui GET /ui"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 79,
+        "method": "GET",
+        "path": "/ui/{path:path}",
+        "rule": "exact",
+        "coverage_key": "gateway-ui GET /ui/{path:path}"
+      },
+      {
+        "page": "api/reference.md",
+        "line": 79,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/session/{id}",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/session/{id}/risk",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}/risk"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/report/alerts",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/alerts"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "POST",
+        "path": "/report/alerts/{id}/ack",
+        "rule": "endpoint-alias",
+        "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "GET",
+        "path": "/ahp/patterns",
+        "rule": "exact",
+        "coverage_key": "gateway GET /ahp/patterns"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 11,
+        "method": "POST",
+        "path": "/ahp/patterns/confirm",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/patterns/confirm"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 15,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:gateway-default",
+        "coverage_key": "gateway GET /health"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 53,
+        "method": "GET",
+        "path": "/metrics",
+        "rule": "exact",
+        "coverage_key": "gateway GET /metrics"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 139,
+        "method": "GET",
+        "path": "/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/summary"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 237,
+        "method": "GET",
+        "path": "/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/sessions"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 331,
+        "method": "GET",
+        "path": "/report/session/{id}",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 419,
+        "method": "GET",
+        "path": "/report/session/{id}/risk",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}/risk"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 543,
+        "method": "GET",
+        "path": "/report/session/{id}/enforcement",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}/enforcement"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 590,
+        "method": "POST",
+        "path": "/report/session/{id}/enforcement",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway POST /report/session/{session_id}/enforcement"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 640,
+        "method": "POST",
+        "path": "/report/session/{id}/l3-advisory/snapshots",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/snapshots"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 657,
+        "method": "POST",
+        "path": "/report/l3-advisory/reviews",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/reviews"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 657,
+        "method": "PATCH",
+        "path": "/report/l3-advisory/review/{review_id}",
+        "rule": "exact",
+        "coverage_key": "gateway PATCH /report/l3-advisory/review/{review_id}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 661,
+        "method": "POST",
+        "path": "/report/l3-advisory/snapshot/{snapshot_id}/run-local-review",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 665,
+        "method": "POST",
+        "path": "/report/l3-advisory/snapshot/{snapshot_id}/jobs",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/jobs"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 675,
+        "method": "GET",
+        "path": "/report/l3-advisory/jobs",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/l3-advisory/jobs"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 685,
+        "method": "POST",
+        "path": "/report/l3-advisory/jobs/run-next",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/jobs/run-next"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 697,
+        "method": "POST",
+        "path": "/report/l3-advisory/jobs/drain",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/jobs/drain"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 709,
+        "method": "POST",
+        "path": "/report/l3-advisory/job/{job_id}/run-local",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-local"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 713,
+        "method": "POST",
+        "path": "/report/l3-advisory/job/{job_id}/run-worker",
+        "rule": "exact",
+        "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-worker"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 717,
+        "method": "POST",
+        "path": "/report/session/{id}/l3-advisory/full-review",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/full-review"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 756,
+        "method": "GET",
+        "path": "/report/session/{session_id}/l3-advisory/snapshots",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/session/{session_id}/l3-advisory/snapshots"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 757,
+        "method": "GET",
+        "path": "/report/l3-advisory/snapshot/{snapshot_id}",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/l3-advisory/snapshot/{snapshot_id}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 766,
+        "method": "GET",
+        "path": "/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/stream"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1038,
+        "method": "GET",
+        "path": "/report/alerts",
+        "rule": "exact",
+        "coverage_key": "gateway GET /report/alerts"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1096,
+        "method": "POST",
+        "path": "/report/alerts/{id}/acknowledge",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1148,
+        "method": "GET",
+        "path": "/ahp/patterns",
+        "rule": "exact",
+        "coverage_key": "gateway GET /ahp/patterns"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1206,
+        "method": "POST",
+        "path": "/ahp/patterns/confirm",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/patterns/confirm"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1264,
+        "method": "GET",
+        "path": "/ui",
+        "rule": "exact",
+        "coverage_key": "gateway-ui GET /ui"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1270,
+        "method": "GET",
+        "path": "/ui",
+        "rule": "exact",
+        "coverage_key": "gateway-ui GET /ui"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1271,
+        "method": "GET",
+        "path": "/ui/{path}",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway-ui GET /ui/{path:path}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1331,
+        "method": "GET",
+        "path": "/report/session/{id}/page",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}/page"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1358,
+        "method": "GET",
+        "path": "/enterprise/health",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/health"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1359,
+        "method": "GET",
+        "path": "/enterprise/report/summary",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/summary"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1360,
+        "method": "GET",
+        "path": "/enterprise/report/live",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/live"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1361,
+        "method": "GET",
+        "path": "/enterprise/report/stream",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/stream"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1362,
+        "method": "GET",
+        "path": "/enterprise/report/sessions",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/sessions"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1363,
+        "method": "GET",
+        "path": "/enterprise/report/session/{id}",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1364,
+        "method": "GET",
+        "path": "/enterprise/report/session/{id}/page",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/page"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1365,
+        "method": "GET",
+        "path": "/enterprise/report/session/{id}/risk",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/risk"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1366,
+        "method": "GET",
+        "path": "/enterprise/report/alerts",
+        "rule": "exact",
+        "coverage_key": "gateway-enterprise GET /enterprise/report/alerts"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1371,
+        "method": "GET",
+        "path": "/report/session/{id}/quarantine",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+      },
+      {
+        "page": "api/reporting.md",
+        "line": 1396,
+        "method": "POST",
+        "path": "/report/session/{id}/quarantine",
+        "rule": "parameter-alias",
+        "coverage_key": "gateway POST /report/session/{session_id}/quarantine"
+      },
+      {
+        "page": "api/webhooks.md",
+        "line": 10,
+        "method": "POST",
+        "path": "/webhook/openclaw",
+        "rule": "exact",
+        "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+      },
+      {
+        "page": "api/webhooks.md",
+        "line": 71,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:openclaw-webhook",
+        "coverage_key": "openclaw-webhook GET /health"
+      },
+      {
+        "page": "api/webhooks.md",
+        "line": 80,
+        "method": "GET",
+        "path": "/health",
+        "rule": "duplicate-health:openclaw-webhook",
+        "coverage_key": "openclaw-webhook GET /health"
+      },
+      {
+        "page": "index.md",
+        "line": 279,
+        "method": "POST",
+        "path": "/ahp/a3s",
+        "rule": "exact",
+        "coverage_key": "gateway POST /ahp/a3s"
+      }
+    ],
+    "unmatched": []
+  },
+  "validation_errors": [],
+  "endpoints": [
+    {
+      "coverage_key": "gateway POST /ahp",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/ahp",
+      "public_status": "public",
+      "group": "AHP 决策",
+      "audience": "developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+      "source": "src/clawsentry/gateway/server.py:2981",
+      "source_line_current": "src/clawsentry/gateway/server.py:2981",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/decisions.md#post-ahp",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 39,
+          "method": "POST",
+          "path": "/ahp",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 52,
+          "method": "POST",
+          "path": "/ahp",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 104,
+          "method": "POST",
+          "path": "/ahp",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 75,
+          "method": "POST",
+          "path": "/ahp",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /ahp/a3s",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/ahp/a3s",
+      "public_status": "public",
+      "group": "AHP 决策",
+      "audience": "developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+      "source": "src/clawsentry/gateway/server.py:3038",
+      "source_line_current": "src/clawsentry/gateway/server.py:3038",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/decisions.md#post-ahp-a3s",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1a3s/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 201,
+          "method": "POST",
+          "path": "/ahp/a3s",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/a3s"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 52,
+          "method": "POST",
+          "path": "/ahp/a3s",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/a3s"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 104,
+          "method": "POST",
+          "path": "/ahp/a3s",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/a3s"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 75,
+          "method": "POST",
+          "path": "/ahp/a3s",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/a3s"
+        },
+        {
+          "page": "index.md",
+          "line": 279,
+          "method": "POST",
+          "path": "/ahp/a3s",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/a3s"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /ahp/codex",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/ahp/codex",
+      "public_status": "public",
+      "group": "AHP 决策",
+      "audience": "developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
+      "source": "src/clawsentry/gateway/server.py:3072",
+      "source_line_current": "src/clawsentry/gateway/server.py:3072",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/decisions.md#post-ahp-codex",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1codex/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 349,
+          "method": "POST",
+          "path": "/ahp/codex",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/codex"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 52,
+          "method": "POST",
+          "path": "/ahp/codex",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/codex"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 75,
+          "method": "POST",
+          "path": "/ahp/codex",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/codex"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /ahp/adapter-effect-result",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/ahp/adapter-effect-result",
+      "public_status": "public",
+      "group": "AHP 决策",
+      "audience": "developer|operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; native hook subprocesses should authenticate when token is configured.",
+      "source": "src/clawsentry/gateway/server.py:3002",
+      "source_line_current": "src/clawsentry/gateway/server.py:3002",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/decisions.md#post-ahp-adapter-effect-result",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1adapter-effect-result/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 720,
+          "method": "POST",
+          "path": "/ahp/adapter-effect-result",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/adapter-effect-result"
+        },
+        {
+          "page": "api/decisions.md",
+          "line": 738,
+          "method": "POST",
+          "path": "/ahp/adapter-effect-result",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/adapter-effect-result"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "stack POST /ahp/resolve",
+      "service": "stack",
+      "method": "POST",
+      "path": "/ahp/resolve",
+      "public_status": "public",
+      "group": "AHP 决策",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Uses Gateway auth dependency; CS_AUTH_TOKEN empty disables Bearer auth.",
+      "source": "src/clawsentry/gateway/stack.py:207",
+      "source_line_current": "src/clawsentry/gateway/stack.py:207",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/decisions.md#post-ahp-resolve",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1resolve/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 428,
+          "method": "POST",
+          "path": "/ahp/resolve",
+          "rule": "exact",
+          "coverage_key": "stack POST /ahp/resolve"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 52,
+          "method": "POST",
+          "path": "/ahp/resolve",
+          "rule": "exact",
+          "coverage_key": "stack POST /ahp/resolve"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 75,
+          "method": "POST",
+          "path": "/ahp/resolve",
+          "rule": "exact",
+          "coverage_key": "stack POST /ahp/resolve"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway GET /health",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/health",
+      "public_status": "public",
+      "group": "运行状态",
+      "audience": "operator",
+      "auth": "none",
+      "auth_note": "Gateway health endpoint is intentionally unauthenticated.",
+      "source": "src/clawsentry/gateway/server.py:3111",
+      "source_line_current": "src/clawsentry/gateway/server.py:3111",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-health",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1health/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/authentication.md",
+          "line": 50,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/models-errors.md",
+          "line": 62,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 32,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 39,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 92,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 79,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 15,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:gateway-default",
+          "coverage_key": "gateway GET /health"
+        }
+      ],
+      "docs_mention_rule": [
+        "duplicate-health:gateway-default"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "safe-live-smoke-eligible",
+      "runtime_check_result": "contract-verified",
+      "notes": "Safe for local live smoke; report generation does not start services or claim a 2xx run."
+    },
+    {
+      "coverage_key": "gateway GET /metrics",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/metrics",
+      "public_status": "public",
+      "group": "运行状态",
+      "audience": "operator",
+      "auth": "metrics-conditional",
+      "auth_note": "CS_METRICS_AUTH=true requires Bearer token; false/empty exposes metrics without auth.",
+      "source": "src/clawsentry/gateway/server.py:3125",
+      "source_line_current": "src/clawsentry/gateway/server.py:3125",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-metrics",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1metrics/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 32,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 85,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 92,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 53,
+          "method": "GET",
+          "path": "/metrics",
+          "rule": "exact",
+          "coverage_key": "gateway GET /metrics"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "safe-live-smoke-eligible-with-env",
+      "runtime_check_result": "contract-verified",
+      "notes": "Can be smoked with CS_METRICS_AUTH=false; report generation keeps it contract-only unless an operator starts the service."
+    },
+    {
+      "coverage_key": "gateway GET /report/summary",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/summary",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3137",
+      "source_line_current": "src/clawsentry/gateway/server.py:3137",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-summary",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1summary/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 33,
+          "method": "GET",
+          "path": "/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/summary"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 40,
+          "method": "GET",
+          "path": "/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/summary"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/summary"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 66,
+          "method": "GET",
+          "path": "/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/summary"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/summary"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 139,
+          "method": "GET",
+          "path": "/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/summary"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/stream",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/stream",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "developer",
+      "auth": "query-token",
+      "auth_note": "Accepts Bearer token and browser-friendly ?token= query auth; CS_AUTH_TOKEN empty disables auth.",
+      "source": "src/clawsentry/gateway/server.py:3177",
+      "source_line_current": "src/clawsentry/gateway/server.py:3177",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-stream",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1stream/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/authentication.md",
+          "line": 61,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 34,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 43,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 66,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 86,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 67,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 766,
+          "method": "GET",
+          "path": "/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/stream"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/sessions",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/sessions",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3291",
+      "source_line_current": "src/clawsentry/gateway/server.py:3291",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-sessions",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1sessions/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 33,
+          "method": "GET",
+          "path": "/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/sessions"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 41,
+          "method": "GET",
+          "path": "/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/sessions"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/sessions"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 66,
+          "method": "GET",
+          "path": "/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/sessions"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/sessions"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 237,
+          "method": "GET",
+          "path": "/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/sessions"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}/risk",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}/risk",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3384",
+      "source_line_current": "src/clawsentry/gateway/server.py:3384",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-session-risk",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1risk/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}/risk"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/session/{id}/risk",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}/risk"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 419,
+          "method": "GET",
+          "path": "/report/session/{id}/risk",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}/risk"
+        }
+      ],
+      "docs_mention_rule": [
+        "group-alias:/report/*",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3807",
+      "source_line_current": "src/clawsentry/gateway/server.py:3807",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-session",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/session/{id}",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 331,
+          "method": "GET",
+          "path": "/report/session/{id}",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}"
+        }
+      ],
+      "docs_mention_rule": [
+        "group-alias:/report/*",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}/page",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}/page",
+      "public_status": "public",
+      "group": "报表与监控",
+      "audience": "developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3855",
+      "source_line_current": "src/clawsentry/gateway/server.py:3855",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-session-page",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1page/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 33,
+          "method": "GET",
+          "path": "/report/session/{session_id}/page",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/session/{session_id}/page"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 42,
+          "method": "GET",
+          "path": "/report/session/{session_id}/page",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/session/{session_id}/page"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}/page"
+        },
+        {
+          "page": "api/reference.md",
+          "line": 66,
+          "method": "GET",
+          "path": "/report/session/{session_id}/page",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/session/{session_id}/page"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1331,
+          "method": "GET",
+          "path": "/report/session/{id}/page",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}/page"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/alerts",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/alerts",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3919",
+      "source_line_current": "src/clawsentry/gateway/server.py:3919",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-alerts",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1alerts/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 44,
+          "method": "GET",
+          "path": "/report/alerts",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/alerts"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/alerts"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/report/alerts",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/alerts"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1038,
+          "method": "GET",
+          "path": "/report/alerts",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/alerts"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/alerts/{alert_id}/acknowledge",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:4002",
+      "source_line_current": "src/clawsentry/gateway/server.py:4002",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#post-report-alerts-acknowledge",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1alerts~1{alert_id}~1acknowledge/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 44,
+          "method": "POST",
+          "path": "/report/alerts/{alert_id}/acknowledge",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "POST",
+          "path": "/report/alerts/{id}/ack",
+          "rule": "endpoint-alias",
+          "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1096,
+          "method": "POST",
+          "path": "/report/alerts/{id}/acknowledge",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway POST /report/alerts/{alert_id}/acknowledge"
+        }
+      ],
+      "docs_mention_rule": [
+        "endpoint-alias",
+        "exact",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}/enforcement",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}/enforcement",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:4026",
+      "source_line_current": "src/clawsentry/gateway/server.py:4026",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-session-enforcement",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1enforcement/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}/enforcement"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 543,
+          "method": "GET",
+          "path": "/report/session/{id}/enforcement",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}/enforcement"
+        }
+      ],
+      "docs_mention_rule": [
+        "group-alias:/report/*",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway POST /report/session/{session_id}/enforcement",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/session/{session_id}/enforcement",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:4033",
+      "source_line_current": "src/clawsentry/gateway/server.py:4033",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#post-report-session-enforcement",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1enforcement/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 590,
+          "method": "POST",
+          "path": "/report/session/{id}/enforcement",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway POST /report/session/{session_id}/enforcement"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}/quarantine",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}/quarantine",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. Quarantine is explicit session mark-blocked state, not guaranteed host termination.",
+      "source": "src/clawsentry/gateway/server.py:4070",
+      "source_line_current": "src/clawsentry/gateway/server.py:4070",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-report-session-quarantine",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1quarantine/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 729,
+          "method": "GET",
+          "path": "/report/session/{session_id}/quarantine",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1371,
+          "method": "GET",
+          "path": "/report/session/{id}/quarantine",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway GET /report/session/{session_id}/quarantine"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway POST /report/session/{session_id}/quarantine",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/session/{session_id}/quarantine",
+      "public_status": "public",
+      "group": "告警与处置",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. Release is explicit and audited separately from legacy enforcement cooldown.",
+      "source": "src/clawsentry/gateway/server.py:4080",
+      "source_line_current": "src/clawsentry/gateway/server.py:4080",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#post-report-session-quarantine",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1quarantine/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/decisions.md",
+          "line": 729,
+          "method": "POST",
+          "path": "/report/session/{session_id}/quarantine",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/session/{session_id}/quarantine"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1396,
+          "method": "POST",
+          "path": "/report/session/{id}/quarantine",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway POST /report/session/{session_id}/quarantine"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway GET /ahp/patterns",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/ahp/patterns",
+      "public_status": "public",
+      "group": "规则与模式",
+      "audience": "developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:4125",
+      "source_line_current": "src/clawsentry/gateway/server.py:4125",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#get-ahp-patterns",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1patterns/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "GET",
+          "path": "/ahp/patterns",
+          "rule": "exact",
+          "coverage_key": "gateway GET /ahp/patterns"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1148,
+          "method": "GET",
+          "path": "/ahp/patterns",
+          "rule": "exact",
+          "coverage_key": "gateway GET /ahp/patterns"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /ahp/patterns/confirm",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/ahp/patterns/confirm",
+      "public_status": "public",
+      "group": "规则与模式",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:4139",
+      "source_line_current": "src/clawsentry/gateway/server.py:4139",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#post-ahp-patterns-confirm",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1ahp~1patterns~1confirm/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 11,
+          "method": "POST",
+          "path": "/ahp/patterns/confirm",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/patterns/confirm"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1206,
+          "method": "POST",
+          "path": "/ahp/patterns/confirm",
+          "rule": "exact",
+          "coverage_key": "gateway POST /ahp/patterns/confirm"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "openclaw-webhook POST /webhook/openclaw",
+      "service": "openclaw-webhook",
+      "method": "POST",
+      "path": "/webhook/openclaw",
+      "public_status": "public",
+      "group": "Webhook",
+      "audience": "developer",
+      "auth": "webhook-token|webhook-hmac-optional",
+      "auth_note": "Bearer/OpenClaw token required. HMAC is config-dependent: skipped when no secret is configured; strict mode rejects missing/invalid signatures when secret exists. Timestamp, content-type, optional IP allowlist, and idempotencyKey are validated.",
+      "source": "src/clawsentry/adapters/openclaw_webhook_receiver.py:45",
+      "source_line_current": "src/clawsentry/adapters/openclaw_webhook_receiver.py:45",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/webhooks.md#post-webhook-openclaw",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1webhook~1openclaw/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 73,
+          "method": "POST",
+          "path": "/webhook/openclaw",
+          "rule": "exact",
+          "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 87,
+          "method": "POST",
+          "path": "/webhook/openclaw",
+          "rule": "exact",
+          "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+        },
+        {
+          "page": "api/overview.md",
+          "line": 88,
+          "method": "POST",
+          "path": "/webhook/openclaw",
+          "rule": "exact",
+          "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+        },
+        {
+          "page": "api/webhooks.md",
+          "line": 10,
+          "method": "POST",
+          "path": "/webhook/openclaw",
+          "rule": "exact",
+          "coverage_key": "openclaw-webhook POST /webhook/openclaw"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/snapshots",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/session/{session_id}/l3-advisory/snapshots",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3407",
+      "source_line_current": "src/clawsentry/gateway/server.py:3407",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1l3-advisory~1snapshots/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 640,
+          "method": "POST",
+          "path": "/report/session/{id}/l3-advisory/snapshots",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/snapshots"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway GET /report/session/{session_id}/l3-advisory/snapshots",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/session/{session_id}/l3-advisory/snapshots",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3447",
+      "source_line_current": "src/clawsentry/gateway/server.py:3447",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1l3-advisory~1snapshots/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/session/{session_id}/l3-advisory/snapshots"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 756,
+          "method": "GET",
+          "path": "/report/session/{session_id}/l3-advisory/snapshots",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/session/{session_id}/l3-advisory/snapshots"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/l3-advisory/snapshot/{snapshot_id}",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/l3-advisory/snapshot/{snapshot_id}",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3460",
+      "source_line_current": "src/clawsentry/gateway/server.py:3460",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1snapshot~1{snapshot_id}/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/l3-advisory/snapshot/{snapshot_id}"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 757,
+          "method": "GET",
+          "path": "/report/l3-advisory/snapshot/{snapshot_id}",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/l3-advisory/snapshot/{snapshot_id}"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway GET /report/l3-advisory/jobs",
+      "service": "gateway",
+      "method": "GET",
+      "path": "/report/l3-advisory/jobs",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3480",
+      "source_line_current": "src/clawsentry/gateway/server.py:3480",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/overview.md",
+          "line": 59,
+          "method": "GET",
+          "path": "/report/*",
+          "rule": "group-alias:/report/*",
+          "coverage_key": "gateway GET /report/l3-advisory/jobs"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 675,
+          "method": "GET",
+          "path": "/report/l3-advisory/jobs",
+          "rule": "exact",
+          "coverage_key": "gateway GET /report/l3-advisory/jobs"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "group-alias:/report/*"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "read-only-contract",
+      "runtime_check_result": "contract-verified",
+      "notes": "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/jobs/run-next",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/jobs/run-next",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3503",
+      "source_line_current": "src/clawsentry/gateway/server.py:3503",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs~1run-next/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 685,
+          "method": "POST",
+          "path": "/report/l3-advisory/jobs/run-next",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/jobs/run-next"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/jobs/drain",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/jobs/drain",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3530",
+      "source_line_current": "src/clawsentry/gateway/server.py:3530",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs~1drain/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 697,
+          "method": "POST",
+          "path": "/report/l3-advisory/jobs/drain",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/jobs/drain"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/jobs",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/snapshot/{snapshot_id}/jobs",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3558",
+      "source_line_current": "src/clawsentry/gateway/server.py:3558",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1snapshot~1{snapshot_id}~1jobs/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 665,
+          "method": "POST",
+          "path": "/report/l3-advisory/snapshot/{snapshot_id}/jobs",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/jobs"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/reviews",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/reviews",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3581",
+      "source_line_current": "src/clawsentry/gateway/server.py:3581",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1reviews/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 657,
+          "method": "POST",
+          "path": "/report/l3-advisory/reviews",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/reviews"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway PATCH /report/l3-advisory/review/{review_id}",
+      "service": "gateway",
+      "method": "PATCH",
+      "path": "/report/l3-advisory/review/{review_id}",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3625",
+      "source_line_current": "src/clawsentry/gateway/server.py:3625",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1review~1{review_id}/patch",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 657,
+          "method": "PATCH",
+          "path": "/report/l3-advisory/review/{review_id}",
+          "rule": "exact",
+          "coverage_key": "gateway PATCH /report/l3-advisory/review/{review_id}"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/snapshot/{snapshot_id}/run-local-review",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3677",
+      "source_line_current": "src/clawsentry/gateway/server.py:3677",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1snapshot~1{snapshot_id}~1run-local-review/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 661,
+          "method": "POST",
+          "path": "/report/l3-advisory/snapshot/{snapshot_id}/run-local-review",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-local",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/job/{job_id}/run-local",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3696",
+      "source_line_current": "src/clawsentry/gateway/server.py:3696",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1job~1{job_id}~1run-local/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 709,
+          "method": "POST",
+          "path": "/report/l3-advisory/job/{job_id}/run-local",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-local"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-worker",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/l3-advisory/job/{job_id}/run-worker",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3715",
+      "source_line_current": "src/clawsentry/gateway/server.py:3715",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1l3-advisory~1job~1{job_id}~1run-worker/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 713,
+          "method": "POST",
+          "path": "/report/l3-advisory/job/{job_id}/run-worker",
+          "rule": "exact",
+          "coverage_key": "gateway POST /report/l3-advisory/job/{job_id}/run-worker"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/full-review",
+      "service": "gateway",
+      "method": "POST",
+      "path": "/report/session/{session_id}/l3-advisory/full-review",
+      "public_status": "public",
+      "group": "L3 Advisory",
+      "audience": "operator|developer",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+      "source": "src/clawsentry/gateway/server.py:3738",
+      "source_line_current": "src/clawsentry/gateway/server.py:3738",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1report~1session~1{session_id}~1l3-advisory~1full-review/post",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 717,
+          "method": "POST",
+          "path": "/report/session/{id}/l3-advisory/full-review",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway POST /report/session/{session_id}/l3-advisory/full-review"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "contract-only",
+      "runtime_check_result": "contract-verified",
+      "notes": "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/health",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/health",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3115",
+      "source_line_current": "src/clawsentry/gateway/server.py:3115",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1health/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1358,
+          "method": "GET",
+          "path": "/enterprise/health",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/health"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/summary",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/summary",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3150",
+      "source_line_current": "src/clawsentry/gateway/server.py:3150",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1summary/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1359,
+          "method": "GET",
+          "path": "/enterprise/report/summary",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/summary"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/live",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/live",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3170",
+      "source_line_current": "src/clawsentry/gateway/server.py:3170",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1live/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1360,
+          "method": "GET",
+          "path": "/enterprise/report/live",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/live"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/stream",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/stream",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3235",
+      "source_line_current": "src/clawsentry/gateway/server.py:3235",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1stream/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1361,
+          "method": "GET",
+          "path": "/enterprise/report/stream",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/stream"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/sessions",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/sessions",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3336",
+      "source_line_current": "src/clawsentry/gateway/server.py:3336",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1sessions/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1362,
+          "method": "GET",
+          "path": "/enterprise/report/sessions",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/sessions"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/risk",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/session/{session_id}/risk",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3781",
+      "source_line_current": "src/clawsentry/gateway/server.py:3781",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1session~1{session_id}~1risk/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1365,
+          "method": "GET",
+          "path": "/enterprise/report/session/{id}/risk",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/risk"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/session/{session_id}",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3830",
+      "source_line_current": "src/clawsentry/gateway/server.py:3830",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1session~1{session_id}/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1363,
+          "method": "GET",
+          "path": "/enterprise/report/session/{id}",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/page",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/session/{session_id}/page",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3886",
+      "source_line_current": "src/clawsentry/gateway/server.py:3886",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1session~1{session_id}~1page/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1364,
+          "method": "GET",
+          "path": "/enterprise/report/session/{id}/page",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/session/{session_id}/page"
+        }
+      ],
+      "docs_mention_rule": [
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-enterprise GET /enterprise/report/alerts",
+      "service": "gateway-enterprise",
+      "method": "GET",
+      "path": "/enterprise/report/alerts",
+      "public_status": "enterprise",
+      "group": "Enterprise 条件端点",
+      "audience": "operator",
+      "auth": "bearer-disabled-when-empty-token",
+      "auth_note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
+      "source": "src/clawsentry/gateway/server.py:3959",
+      "source_line_current": "src/clawsentry/gateway/server.py:3959",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/reporting.md#enterprise-endpoints",
+      "markdown_anchor_present": true,
+      "openapi_ref": "#/paths/~1enterprise~1report~1alerts/get",
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reporting.md",
+          "line": 1366,
+          "method": "GET",
+          "path": "/enterprise/report/alerts",
+          "rule": "exact",
+          "coverage_key": "gateway-enterprise GET /enterprise/report/alerts"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "enterprise-conditional",
+      "runtime_check_result": "contract-verified",
+      "notes": "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    },
+    {
+      "coverage_key": "gateway-ui GET /ui",
+      "service": "gateway-ui",
+      "method": "GET",
+      "path": "/ui",
+      "public_status": "excluded",
+      "group": "Excluded",
+      "audience": "operator",
+      "auth": "none",
+      "auth_note": "Not part of shared API Reference.",
+      "source": "src/clawsentry/gateway/server.py:4206",
+      "source_line_current": "src/clawsentry/gateway/server.py:4206",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "dashboard/index.md",
+      "markdown_anchor_present": true,
+      "openapi_ref": null,
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reference.md",
+          "line": 79,
+          "method": "GET",
+          "path": "/ui",
+          "rule": "exact",
+          "coverage_key": "gateway-ui GET /ui"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1264,
+          "method": "GET",
+          "path": "/ui",
+          "rule": "exact",
+          "coverage_key": "gateway-ui GET /ui"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1270,
+          "method": "GET",
+          "path": "/ui",
+          "rule": "exact",
+          "coverage_key": "gateway-ui GET /ui"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "not-applicable",
+      "runtime_check_result": "excluded-from-reference",
+      "notes": "Static dashboard shell, documented in Web 仪表板 not API Reference."
+    },
+    {
+      "coverage_key": "gateway-ui GET /ui/{path:path}",
+      "service": "gateway-ui",
+      "method": "GET",
+      "path": "/ui/{path:path}",
+      "public_status": "excluded",
+      "group": "Excluded",
+      "audience": "operator",
+      "auth": "none",
+      "auth_note": "Not part of shared API Reference.",
+      "source": "src/clawsentry/gateway/server.py:4195",
+      "source_line_current": "src/clawsentry/gateway/server.py:4195",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "dashboard/index.md",
+      "markdown_anchor_present": true,
+      "openapi_ref": null,
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/reference.md",
+          "line": 79,
+          "method": "GET",
+          "path": "/ui/{path:path}",
+          "rule": "exact",
+          "coverage_key": "gateway-ui GET /ui/{path:path}"
+        },
+        {
+          "page": "api/reporting.md",
+          "line": 1271,
+          "method": "GET",
+          "path": "/ui/{path}",
+          "rule": "parameter-alias",
+          "coverage_key": "gateway-ui GET /ui/{path:path}"
+        }
+      ],
+      "docs_mention_rule": [
+        "exact",
+        "parameter-alias"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "not-applicable",
+      "runtime_check_result": "excluded-from-reference",
+      "notes": "Static dashboard assets, documented in Web 仪表板 not API Reference."
+    },
+    {
+      "coverage_key": "openclaw-webhook GET /health",
+      "service": "openclaw-webhook",
+      "method": "GET",
+      "path": "/health",
+      "public_status": "excluded",
+      "group": "Excluded",
+      "audience": "operator",
+      "auth": "none",
+      "auth_note": "Not part of shared API Reference.",
+      "source": "src/clawsentry/adapters/openclaw_webhook_receiver.py:41",
+      "source_line_current": "src/clawsentry/adapters/openclaw_webhook_receiver.py:41",
+      "source_route_present": true,
+      "source_line_valid": true,
+      "markdown_ref": "api/webhooks.md#webhook-health",
+      "markdown_anchor_present": true,
+      "openapi_ref": null,
+      "openapi_operation_present": true,
+      "docs_endpoint_mentions": [
+        {
+          "page": "api/webhooks.md",
+          "line": 71,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:openclaw-webhook",
+          "coverage_key": "openclaw-webhook GET /health"
+        },
+        {
+          "page": "api/webhooks.md",
+          "line": 80,
+          "method": "GET",
+          "path": "/health",
+          "rule": "duplicate-health:openclaw-webhook",
+          "coverage_key": "openclaw-webhook GET /health"
+        }
+      ],
+      "docs_mention_rule": [
+        "duplicate-health:openclaw-webhook"
+      ],
+      "example_status": "request/response/errors-present",
+      "runtime_check_kind": "not-applicable",
+      "runtime_check_result": "excluded-from-reference",
+      "notes": "Service-local health duplicates Gateway /health path; documented in webhook page and excluded from shared OpenAPI to avoid path collision."
+    }
+  ]
+}

@@ -5,9 +5,21 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
 # 快速开始
 
-选择你使用的 AI 框架，跟随步骤在 5 分钟内完成接入。
+<section class="cs-doc-hero cs-doc-hero--quickstart" markdown>
+<div class="cs-eyebrow">Quickstart</div>
 
-## 框架能力对比
+## 5 分钟启动 Gateway、Web UI 与框架接入
+
+选择你使用的 AI 框架，先启动 ClawSentry Gateway，再打开 Web UI，并按框架能力决定是启用拦截还是监控。
+
+<div class="cs-actions" markdown>
+[选择框架](#framework-capabilities){ .md-button .md-button--primary }
+[查看 API Reference](../api/reference.md){ .md-button }
+[Web 仪表板说明](../dashboard/index.md){ .md-button }
+</div>
+</section>
+
+## 框架能力对比 {#framework-capabilities}
 
 | 能力 | Claude Code | a3s-code | OpenClaw | Codex |
 |------|:-----------:|:--------:|:--------:|:-----:|
@@ -46,6 +58,18 @@ Dashboard -> Sessions -> Session Detail
 - 如果你同时盯多个框架，先找当前风险最高的 framework
 
 :material-arrow-right: 如果你想先把这个使用模型看懂，再看页面细节，直接读：[Web 安全仪表板说明](../dashboard/index.md)
+
+### Web UI 登录与本地代理
+
+`clawsentry start` 会在终端打印形如 `http://127.0.0.1:8080/ui?token=...` 的 Web UI 地址。页面会把 `?token=` 写入浏览器 `sessionStorage` 后立刻清理地址栏中的 token；如果手动登录，使用同一个 `CS_AUTH_TOKEN`（通常来自 `.env.clawsentry`）。
+
+- `401` 表示 invalid token：复制的 token 与 Gateway 启动时的 `CS_AUTH_TOKEN` 不一致。
+- `Gateway unavailable` 表示浏览器或 CLI 连不上 Gateway，不等同于 token 错误；先确认 Gateway 地址、端口和本机代理设置。
+- 如果你的 shell 配置了代理，访问本机 Gateway 前可设置：
+
+```bash
+export NO_PROXY=localhost,127.0.0.1,::1
+```
 
 ---
 

@@ -8,6 +8,8 @@ route surface against source decorators.
 from __future__ import annotations
 
 import argparse
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
 import json
 import re
 from pathlib import Path
@@ -16,6 +18,10 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COVERAGE_PATH = REPO_ROOT / "site-docs" / "api" / "api-coverage.json"
 OPENAPI_PATH = REPO_ROOT / "site-docs" / "api" / "openapi.json"
+API_DOCS_DIR = REPO_ROOT / "site-docs" / "api"
+VALIDITY_JSON_PATH = API_DOCS_DIR / "api-validity.json"
+VALIDITY_MD_PATH = API_DOCS_DIR / "validity-report.md"
+REPORT_SCHEMA_VERSION = "clawsentry-api-validity.v1"
 
 SOURCE_FILES = {
     "gateway": REPO_ROOT / "src" / "clawsentry" / "gateway" / "server.py",
@@ -253,8 +259,10 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
 
 def coverage_entries() -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
+    source_locations = extract_source_route_locations()
     for route in ROUTES:
         entry = dict(route)
+        entry["source"] = _current_source_for(entry, source_locations)
         if entry["service"] == "openclaw-webhook" and entry["method"] == "POST" and entry["path"] == "/webhook/openclaw":
             entry["request_example"] = {
                 "type": "exec.approval.requested",
@@ -282,28 +290,73 @@ def coverage_entries() -> list[dict[str, Any]]:
     return entries
 
 
-def extract_source_routes() -> set[tuple[str, str, str]]:
+def extract_source_route_locations() -> dict[tuple[str, str, str], str]:
+    """Return current route decorator/registration locations keyed by service/method/path."""
+
     patterns = {
         "gateway": re.compile(r"@app\.(get|post|patch)\(\"([^\"]+)\""),
         "gateway-enterprise": re.compile(r"@_enterprise_get\(\"([^\"]+)\""),
         "stack": re.compile(r"@app\.(post)\(\"([^\"]+)\""),
         "openclaw-webhook": re.compile(r"@app\.(get|post)\(\"([^\"]+)\""),
     }
-    found: set[tuple[str, str, str]] = set()
+    found: dict[tuple[str, str, str], str] = {}
     for service, path in SOURCE_FILES.items():
-        text = path.read_text(encoding="utf-8")
-        if service == "gateway":
-            for method, route in patterns["gateway"].findall(text):
-                found.add(("gateway", method.upper(), route))
-            for route in patterns["gateway-enterprise"].findall(text):
-                found.add(("gateway-enterprise", "GET", route))
-        elif service == "stack":
-            for method, route in patterns["stack"].findall(text):
-                found.add(("stack", method.upper(), route))
-        else:
-            for method, route in patterns["openclaw-webhook"].findall(text):
-                found.add(("openclaw-webhook", method.upper(), route))
+        lines = path.read_text(encoding="utf-8").splitlines()
+        rel_path = path.relative_to(REPO_ROOT).as_posix()
+        for lineno, line in enumerate(lines, start=1):
+            if service == "gateway":
+                for method, route in patterns["gateway"].findall(line):
+                    route_service = "gateway"
+                    if route.startswith("/enterprise/"):
+                        route_service = "gateway-enterprise"
+                    elif route.startswith("/ui"):
+                        route_service = "gateway-ui"
+                    found[(route_service, method.upper(), route)] = f"{rel_path}:{lineno}"
+                for route in patterns["gateway-enterprise"].findall(line):
+                    found[("gateway-enterprise", "GET", route)] = f"{rel_path}:{lineno}"
+            elif service == "stack":
+                for method, route in patterns["stack"].findall(line):
+                    found[("stack", method.upper(), route)] = f"{rel_path}:{lineno}"
+            else:
+                for method, route in patterns["openclaw-webhook"].findall(line):
+                    found[("openclaw-webhook", method.upper(), route)] = f"{rel_path}:{lineno}"
     return found
+
+
+def extract_source_routes() -> set[tuple[str, str, str]]:
+    return set(extract_source_route_locations())
+
+
+def _entry_key(entry: dict[str, Any]) -> tuple[str, str, str]:
+    return (entry["service"], entry["method"], entry["path"])
+
+
+def _current_source_for(entry: dict[str, Any], source_locations: dict[tuple[str, str, str], str] | None = None) -> str:
+    source_locations = source_locations or extract_source_route_locations()
+    return source_locations.get(_entry_key(entry), entry["source"])
+
+
+def _source_line_matches_entry(entry: dict[str, Any]) -> bool:
+    source = entry.get("source", "")
+    if ":" not in source:
+        return False
+    file_name, line_text = source.rsplit(":", 1)
+    try:
+        lineno = int(line_text)
+    except ValueError:
+        return False
+    path = REPO_ROOT / file_name
+    if not path.exists():
+        return False
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if lineno < 1 or lineno > len(lines):
+        return False
+    line = lines[lineno - 1]
+    route = re.escape(entry["path"])
+    method = entry["method"].lower()
+    if entry["service"] == "gateway-enterprise":
+        return bool(re.search(rf"@_enterprise_get\(\"{route}\"", line))
+    return bool(re.search(rf"@app\.{method}\(\"{route}\"", line))
 
 
 def write_coverage() -> None:
@@ -336,19 +389,29 @@ def operation_for(entry: dict[str, Any]) -> dict[str, Any]:
     elif entry["path"] == "/report/stream":
         success_content_type = "text/event-stream"
 
+    if success_content_type == "application/json":
+        success_response: dict[str, Any] = {
+            "description": "Successful response",
+            "content": {"application/json": {"example": entry["response_example"]}},
+        }
+    else:
+        # Scalar 1.52.5 attempts to parse plain-text and event-stream response
+        # bodies as JSON/YAML and logs "Invalid YAML object" for valid string
+        # samples. Keep those examples in api-coverage.json/api-validity.json and
+        # omit the non-JSON response body from the interactive artifact.
+        success_response = {
+            "description": (
+                f"Successful {success_content_type} response. "
+                "See api-coverage.json for the curated text example."
+            )
+        }
+
     op: dict[str, Any] = {
         "tags": [entry["group"]],
         "summary": entry["summary"],
         "description": f"Service: `{entry['service']}`. Auth: `{entry['auth']}`. {entry['auth_note']} See `{entry['markdown_ref']}`.",
         "parameters": params,
-        "responses": {
-            "200": {
-                "description": "Successful response",
-                "content": {
-                    success_content_type: {"example": entry["response_example"]}
-                },
-            },
-        },
+        "responses": {"200": success_response},
         "x-clawsentry-source": entry["source"],
         "x-clawsentry-markdown-ref": entry["markdown_ref"],
         "x-clawsentry-auth-note": entry["auth_note"],
@@ -395,6 +458,336 @@ def write_openapi() -> None:
     OPENAPI_PATH.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+
+DOCS_ENDPOINT_RE = re.compile(r"\b(GET|POST|PATCH|PUT|DELETE)\s+`?(/[-A-Za-z0-9_./{}:*]+)(?:\?[-A-Za-z0-9_=&{}:*./]+)?`?")
+
+
+def _resolve_repo_path(value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
+def _docs_scan_files() -> list[Path]:
+    generated = {VALIDITY_MD_PATH}
+    files = [path for path in sorted(API_DOCS_DIR.glob("*.md")) if path not in generated]
+    files.extend([
+        REPO_ROOT / "site-docs" / "index.md",
+        REPO_ROOT / "site-docs" / "getting-started" / "quickstart.md",
+    ])
+    return [path for path in files if path.exists()]
+
+
+def _path_template_regex(template: str) -> re.Pattern[str]:
+    escaped = re.escape(template)
+    escaped = re.sub(r"\\\{[^/}]+\\\}", r"[^/]+", escaped)
+    return re.compile(rf"^{escaped}$")
+
+
+def _markdown_anchor_present(markdown_ref: str) -> bool:
+    page, _, anchor = markdown_ref.partition("#")
+    page_path = REPO_ROOT / "site-docs" / page
+    if not page_path.exists():
+        return False
+    if not anchor or page_path.suffix != ".md":
+        return True
+    return f"{{#{anchor}}}" in page_path.read_text(encoding="utf-8")
+
+
+def _openapi_operation_present(entry: dict[str, Any], openapi: dict[str, Any]) -> bool:
+    if entry.get("public_status") == "excluded":
+        return entry.get("openapi_ref") is None
+    return entry["method"].lower() in openapi.get("paths", {}).get(entry["path"], {})
+
+
+def _match_doc_endpoint(
+    method: str,
+    raw_path: str,
+    page: Path,
+    by_method_path: dict[tuple[str, str], list[dict[str, Any]]],
+    coverage: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], str]:
+    path = raw_path.rstrip(".,);]")
+    if path != "/" and path.endswith("/"):
+        path = path[:-1]
+    if path == "/report/*":
+        matches = [entry for entry in coverage if entry["method"] == method and entry["path"].startswith("/report/")]
+        return matches, "group-alias:/report/*"
+    endpoint_aliases = {
+        ("POST", "/report/alerts/{id}/ack"): "/report/alerts/{alert_id}/acknowledge",
+    }
+    alias_path = endpoint_aliases.get((method, path))
+    if alias_path:
+        return by_method_path.get((method, alias_path), []), "endpoint-alias"
+    exact = by_method_path.get((method, path), [])
+    if len(exact) == 1:
+        return exact, "exact"
+    if len(exact) > 1:
+        if method == "GET" and path == "/health":
+            if page.as_posix().endswith("api/webhooks.md"):
+                webhook = [entry for entry in exact if entry["service"] == "openclaw-webhook"]
+                return webhook, "duplicate-health:openclaw-webhook"
+            gateway = [entry for entry in exact if entry["service"] == "gateway"]
+            return gateway, "duplicate-health:gateway-default"
+        return exact, "exact-ambiguous-service"
+    alias_matches = [
+        entry
+        for entry in coverage
+        if entry["method"] == method and _path_template_regex(entry["path"]).match(path)
+    ]
+    if len(alias_matches) == 1:
+        return alias_matches, "parameter-alias"
+    if path in {"/ui", "/ui/{path:path}"}:
+        ui = [entry for entry in coverage if entry["method"] == method and entry["path"] == path]
+        return ui, "excluded-ui"
+    return [], "unmatched"
+
+
+def analyze_docs_endpoint_mentions(coverage: list[dict[str, Any]]) -> dict[str, Any]:
+    by_method_path: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for entry in coverage:
+        by_method_path[(entry["method"], entry["path"])].append(entry)
+    mentions_by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    unmatched: list[dict[str, Any]] = []
+    matched: list[dict[str, Any]] = []
+    for page in _docs_scan_files():
+        text = page.read_text(encoding="utf-8")
+        rel_page = page.relative_to(REPO_ROOT / "site-docs").as_posix()
+        for match in DOCS_ENDPOINT_RE.finditer(text):
+            method, raw_path = match.groups()
+            entries, rule = _match_doc_endpoint(method, raw_path, page, by_method_path, coverage)
+            line = text.count("\n", 0, match.start()) + 1
+            mention = {"page": rel_page, "line": line, "method": method, "path": raw_path, "rule": rule}
+            if not entries:
+                unmatched.append(mention)
+                continue
+            for entry in entries:
+                key = _entry_key(entry)
+                mention_for_entry = dict(mention)
+                mention_for_entry["coverage_key"] = " ".join(key)
+                mentions_by_key[key].append(mention_for_entry)
+                matched.append(mention_for_entry)
+    return {
+        "matched": matched,
+        "unmatched": unmatched,
+        "mentions_by_key": {" ".join(key): value for key, value in sorted(mentions_by_key.items())},
+        "matched_count": len(matched),
+        "unmatched_count": len(unmatched),
+    }
+
+
+def _example_status(entry: dict[str, Any]) -> str:
+    request_ok = entry["method"] == "GET" or bool(entry.get("request_example"))
+    response_ok = bool(entry.get("response_example"))
+    errors_ok = bool(entry.get("errors"))
+    if request_ok and response_ok and errors_ok:
+        return "request/response/errors-present"
+    missing = []
+    if not request_ok:
+        missing.append("request_example")
+    if not response_ok:
+        missing.append("response_example")
+    if not errors_ok:
+        missing.append("errors")
+    return "missing:" + ",".join(missing)
+
+
+def _runtime_check(entry: dict[str, Any]) -> tuple[str, str, str]:
+    if entry["public_status"] == "excluded":
+        return "not-applicable", "excluded-from-reference", entry.get("exclusion_reason") or "Excluded from shared API Reference."
+    if entry["public_status"] == "enterprise":
+        return "enterprise-conditional", "contract-verified", "Route is conditionally registered when enterprise mode is enabled; no default live 2xx claim is made."
+    if entry["method"] == "GET" and entry["path"] == "/health" and entry["service"] == "gateway":
+        return "safe-live-smoke-eligible", "contract-verified", "Safe for local live smoke; report generation does not start services or claim a 2xx run."
+    if entry["method"] == "GET" and entry["path"] == "/metrics":
+        return "safe-live-smoke-eligible-with-env", "contract-verified", "Can be smoked with CS_METRICS_AUTH=false; report generation keeps it contract-only unless an operator starts the service."
+    if entry["method"] == "GET" and entry["path"].startswith("/report/"):
+        return "read-only-contract", "contract-verified", "Read-only endpoint is verified by source/OpenAPI/docs trace; deterministic live empty-state is deployment-dependent."
+    return "contract-only", "contract-verified", "Write/stateful/auth-dependent endpoint is not blindly invoked by the docs report."
+
+
+def build_validity_report() -> dict[str, Any]:
+    coverage = json.loads(COVERAGE_PATH.read_text(encoding="utf-8"))
+    openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
+    docs_mentions = analyze_docs_endpoint_mentions(coverage)
+    mention_map = docs_mentions["mentions_by_key"]
+    source_locations = extract_source_route_locations()
+    endpoints = []
+    for entry in coverage:
+        key = _entry_key(entry)
+        source_route_present = key in source_locations
+        runtime_kind, runtime_result, runtime_note = _runtime_check(entry)
+        endpoint = {
+            "coverage_key": " ".join(key),
+            "service": entry["service"],
+            "method": entry["method"],
+            "path": entry["path"],
+            "public_status": entry["public_status"],
+            "group": entry["group"],
+            "audience": entry["audience"],
+            "auth": entry["auth"],
+            "auth_note": entry["auth_note"],
+            "source": entry["source"],
+            "source_line_current": entry["source"],
+            "source_route_present": source_route_present,
+            "source_line_valid": _source_line_matches_entry(entry),
+            "markdown_ref": entry["markdown_ref"],
+            "markdown_anchor_present": _markdown_anchor_present(entry["markdown_ref"]),
+            "openapi_ref": entry.get("openapi_ref"),
+            "openapi_operation_present": _openapi_operation_present(entry, openapi),
+            "docs_endpoint_mentions": mention_map.get(" ".join(key), []),
+            "docs_mention_rule": sorted({m["rule"] for m in mention_map.get(" ".join(key), [])}),
+            "example_status": _example_status(entry),
+            "runtime_check_kind": runtime_kind,
+            "runtime_check_result": runtime_result,
+            "notes": runtime_note,
+        }
+        endpoints.append(endpoint)
+    status_counts = Counter(entry["public_status"] for entry in coverage)
+    group_counts = Counter(entry["group"] for entry in coverage)
+    errors = validate()
+    for mention in docs_mentions["unmatched"]:
+        errors.append(f"docs endpoint mention unmatched: {mention['page']}:{mention['line']} {mention['method']} {mention['path']}")
+    for endpoint in endpoints:
+        if not endpoint["source_line_valid"]:
+            errors.append(f"stale source line: {endpoint['coverage_key']} -> {endpoint['source']}")
+        if not endpoint["markdown_anchor_present"]:
+            errors.append(f"missing markdown anchor: {endpoint['coverage_key']} -> {endpoint['markdown_ref']}")
+        if not endpoint["openapi_operation_present"]:
+            errors.append(f"missing openapi operation: {endpoint['coverage_key']} -> {endpoint['openapi_ref']}")
+    return {
+        "schema_version": REPORT_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source_artifacts": {
+            "coverage": COVERAGE_PATH.relative_to(REPO_ROOT).as_posix(),
+            "openapi": OPENAPI_PATH.relative_to(REPO_ROOT).as_posix(),
+            "inventory_script": "scripts/docs_api_inventory.py",
+        },
+        "summary": {
+            "total_coverage_entries": len(coverage),
+            "openapi_operations": sum(len(methods) for methods in openapi.get("paths", {}).values()),
+            "status_counts": dict(sorted(status_counts.items())),
+            "group_counts": dict(sorted(group_counts.items())),
+            "docs_endpoint_mentions_matched": docs_mentions["matched_count"],
+            "docs_endpoint_mentions_unmatched": docs_mentions["unmatched_count"],
+            "valid": not errors,
+        },
+        "docs_reverse_validation": {
+            "rules": [
+                "Exact METHOD /path mentions map directly to coverage.",
+                "GET /report/* is treated as a group alias for concrete report routes, not a runtime route.",
+                "Parameter aliases such as {id} are normalized by route-template shape when the method/path is unambiguous.",
+                "GET /ui and GET /ui/{path:path} map to excluded dashboard static routes.",
+                "Duplicate GET /health is service-disambiguated: API pages default to gateway; webhooks.md maps webhook health.",
+            ],
+            "matched": docs_mentions["matched"],
+            "unmatched": docs_mentions["unmatched"],
+        },
+        "validation_errors": errors,
+        "endpoints": endpoints,
+    }
+
+
+def render_validity_markdown(report: dict[str, Any]) -> str:
+    summary = report["summary"]
+    status = "通过" if summary["valid"] else "需处理"
+    lines = [
+        "---",
+        "title: API 有效性报告",
+        "description: ClawSentry API 文档、源码 route、OpenAPI 与示例的可溯源核验结果",
+        "---",
+        "",
+        "# API 有效性报告",
+        "",
+        f"生成时间：`{report['generated_at']}`<br>",
+        f"核验状态：**{status}**",
+        "",
+        "本报告从同一份 docs-owned inventory 生成，核对源码 route decorator/registration、Markdown anchor、OpenAPI operation 和端点提及规则。它不修改后端 API 行为，也不会对写入型 API 做盲目 live 调用。",
+        "",
+        "## 摘要",
+        "",
+        "| 指标 | 数值 |",
+        "| --- | ---: |",
+        f"| Coverage entries | {summary['total_coverage_entries']} |",
+        f"| OpenAPI operations | {summary['openapi_operations']} |",
+        f"| Docs endpoint mentions matched | {summary['docs_endpoint_mentions_matched']} |",
+        f"| Docs endpoint mentions unmatched | {summary['docs_endpoint_mentions_unmatched']} |",
+        "",
+        "## 状态分布",
+        "",
+        "| 状态 | 数量 |",
+        "| --- | ---: |",
+    ]
+    for key, count in summary["status_counts"].items():
+        lines.append(f"| `{key}` | {count} |")
+    lines.extend([
+        "",
+        "## 反向验证规则",
+        "",
+    ])
+    for rule in report["docs_reverse_validation"]["rules"]:
+        lines.append(f"- {rule}")
+    if report["validation_errors"]:
+        lines.extend(["", "## 待处理项", ""])
+        for error in report["validation_errors"]:
+            lines.append(f"- `{error}`")
+    lines.extend([
+        "",
+        "## 端点核验矩阵",
+        "",
+        "| Service | Method | Path | Status | Source line | Markdown | OpenAPI | Runtime check |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ])
+    for endpoint in report["endpoints"]:
+        markdown = "yes" if endpoint["markdown_anchor_present"] else "no"
+        openapi = "yes" if endpoint["openapi_operation_present"] else "no"
+        source = endpoint["source_line_current"] if endpoint["source_line_valid"] else f"INVALID {endpoint['source_line_current']}"
+        lines.append(
+            "| {service} | `{method}` | `{path}` | `{status}` | `{source}` | {markdown} | {openapi} | `{runtime}` |".format(
+                service=endpoint["service"],
+                method=endpoint["method"],
+                path=endpoint["path"],
+                status=endpoint["public_status"],
+                source=source,
+                markdown=markdown,
+                openapi=openapi,
+                runtime=endpoint["runtime_check_result"],
+            )
+        )
+    lines.extend([
+        "",
+        "## 复跑命令",
+        "",
+        "```bash",
+        "python scripts/docs_api_inventory.py validate",
+        "python scripts/docs_api_inventory.py report --output-dir .omx/reports --docs-output site-docs/api",
+        "```",
+        "",
+        "机器可读副本：[`api-validity.json`](api-validity.json)。",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def write_validity_report(output_dir: str | Path, docs_output: str | Path, timestamp: str | None = None) -> tuple[Path, Path, Path, Path, dict[str, Any]]:
+    write_coverage()
+    write_openapi()
+    stamp = timestamp or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_path = _resolve_repo_path(output_dir)
+    docs_path = _resolve_repo_path(docs_output)
+    output_path.mkdir(parents=True, exist_ok=True)
+    docs_path.mkdir(parents=True, exist_ok=True)
+    report = build_validity_report()
+    json_path = output_path / f"clawsentry-api-validity-{stamp}.json"
+    md_path = output_path / f"clawsentry-api-validity-{stamp}.md"
+    docs_json_path = docs_path / "api-validity.json"
+    docs_md_path = docs_path / "validity-report.md"
+    markdown = render_validity_markdown(report)
+    for target in [json_path, docs_json_path]:
+        target.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    for target in [md_path, docs_md_path]:
+        target.write_text(markdown, encoding="utf-8")
+    return json_path, md_path, docs_json_path, docs_md_path, report
+
 def validate() -> list[str]:
     errors: list[str] = []
     coverage = json.loads(COVERAGE_PATH.read_text(encoding="utf-8"))
@@ -427,17 +820,33 @@ def validate() -> list[str]:
             if entry.get(field) in (None, "", []):
                 errors.append(f"public route {entry['service']} {entry['method']} {entry['path']} missing {field}")
     openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
+    if not isinstance(openapi, dict):
+        errors.append("openapi artifact is not a JSON object")
     for entry in coverage:
+        if not _source_line_matches_entry(entry):
+            errors.append(f"source line does not point to current route decorator: {entry['service']} {entry['method']} {entry['path']} -> {entry.get('source')}")
+        if not _markdown_anchor_present(entry["markdown_ref"]):
+            errors.append(f"markdown ref missing: {entry['service']} {entry['method']} {entry['path']} -> {entry['markdown_ref']}")
         if entry.get("public_status") == "excluded":
             continue
         if entry["path"] not in openapi.get("paths", {}) or entry["method"].lower() not in openapi["paths"][entry["path"]]:
             errors.append(f"openapi missing {entry['method']} {entry['path']}")
+    docs_mentions = analyze_docs_endpoint_mentions(coverage)
+    for mention in docs_mentions["unmatched"]:
+        errors.append(f"docs endpoint mention unmatched: {mention['page']}:{mention['line']} {mention['method']} {mention['path']}")
     return errors
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["write", "validate", "list-routes"])
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("write")
+    subparsers.add_parser("validate")
+    subparsers.add_parser("list-routes")
+    report_parser = subparsers.add_parser("report")
+    report_parser.add_argument("--output-dir", default=".omx/reports")
+    report_parser.add_argument("--docs-output", default="site-docs/api")
+    report_parser.add_argument("--timestamp", default=None)
     args = parser.parse_args()
     if args.command == "write":
         write_coverage()
@@ -445,6 +854,23 @@ def main() -> int:
         return 0
     if args.command == "list-routes":
         print(json.dumps(sorted(extract_source_routes()), ensure_ascii=False, indent=2))
+        return 0
+    if args.command == "report":
+        json_path, md_path, docs_json_path, docs_md_path, report = write_validity_report(
+            output_dir=args.output_dir,
+            docs_output=args.docs_output,
+            timestamp=args.timestamp,
+        )
+        for path in [json_path, md_path, docs_json_path, docs_md_path]:
+            try:
+                display_path = path.relative_to(REPO_ROOT).as_posix()
+            except ValueError:
+                display_path = path.as_posix()
+            print(display_path)
+        if report["validation_errors"]:
+            print("\n".join(report["validation_errors"]))
+            return 1
+        print("API validity report is valid")
         return 0
     errors = validate()
     if errors:
