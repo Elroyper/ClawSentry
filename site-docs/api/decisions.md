@@ -1,11 +1,11 @@
 ---
 title: 决策端点
-description: ClawSentry 决策相关 API 端点的完整参考，包括 Webhook、HTTP Transport、DEFER 代理和 UDS 传输
+description: ClawSentry 决策相关 API 端点完整参考，包括 Webhook、HTTP 传输、DEFER 代理和 UDS 传输
 ---
 
 # 决策端点
 
-ClawSentry Gateway 提供多种传输通道接收 AI Agent 运行时事件，并返回统一的 `CanonicalDecision` 安全决策。本页覆盖所有决策相关端点。
+ClawSentry 网关接收 AI Agent 运行时事件，并返回统一的 `CanonicalDecision`。本页列出所有决策相关端点。
 
 ## 决策模型概览
 
@@ -198,9 +198,9 @@ curl -X POST http://127.0.0.1:8080/ahp \
 
 ---
 
-## POST /ahp/a3s — a3s-code HTTP Transport {#post-ahp-a3s}
+## POST /ahp/a3s — a3s-code HTTP 传输 {#post-ahp-a3s}
 
-为 a3s-code 提供直接 HTTP 接入的 AHP 事件提交端点。支持 handshake（握手）和 event（事件）两种消息类型。
+为 a3s-code 提供直接 HTTP 接入，支持 `handshake`（握手）和 `event`（事件）两种消息类型。
 
 ### 认证
 
@@ -221,7 +221,7 @@ Client                             Gateway
   |<-- decision -------------------  |
 ```
 
-### Handshake 请求
+### 握手请求（`handshake`）
 
 ```json
 {
@@ -232,7 +232,7 @@ Client                             Gateway
 }
 ```
 
-### Handshake 响应
+### 握手响应（`handshake`）
 
 ```json
 {
@@ -346,7 +346,7 @@ curl -X POST http://127.0.0.1:8080/ahp/a3s \
 
 ---
 
-## POST /ahp/codex — Codex CLI HTTP Transport {#post-ahp-codex}
+## POST /ahp/codex — Codex CLI HTTP 传输 {#post-ahp-codex}
 
 为 OpenAI Codex CLI 提供简化的 HTTP 接入端点。无需 JSON-RPC 封装，直接提交事件获取安全决策。
 
@@ -398,7 +398,7 @@ curl -X POST http://127.0.0.1:8080/ahp/a3s \
 
 ### 安全默认
 
-当 Gateway 内部发生异常时，Codex 端点返回 **block**（fail-closed），而非 continue：
+当网关内部发生异常时，Codex 端点返回 **`block`**（fail-closed），而不是继续放行（`continue`）：
 
 ```json
 {
@@ -514,9 +514,9 @@ curl -X POST http://127.0.0.1:8080/ahp/resolve \
 
 ---
 
-## UDS Transport — Unix Domain Socket {#uds-transport}
+## UDS 传输（Unix Domain Socket） {#uds-transport}
 
-UDS 是 ClawSentry 的**主传输通道**，提供最低延迟的进程间通信。a3s-code Harness 默认通过 UDS 连接 Gateway。
+UDS 是 ClawSentry 的**主传输通道**，提供最低延迟的进程间通信；a3s-code harness 默认通过它连接网关。
 
 ### 连接信息
 
@@ -667,9 +667,77 @@ async def send_uds_request(uds_path: str, request: dict) -> dict:
 | 4-5 | `high` |
 | 6-7 | `critical` |
 
-## POST /ahp/adapter-effect-result — Adapter effect outcome writeback {#post-ahp-adapter-effect-result}
+## AHP 效果生命周期 —— 请求、执行、回写分离 {#decision-effects-lifecycle}
 
-Native hook subprocesses and in-process adapters use this endpoint to append observed effect outcomes after host translation. It records what the adapter actually enforced, degraded, or could not support, without mutating the original canonical decision.
+从 v0.5.4 开始，`CanonicalDecision` 在保持顶层
+`allow / block / defer / modify` 判决稳定的同时，可以携带
+`decision_effects`。它只表达 **网关请求了哪类额外效果**，
+不声明宿主已经执行成功。
+
+!!! important "请求意图不等于实际执行"
+    `decision_effects` 是网关的请求意图；真实宿主行为由 adapter 后续用
+    `adapter_effect_result` 回写。这样可以区分“策略要求隔离 session / 改写命令”和
+    “Codex、a3s-code、OpenClaw 等宿主实际支持、降级或不支持的效果”。
+
+### 什么时候会看到它？
+
+| 场景 | 顶层判决 | effect 字段 | 处理方式 |
+| --- | --- | --- | --- |
+| 会话被判定为受损（compromised session） | `block` 或 `defer` | `session_effect.mode=mark_blocked`、`action_scope=session` | 后续同 session 的 `pre_action` 会被阻断；operator 可查询并释放 quarantine。 |
+| 人工审批改写命令 / `tool_input` | `modify` | `rewrite_effect` + `modified_payload` | adapter 使用 `modified_payload` 的替换内容执行；轨迹与 watch 只展示 hash / redacted preview。 |
+| 宿主不支持某个 effect | 原判决不变 | adapter 回写 `degraded` 或 `unsupported` | 查看 `degrade_reason`，决定是否升级到人工处置或改用支持该 effect 的接入方式。 |
+
+示例响应：
+
+```json
+{
+  "decision": "modify",
+  "modified_payload": {"command": "rm -ri /tmp/example"},
+  "decision_effects": {
+    "effect_version": "cs.decision_effects.v1",
+    "effect_id": "eff-rewrite-001",
+    "action_scope": "action",
+    "rewrite_effect": {
+      "requested": true,
+      "target": "command",
+      "approval_id": "apr-001",
+      "original_hash": "sha256:old",
+      "original_preview_redacted": "rm -rf …",
+      "replacement_hash": "sha256:new",
+      "replacement_preview_redacted": "rm -ri …",
+      "rewrite_source": "operator_resolution"
+    }
+  }
+}
+```
+
+### 适配器处理步骤
+
+1. 先按顶层判决处理 `allow / block / defer / modify`。
+2. 有 `modified_payload` 时，只使用允许的 `command` 或 `tool_input`
+   替换内容；`prompt` rewrite 不在 v1 范围内。
+3. 读取 `decision_effects.effect_id`，把本次宿主执行结果回写到
+   `POST /ahp/adapter-effect-result`。
+4. 如果无法执行效果，不要伪装成功；写入 `degraded` 或 `unsupported`，
+   并提供 `degrade_reason`。
+
+### 期望输出与恢复路径
+
+| 确认项 | 查看位置 | 恢复 / 后续动作 |
+| --- | --- | --- |
+| adapter 是否执行了 effect | `adapter_effect_result` SSE / replay / Session Detail summary | 若 `degraded` 或 `unsupported`，查看 `degrade_reason`，并切换接入方式或人工处置。 |
+| session 是否处于 quarantine | `GET /report/session/{session_id}/quarantine` | 人工确认风险解除后，用 `POST /report/session/{session_id}/quarantine` 释放。 |
+| rewrite 是否泄露完整 payload | replay / SSE / watch | 正常情况下只保留 `replacement_hash` 与 `replacement_preview_redacted`；完整替换内容只用于实时 adapter 响应。 |
+
+相关参考：
+
+- [会话 quarantine 查询与释放](reporting.md#get-report-session-quarantine)
+- [L3 advisory 与 SSE 事件流](reporting.md#l3-advisory-endpoints)
+- [a3s-code 对 `modify` / `modified_payload` 的接入说明](../integration/a3s-code.md)
+
+## POST /ahp/adapter-effect-result — 适配器效果结果回写 {#post-ahp-adapter-effect-result}
+
+该端点用于在宿主侧完成效果翻译后，回写**实际观测结果**。它只记录适配器最终执行状态（`enforced` / `degraded` / `unsupported`），不会反向改写原始 `CanonicalDecision`。同一个 `effect_id + adapter + event/tool/session + result_kind` 会形成幂等键；重复写回会返回既有结果。
 
 ```json
 {
@@ -684,7 +752,7 @@ Native hook subprocesses and in-process adapters use this endpoint to append obs
 }
 ```
 
-Response:
+响应示例：
 
 ```json
 {
@@ -693,9 +761,9 @@ Response:
 }
 ```
 
-Notes:
+说明：
 
-- `decision_effects` describes the requested effect; `adapter_effect_result` describes observed host behavior.
-- Degraded or unsupported results must include `degrade_reason`.
-- Duplicate writebacks use the idempotency key and return the existing result.
-- Full rewrite replacement payloads are not required for this endpoint and should not be sent.
+- `decision_effects` 表示网关的**请求意图**；`adapter_effect_result` 表示宿主侧**实际观测结果**。
+- 当结果是 `degraded` 或 `unsupported` 时，必须提供 `degrade_reason`。
+- 重复回写会命中幂等键（`idempotency_key`），并返回已存在结果。
+- 该端点不需要完整 rewrite 替换载荷，不应发送敏感替换正文。

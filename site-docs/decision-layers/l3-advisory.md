@@ -49,11 +49,11 @@ description: 用一份只读、可追溯、不改写历史判决的 L3 安全复
 
 <div class="l3-hero" markdown>
 
-## 给高风险 session 的“第二意见报告”
+## 高风险 session 的只读复盘报告
 
-当 ClawSentry 发现一个 session 风险很高时，L3 咨询审查可以把当时已经记录下来的证据固定住，生成一份只读复盘报告，告诉 operator：**发生了什么、风险为什么高、下一步该 inspect / escalate / pause 还是继续观察**。
+当 ClawSentry 发现一个 session 风险很高时，L3 咨询审查会把当时已记录的证据固定下来，生成只读复盘报告，帮助 operator 判断：**发生了什么、风险为什么高、下一步该 inspect / escalate / pause 还是继续观察**。
 
-它不是新的拦截器，也不是“重新判决历史事件”。它更像安全值守台里的 **case review**：用固定证据做一次可追溯分析，辅助人做后续处置。
+它不是新的拦截器，也不会重判历史事件；它只是基于固定证据做一次可追溯复盘，辅助后续处置。
 
 <div class="l3-pill-row" markdown>
 <span class="l3-pill">只读复盘</span>
@@ -66,7 +66,7 @@ description: 用一份只读、可追溯、不改写历史判决的 L3 安全复
 
 ---
 
-## 先用一个场景理解
+## 先看一个场景
 
 你在 Web UI 里看到一个 session 变成 **high risk**：
 
@@ -75,13 +75,13 @@ description: 用一份只读、可追溯、不改写历史判决的 L3 安全复
 3. Dashboard 和 `clawsentry watch` 都提示风险升高；
 4. 你想知道：这到底是正常部署，还是准备外传？
 
-这时可以在 Session Detail 点 **Request L3 full review**，或者运行：
+这时可以在 Session Detail 点 **Request L3 full review**，也可以运行：
 
 ```bash
 clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
 ```
 
-ClawSentry 会生成一份咨询审查结果，例如：
+ClawSentry 会生成一份结果，例如：
 
 ```text
 review:   l3adv-... (completed, risk=high)
@@ -98,7 +98,7 @@ boundary: advisory only; canonical decision unchanged
 <div class="l3-card-grid" markdown>
 
 <div class="l3-card" markdown>
-### 1. 证据会固定
+### 1. 证据固定
 高风险 session 还在继续产生事件时，审查输入必须稳定。L3 咨询审查会冻结一段 record range，例如 `Records 4–8`。
 </div>
 
@@ -108,12 +108,12 @@ boundary: advisory only; canonical decision unchanged
 </div>
 
 <div class="l3-card" markdown>
-### 3. 不污染历史判决
+### 3. 不改历史判决
 报告始终是 `advisory_only=true`。full-review 响应会明确返回 `canonical_decision_mutated=false`。
 </div>
 
 <div class="l3-card" markdown>
-### 4. 可从轻到重运行
+### 4. 可按需升级
 默认用本地确定性 runner；需要时才显式打开 provider runner。不会因为配置了同步 LLM 就自动联网。
 </div>
 
@@ -125,7 +125,7 @@ boundary: advisory only; canonical decision unchanged
 
 <div class="l3-flow" markdown>
 
-**高风险 session** → **冻结证据 Snapshot** → **排队 Job** → **运行 Runner** → **生成 Review** → **Web UI / watch / API 展示结果**
+**高风险 session** → **冻结证据 Snapshot** → **排队 Job** → **运行 Runner** → **生成 Review** → **展示结果**
 
 </div>
 
@@ -258,7 +258,7 @@ clawsentry l3 full-review \
   --runner deterministic_local
 ```
 
-适合你已经在 replay 中看到关键事件，只想复盘那一段。
+适合你已经看到关键事件，只想复盘那一段。
 
 ---
 
@@ -268,18 +268,39 @@ clawsentry l3 full-review \
 |--------|----------|--------|------|
 | `deterministic_local` | 否 | 大多数用户 | 默认选择，稳定、可重复、无外部依赖 |
 | `fake_llm` | 否 | 集成测试 / 平台验证 | 验证 job/review 流程，不代表真实模型判断 |
-| `llm_provider` | 默认不联网；显式打开后可联网 | 有 LLM 审查需求的安全团队 | 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置，不继承同步 L2/L3 LLM 配置 |
+| `llm_provider` | 默认不联网；显式打开后可联网 | 需要 LLM 审查的安全团队 | 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置，不继承同步 L2/L3 LLM 配置 |
 
 !!! warning "provider runner 必须显式打开"
-    即使你已经配置了 `CS_LLM_PROVIDER`，L3 咨询审查也不会自动用它联网。`llm_provider` 需要独立设置 provider、model、key，并把 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`。
+    即使你已经配置了 `CS_LLM_PROVIDER`，L3 咨询审查也不会自动用它联网。`llm_provider` 仍需要独立设置 provider、model、key，并把 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`。
+
+    ```bash
+    CS_L3_ADVISORY_PROVIDER_ENABLED=true
+    CS_L3_ADVISORY_PROVIDER=openai        # 或 anthropic
+    CS_L3_ADVISORY_MODEL=<model>
+    CS_L3_ADVISORY_PROVIDER_DRY_RUN=false
+    OPENAI_API_KEY=<key>                  # 或 CS_L3_ADVISORY_API_KEY
+    ```
+
+### 手动 readiness / smoke 验证
+
+先用随包 devtools 模块验证 provider runner 配置，避免直接在真实 session 上试。
+它会构造 frozen snapshot、排队一个 `llm_provider` job、执行一次受闸门保护的 review，并输出 Markdown 证据。
 
 ```bash
-CS_L3_ADVISORY_PROVIDER_ENABLED=true
-CS_L3_ADVISORY_PROVIDER=openai        # 或 anthropic
-CS_L3_ADVISORY_MODEL=<model>
-CS_L3_ADVISORY_PROVIDER_DRY_RUN=false
-OPENAI_API_KEY=<key>                  # 或 CS_L3_ADVISORY_API_KEY
+python -m clawsentry.devtools.l3_advisory_provider_smoke \
+  --output-report artifacts/l3-provider-smoke.md \
+  --json
 ```
+
+预期边界：
+
+- 默认 dry-run 或缺少 provider/key/model 时，结果应安全降级为 `degraded`，不会发起真实网络调用；
+- 只有显式配置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`、provider/model/key，并设置
+  `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 后，`llm_provider` 才可能调用真实 provider；
+- 需要把真实 provider smoke 作为发布 gate 时，再加 `--require-completed`，让未完成的
+  review 以失败退出；
+- readiness check 不启动 scheduler，不修改 canonical decision，仍只写
+  `advisory_only=true` 的 review 证据。
 
 ---
 
