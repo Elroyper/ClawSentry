@@ -73,6 +73,7 @@ export interface SessionSummary {
   l3_reason_code?: string
   evidence_summary?: L3EvidenceSummary | null
   l3_advisory_latest?: L3AdvisoryReview | null
+  l3_advisory_latest_action?: L3AdvisoryAction | null
 }
 
 export interface SessionRisk {
@@ -175,6 +176,28 @@ export interface L3AdvisoryPayload {
   jobs: L3AdvisoryJob[]
   latest_review: L3AdvisoryReview | null
   latest_job: L3AdvisoryJob | null
+  latest_action?: L3AdvisoryAction | null
+}
+
+export interface L3AdvisoryAction {
+  type: 'l3_advisory_action'
+  action_id: string
+  session_id: string
+  snapshot_id: string
+  job_id?: string | null
+  review_id: string
+  risk_level: RiskLevel
+  recommended_operator_action: string
+  l3_state: string
+  l3_reason_code?: string | null
+  source_record_range?: {
+    from_record_id: number
+    to_record_id: number
+  } | null
+  summary: string
+  advisory_only: true
+  canonical_decision_mutated: false
+  created_at?: string | null
 }
 
 export interface L3AdvisoryJob {
@@ -378,6 +401,7 @@ export type SSEL3AdvisorySnapshotEvent = {
     to_record_id: number
   }
   advisory_only: true
+  canonical_decision_mutated?: false
   timestamp: string
 }
 
@@ -389,6 +413,7 @@ export type SSEL3AdvisoryReviewEvent = {
   recommended_operator_action: string
   l3_state: string
   advisory_only: true
+  canonical_decision_mutated?: false
   timestamp: string
 }
 
@@ -399,6 +424,12 @@ export type SSEL3AdvisoryJobEvent = {
   job_state: string
   runner: string
   review_id?: string | null
+  advisory_only?: true
+  canonical_decision_mutated?: false
+  timestamp: string
+}
+
+export type SSEL3AdvisoryActionEvent = L3AdvisoryAction & {
   timestamp: string
 }
 
@@ -416,6 +447,7 @@ export type RuntimeEventType =
   | 'l3_advisory_snapshot'
   | 'l3_advisory_review'
   | 'l3_advisory_job'
+  | 'l3_advisory_action'
 
 export type SSERuntimeEvent =
   | (SSEDecisionEvent & { type: 'decision' })
@@ -431,3 +463,4 @@ export type SSERuntimeEvent =
   | (SSEL3AdvisorySnapshotEvent & { type: 'l3_advisory_snapshot' })
   | (SSEL3AdvisoryReviewEvent & { type: 'l3_advisory_review' })
   | (SSEL3AdvisoryJobEvent & { type: 'l3_advisory_job' })
+  | (SSEL3AdvisoryActionEvent & { type: 'l3_advisory_action' })

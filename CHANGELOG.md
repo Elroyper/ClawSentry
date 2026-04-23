@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [0.5.5] — 2026-04-23
+
+### 新增
+
+- **L3 advisory automation Phase 3** — 新增 feature-gated heartbeat/idle/success/rate-limit aggregate snapshot queueing：仅在 `CS_L3_ADVISORY_ASYNC_ENABLED=true` 且 `CS_L3_HEARTBEAT_REVIEW_ENABLED=true`、存在 high/critical evidence delta、且同 session/runner 无 queued/running `heartbeat_aggregate` job 时冻结 snapshot 并排队 job；不启动 scheduler、不自动执行 provider。
+- **Bounded L3 job drain** — 新增 `GET /report/l3-advisory/jobs`、`POST /report/l3-advisory/jobs/run-next`、`POST /report/l3-advisory/jobs/drain` 与 `clawsentry l3 jobs list|run-next|drain`，使用 queued-only claim 语义，默认 `max_jobs=1`、硬上限 `10`，running/completed/failed job 不会被 rerun。
+- **L3 advisory action summaries** — high/critical completed review 与 degraded provider review 现在会生成 compact `l3_advisory_action`，在 report/session risk、SSE、watch、RuntimeFeed 与 Session Detail 中体现 `advisory_only=true` / `canonical_decision_mutated=false` 与 snapshot/job/review IDs。
+
+### 测试与验证
+
+- Focused backend / CLI / watch / UI / docs 验证记录见 `docs/validation/l3-advisory-phase3-heartbeat-drain-2026-04-23.md`。
+
 ## [0.5.4] — 2026-04-23
 
 ### 新增
@@ -958,6 +970,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.5
 [0.5.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.4
 [0.5.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.3
 [0.5.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.2

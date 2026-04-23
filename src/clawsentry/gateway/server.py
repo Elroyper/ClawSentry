@@ -43,6 +43,7 @@ from .trajectory_store import (
     DEFAULT_TRAJECTORY_DB_PATH,
     DEFAULT_TRAJECTORY_RETENTION_SECONDS,
     HIGH_RISK_LEVELS,
+    L3_ADVISORY_RUNNERS,
     MAX_WINDOW_SECONDS,
 )
 from .models import (
@@ -1235,6 +1236,7 @@ class SupervisionGateway:
             record_id=record_id,
             current_risk_level=current_risk_level,
             pending_trajectory_alerts=pending_trajectory_alerts,
+            compat_event_type=compat_event_type,
         )
 
         for alert in pending_trajectory_alerts:
@@ -2105,6 +2107,9 @@ class SupervisionGateway:
             )
             if latest_review is not None:
                 session["l3_advisory_latest"] = latest_review
+                latest_action = self._l3_advisory_action_for_review(latest_review)
+                if latest_action is not None:
+                    session["l3_advisory_latest_action"] = latest_action
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
         result.update(self._reporting_state())
@@ -2116,13 +2121,74 @@ class SupervisionGateway:
         snapshots = self.trajectory_store.list_l3_evidence_snapshots(session_id=session_id)
         reviews = self.trajectory_store.list_l3_advisory_reviews(session_id=session_id)
         jobs = self.trajectory_store.list_l3_advisory_jobs(session_id=session_id)
+        latest_review = reviews[-1] if reviews else None
+        latest_job = jobs[-1] if jobs else None
+        latest_snapshot = None
+        if latest_review is not None:
+            latest_snapshot = self.trajectory_store.get_l3_evidence_snapshot(
+                str(latest_review.get("snapshot_id") or "")
+            )
+            matching_jobs = [
+                job for job in jobs
+                if job.get("review_id") == latest_review.get("review_id")
+                or job.get("snapshot_id") == latest_review.get("snapshot_id")
+            ]
+            if matching_jobs:
+                latest_job = matching_jobs[-1]
+        latest_action = self.trajectory_store.build_l3_advisory_action_summary(
+            review=latest_review,
+            job=latest_job,
+            snapshot=latest_snapshot,
+        )
         return {
             "snapshots": snapshots,
             "reviews": reviews,
             "jobs": jobs,
-            "latest_review": reviews[-1] if reviews else None,
-            "latest_job": jobs[-1] if jobs else None,
+            "latest_review": latest_review,
+            "latest_job": latest_job,
+            "latest_action": latest_action,
         }
+
+    def _l3_advisory_action_for_review(
+        self,
+        review: dict[str, Any] | None,
+        *,
+        job: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        if review is None:
+            return None
+        snapshot = self.trajectory_store.get_l3_evidence_snapshot(
+            str(review.get("snapshot_id") or "")
+        )
+        if job is None:
+            candidates = self.trajectory_store.list_l3_advisory_jobs(
+                session_id=str(review.get("session_id") or ""),
+                snapshot_id=str(review.get("snapshot_id") or ""),
+            )
+            for candidate in reversed(candidates):
+                if candidate.get("review_id") == review.get("review_id"):
+                    job = candidate
+                    break
+            if job is None and candidates:
+                job = candidates[-1]
+        return self.trajectory_store.build_l3_advisory_action_summary(
+            review=review,
+            job=job,
+            snapshot=snapshot,
+        )
+
+    def _broadcast_l3_advisory_action(
+        self,
+        review: dict[str, Any] | None,
+        *,
+        job: dict[str, Any] | None = None,
+    ) -> None:
+        action = self._l3_advisory_action_for_review(review, job=job)
+        if action is None:
+            return
+        event = dict(action)
+        event["timestamp"] = action.get("created_at") or utc_now_iso()
+        self.event_bus.broadcast(event)
 
     def report_session_risk(
         self,
@@ -2178,6 +2244,7 @@ class SupervisionGateway:
             "trigger_detail": trigger_detail,
             "event_range": snapshot["event_range"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": snapshot["created_at"],
         })
         return snapshot
@@ -2213,8 +2280,10 @@ class SupervisionGateway:
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": review["created_at"],
         })
+        self._broadcast_l3_advisory_action(review)
         return review
 
     def update_l3_advisory_review(
@@ -2246,8 +2315,10 @@ class SupervisionGateway:
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
         })
+        self._broadcast_l3_advisory_action(review)
         return review
 
     def run_local_l3_advisory_review(self, *, snapshot_id: str) -> dict[str, Any]:
@@ -2261,8 +2332,10 @@ class SupervisionGateway:
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
         })
+        self._broadcast_l3_advisory_action(review)
         return review
 
     def enqueue_l3_advisory_job(
@@ -2282,24 +2355,13 @@ class SupervisionGateway:
             "job_id": job["job_id"],
             "job_state": job["job_state"],
             "runner": job["runner"],
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": job["updated_at"],
         })
         return job
 
     def run_l3_advisory_job_local(self, *, job_id: str) -> dict[str, Any]:
-        running = self.trajectory_store.update_l3_advisory_job(
-            job_id,
-            job_state="running",
-        )
-        self.event_bus.broadcast({
-            "type": "l3_advisory_job",
-            "session_id": running["session_id"],
-            "snapshot_id": running["snapshot_id"],
-            "job_id": running["job_id"],
-            "job_state": running["job_state"],
-            "runner": running["runner"],
-            "timestamp": running["updated_at"],
-        })
         result = self.trajectory_store.run_l3_advisory_job_local(job_id)
         job = result["job"]
         review = result["review"]
@@ -2311,6 +2373,8 @@ class SupervisionGateway:
             "job_state": job["job_state"],
             "runner": job["runner"],
             "review_id": job.get("review_id"),
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": job["updated_at"],
         })
         self.event_bus.broadcast({
@@ -2322,9 +2386,12 @@ class SupervisionGateway:
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
         })
-        return result
+        action = self._l3_advisory_action_for_review(review, job=job)
+        self._broadcast_l3_advisory_action(review, job=job)
+        return {**result, "action": action, "advisory_only": True, "canonical_decision_mutated": False}
 
     def run_l3_advisory_worker(
         self,
@@ -2353,19 +2420,6 @@ class SupervisionGateway:
                 f"job runner {job.get('runner')!r} does not match worker {worker.runner_name!r}"
             )
 
-        running = self.trajectory_store.update_l3_advisory_job(
-            job_id,
-            job_state="running",
-        )
-        self.event_bus.broadcast({
-            "type": "l3_advisory_job",
-            "session_id": running["session_id"],
-            "snapshot_id": running["snapshot_id"],
-            "job_id": running["job_id"],
-            "job_state": running["job_state"],
-            "runner": running["runner"],
-            "timestamp": running["updated_at"],
-        })
         result = run_l3_advisory_worker_job(
             store=self.trajectory_store,
             job_id=job_id,
@@ -2381,6 +2435,8 @@ class SupervisionGateway:
             "job_state": job["job_state"],
             "runner": job["runner"],
             "review_id": job.get("review_id"),
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": job["updated_at"],
         })
         self.event_bus.broadcast({
@@ -2392,9 +2448,129 @@ class SupervisionGateway:
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
             "advisory_only": True,
+            "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
         })
-        return result
+        action = self._l3_advisory_action_for_review(review, job=job)
+        self._broadcast_l3_advisory_action(review, job=job)
+        return {**result, "action": action, "advisory_only": True, "canonical_decision_mutated": False}
+
+    def list_l3_advisory_jobs(
+        self,
+        *,
+        session_id: str | None = None,
+        state: str | None = None,
+        runner: str | None = None,
+    ) -> dict[str, Any]:
+        jobs = self.trajectory_store.list_l3_advisory_jobs(
+            session_id=session_id,
+            job_state=state,
+            runner=runner,
+        )
+        return {
+            "jobs": jobs,
+            "count": len(jobs),
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+        }
+
+    def run_next_l3_advisory_job(
+        self,
+        *,
+        runner: str = "deterministic_local",
+        session_id: str | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        if runner not in L3_ADVISORY_RUNNERS:
+            raise ValueError(f"runner must be one of: {', '.join(sorted(L3_ADVISORY_RUNNERS))}")
+        queued = self.trajectory_store.list_l3_advisory_jobs(
+            session_id=session_id,
+            job_state="queued",
+            runner=runner,
+        )
+        selected = queued[0] if queued else None
+        if dry_run:
+            return {
+                "selected_jobs": [selected] if selected else [],
+                "result": None,
+                "ran_count": 0,
+                "dry_run": True,
+                "advisory_only": True,
+                "canonical_decision_mutated": False,
+            }
+        if selected is None:
+            return {
+                "selected_jobs": [],
+                "result": None,
+                "ran_count": 0,
+                "dry_run": False,
+                "advisory_only": True,
+                "canonical_decision_mutated": False,
+            }
+        if runner == "deterministic_local":
+            result = self.run_l3_advisory_job_local(job_id=selected["job_id"])
+        else:
+            result = self.run_l3_advisory_worker(
+                job_id=selected["job_id"],
+                worker_name=runner,
+            )
+        return {
+            "selected_jobs": [selected],
+            "result": result,
+            "ran_count": 1,
+            "dry_run": False,
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+        }
+
+    def drain_l3_advisory_jobs(
+        self,
+        *,
+        runner: str = "deterministic_local",
+        session_id: str | None = None,
+        max_jobs: int = 1,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        if runner not in L3_ADVISORY_RUNNERS:
+            raise ValueError(f"runner must be one of: {', '.join(sorted(L3_ADVISORY_RUNNERS))}")
+        if max_jobs < 1 or max_jobs > 10:
+            raise ValueError("max_jobs must be between 1 and 10")
+        queued = self.trajectory_store.list_l3_advisory_jobs(
+            session_id=session_id,
+            job_state="queued",
+            runner=runner,
+        )
+        selected = queued[:max_jobs]
+        if dry_run:
+            return {
+                "selected_jobs": selected,
+                "results": [],
+                "ran_count": 0,
+                "max_jobs": max_jobs,
+                "dry_run": True,
+                "advisory_only": True,
+                "canonical_decision_mutated": False,
+            }
+
+        results: list[dict[str, Any]] = []
+        for _ in range(max_jobs):
+            next_result = self.run_next_l3_advisory_job(
+                runner=runner,
+                session_id=session_id,
+                dry_run=False,
+            )
+            if next_result.get("ran_count") != 1 or next_result.get("result") is None:
+                break
+            results.append(next_result["result"])
+        return {
+            "selected_jobs": selected,
+            "results": results,
+            "ran_count": len(results),
+            "max_jobs": max_jobs,
+            "dry_run": False,
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+        }
 
     def run_operator_l3_full_review(
         self,
@@ -2439,9 +2615,127 @@ class SupervisionGateway:
             "snapshot": snapshot,
             "job": completed_job,
             "review": review,
+            "action": self._l3_advisory_action_for_review(review, job=completed_job),
             "advisory_only": True,
             "canonical_decision_mutated": False,
         }
+
+    @staticmethod
+    def _is_l3_heartbeat_compatible_event(compat_event_type: str | None) -> str | None:
+        compat = str(compat_event_type or "").strip().lower()
+        if compat in {"heartbeat", "idle", "success", "rate_limit"}:
+            return compat
+        return None
+
+    def _heartbeat_backlog_exists(
+        self,
+        *,
+        session_id: str,
+        runner: str,
+    ) -> bool:
+        for job in self.trajectory_store.list_l3_advisory_jobs(
+            session_id=session_id,
+            runner=runner,
+        ):
+            if job.get("job_state") not in {"queued", "running"}:
+                continue
+            snapshot = self.trajectory_store.get_l3_evidence_snapshot(
+                str(job.get("snapshot_id") or "")
+            )
+            if snapshot and snapshot.get("trigger_reason") == "heartbeat_aggregate":
+                return True
+        return False
+
+    def _latest_terminal_heartbeat_review_to_record(self, *, session_id: str) -> int:
+        latest_to_record = 0
+        for review in self.trajectory_store.list_l3_advisory_reviews(session_id=session_id):
+            if str(review.get("l3_state") or "") not in {"completed", "failed", "degraded"}:
+                continue
+            snapshot = self.trajectory_store.get_l3_evidence_snapshot(
+                str(review.get("snapshot_id") or "")
+            )
+            if not snapshot or snapshot.get("trigger_reason") != "heartbeat_aggregate":
+                continue
+            event_range = snapshot.get("event_range") or {}
+            latest_to_record = max(latest_to_record, int(event_range.get("to_record_id") or 0))
+        return latest_to_record
+
+    def _has_high_risk_evidence_delta(
+        self,
+        *,
+        session_id: str,
+        from_record_id: int,
+        to_record_id: int,
+    ) -> bool:
+        records = self.trajectory_store._query_records_by_id_range(
+            session_id=session_id,
+            from_record_id=max(from_record_id, 1),
+            to_record_id=to_record_id,
+        )
+        for record in records:
+            risk_level = str(
+                record.get("decision", {}).get("risk_level")
+                or record.get("risk_snapshot", {}).get("risk_level")
+                or "low"
+            ).lower()
+            if risk_level in HIGH_RISK_LEVELS:
+                return True
+        return False
+
+    def maybe_create_l3_heartbeat_advisory_snapshot(
+        self,
+        *,
+        config: DetectionConfig,
+        session_id: str,
+        event_id: str,
+        record_id: int,
+        compat_event_type: str | None,
+        runner: str = "deterministic_local",
+    ) -> dict[str, Any] | None:
+        """Queue one heartbeat aggregate advisory job when flags and evidence allow it."""
+
+        compat = self._is_l3_heartbeat_compatible_event(compat_event_type)
+        if compat is None:
+            return None
+        if not config.l3_advisory_async_enabled or not config.l3_heartbeat_review_enabled:
+            return None
+        if not session_id or record_id <= 0:
+            return None
+        if self._heartbeat_backlog_exists(session_id=session_id, runner=runner):
+            return None
+
+        last_terminal_to = self._latest_terminal_heartbeat_review_to_record(session_id=session_id)
+        from_record_id = last_terminal_to + 1 if last_terminal_to > 0 else 1
+        if record_id < from_record_id:
+            return None
+        if not self._has_high_risk_evidence_delta(
+            session_id=session_id,
+            from_record_id=from_record_id,
+            to_record_id=record_id,
+        ):
+            return None
+
+        try:
+            snapshot = self.create_l3_evidence_snapshot(
+                session_id=session_id,
+                trigger_event_id=event_id,
+                trigger_reason="heartbeat_aggregate",
+                trigger_detail=f"{compat}_delta",
+                from_record_id=from_record_id,
+                to_record_id=record_id,
+            )
+            self.enqueue_l3_advisory_job(
+                snapshot_id=snapshot["snapshot_id"],
+                runner=runner,
+            )
+            return snapshot
+        except Exception:
+            logger.exception(
+                "failed to create L3 heartbeat advisory snapshot for session %s event %s",
+                session_id,
+                event_id,
+            )
+            return None
 
     def _maybe_create_l3_advisory_snapshot(
         self,
@@ -2452,10 +2746,26 @@ class SupervisionGateway:
         record_id: int,
         current_risk_level: str,
         pending_trajectory_alerts: list[dict[str, Any]],
+        compat_event_type: str | None = None,
     ) -> dict[str, Any] | None:
         if not config.l3_advisory_async_enabled:
             return None
         if not session_id or record_id <= 0:
+            return None
+
+        heartbeat_snapshot = self.maybe_create_l3_heartbeat_advisory_snapshot(
+            config=config,
+            session_id=session_id,
+            event_id=event_id,
+            record_id=record_id,
+            compat_event_type=compat_event_type,
+        )
+        if heartbeat_snapshot is not None:
+            return heartbeat_snapshot
+        if config.l3_heartbeat_review_enabled and self._is_l3_heartbeat_compatible_event(compat_event_type) is None:
+            # When heartbeat aggregation is explicitly enabled, non-compat
+            # high-risk records become evidence deltas for the next heartbeat;
+            # they do not start a hidden scheduler-like queue by themselves.
             return None
 
         trigger_reason: str | None = None
@@ -2630,6 +2940,7 @@ def create_http_app(
         "l3_advisory_snapshot",
         "l3_advisory_review",
         "l3_advisory_job",
+        "l3_advisory_action",
         "adapter_effect_result",
     }
     enterprise_enabled = enterprise_mode_enabled()
@@ -2885,7 +3196,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job, l3_advisory_action"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -2943,7 +3254,7 @@ def create_http_app(
             requested_types = {item.strip() for item in types.split(",") if item.strip()}
             if not requested_types or not requested_types.issubset(event_types):
                 return Response(
-                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job"}),
+                    content=json.dumps({"error": "types must be a comma-separated subset of: decision, session_risk_change, session_start, alert, session_enforcement_change, post_action_finding, trajectory_alert, pattern_candidate, pattern_evolved, defer_pending, defer_resolved, adapter_effect_result, budget_exhausted, l3_advisory_snapshot, l3_advisory_review, l3_advisory_job, l3_advisory_action"}),
                     status_code=400,
                     media_type="application/json",
                 )
@@ -3165,6 +3476,84 @@ def create_http_app(
             "snapshot": snapshot,
             "records": gateway.trajectory_store.replay_l3_evidence_snapshot(snapshot_id),
         }
+
+    @app.get("/report/l3-advisory/jobs")
+    async def list_l3_advisory_jobs_endpoint(
+        request: Request,
+        session_id: Optional[str] = None,
+        state: Optional[str] = None,
+        runner: Optional[str] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        try:
+            return gateway.list_l3_advisory_jobs(
+                session_id=session_id,
+                state=state,
+                runner=runner,
+            )
+        except ValueError as exc:
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=400,
+                media_type="application/json",
+            )
+
+    @app.post("/report/l3-advisory/jobs/run-next")
+    async def run_next_l3_advisory_job_endpoint(
+        request: Request,
+        body: dict[str, Any] | None = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        body = body or {}
+        try:
+            return gateway.run_next_l3_advisory_job(
+                runner=str(body.get("runner") or "deterministic_local"),
+                session_id=(
+                    str(body.get("session_id"))
+                    if body.get("session_id") is not None
+                    else None
+                ),
+                dry_run=bool(body.get("dry_run", False)),
+            )
+        except ValueError as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
+
+    @app.post("/report/l3-advisory/jobs/drain")
+    async def drain_l3_advisory_jobs_endpoint(
+        request: Request,
+        body: dict[str, Any] | None = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        body = body or {}
+        try:
+            return gateway.drain_l3_advisory_jobs(
+                runner=str(body.get("runner") or "deterministic_local"),
+                session_id=(
+                    str(body.get("session_id"))
+                    if body.get("session_id") is not None
+                    else None
+                ),
+                max_jobs=int(body.get("max_jobs") or 1),
+                dry_run=bool(body.get("dry_run", False)),
+            )
+        except (TypeError, ValueError) as exc:
+            status_code = 404 if "was not found" in str(exc) else 400
+            return Response(
+                content=json.dumps({"error": str(exc)}),
+                status_code=status_code,
+                media_type="application/json",
+            )
 
     @app.post("/report/l3-advisory/snapshot/{snapshot_id}/jobs")
     async def enqueue_l3_advisory_job_endpoint(

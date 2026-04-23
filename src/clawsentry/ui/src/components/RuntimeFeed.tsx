@@ -34,6 +34,7 @@ const RUNTIME_EVENT_TYPES: RuntimeEventType[] = [
   'l3_advisory_snapshot',
   'l3_advisory_review',
   'l3_advisory_job',
+  'l3_advisory_action',
 ]
 
 const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
@@ -46,6 +47,7 @@ const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
   'session_enforcement_change',
   'l3_advisory_review',
   'l3_advisory_job',
+  'l3_advisory_action',
 ]
 
 const FEED_MAX_EVENTS = 80
@@ -64,6 +66,7 @@ const EVENT_LABELS: Record<RuntimeEventType, string> = {
   l3_advisory_snapshot: 'L3 Snapshot',
   l3_advisory_review: 'L3 Advisory',
   l3_advisory_job: 'L3 Job',
+  l3_advisory_action: 'L3 Action',
 }
 
 function prependWithCap<T>(items: T[], nextItem: T) {
@@ -374,6 +377,33 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
         </>
       )
     }
+    case 'l3_advisory_action':
+      return (
+        <>
+          <div className="runtime-event-meta-row">
+            <RiskBadge level={event.risk_level} />
+            <span className="badge badge-defer">{formatOperatorAction(event.recommended_operator_action, language)}</span>
+            <span className="mono runtime-mono-small">
+              {event.review_id}
+            </span>
+            <SessionLink sessionId={event.session_id} />
+          </div>
+          <div className="text-secondary runtime-event-detail">
+            Advisory only / canonical unchanged · snapshot <span className="mono">{event.snapshot_id}</span>
+            {event.job_id ? <> · job <span className="mono">{event.job_id}</span></> : null}
+          </div>
+          {event.source_record_range && (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              Frozen range <span className="mono">{event.source_record_range.from_record_id}→{event.source_record_range.to_record_id}</span>
+            </div>
+          )}
+          {event.summary && (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {event.summary}
+            </div>
+          )}
+        </>
+      )
     case 'budget_exhausted':
       return (
         <>

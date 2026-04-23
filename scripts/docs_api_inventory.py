@@ -54,6 +54,9 @@ for item in [
     ("POST","/report/session/{session_id}/l3-advisory/snapshots","2810","创建 L3 evidence snapshot","api/reporting.md#l3-advisory-endpoints"),
     ("GET","/report/session/{session_id}/l3-advisory/snapshots","2850","列出 L3 evidence snapshots","api/reporting.md#l3-advisory-endpoints"),
     ("GET","/report/l3-advisory/snapshot/{snapshot_id}","2863","读取 L3 snapshot 与冻结记录","api/reporting.md#l3-advisory-endpoints"),
+    ("GET","/report/l3-advisory/jobs","2883","列出 L3 advisory jobs","api/reporting.md#l3-advisory-endpoints"),
+    ("POST","/report/l3-advisory/jobs/run-next","2914","运行最旧的 queued L3 advisory job","api/reporting.md#l3-advisory-endpoints"),
+    ("POST","/report/l3-advisory/jobs/drain","2950","有界运行 queued L3 advisory jobs","api/reporting.md#l3-advisory-endpoints"),
     ("POST","/report/l3-advisory/snapshot/{snapshot_id}/jobs","2883","创建 L3 advisory job","api/reporting.md#l3-advisory-endpoints"),
     ("POST","/report/l3-advisory/reviews","2906","写入 L3 advisory review","api/reporting.md#l3-advisory-endpoints"),
     ("PATCH","/report/l3-advisory/review/{review_id}","2950","更新 L3 advisory review","api/reporting.md#l3-advisory-endpoints"),
@@ -371,7 +374,7 @@ def write_openapi() -> None:
         "openapi": "3.1.0",
         "info": {
             "title": "ClawSentry Public API Reference",
-            "version": "0.5.4",
+            "version": "0.5.5",
             "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior.",
         },
         "servers": [

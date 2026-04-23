@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ClawSentry Public API Reference",
-    "version": "0.5.4",
+    "version": "0.5.5",
     "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior."
   },
   "servers": [
@@ -1640,6 +1640,171 @@
         "x-clawsentry-source": "src/clawsentry/gateway/server.py:2863",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/jobs": {
+      "get": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "列出 L3 advisory jobs",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2883",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/jobs/run-next": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "运行最旧的 queued L3 advisory job",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2914",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/l3-advisory/jobs/drain": {
+      "post": {
+        "tags": [
+          "L3 Advisory"
+        ],
+        "summary": "有界运行 queued L3 advisory jobs",
+        "description": "Service: `gateway`. Auth: `bearer-disabled-when-empty-token`. CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions. See `api/reporting.md#l3-advisory-endpoints`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "example": {
+                  "advisory_only": true,
+                  "canonical_decision_mutated": false,
+                  "snapshot_id": "l3snap-001",
+                  "job_id": "l3job-001",
+                  "review_id": "l3adv-001",
+                  "l3_state": "completed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error 400"
+          },
+          "401": {
+            "description": "Error 401"
+          },
+          "404": {
+            "description": "Error 404"
+          },
+          "429": {
+            "description": "Error 429"
+          }
+        },
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2950",
+        "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
+        "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "example": {
+                "session_id": "sess-001",
+                "runner": "deterministic_local",
+                "queue_only": false
+              }
+            }
+          }
+        },
         "security": [
           {
             "BearerAuth": []

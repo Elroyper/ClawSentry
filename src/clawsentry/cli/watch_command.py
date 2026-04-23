@@ -80,6 +80,7 @@ _PRIORITY_STREAM_TYPES: tuple[str, ...] = (
     "l3_advisory_snapshot",
     "l3_advisory_review",
     "l3_advisory_job",
+    "l3_advisory_action",
 )
 
 
@@ -1117,6 +1118,59 @@ def _format_l3_advisory_job(
     return "\n".join(lines)
 
 
+def _format_l3_advisory_action(
+    event: dict,
+    *,
+    color: bool = True,
+    no_emoji: bool = False,
+    compact: bool = False,
+) -> str:
+    hms = _timestamp_hms(event.get("timestamp") or event.get("created_at"))
+    session_id = str(event.get("session_id") or "unknown")
+    review_id = str(event.get("review_id") or "unknown")
+    snapshot_id = str(event.get("snapshot_id") or "unknown")
+    job_id = str(event.get("job_id") or "").strip()
+    risk_level = str(event.get("risk_level") or "unknown")
+    action = str(event.get("recommended_operator_action") or "inspect")
+    action_label = _operator_display("operator_action", action)
+    source_range = event.get("source_record_range") if isinstance(event.get("source_record_range"), dict) else {}
+    from_id = source_range.get("from_record_id", "-")
+    to_id = source_range.get("to_record_id", "-")
+
+    e = _emoji("l3_advisory", no_emoji=no_emoji)
+    e_str = f"{e} " if e else ""
+    label = _c("yellow", f"{e_str}L3 ADVISORY ACTION", color=color)
+    ts_str = _c("grey", f"[{hms}]", color=color)
+
+    if compact:
+        return (
+            f"{ts_str} {label}  {review_id}  "
+            f"Session={session_id} Risk={risk_level} Action={action_label} "
+            "advisory only; canonical unchanged"
+        )
+
+    detail_items = [
+        f"Session: {_c('grey', session_id, color=color)}",
+        f"Snapshot: {_c('grey', snapshot_id, color=color)}",
+        f"Review: {_c('grey', review_id, color=color)}",
+        f"Risk: {_risk_display(risk_level, color=color, no_emoji=no_emoji)}",
+        f"Action: {_c('grey', action_label, color=color)}",
+        f"Range: {_c('grey', f'{from_id}->{to_id}', color=color)}",
+        f"Boundary: {_c('grey', 'advisory only; canonical unchanged', color=color)}",
+    ]
+    if job_id:
+        detail_items.insert(3, f"Job: {_c('grey', job_id, color=color)}")
+    summary = str(event.get("summary") or "").strip()
+    if summary:
+        detail_items.append(f"Summary: {_c('grey', summary, color=color)}")
+
+    lines = [f"{ts_str} {label}  {review_id}"]
+    for i, item in enumerate(detail_items):
+        connector = "└─" if i == len(detail_items) - 1 else "├─"
+        lines.append(f"{_TREE_INDENT}{connector} {item}")
+    return "\n".join(lines)
+
+
 def _format_adapter_effect_result(
     event: dict,
     *,
@@ -1219,6 +1273,10 @@ def format_event(
         )
     if event_type == "l3_advisory_job":
         return _format_l3_advisory_job(
+            event, color=color, no_emoji=no_emoji, compact=compact
+        )
+    if event_type == "l3_advisory_action":
+        return _format_l3_advisory_action(
             event, color=color, no_emoji=no_emoji, compact=compact
         )
     if event_type == "adapter_effect_result":

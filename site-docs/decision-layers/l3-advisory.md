@@ -204,6 +204,50 @@ clawsentry l3 full-review \
 
 适合先冻结证据，再由另一个流程决定何时运行 worker。
 
+### Phase 3：查看并有界执行 queued jobs
+
+Phase 3 增加的是 **bounded one-shot execution**，不是 daemon。你可以查看当前 queued jobs：
+
+```bash
+clawsentry l3 jobs list --state queued --json
+```
+
+执行最旧的一条 queued job：
+
+```bash
+clawsentry l3 jobs run-next \
+  --runner deterministic_local \
+  --json
+```
+
+或一次最多 drain N 条（硬上限 10）：
+
+```bash
+clawsentry l3 jobs drain \
+  --runner deterministic_local \
+  --max-jobs 2
+```
+
+这些命令只 claim `job_state=queued` 的 job；`running` / `completed` / `failed` 不会被 rerun。`llm_provider` runner 仍需要显式 advisory provider gates，默认不会真实联网。
+
+### Phase 3：heartbeat / idle aggregate queueing
+
+当同时启用：
+
+```bash
+CS_L3_ADVISORY_ASYNC_ENABLED=true
+CS_L3_HEARTBEAT_REVIEW_ENABLED=true
+```
+
+并且同一 session 在最新 terminal heartbeat review 后出现新的 high/critical evidence delta 时，`heartbeat` / `idle` / `success` / `rate_limit` 兼容事件可以创建一份 `trigger_reason=heartbeat_aggregate` 的 frozen snapshot，并排队一个 advisory job。
+
+安全边界：
+
+- 不启动 background scheduler / daemon；
+- 不自动运行 job；
+- 同一 `(session_id, runner)` 同时最多一个 queued/running `heartbeat_aggregate` job；
+- 输出始终标记 `advisory_only=true` 和 `canonical_decision_mutated=false`。
+
 ### 固定审查范围
 
 ```bash

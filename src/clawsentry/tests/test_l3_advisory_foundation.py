@@ -328,3 +328,94 @@ def test_l3_advisory_job_queue_runs_local_review_explicitly() -> None:
     assert result["review"]["l3_state"] == "completed"
     assert result["review"]["review_runner"] == "deterministic_local"
     assert store.get_l3_advisory_job(job["job_id"]) == result["job"]
+
+
+def test_l3_advisory_job_claim_is_queued_only() -> None:
+    store = TrajectoryStore(retention_seconds=0)
+    record_id = _record(
+        store,
+        session_id="sess-l3adv-claim",
+        event_id="evt-claim",
+        decision="block",
+        risk_level="high",
+        recorded_at_ts=1.0,
+    )
+    snapshot = store.create_l3_evidence_snapshot(
+        session_id="sess-l3adv-claim",
+        trigger_event_id="evt-claim",
+        trigger_reason="threshold",
+        to_record_id=record_id,
+    )
+    job = store.enqueue_l3_advisory_job(snapshot["snapshot_id"])
+
+    claimed = store.claim_l3_advisory_job(job["job_id"], expected_runner="deterministic_local")
+    assert claimed is not None
+    assert claimed["job_state"] == "running"
+    assert store.claim_l3_advisory_job(job["job_id"], expected_runner="deterministic_local") is None
+
+    store.update_l3_advisory_job(job["job_id"], job_state="completed")
+    assert store.claim_next_l3_advisory_job(runner="deterministic_local", session_id="sess-l3adv-claim") is None
+
+
+def test_l3_advisory_action_summary_is_advisory_only_and_compact() -> None:
+    store = TrajectoryStore(retention_seconds=0)
+    record_id = _record(
+        store,
+        session_id="sess-l3adv-action",
+        event_id="evt-action",
+        decision="block",
+        risk_level="critical",
+        recorded_at_ts=1.0,
+    )
+    snapshot = store.create_l3_evidence_snapshot(
+        session_id="sess-l3adv-action",
+        trigger_event_id="evt-action",
+        trigger_reason="heartbeat_aggregate",
+        trigger_detail="heartbeat_delta",
+        to_record_id=record_id,
+    )
+    job = store.enqueue_l3_advisory_job(snapshot["snapshot_id"])
+    review = store.record_l3_advisory_review(
+        snapshot_id=snapshot["snapshot_id"],
+        risk_level="critical",
+        findings=["compact finding"],
+        recommended_operator_action="escalate",
+    )
+    job = store.update_l3_advisory_job(job["job_id"], job_state="completed", review_id=review["review_id"])
+
+    action = store.build_l3_advisory_action_summary(review=review, job=job, snapshot=snapshot)
+
+    assert action is not None
+    assert action["snapshot_id"] == snapshot["snapshot_id"]
+    assert action["job_id"] == job["job_id"]
+    assert action["review_id"] == review["review_id"]
+    assert action["recommended_operator_action"] == "escalate"
+    assert action["advisory_only"] is True
+    assert action["canonical_decision_mutated"] is False
+    assert "findings" not in action
+
+
+def test_l3_advisory_action_summary_skips_low_none_review() -> None:
+    store = TrajectoryStore(retention_seconds=0)
+    record_id = _record(
+        store,
+        session_id="sess-l3adv-action-low",
+        event_id="evt-action-low",
+        decision="allow",
+        risk_level="low",
+        recorded_at_ts=1.0,
+    )
+    snapshot = store.create_l3_evidence_snapshot(
+        session_id="sess-l3adv-action-low",
+        trigger_event_id="evt-action-low",
+        trigger_reason="operator",
+        to_record_id=record_id,
+    )
+    review = store.record_l3_advisory_review(
+        snapshot_id=snapshot["snapshot_id"],
+        risk_level="low",
+        findings=[],
+        recommended_operator_action="none",
+    )
+
+    assert store.build_l3_advisory_action_summary(review=review, snapshot=snapshot) is None

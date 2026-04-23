@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.4
+## What's New in v0.5.5
 
-- **AHP decision effects**: request-only `decision_effects` adds session quarantine / mark-blocked and audited command/tool-input rewrite without changing the stable `allow/block/modify/defer` verdicts.
-- **Adapter outcome audit trail**: `adapter_effect_result` records what each host adapter enforced, degraded, or could not support, keeping unsupported Codex rewrite/session-stop behavior honest.
-- **API docs coverage**: online API Reference/OpenAPI now covers adapter effect writeback and session quarantine release surfaces.
+- **L3 heartbeat advisory automation**: heartbeat / idle / success / rate-limit compatible events can queue frozen advisory snapshots only behind explicit flags, high-risk evidence deltas, and a per-session backlog guard.
+- **Bounded L3 job drain**: `clawsentry l3 jobs list|run-next|drain` and matching API endpoints execute queued advisory jobs with queued-only claim semantics; running/completed/failed jobs are never rerun.
+- **Advisory action summaries**: high/critical or degraded L3 reviews now surface compact operator actions in reports, SSE/watch, and Web UI while preserving `advisory_only=true` and `canonical_decision_mutated=false`.
 
 ## Quick Start
 

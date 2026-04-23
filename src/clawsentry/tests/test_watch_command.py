@@ -53,6 +53,7 @@ class TestBuildStreamUrl:
         assert "decision" in url
         assert "defer_pending" in url
         assert "l3_advisory_job" in url
+        assert "l3_advisory_action" in url
 
     def test_priority_only_merges_with_explicit_filter_without_duplicates(self):
         url = watch_command._build_stream_url(
@@ -740,6 +741,29 @@ class TestFormatEvent:
         assert "l3adv-def456" in result
         assert "Error:" in result
         assert "provider timeout" in result
+
+    def test_l3_advisory_action_dispatch_shows_advisory_boundary(self):
+        event = {
+            "type": "l3_advisory_action",
+            "session_id": "sess-l3adv",
+            "snapshot_id": "l3snap-abc123",
+            "job_id": "l3job-ghi789",
+            "review_id": "l3adv-def456",
+            "risk_level": "critical",
+            "recommended_operator_action": "escalate",
+            "l3_state": "completed",
+            "source_record_range": {"from_record_id": 2, "to_record_id": 8},
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+            "timestamp": "2026-04-21T00:00:00Z",
+        }
+        result = format_event(event, color=False)
+        assert "L3 ADVISORY ACTION" in result
+        assert "l3adv-def456" in result
+        assert "escalate" in result
+        assert "2->8" in result
+        assert "advisory only" in result
+        assert "canonical unchanged" in result
 
 
 # ---------------------------------------------------------------------------

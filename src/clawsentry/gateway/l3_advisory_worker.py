@@ -780,7 +780,9 @@ def run_l3_advisory_worker_job(
     if not records:
         raise ValueError(f"snapshot {snapshot['snapshot_id']!r} has no replayable records")
 
-    store.update_l3_advisory_job(job_id, job_state="running")
+    claimed = store.claim_l3_advisory_job(job_id, expected_runner=worker.runner_name)
+    if claimed is None:
+        raise ValueError(f"job {job_id!r} is not queued and cannot be rerun")
     try:
         review = store.record_l3_advisory_review(
             snapshot_id=snapshot["snapshot_id"],

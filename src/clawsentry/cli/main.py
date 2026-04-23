@@ -305,6 +305,37 @@ def _build_parser() -> argparse.ArgumentParser:
     l3_full.add_argument("--queue-only", action="store_true", default=False, help="Freeze evidence and queue the job without running it.")
     l3_full.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
     l3_full.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
+    l3_jobs = l3_sub.add_parser(
+        "jobs",
+        help="List or explicitly run queued L3 advisory jobs.",
+    )
+    l3_jobs_sub = l3_jobs.add_subparsers(dest="l3_jobs_command")
+    l3_jobs_sub.required = True
+    l3_jobs_list = l3_jobs_sub.add_parser("list", help="List L3 advisory jobs.")
+    l3_jobs_list.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
+    l3_jobs_list.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
+    l3_jobs_list.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
+    l3_jobs_list.add_argument("--state", default="queued", choices=["queued", "running", "completed", "failed"], help="Job state filter (default: queued).")
+    l3_jobs_list.add_argument("--runner", default=None, choices=["deterministic_local", "fake_llm", "llm_provider"], help="Optional runner filter.")
+    l3_jobs_list.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
+    l3_jobs_list.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
+    l3_jobs_run_next = l3_jobs_sub.add_parser("run-next", help="Run the oldest queued L3 advisory job.")
+    l3_jobs_run_next.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
+    l3_jobs_run_next.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
+    l3_jobs_run_next.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to execute.")
+    l3_jobs_run_next.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
+    l3_jobs_run_next.add_argument("--dry-run", action="store_true", default=False, help="Select without claiming/running.")
+    l3_jobs_run_next.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
+    l3_jobs_run_next.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
+    l3_jobs_drain = l3_jobs_sub.add_parser("drain", help="Run up to N queued L3 advisory jobs.")
+    l3_jobs_drain.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
+    l3_jobs_drain.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
+    l3_jobs_drain.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to execute.")
+    l3_jobs_drain.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
+    l3_jobs_drain.add_argument("--max-jobs", type=int, default=1, help="Maximum queued jobs to run (1-10, default: 1).")
+    l3_jobs_drain.add_argument("--dry-run", action="store_true", default=False, help="Select without claiming/running.")
+    l3_jobs_drain.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
+    l3_jobs_drain.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
 
     # --- service ---
     service_parser = sub.add_parser(
@@ -649,7 +680,12 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(code)
 
     elif args.command == "l3":
-        from .l3_command import run_l3_full_review
+        from .l3_command import (
+            run_l3_full_review,
+            run_l3_jobs_drain,
+            run_l3_jobs_list,
+            run_l3_jobs_run_next,
+        )
 
         if args.l3_command == "full-review":
             sys.exit(run_l3_full_review(
@@ -667,7 +703,39 @@ def main(argv: list[str] | None = None) -> None:
                 json_mode=args.json,
                 timeout=args.timeout,
             ))
-        print("Usage: clawsentry l3 {full-review}")
+        if args.l3_command == "jobs":
+            if args.l3_jobs_command == "list":
+                sys.exit(run_l3_jobs_list(
+                    gateway_url=args.gateway_url,
+                    token=args.token,
+                    session_id=args.session_id,
+                    state=args.state,
+                    runner=args.runner,
+                    json_mode=args.json,
+                    timeout=args.timeout,
+                ))
+            if args.l3_jobs_command == "run-next":
+                sys.exit(run_l3_jobs_run_next(
+                    gateway_url=args.gateway_url,
+                    token=args.token,
+                    runner=args.runner,
+                    session_id=args.session_id,
+                    dry_run=args.dry_run,
+                    json_mode=args.json,
+                    timeout=args.timeout,
+                ))
+            if args.l3_jobs_command == "drain":
+                sys.exit(run_l3_jobs_drain(
+                    gateway_url=args.gateway_url,
+                    token=args.token,
+                    runner=args.runner,
+                    session_id=args.session_id,
+                    max_jobs=args.max_jobs,
+                    dry_run=args.dry_run,
+                    json_mode=args.json,
+                    timeout=args.timeout,
+                ))
+        print("Usage: clawsentry l3 {full-review,jobs}")
 
     elif args.command == "service":
         from .service_command import (

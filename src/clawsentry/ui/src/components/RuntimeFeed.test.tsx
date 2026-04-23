@@ -220,4 +220,40 @@ describe('RuntimeFeed', () => {
     expectSecondaryLine('waiting for explicit operator run')
     expectSecondaryLine('Frozen snapshot snap-l3')
   })
+
+  it('renders L3 advisory action boundary and IDs', async () => {
+    vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
+      void types
+      callbacks.onStatusChange('connected')
+      callbacks.onEvent('l3_advisory_action', {
+        type: 'l3_advisory_action',
+        action_id: 'action-l3',
+        session_id: 'sess-l3',
+        snapshot_id: 'snap-l3',
+        job_id: 'job-l3',
+        review_id: 'review-l3',
+        risk_level: 'critical',
+        recommended_operator_action: 'escalate',
+        l3_state: 'completed',
+        source_record_range: { from_record_id: 2, to_record_id: 8 },
+        summary: 'L3 advisory critical risk recommends escalate; advisory only, canonical unchanged.',
+        advisory_only: true,
+        canonical_decision_mutated: false,
+        timestamp: '2026-04-14T07:10:00.000Z',
+      })
+      return () => {}
+    })
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <RuntimeFeed />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
+    expect(screen.getByText('critical')).toBeInTheDocument()
+    expectSecondaryLine('Advisory only / canonical unchanged')
+    expectSecondaryLine('Frozen range 2→8')
+    expect(screen.getByText('review-l3')).toBeInTheDocument()
+  })
 })

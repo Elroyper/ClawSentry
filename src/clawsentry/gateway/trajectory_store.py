@@ -21,6 +21,7 @@ L3_ADVISORY_REVIEW_STATES = {"pending", "running", "completed", "failed", "degra
 L3_ADVISORY_TERMINAL_STATES = {"completed", "failed", "degraded"}
 L3_ADVISORY_JOB_STATES = {"queued", "running", "completed", "failed"}
 L3_ADVISORY_JOB_TERMINAL_STATES = {"completed", "failed"}
+L3_ADVISORY_RUNNERS = {"deterministic_local", "fake_llm", "llm_provider"}
 _RISK_LEVEL_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 INVALID_EVENT_COUNT_THRESHOLD_1M = 20
@@ -872,6 +873,74 @@ class TrajectoryStore:
             return "inspect"
         return "none"
 
+    @staticmethod
+    def build_l3_advisory_action_summary(
+        *,
+        review: dict[str, Any] | None,
+        job: dict[str, Any] | None = None,
+        snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Derive a compact operator action from an advisory review.
+
+        The summary intentionally carries identifiers and bounded record range
+        only. It never includes provider prompts/responses or live transcript
+        payloads, and it always preserves the advisory-only/canonical-unchanged
+        boundary for downstream report/SSE/watch/UI surfaces.
+        """
+
+        if not review:
+            return None
+        l3_state = str(review.get("l3_state") or "").lower()
+        risk_level = str(review.get("risk_level") or "low").lower()
+        recommended = str(review.get("recommended_operator_action") or "none").lower()
+        reason_code = str(review.get("l3_reason_code") or "").lower()
+        is_degraded = l3_state == "degraded"
+        if l3_state not in {"completed", "degraded"}:
+            return None
+        is_actionable = (
+            risk_level in HIGH_RISK_LEVELS
+            or recommended in {"pause", "escalate", "inspect"}
+            or is_degraded
+        )
+        if not is_actionable or (risk_level == "low" and recommended == "none" and not is_degraded):
+            return None
+
+        if is_degraded:
+            operator_action = (
+                "inspect_provider_config"
+                if reason_code in {"provider_disabled", "provider_response_invalid", "provider_error"}
+                else "inspect"
+            )
+            summary = "L3 advisory degraded; inspect provider configuration before relying on provider output."
+        else:
+            operator_action = recommended if recommended != "none" else ("escalate" if risk_level == "critical" else "inspect")
+            summary = f"L3 advisory {risk_level} risk recommends {operator_action}; advisory only, canonical unchanged."
+
+        source_range = review.get("source_record_range")
+        if not isinstance(source_range, dict) and snapshot is not None:
+            source_range = snapshot.get("event_range")
+
+        snapshot_id = str(review.get("snapshot_id") or (snapshot or {}).get("snapshot_id") or "")
+        review_id = str(review.get("review_id") or "")
+        job_id = str((job or {}).get("job_id") or "")
+        return {
+            "type": "l3_advisory_action",
+            "action_id": f"l3action-{review_id}",
+            "session_id": str(review.get("session_id") or (snapshot or {}).get("session_id") or ""),
+            "snapshot_id": snapshot_id,
+            "job_id": job_id or None,
+            "review_id": review_id,
+            "risk_level": risk_level,
+            "recommended_operator_action": operator_action,
+            "l3_state": l3_state,
+            "l3_reason_code": review.get("l3_reason_code"),
+            "source_record_range": source_range if isinstance(source_range, dict) else None,
+            "summary": summary,
+            "advisory_only": True,
+            "canonical_decision_mutated": False,
+            "created_at": review.get("completed_at") or review.get("created_at"),
+        }
+
     def run_local_l3_advisory_review(self, snapshot_id: str) -> dict[str, Any]:
         """Run a deterministic local advisory review over a frozen snapshot.
 
@@ -998,6 +1067,8 @@ class TrajectoryStore:
         *,
         session_id: str | None = None,
         snapshot_id: str | None = None,
+        job_state: str | None = None,
+        runner: str | None = None,
     ) -> list[dict[str, Any]]:
         clauses: list[str] = []
         params: list[Any] = []
@@ -1007,12 +1078,95 @@ class TrajectoryStore:
         if snapshot_id is not None:
             clauses.append("snapshot_id = ?")
             params.append(snapshot_id)
+        if job_state is not None:
+            if job_state not in L3_ADVISORY_JOB_STATES:
+                raise ValueError(f"job_state must be one of: {', '.join(sorted(L3_ADVISORY_JOB_STATES))}")
+            clauses.append("job_state = ?")
+            params.append(job_state)
+        if runner is not None:
+            clauses.append("runner = ?")
+            params.append(runner)
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         rows = self._conn.execute(
             f"SELECT job_json FROM l3_advisory_jobs {where_sql} ORDER BY created_at_ts ASC",
             params,
         ).fetchall()
         return [json.loads(row["job_json"]) for row in rows]
+
+    def claim_l3_advisory_job(
+        self,
+        job_id: str,
+        *,
+        expected_runner: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Atomically transition one queued advisory job to running.
+
+        Returns the running job when this call won the queued-only claim.
+        Returns ``None`` when the job exists but is no longer queued. Missing
+        jobs and runner mismatches remain hard errors so callers do not
+        accidentally hide malformed operator requests.
+        """
+
+        current = self.get_l3_advisory_job(job_id)
+        if current is None:
+            raise ValueError(f"job {job_id!r} was not found")
+        if expected_runner is not None and current.get("runner") != expected_runner:
+            raise ValueError(
+                f"job runner {current.get('runner')!r} does not match requested runner {expected_runner!r}"
+            )
+        if current.get("job_state") != "queued":
+            return None
+
+        next_job = dict(current)
+        updated_at = self._iso_from_ts(time.time())
+        next_job["job_state"] = "running"
+        next_job["updated_at"] = updated_at
+        cur = self._conn.execute(
+            """
+            UPDATE l3_advisory_jobs
+            SET job_state = ?,
+                updated_at = ?,
+                job_json = ?
+            WHERE job_id = ? AND job_state = 'queued'
+            """,
+            (
+                "running",
+                updated_at,
+                self._json_dumps(next_job),
+                job_id,
+            ),
+        )
+        self._conn.commit()
+        if cur.rowcount != 1:
+            return None
+        return next_job
+
+    def claim_next_l3_advisory_job(
+        self,
+        *,
+        runner: str,
+        session_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Claim the oldest queued job for a runner using queued-only semantics."""
+
+        clauses = ["job_state = ?", "runner = ?"]
+        params: list[Any] = ["queued", runner]
+        if session_id is not None:
+            clauses.append("session_id = ?")
+            params.append(session_id)
+        row = self._conn.execute(
+            f"""
+            SELECT job_id
+            FROM l3_advisory_jobs
+            WHERE {' AND '.join(clauses)}
+            ORDER BY created_at_ts ASC
+            LIMIT 1
+            """,
+            params,
+        ).fetchone()
+        if row is None:
+            return None
+        return self.claim_l3_advisory_job(str(row["job_id"]), expected_runner=runner)
 
     def latest_l3_advisory_job(self, *, session_id: str) -> dict[str, Any] | None:
         row = self._conn.execute(
@@ -1078,7 +1232,9 @@ class TrajectoryStore:
             raise ValueError(f"job {job_id!r} was not found")
         if job["runner"] != "deterministic_local":
             raise ValueError(f"unsupported advisory job runner {job['runner']!r}")
-        self.update_l3_advisory_job(job_id, job_state="running")
+        claimed = self.claim_l3_advisory_job(job_id, expected_runner="deterministic_local")
+        if claimed is None:
+            raise ValueError(f"job {job_id!r} is not queued and cannot be rerun")
         try:
             review = self.run_local_l3_advisory_review(job["snapshot_id"])
         except Exception as exc:

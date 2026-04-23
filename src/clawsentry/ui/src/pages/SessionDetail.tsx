@@ -377,6 +377,7 @@ export default function SessionDetail() {
   const workspaceName = workspaceLabel(risk?.workspace_root || '')
   const latestAdvisoryReview = risk?.l3_advisory?.latest_review ?? null
   const latestAdvisoryJob = risk?.l3_advisory?.latest_job ?? null
+  const latestAdvisoryAction = risk?.l3_advisory?.latest_action ?? null
   const latestRecord = trajectory[0] ?? null
   const latestToolName = latestRecord ? String(latestRecord.event?.tool_name || 'unknown tool') : 'No tool observed'
   const latestDecisionLabel = latestRecord ? String(latestRecord.decision.decision).toUpperCase() : 'NO REPLAY'
@@ -396,7 +397,7 @@ export default function SessionDetail() {
     ? `${trajectory.length} decision event(s) loaded for operator review.`
     : 'No replay records loaded yet.'
   const advisoryActionSummary = latestAdvisoryReview
-    ? `L3 ${formatOperatorLabel('l3State', latestAdvisoryReview.l3_state, language)} · ${formatOperatorAction(latestAdvisoryReview.recommended_operator_action || 'inspect', language)}.`
+    ? `L3 ${formatOperatorLabel('l3State', latestAdvisoryReview.l3_state, language)} · ${formatOperatorAction(latestAdvisoryAction?.recommended_operator_action || latestAdvisoryReview.recommended_operator_action || 'inspect', language)}.`
     : 'No advisory review attached yet.'
   const latestAdvisoryRunner = latestAdvisoryReview?.review_runner
     || latestAdvisoryReview?.worker_backend
@@ -650,6 +651,15 @@ export default function SessionDetail() {
                 <p className="priority-session-meta">
                   Canonical decision unchanged. Advisory-only review output is attached to the frozen snapshot.
                 </p>
+                {latestAdvisoryAction && (
+                  <p className="priority-session-meta">
+                    L3 advisory action: <span className="mono">{formatOperatorAction(latestAdvisoryAction.recommended_operator_action, language)}</span>
+                    {' '}· advisory-only / canonical unchanged
+                    {latestAdvisoryAction.source_record_range
+                      ? ` · records ${latestAdvisoryAction.source_record_range.from_record_id}–${latestAdvisoryAction.source_record_range.to_record_id}`
+                      : ''}
+                  </p>
+                )}
               </>
             ) : (
               <p className="empty-inline">

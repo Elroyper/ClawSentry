@@ -835,6 +835,107 @@
   },
   {
     "service": "gateway",
+    "method": "GET",
+    "path": "/report/l3-advisory/jobs",
+    "source": "src/clawsentry/gateway/server.py:2883",
+    "group": "L3 Advisory",
+    "audience": "operator|developer",
+    "public_status": "public",
+    "auth": "bearer-disabled-when-empty-token",
+    "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+    "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+    "summary": "列出 L3 advisory jobs",
+    "request_example": {
+      "query": {},
+      "path": {}
+    },
+    "response_example": {
+      "advisory_only": true,
+      "canonical_decision_mutated": false,
+      "snapshot_id": "l3snap-001",
+      "job_id": "l3job-001",
+      "review_id": "l3adv-001",
+      "l3_state": "completed"
+    },
+    "errors": [
+      "400",
+      "401",
+      "404",
+      "429"
+    ],
+    "exclusion_reason": null,
+    "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs/get"
+  },
+  {
+    "service": "gateway",
+    "method": "POST",
+    "path": "/report/l3-advisory/jobs/run-next",
+    "source": "src/clawsentry/gateway/server.py:2914",
+    "group": "L3 Advisory",
+    "audience": "operator|developer",
+    "public_status": "public",
+    "auth": "bearer-disabled-when-empty-token",
+    "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+    "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+    "summary": "运行最旧的 queued L3 advisory job",
+    "request_example": {
+      "session_id": "sess-001",
+      "runner": "deterministic_local",
+      "queue_only": false
+    },
+    "response_example": {
+      "advisory_only": true,
+      "canonical_decision_mutated": false,
+      "snapshot_id": "l3snap-001",
+      "job_id": "l3job-001",
+      "review_id": "l3adv-001",
+      "l3_state": "completed"
+    },
+    "errors": [
+      "400",
+      "401",
+      "404",
+      "429"
+    ],
+    "exclusion_reason": null,
+    "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs~1run-next/post"
+  },
+  {
+    "service": "gateway",
+    "method": "POST",
+    "path": "/report/l3-advisory/jobs/drain",
+    "source": "src/clawsentry/gateway/server.py:2950",
+    "group": "L3 Advisory",
+    "audience": "operator|developer",
+    "public_status": "public",
+    "auth": "bearer-disabled-when-empty-token",
+    "auth_note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
+    "markdown_ref": "api/reporting.md#l3-advisory-endpoints",
+    "summary": "有界运行 queued L3 advisory jobs",
+    "request_example": {
+      "session_id": "sess-001",
+      "runner": "deterministic_local",
+      "queue_only": false
+    },
+    "response_example": {
+      "advisory_only": true,
+      "canonical_decision_mutated": false,
+      "snapshot_id": "l3snap-001",
+      "job_id": "l3job-001",
+      "review_id": "l3adv-001",
+      "l3_state": "completed"
+    },
+    "errors": [
+      "400",
+      "401",
+      "404",
+      "429"
+    ],
+    "exclusion_reason": null,
+    "openapi_ref": "#/paths/~1report~1l3-advisory~1jobs~1drain/post"
+  },
+  {
+    "service": "gateway",
     "method": "POST",
     "path": "/report/l3-advisory/snapshot/{snapshot_id}/jobs",
     "source": "src/clawsentry/gateway/server.py:2883",

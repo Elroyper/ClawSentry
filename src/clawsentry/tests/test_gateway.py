@@ -2722,6 +2722,218 @@ class TestHttpTransport:
             enabled.event_bus.unsubscribe(sub_id)
 
     @pytest.mark.asyncio
+    async def test_l3_heartbeat_aggregate_requires_flags_and_high_risk_delta(self):
+        async def emit_high(gateway: SupervisionGateway, session_id: str, event_id: str):
+            return await gateway.handle_jsonrpc(_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id=f"req-{event_id}",
+                    event={
+                        "event_id": event_id,
+                        "trace_id": f"trace-{event_id}",
+                        "event_type": "pre_action",
+                        "session_id": session_id,
+                        "agent_id": "agent-001",
+                        "source_framework": "test",
+                        "occurred_at": "2026-04-21T00:00:00+00:00",
+                        "payload": {"command": "sudo cat /etc/shadow"},
+                        "tool_name": "bash",
+                    },
+                ),
+            ))
+
+        async def emit_compat(gateway: SupervisionGateway, session_id: str, event_id: str, raw_type: str = "heartbeat"):
+            return await gateway.handle_jsonrpc(_jsonrpc_request(
+                "ahp/sync_decision",
+                _sync_decision_params(
+                    request_id=f"req-{event_id}",
+                    event={
+                        "event_id": event_id,
+                        "trace_id": f"trace-{event_id}",
+                        "event_type": "session",
+                        "event_subtype": f"compat:{raw_type}",
+                        "session_id": session_id,
+                        "agent_id": "agent-001",
+                        "source_framework": "a3s-code",
+                        "occurred_at": "2026-04-21T00:00:01+00:00",
+                        "payload": {
+                            "_clawsentry_meta": {
+                                "ahp_compat": {"raw_event_type": raw_type},
+                            },
+                        },
+                    },
+                ),
+            ))
+
+        disabled = SupervisionGateway(
+            detection_config=DetectionConfig(
+                l3_advisory_async_enabled=False,
+                l3_heartbeat_review_enabled=False,
+            )
+        )
+        await emit_high(disabled, "sess-l3-heartbeat-disabled", "evt-hb-disabled-high")
+        await emit_compat(disabled, "sess-l3-heartbeat-disabled", "evt-hb-disabled-heartbeat")
+        assert disabled.trajectory_store.list_l3_evidence_snapshots(
+            session_id="sess-l3-heartbeat-disabled"
+        ) == []
+
+        heartbeat_disabled = SupervisionGateway(
+            detection_config=DetectionConfig(
+                l3_advisory_async_enabled=True,
+                l3_heartbeat_review_enabled=False,
+            )
+        )
+        await emit_high(heartbeat_disabled, "sess-l3-heartbeat-flag-disabled", "evt-hb-flag-disabled-high")
+        await emit_compat(heartbeat_disabled, "sess-l3-heartbeat-flag-disabled", "evt-hb-flag-disabled-heartbeat")
+        assert [
+            snapshot for snapshot in heartbeat_disabled.trajectory_store.list_l3_evidence_snapshots(
+                session_id="sess-l3-heartbeat-flag-disabled"
+            )
+            if snapshot["trigger_reason"] == "heartbeat_aggregate"
+        ] == []
+
+        enabled = SupervisionGateway(
+            detection_config=DetectionConfig(
+                l3_advisory_async_enabled=True,
+                l3_heartbeat_review_enabled=True,
+            )
+        )
+        sub_id, queue = enabled.event_bus.subscribe(event_types={"l3_advisory_snapshot", "l3_advisory_job"})
+        try:
+            await emit_high(enabled, "sess-l3-heartbeat", "evt-hb-high")
+            assert enabled.trajectory_store.list_l3_evidence_snapshots(session_id="sess-l3-heartbeat") == []
+
+            await emit_compat(enabled, "sess-l3-heartbeat", "evt-hb-heartbeat")
+            snapshots = enabled.trajectory_store.list_l3_evidence_snapshots(session_id="sess-l3-heartbeat")
+            jobs = enabled.trajectory_store.list_l3_advisory_jobs(session_id="sess-l3-heartbeat")
+            assert len(snapshots) == 1
+            assert snapshots[0]["trigger_reason"] == "heartbeat_aggregate"
+            assert snapshots[0]["trigger_detail"] == "heartbeat_delta"
+            assert snapshots[0]["event_range"]["to_record_id"] == 2
+            assert len(jobs) == 1
+            assert jobs[0]["job_state"] == "queued"
+
+            await emit_compat(enabled, "sess-l3-heartbeat", "evt-hb-idle", raw_type="idle")
+            assert len(enabled.trajectory_store.list_l3_evidence_snapshots(session_id="sess-l3-heartbeat")) == 1
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+            assert any(event["type"] == "l3_advisory_snapshot" and event["advisory_only"] is True and event["canonical_decision_mutated"] is False for event in events)
+            assert any(event["type"] == "l3_advisory_job" and event["advisory_only"] is True and event["canonical_decision_mutated"] is False for event in events)
+        finally:
+            enabled.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_jobs_run_next_and_drain_are_queued_only(self, app, gw):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for idx in range(2):
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id=f"req-l3adv-drain-{idx}",
+                        event={
+                            "event_id": f"evt-l3adv-drain-{idx}",
+                            "trace_id": f"trace-l3adv-drain-{idx}",
+                            "event_type": "pre_action",
+                            "session_id": f"sess-l3adv-drain-{idx}",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                snap = (await client.post(
+                    f"/report/session/sess-l3adv-drain-{idx}/l3-advisory/snapshots",
+                    json={
+                        "trigger_event_id": f"evt-l3adv-drain-{idx}",
+                        "trigger_reason": "operator",
+                    },
+                )).json()["snapshot"]
+                await client.post(f"/report/l3-advisory/snapshot/{snap['snapshot_id']}/jobs")
+
+            listed = await client.get("/report/l3-advisory/jobs?state=queued")
+            assert listed.status_code == 200
+            assert [job["job_state"] for job in listed.json()["jobs"]] == ["queued", "queued"]
+
+            dry = await client.post("/report/l3-advisory/jobs/drain", json={"max_jobs": 2, "dry_run": True})
+            assert dry.status_code == 200
+            assert dry.json()["ran_count"] == 0
+            assert [job["job_state"] for job in (await client.get("/report/l3-advisory/jobs?state=queued")).json()["jobs"]] == ["queued", "queued"]
+
+            run_next = await client.post("/report/l3-advisory/jobs/run-next", json={"runner": "deterministic_local"})
+            assert run_next.status_code == 200
+            payload = run_next.json()
+            assert payload["ran_count"] == 1
+            assert payload["canonical_decision_mutated"] is False
+            assert payload["result"]["job"]["job_state"] == "completed"
+            first_job_id = payload["result"]["job"]["job_id"]
+
+            rerun = await client.post(f"/report/l3-advisory/job/{first_job_id}/run-local")
+            assert rerun.status_code == 400
+            assert "cannot be rerun" in rerun.text
+
+            drain = await client.post("/report/l3-advisory/jobs/drain", json={"max_jobs": 2})
+            assert drain.status_code == 200
+            assert drain.json()["ran_count"] == 1
+            assert (await client.post("/report/l3-advisory/jobs/drain", json={"max_jobs": 11})).status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_l3_advisory_action_surfaces_in_report_and_sse(self, app, gw):
+        sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_action"})
+        transport = ASGITransport(app=app)
+        try:
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                await client.post("/ahp", content=_jsonrpc_request(
+                    "ahp/sync_decision",
+                    _sync_decision_params(
+                        request_id="req-l3adv-action",
+                        event={
+                            "event_id": "evt-l3adv-action",
+                            "trace_id": "trace-l3adv-action",
+                            "event_type": "pre_action",
+                            "session_id": "sess-l3adv-action",
+                            "agent_id": "agent-001",
+                            "source_framework": "test",
+                            "occurred_at": "2026-04-21T00:00:00+00:00",
+                            "payload": {"command": "sudo cat /etc/shadow"},
+                            "tool_name": "bash",
+                        },
+                    ),
+                ))
+                response = await client.post(
+                    "/report/session/sess-l3adv-action/l3-advisory/full-review",
+                    json={"run": True},
+                )
+                assert response.status_code == 200
+                action = response.json()["action"]
+                assert action["advisory_only"] is True
+                assert action["canonical_decision_mutated"] is False
+                assert action["snapshot_id"]
+                assert action["job_id"]
+                assert action["review_id"]
+
+                risk = (await client.get("/report/session/sess-l3adv-action/risk")).json()
+                latest_action = risk["l3_advisory"]["latest_action"]
+                assert latest_action["review_id"] == action["review_id"]
+                assert latest_action["canonical_decision_mutated"] is False
+
+            events = []
+            while not queue.empty():
+                events.append(queue.get_nowait())
+            assert any(
+                event["type"] == "l3_advisory_action"
+                and event["advisory_only"] is True
+                and event["canonical_decision_mutated"] is False
+                for event in events
+            )
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
     async def test_l3_advisory_job_endpoint_runs_local_review_explicitly(self, app, gw):
         sub_id, queue = gw.event_bus.subscribe(event_types={"l3_advisory_job", "l3_advisory_review"})
         transport = ASGITransport(app=app)

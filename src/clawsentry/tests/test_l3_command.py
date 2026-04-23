@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 from io import BytesIO
 
-from clawsentry.cli.l3_command import build_full_review_payload, run_l3_full_review
+from clawsentry.cli.l3_command import (
+    build_full_review_payload,
+    run_l3_full_review,
+    run_l3_jobs_drain,
+    run_l3_jobs_list,
+    run_l3_jobs_run_next,
+)
 
 
 def test_build_full_review_payload_defaults_to_single_deterministic_run() -> None:
@@ -121,3 +127,89 @@ def test_run_l3_full_review_renders_summary(monkeypatch, capsys) -> None:
     assert "snapshot: snap-1" in out
     assert "job:      job-1 (queued)" in out
     assert "review:   queued only" in out
+
+
+def test_run_l3_jobs_list_posts_filters_and_renders_json(monkeypatch, capsys) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return None
+
+        def read(self):
+            return b'{"jobs":[{"job_id":"job-1","job_state":"queued","runner":"deterministic_local","snapshot_id":"snap-1"}],"advisory_only":true,"canonical_decision_mutated":false}'
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    code = run_l3_jobs_list(
+        gateway_url="http://127.0.0.1:8080/",
+        token=None,
+        session_id="sess-1",
+        state="queued",
+        runner="deterministic_local",
+        json_mode=True,
+        timeout=3.0,
+    )
+
+    assert code == 0
+    assert captured["url"] == "http://127.0.0.1:8080/report/l3-advisory/jobs?session_id=sess-1&state=queued&runner=deterministic_local"
+    assert json.loads(capsys.readouterr().out)["jobs"][0]["job_id"] == "job-1"
+
+
+def test_run_l3_jobs_run_next_and_drain_post_bounded_payload(monkeypatch, capsys) -> None:
+    captured: list[dict[str, object]] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return None
+
+        def read(self):
+            return b'{"selected_jobs":[],"results":[],"ran_count":0,"dry_run":true,"advisory_only":true,"canonical_decision_mutated":false}'
+
+    def fake_urlopen(request, timeout):
+        captured.append({
+            "url": request.full_url,
+            "body": json.loads(request.data.decode()),
+            "timeout": timeout,
+        })
+        return FakeResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    assert run_l3_jobs_run_next(
+        gateway_url="http://gw",
+        token="tok",
+        runner="deterministic_local",
+        session_id="sess-1",
+        dry_run=True,
+        json_mode=False,
+        timeout=4.0,
+    ) == 0
+    assert run_l3_jobs_drain(
+        gateway_url="http://gw",
+        token=None,
+        runner="fake_llm",
+        session_id=None,
+        max_jobs=2,
+        dry_run=True,
+        json_mode=False,
+        timeout=5.0,
+    ) == 0
+
+    assert captured[0]["url"] == "http://gw/report/l3-advisory/jobs/run-next"
+    assert captured[0]["body"] == {"runner": "deterministic_local", "session_id": "sess-1", "dry_run": True}
+    assert captured[1]["url"] == "http://gw/report/l3-advisory/jobs/drain"
+    assert captured[1]["body"] == {"runner": "fake_llm", "session_id": None, "max_jobs": 2, "dry_run": True}
+    out = capsys.readouterr().out
+    assert "canonical_decision_mutated: False" in out

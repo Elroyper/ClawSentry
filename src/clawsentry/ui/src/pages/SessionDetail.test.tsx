@@ -296,6 +296,25 @@ describe('SessionDetail', () => {
           review_runner: 'deterministic_local',
           worker_backend: 'deterministic_local',
         },
+        latest_action: {
+          type: 'l3_advisory_action',
+          action_id: 'action-risk-1',
+          session_id: 'sess-123',
+          snapshot_id: 'snap-risk-1',
+          job_id: 'job-risk-1',
+          review_id: 'review-risk-1',
+          risk_level: 'high',
+          recommended_operator_action: 'escalate',
+          l3_state: 'completed',
+          source_record_range: {
+            from_record_id: 4,
+            to_record_id: 8,
+          },
+          summary: 'L3 advisory high risk recommends escalate; advisory only, canonical unchanged.',
+          advisory_only: true,
+          canonical_decision_mutated: false,
+          created_at: '2026-04-21T08:00:01Z',
+        },
       },
     }) as never)
 
@@ -308,10 +327,12 @@ describe('SessionDetail', () => {
     expect(within(advisoryCard as HTMLElement).getByText('snap-risk-1')).toBeInTheDocument()
     expect(within(advisoryCard as HTMLElement).getByText('job-risk-1')).toBeInTheDocument()
     expect(within(advisoryCard as HTMLElement).getByText('Completed')).toBeInTheDocument()
-    expect(within(advisoryCard as HTMLElement).getByText('Escalate')).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getAllByText('Escalate').length).toBeGreaterThan(0)
     expect(within(advisoryCard as HTMLElement).getByText('Deterministic local')).toBeInTheDocument()
     expect(within(advisoryCard as HTMLElement).getByText('Records 4–8 · 5 event(s)')).toBeInTheDocument()
     expect(within(advisoryCard as HTMLElement).getByText(/canonical decision unchanged/i)).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText(/L3 advisory action:/i)).toBeInTheDocument()
+    expect(within(advisoryCard as HTMLElement).getByText(/advisory-only \/ canonical unchanged/i)).toBeInTheDocument()
   })
 
   it('switches the initial window and re-fetches the first replay page for the new scope', async () => {
