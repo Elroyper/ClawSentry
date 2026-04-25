@@ -8,6 +8,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from clawsentry.cli.http_utils import urlopen_gateway
+
 
 def build_full_review_payload(
     *,
@@ -73,7 +75,7 @@ def run_l3_full_review(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urlopen_gateway(request, timeout=timeout) as response:
             result = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -105,7 +107,7 @@ def _request_json(
     data = json.dumps(payload or {}).encode("utf-8") if method != "GET" else None
     request = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urlopen_gateway(request, timeout=timeout) as response:
             return 0, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")

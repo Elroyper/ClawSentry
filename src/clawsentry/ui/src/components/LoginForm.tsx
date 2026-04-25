@@ -1,16 +1,30 @@
 import { useState, FormEvent } from 'react'
+import type { AuthFailure } from '../hooks/useAuth'
 
 interface LoginFormProps {
-  onLogin: (token: string) => void
+  onLogin: (token: string) => void | Promise<boolean>
+  authFailure?: AuthFailure
+  checking?: boolean
 }
 
-export default function LoginForm({ onLogin }: LoginFormProps) {
+function failureMessage(authFailure: AuthFailure): string | null {
+  if (authFailure === 'invalid_token') {
+    return 'Token was rejected (401). Paste the exact CS_AUTH_TOKEN value printed by clawsentry start or stored in .env.clawsentry.'
+  }
+  if (authFailure === 'gateway_unavailable') {
+    return 'Gateway is unavailable. This is not a bad token; start the Gateway or check host/port/proxy settings, then retry.'
+  }
+  return null
+}
+
+export default function LoginForm({ onLogin, authFailure = null, checking = false }: LoginFormProps) {
   const [token, setToken] = useState('')
+  const message = failureMessage(authFailure)
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (token.trim()) {
-      onLogin(token.trim())
+    if (token.trim() && !checking) {
+      void onLogin(token.trim())
     }
   }
 
@@ -20,6 +34,15 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         <p className="eyebrow">Secure access</p>
         <h2>CLAWSENTRY</h2>
         <div className="subtitle">Enter your AHP auth token to connect</div>
+        <p className="login-help">
+          Use the token printed by clawsentry start in the Web UI URL, or the
+          <code> CS_AUTH_TOKEN</code> value in your local <code>.env.clawsentry</code>.
+        </p>
+        {message && (
+          <div className="login-alert" role="alert">
+            {message}
+          </div>
+        )}
         <form className="login-form" onSubmit={handleSubmit}>
           <label className="login-label" htmlFor="auth-token">
             Auth token
@@ -36,8 +59,9 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
           <button
             type="submit"
             className="btn btn-primary login-button"
+            disabled={checking}
           >
-            Connect
+            {checking ? 'Checking…' : 'Connect'}
           </button>
         </form>
       </div>

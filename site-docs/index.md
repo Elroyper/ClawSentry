@@ -60,10 +60,10 @@ hide:
 
 ## :shield: ClawSentry
 
-**AI Agent 会执行危险命令。ClawSentry 在可拦截框架中前置阻断，在 Codex 中默认监控、可选启用已验证的 Bash preflight 阻断。**
+**AI Agent 会执行危险命令。ClawSentry 在可拦截框架中前置阻断，在 Codex 中默认监控、可选启用 Bash preflight / approval gate 防护；Gemini CLI 通过 native hooks 接入，真实 prompt/model/tool deny 已验证。**
 { .tagline }
 
-面向 Claude Code、a3s-code、OpenClaw、Codex 的实时安全监督网关。<br>
+面向 Claude Code、a3s-code、OpenClaw、Codex、Gemini CLI 的实时安全监督网关。<br>
 三层递进决策（规则 → 语义 → Agent 审查），毫秒级响应，按框架能力选择拦截或监控模式。
 { .tagline }
 
@@ -80,7 +80,7 @@ hide:
 
 <div class="card" markdown>
 ### :shield: 拦截优先，监控兜底
-Claude Code、a3s-code 和 OpenClaw 可在高危操作前阻断；Codex 默认通过 session 日志监控，并可显式安装 managed native hooks 对 `PreToolUse(Bash)` 做同步 preflight。
+Claude Code、a3s-code 和 OpenClaw 可在高危操作前阻断；Codex 默认通过 session 日志监控，并可显式安装 managed native hooks 对 `PreToolUse(Bash)` / `PermissionRequest(Bash)` 做同步防护。Gemini CLI 的 `SessionStart` / `BeforeAgent` / `BeforeModel` managed hook 已用真实 CLI + 临时 HOME 验证，真实 provider `BeforeTool` deny 也已通过 Gemini relay + `gemini-2.5-flash` 验证。
 </div>
 
 <div class="card" markdown>
@@ -140,10 +140,21 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 
 - 自动监控 session 日志目录
 - `clawsentry init codex --setup` 非破坏式安装 managed native hooks
-- 已验证同步 host-deny 范围：`PreToolUse(Bash)`；其他 native events 仍为异步观察
+- 同步 host-deny / approval gate 范围：`PreToolUse(Bash)`、`PermissionRequest(Bash)`；其他 native events 默认仍为异步观察
 - 建议继续配合 `--approval-policy untrusted`
 
 [:octicons-arrow-right-24: Codex 快速开始](getting-started/quickstart.md)
+</div>
+
+<div class="card framework-card" markdown>
+### :material-creation: Gemini CLI
+通过 Gemini CLI native command hooks 接入，**真实 CLI + 真实 `BeforeTool` deny 已验证**。
+
+- `clawsentry init gemini-cli --setup` 默认只写项目 `.gemini/settings.json`
+- 同步 hook 覆盖 prompt/model/tool 入口；`BeforeTool` 真实 deny smoke 已通过
+- 不宣称 Kimi/OpenAI-compatible endpoint 可直接用于 Gemini CLI
+
+[:octicons-arrow-right-24: Gemini CLI 集成指南](integration/gemini-cli.md)
 </div>
 
 </div>
@@ -173,7 +184,7 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 
 <div class="card" markdown>
 ### :link: 统一多种 AI 框架
-**a3s-code** + **Claude Code** + **Codex** + **OpenClaw**
+**a3s-code** + **Claude Code** + **Codex** + **Gemini CLI** + **OpenClaw**
 
 统一 AHP 协议归一化所有框架事件。
 </div>
@@ -311,6 +322,23 @@ flowchart LR
 
         详见 [Codex CLI 集成指南](integration/codex.md)
 
+    === "Gemini CLI"
+
+        通过 **Gemini native command hooks** 接入；默认写项目级 `.gemini/settings.json`。
+
+        ```bash
+        clawsentry init gemini-cli
+        clawsentry init gemini-cli --setup --dry-run
+        clawsentry init gemini-cli --setup
+        source .env.clawsentry
+        clawsentry gateway
+        gemini --prompt "say hello"
+        ```
+
+        当前真实 smoke 已证明 `SessionStart`、`BeforeAgent`、`BeforeModel` hook 会执行，并已通过 Gemini relay + `gemini-2.5-flash` 证明真实 `BeforeTool` deny；`run_shell_command` 会规范化为 policy tool `bash`。
+
+        详见 [Gemini CLI 集成指南](integration/gemini-cli.md)
+
     === "OpenClaw"
 
         通过 **WebSocket 实时监听** + **Webhook 接收** + **审批执行器** 接入。
@@ -353,7 +381,7 @@ Gateway 在 `/ui` 路径自动挂载静态文件，无需额外配置。
 
 | 指标 | 数据 |
 |:---:|:---:|
-| 测试用例 | **3050+**（发布时以 CI/验证报告为准） |
+| 测试用例 | **3126 passed / 4 skipped**（发布时以 CI/验证报告为准） |
 | 测试耗时 | 随可选依赖与 smoke 范围变化 |
 | 协议版本 | `sync_decision.1.0` |
 | Python 版本 | >= 3.11 |

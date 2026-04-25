@@ -12,6 +12,8 @@ import urllib.parse
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from clawsentry.cli.http_utils import urlopen_gateway
+
 # ── ANSI colour helpers ──────────────────────────────────────────────────────
 
 _COLORS: dict[str, str] = {
@@ -1404,7 +1406,7 @@ async def _resolve_defer_approval(
     )
 
     def _send_request() -> bool:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urlopen_gateway(request, timeout=10) as response:
             body = response.read().decode("utf-8")
         if not body:
             return True
@@ -1449,7 +1451,7 @@ def _prefetch_sessions(
     sessions_url = f"{gateway_url.rstrip('/')}/report/sessions"
     try:
         req = urllib.request.Request(sessions_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urlopen_gateway(req, timeout=3) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         for s in data.get("sessions", []):
             sid = s.get("session_id")
@@ -1528,7 +1530,7 @@ def run_watch(
     while True:
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req) as resp:
+            with urlopen_gateway(req) as resp:
                 if not json_mode:
                     print(
                         _c("bold", f"Connected to {gateway_url}", color=color),

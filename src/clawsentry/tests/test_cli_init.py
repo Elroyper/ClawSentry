@@ -266,7 +266,7 @@ class TestRegistry:
 
     def test_registry_list(self):
         names = sorted(FRAMEWORK_INITIALIZERS.keys())
-        assert names == ["a3s-code", "claude-code", "codex", "openclaw"]
+        assert names == ["a3s-code", "claude-code", "codex", "gemini-cli", "openclaw"]
 
 
 from clawsentry.cli.init_command import run_init, run_uninstall
@@ -378,6 +378,20 @@ class TestRunInit:
         env = _read_env_file(tmp_path / ".env.clawsentry")
         assert env["CS_ENABLED_FRAMEWORKS"] == "a3s-code"
         assert "CS_CODEX_WATCH_ENABLED" not in env
+
+    def test_run_uninstall_removes_gemini_without_touching_codex(self, tmp_path):
+        assert run_init(framework="codex", target_dir=tmp_path, force=False) == 0
+        assert run_init(framework="gemini-cli", target_dir=tmp_path, force=False) == 0
+
+        exit_code = run_uninstall(framework="gemini-cli", target_dir=tmp_path)
+
+        env = _read_env_file(tmp_path / ".env.clawsentry")
+        assert exit_code == 0
+        assert env["CS_ENABLED_FRAMEWORKS"] == "codex"
+        assert env["CS_FRAMEWORK"] == "codex"
+        assert env["CS_CODEX_WATCH_ENABLED"] == "true"
+        assert "CS_GEMINI_HOOKS_ENABLED" not in env
+        assert "CS_GEMINI_SETTINGS_PATH" not in env
 
 
 class TestInitOutputImprovement:

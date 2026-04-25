@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from clawsentry.cli.initializers.codex import CodexInitializer
 
@@ -18,7 +15,7 @@ class TestCodexInitializer:
 
     def test_generate_config_creates_env_file(self, tmp_path):
         init = CodexInitializer()
-        result = init.generate_config(tmp_path)
+        init.generate_config(tmp_path)
         env_path = tmp_path / ".env.clawsentry"
         assert env_path.exists()
         content = env_path.read_text()
@@ -199,6 +196,7 @@ class TestCodexNativeHooks:
         assert "js_repl = true" in config_text
         assert any("echo user-pretool" in str(entry) for entry in pretool_entries)
         assert any("clawsentry harness --framework codex" in str(entry) for entry in pretool_entries)
+        assert "PermissionRequest" in hooks_payload["hooks"]
         assert "UserPromptSubmit" in hooks_payload["hooks"]
         assert "PostToolUse" in hooks_payload["hooks"]
         assert "Stop" in hooks_payload["hooks"]
@@ -229,6 +227,9 @@ class TestCodexNativeHooks:
         hooks_payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
         pretool_command = hooks_payload["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         assert pretool_command == "clawsentry harness --framework codex"
+
+        permission_command = hooks_payload["hooks"]["PermissionRequest"][0]["hooks"][0]["command"]
+        assert permission_command == "clawsentry harness --framework codex"
 
         for event_name in ("SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"):
             command = hooks_payload["hooks"][event_name][0]["hooks"][0]["command"]

@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+## [0.5.6] — 2026-04-25
+
+### 新增
+
+- **Gemini CLI native hook support** — 新增 `GeminiAdapter`、Gemini hook decision translator、`clawsentry harness --framework gemini-cli`、`clawsentry init gemini-cli --setup/--uninstall`、status/doctor readiness 输出与在线集成文档。默认写项目级 `.gemini/settings.json`，不会修改真实用户 `~/.gemini`。
+- **Gemini real BeforeTool deny 支持** — 真实 Gemini CLI 的 `run_shell_command` 会规范化为 policy-facing `bash`，同时保留 raw Gemini tool identity；真实 provider smoke 已证明 `rm -rf` 类危险命令在 `BeforeTool` 阶段被 deny。
+- **Codex bounded native defense 扩展** — managed Codex hooks 现在新增同步 `PermissionRequest(Bash)` approval gate，并保留 `PreToolUse(Bash)` 同步 preflight；harness 补齐 Codex `PermissionRequest` allow/deny、`PostToolUse` containment、`UserPromptSubmit` block 与 `Stop` continuation 响应翻译。默认仍不改写当前开发会话 hooks，真实 Codex hook 实验必须使用临时 `CODEX_HOME` / 临时工作目录隔离执行。
+
+### 文档与交接
+
+- **Gemini CLI 在线文档与兼容矩阵** — 新增 Gemini CLI 集成指南，更新首页、公开 README、包内 README、framework compatibility 与 doctor/status 文案，统一标记 `real_beforetool_block_supported`。
+- **API handoff artifacts 可追踪化补齐** — 强化 `site-docs/api/*` 的 coverage/validity/openapi 与 overview/reference 导航，降低交接时 API 证据定位成本。
+- **AHP/L3 文档路径澄清** — 更新 `site-docs/api/decisions.md` 与 `site-docs/decision-layers/l3-advisory.md`，让操作员能更快定位 full-review、advisory-only 与边界语义。
+- **企业 OS DEFER 弹窗交接资产** — 新增并保留企业 OS DEFER 弹窗交接材料，用于下游系统接入人工审批弹窗最小信息合同。
+
+### 测试与验证
+
+- Python full regression：`3126 passed, 4 skipped`。
+- `mkdocs build --strict`：PASS。
+- Gemini CLI 真实 provider smoke：`gemini-2.5-flash` + Gemini relay 证明真实 `BeforeTool` deny；Kimi/OpenAI-compatible endpoint 不宣称为 Gemini CLI 直连支持。
+- **UI 浏览器验证 fixture 补齐企业 DEFER 场景样本** — `build_runtime_replay_events` 新增 openclaw `defer_pending` rollout 命令样本，并补充契约测试，确保弹窗接入所需关键字段持续可用。
+
 ## [0.5.5] — 2026-04-23
 
 ### 新增
@@ -970,6 +992,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.6
 [0.5.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.5
 [0.5.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.4
 [0.5.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.3

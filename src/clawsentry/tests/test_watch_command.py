@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+import urllib.request
 from unittest.mock import AsyncMock
 
 import pytest
@@ -19,6 +20,20 @@ from clawsentry.cli.watch_command import (
     handle_defer_interactive,
     parse_sse_line,
 )
+
+
+class _JsonResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self._payload = payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return None
+
+    def read(self):
+        return json.dumps(self._payload).encode()
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +80,138 @@ class TestBuildStreamUrl:
         decoded = parsed.replace("%2C", ",")
         assert "custom_event" in decoded
         assert decoded.count("decision") == 1
+
+
+class TestLoopbackProxyBypass:
+    def _patch_loopback_opener(self, monkeypatch: pytest.MonkeyPatch, response) -> list[dict[str, str]]:
+        proxy_maps: list[dict[str, str]] = []
+
+        class FakeOpener:
+            def open(self, request, timeout=None):
+                return response(request, timeout) if callable(response) else response
+
+        def fake_build_opener(*handlers):
+            assert len(handlers) == 1
+            assert isinstance(handlers[0], urllib.request.ProxyHandler)
+            proxy_maps.append(dict(handlers[0].proxies))
+            return FakeOpener()
+
+        monkeypatch.setenv("HTTP_PROXY", "http://proxy.invalid:3128")
+        monkeypatch.setenv("HTTPS_PROXY", "http://proxy.invalid:3128")
+        monkeypatch.setenv("ALL_PROXY", "http://proxy.invalid:3128")
+        monkeypatch.setattr(watch_command.urllib.request, "build_opener", fake_build_opener)
+        monkeypatch.setattr(
+            watch_command.urllib.request,
+            "urlopen",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("loopback gateway calls must not use default urlopen")
+            ),
+        )
+        return proxy_maps
+
+    @pytest.mark.asyncio
+    async def test_interactive_defer_resolve_bypasses_proxy_for_loopback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        opened: list[tuple[str, float | None]] = []
+
+        def response(request, timeout=None):
+            opened.append((request.full_url, timeout))
+            return _JsonResponse({"status": "ok"})
+
+        proxy_maps = self._patch_loopback_opener(monkeypatch, response)
+
+        assert await watch_command._resolve_defer_approval(
+            "http://127.0.0.1:8080",
+            "approval-1",
+            "allow-once",
+            token="token-123",
+        ) is True
+
+        assert proxy_maps == [{}]
+        assert opened == [("http://127.0.0.1:8080/ahp/resolve", 10)]
+
+    def test_session_prefetch_bypasses_proxy_for_localhost(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        opened: list[tuple[str, float | None]] = []
+
+        def response(request, timeout=None):
+            opened.append((request.full_url, timeout))
+            return _JsonResponse(
+                {
+                    "sessions": [
+                        {
+                            "session_id": "sess-1",
+                            "agent_id": "agent-1",
+                            "source_framework": "codex",
+                            "first_event_at": "2026-04-10T12:00:00Z",
+                        }
+                    ]
+                }
+            )
+
+        proxy_maps = self._patch_loopback_opener(monkeypatch, response)
+        tracker = SessionTracker()
+
+        watch_command._prefetch_sessions(tracker, "http://localhost:8080", {})
+
+        assert proxy_maps == [{}]
+        assert opened == [("http://localhost:8080/report/sessions", 3)]
+        assert tracker.session_info["sess-1"]["framework"] == "codex"
+
+    def test_watch_sse_stream_bypasses_proxy_for_ipv6_loopback(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        responses = iter([
+            _FakeSSEStream([b'data: {"type": "decision", "decision": "allow"}\n']),
+            KeyboardInterrupt(),
+        ])
+        opened: list[str] = []
+
+        def response(request, timeout=None):
+            opened.append(request.full_url)
+            item = next(responses)
+            if isinstance(item, BaseException):
+                raise item
+            return item
+
+        proxy_maps = self._patch_loopback_opener(monkeypatch, response)
+        monkeypatch.setattr(watch_command, "_prefetch_sessions", lambda *_args, **_kwargs: None)
+
+        watch_command.run_watch("http://[::1]:8080", color=False)
+
+        assert proxy_maps == [{}, {}]
+        assert opened == [
+            "http://[::1]:8080/report/stream",
+            "http://[::1]:8080/report/stream",
+        ]
+
+    def test_non_loopback_watch_requests_keep_default_proxy_behavior(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        opened: list[str] = []
+
+        def fake_urlopen(request, timeout=None):
+            opened.append(request.full_url)
+            return _JsonResponse({"sessions": []})
+
+        monkeypatch.setattr(
+            watch_command.urllib.request,
+            "build_opener",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("non-loopback gateway calls must keep urllib default opener")
+            ),
+        )
+        monkeypatch.setattr(watch_command.urllib.request, "urlopen", fake_urlopen)
+
+        watch_command._prefetch_sessions(SessionTracker(), "http://gateway.example:8080", {})
+
+        assert opened == ["http://gateway.example:8080/report/sessions"]
 
 
 # ---------------------------------------------------------------------------

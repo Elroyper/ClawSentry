@@ -69,6 +69,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Custom Codex config directory (default: $CODEX_HOME or ~/.codex/).",
     )
     init_parser.add_argument(
+        "--gemini-home",
+        type=Path,
+        default=None,
+        help=(
+            "Custom Gemini CLI config directory. By default --setup writes "
+            "project-local .gemini/settings.json under --dir."
+        ),
+    )
+    init_parser.add_argument(
         "--uninstall",
         action="store_true",
         default=False,
@@ -594,6 +603,7 @@ def main(argv: list[str] | None = None) -> None:
                 framework=args.framework,
                 target_dir=args.dir,
                 codex_home=getattr(args, "codex_home", None),
+                gemini_home=getattr(args, "gemini_home", None),
             )
             sys.exit(code)
 
@@ -608,6 +618,7 @@ def main(argv: list[str] | None = None) -> None:
             dry_run=getattr(args, "dry_run", False),
             openclaw_home=getattr(args, "openclaw_home", None),
             codex_home=getattr(args, "codex_home", None),
+            gemini_home=getattr(args, "gemini_home", None),
         )
         sys.exit(code)
 
@@ -867,7 +878,7 @@ def main(argv: list[str] | None = None) -> None:
             if framework is None:
                 print(
                     "Could not auto-detect framework.\n"
-                    "Use: clawsentry start --framework <a3s-code|claude-code|codex|openclaw>",
+                    "Use: clawsentry start --framework <a3s-code|claude-code|codex|gemini-cli|openclaw>",
                     file=sys.stderr,
                 )
                 sys.exit(1)

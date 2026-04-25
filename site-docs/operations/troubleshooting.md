@@ -135,6 +135,8 @@ description: ClawSentry 常见问题诊断与解决方案
     4. **Web 仪表板登录失败**：
        - 清除浏览器的 `sessionStorage`
        - 确认在登录表单中输入的是完整的 Token 值
+       - 如果页面提示 `Gateway unavailable`，先检查 Gateway 是否启动、端口是否正确以及本机代理是否拦截；这不是 bad token
+       - 代理环境下为本机 Gateway 设置：`export NO_PROXY=localhost,127.0.0.1,::1`
 
 ??? question "SSE 连接认证失败"
 

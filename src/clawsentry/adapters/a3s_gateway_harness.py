@@ -8,6 +8,7 @@ import copy
 import json
 import logging
 import os
+import re as _re
 import sys
 from datetime import datetime
 from typing import Any, Callable, Optional
@@ -15,6 +16,7 @@ from typing import Any, Callable, Optional
 try:
     from .a3s_adapter import A3SCodeAdapter
     from .codex_adapter import CodexAdapter
+    from .gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output
     from ..gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict
     from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
@@ -27,6 +29,7 @@ except ImportError:
         sys.path.insert(0, _SRC_ROOT)
     from clawsentry.adapters.a3s_adapter import A3SCodeAdapter  # type: ignore[no-redef]
     from clawsentry.adapters.codex_adapter import CodexAdapter  # type: ignore[no-redef]
+    from clawsentry.adapters.gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output  # type: ignore[no-redef]
     from clawsentry.gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
     from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
 
@@ -92,8 +95,6 @@ _OBSERVABILITY_COMPAT_EVENT_TYPES = frozenset({
 })
 _COMPAT_INTERVAL_LIMITED_EVENT_TYPES = frozenset({"idle", "heartbeat"})
 
-
-import re as _re
 
 _CAMEL_RE1 = _re.compile(r"(?<=[a-z0-9])([A-Z])")
 _CAMEL_RE2 = _re.compile(r"(?<=[A-Z])([A-Z][a-z])")
@@ -736,6 +737,54 @@ class A3SGatewayHarness:
         )
         return result
 
+    async def _handle_gemini_native_hook(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Normalize a Gemini CLI native hook then use the Gateway transport."""
+        evt = GeminiAdapter(
+            source_framework=self.adapter.source_framework
+        ).normalize_native_hook_event(
+            msg,
+            agent_id=_resolve_string(
+                msg.get("agent_id"),
+                msg.get("agentId"),
+                self.default_agent_id,
+            ),
+        )
+        if evt is None:
+            return {
+                "action": "continue",
+                "decision": "allow",
+                "reason": "Event filtered: gemini native hook",
+                "metadata": {"source": "clawsentry-gateway-harness"},
+            }
+
+        if project_meta and evt.payload is not None:
+            _merge_clawsentry_meta(evt.payload, project_meta)
+
+        decision = await self.adapter.request_decision(evt)
+        result = _decision_to_ahp_result(decision)
+        event_name = str(msg.get("hook_event_name", ""))
+        can_enforce = event_name in {
+            "BeforeAgent",
+            "AfterAgent",
+            "BeforeModel",
+            "AfterModel",
+            "BeforeTool",
+            "AfterTool",
+        }
+        _record_inprocess_adapter_effect_result(
+            self.adapter,
+            evt,
+            result,
+            enforced=can_enforce,
+            degraded_reason=None if can_enforce else "gemini_hook_effect_is_advisory_or_partial",
+        )
+        return result
+
     async def dispatch_async(self, msg: dict[str, Any]) -> Optional[dict[str, Any]]:
         req_id = msg.get("id")
         method = msg.get("method")
@@ -783,6 +832,9 @@ class A3SGatewayHarness:
         params = self._convert_native_hook(msg)
         native_framework = str(getattr(self.adapter, "source_framework", "") or "").lower()
         is_codex_native_hook = native_framework == "codex" and "hook_event_name" in msg
+        is_gemini_native_hook = (
+            native_framework == "gemini-cli" and "hook_event_name" in msg
+        )
         is_claude_code_hook = (
             native_framework == "claude-code" and "hook_event_name" in msg
         )
@@ -794,7 +846,7 @@ class A3SGatewayHarness:
             project_cfg = _get_project_config(cwd)
             if not project_cfg.enabled:
                 _diag(f"project disabled via .clawsentry.toml at {cwd}")
-                if is_claude_code_hook or is_codex_native_hook:
+                if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
                     return None  # exit 0 = allow
                 return {"result": {"action": "continue", "reason": "project monitoring disabled"}}
             # Attach preset info for Gateway to use
@@ -812,9 +864,13 @@ class A3SGatewayHarness:
                 asyncio.ensure_future(
                     self._async_dispatch_codex_native(msg, project_meta=project_meta)
                 )
+            elif is_gemini_native_hook:
+                asyncio.ensure_future(
+                    self._async_dispatch_gemini_native(msg, project_meta=project_meta)
+                )
             else:
                 asyncio.ensure_future(self._async_dispatch(params))
-            if is_claude_code_hook or is_codex_native_hook:
+            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
                 return None  # host native hook: empty stdout + exit 0 = allow
             return {"result": {"action": "continue", "reason": "async: event dispatched"}}
         try:
@@ -823,38 +879,76 @@ class A3SGatewayHarness:
                     msg,
                     project_meta=project_meta,
                 )
+            elif is_gemini_native_hook:
+                result = await self._handle_gemini_native_hook(
+                    msg,
+                    project_meta=project_meta,
+                )
             else:
                 result = await self._handle_event(params)
         except Exception:  # noqa: BLE001
             logger.exception("Failed handling native hook event")
-            if is_claude_code_hook or is_codex_native_hook:
+            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
                 return None  # allow on error (fail-open for hooks)
             return {"result": {"action": "continue", "reason": "harness internal error"}}
 
         if is_codex_native_hook:
-            return self._to_codex_hook_response(result, msg.get("hook_event_name", ""))
+            return self._to_codex_hook_response(
+                result,
+                msg.get("hook_event_name", ""),
+                msg,
+            )
+        if is_gemini_native_hook:
+            return decision_to_gemini_hook_output(
+                result,
+                str(msg.get("hook_event_name", "")),
+                msg,
+            )
         if is_claude_code_hook:
             return self._to_claude_code_response(result, msg.get("hook_event_name", ""))
         return {"result": result}
 
     def _to_codex_hook_response(
-        self, result: dict[str, Any], hook_event_name: str,
+        self,
+        result: dict[str, Any],
+        hook_event_name: str,
+        raw_msg: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Convert internal decision to Codex native hook response format.
 
-        The verified Codex CLI 0.121 PreToolUse blocking contract accepts
-        hookSpecificOutput.permissionDecision="deny". Other Codex native
-        hooks remain observation/advisory and never host-block.
+        Codex native hooks have event-specific response contracts:
+        PreToolUse uses ``permissionDecision=deny``; PermissionRequest uses
+        ``decision.behavior``; PostToolUse can replace/contain a completed
+        tool result with ``continue: false``; UserPromptSubmit and Stop accept
+        the legacy ``decision: block`` shape.  Stop is guarded against an
+        already-active continuation to avoid infinite continuation loops.
         """
-        if hook_event_name != "PreToolUse":
-            return None
-
         action = result.get("action", "continue")
+        metadata = result.get("metadata", {})
+        policy_id = metadata.get("policy_id", "")
+        risk_level = metadata.get("risk_level", "unknown")
+        reason = result.get("reason", "Blocked by ClawSentry security policy")
+        message = f"[ClawSentry] {reason} (risk: {risk_level})"
+
+        if hook_event_name == "PermissionRequest" and action in ("continue", "allow"):
+            if policy_id.startswith("fallback-"):
+                _log_stderr(
+                    "Gateway unreachable — fail-open for Codex PermissionRequest "
+                    f"(would have been: {action})"
+                )
+                return None
+            if risk_level != "low":
+                return None
+            return {
+                "hookSpecificOutput": {
+                    "hookEventName": hook_event_name,
+                    "decision": {"behavior": "allow"},
+                },
+            }
+
         if action in ("continue", "allow"):
             return None
 
-        metadata = result.get("metadata", {})
-        policy_id = metadata.get("policy_id", "")
         if policy_id.startswith("fallback-"):
             _log_stderr(
                 f"Gateway unreachable — fail-open for Codex {hook_event_name} "
@@ -862,18 +956,50 @@ class A3SGatewayHarness:
             )
             return None
 
-        if action in ("block", "defer"):
-            reason = result.get("reason", "Blocked by ClawSentry security policy")
-            risk_level = metadata.get("risk_level", "unknown")
+        if hook_event_name == "PermissionRequest" and action in ("block", "defer"):
             return {
                 "hookSpecificOutput": {
                     "hookEventName": hook_event_name,
-                    "permissionDecision": "deny",
-                    "permissionDecisionReason": (
-                        f"[ClawSentry] {reason} (risk: {risk_level})"
-                    ),
+                    "decision": {
+                        "behavior": "deny",
+                        "message": message,
+                    },
                 },
             }
+
+        if action in ("block", "defer"):
+            if hook_event_name == "PreToolUse":
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": hook_event_name,
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": message,
+                    },
+                }
+            if hook_event_name == "PostToolUse":
+                return {
+                    "continue": False,
+                    "stopReason": message,
+                    "hookSpecificOutput": {
+                        "hookEventName": hook_event_name,
+                        "additionalContext": message,
+                    },
+                }
+            if hook_event_name == "UserPromptSubmit":
+                return {
+                    "decision": "block",
+                    "reason": message,
+                }
+            if hook_event_name == "Stop":
+                if raw_msg and raw_msg.get("stop_hook_active") is True:
+                    _log_stderr(
+                        "Codex Stop hook already active — fail-open to avoid continuation loop"
+                    )
+                    return None
+                return {
+                    "decision": "block",
+                    "reason": message,
+                }
 
         return None
 
@@ -943,8 +1069,34 @@ class A3SGatewayHarness:
         except Exception:  # noqa: BLE001
             logger.debug("Codex async dispatch failed (non-blocking)", exc_info=True)
 
+    async def _async_dispatch_gemini_native(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> None:
+        """Background dispatch for Gemini native hooks. Errors are non-blocking."""
+        try:
+            await self._handle_gemini_native_hook(msg, project_meta=project_meta)
+        except Exception:  # noqa: BLE001
+            logger.debug("Gemini async dispatch failed (non-blocking)", exc_info=True)
+
+    def _suppress_native_stderr(self) -> bool:
+        """Return whether hook stderr must stay empty for the host protocol."""
+        return (
+            str(getattr(self.adapter, "source_framework", "") or "").lower()
+            == "gemini-cli"
+        )
+
+    def _log_hook_stderr(self, msg: str) -> None:
+        """Emit stderr diagnostics unless the host treats stderr as hook output."""
+        if self._suppress_native_stderr():
+            _diag(f"stderr-suppressed: {msg}")
+            return
+        _log_stderr(msg)
+
     def run_stdio(self) -> None:
-        _log_stderr("harness started")
+        self._log_hook_stderr("harness started")
         _diag(f"harness started (async={self.async_mode}, uds={self.adapter.uds_path})")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -956,7 +1108,7 @@ class A3SGatewayHarness:
                 try:
                     msg = json.loads(line)
                 except json.JSONDecodeError as exc:
-                    _log_stderr(f"invalid json: {exc}")
+                    self._log_hook_stderr(f"invalid json: {exc}")
                     _diag(f"invalid json: {exc}")
                     continue
 
@@ -965,7 +1117,7 @@ class A3SGatewayHarness:
                     response = loop.run_until_complete(self.dispatch_async(msg))
                 except Exception as exc:
                     _diag(f"dispatch error: {exc}")
-                    _log_stderr(f"dispatch error: {exc}")
+                    self._log_hook_stderr(f"dispatch error: {exc}")
                     continue
                 _diag(f"response: {json.dumps(response, ensure_ascii=False) if response else 'None (allow)'}")
                 if response is not None:

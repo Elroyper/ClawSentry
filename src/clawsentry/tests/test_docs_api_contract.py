@@ -10,6 +10,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 COVERAGE_FILE = REPO_ROOT / "site-docs" / "api" / "api-coverage.json"
 OPENAPI_FILE = REPO_ROOT / "site-docs" / "api" / "openapi.json"
+VALIDITY_JSON_FILE = REPO_ROOT / "site-docs" / "api" / "api-validity.json"
+VALIDITY_REPORT_PAGE = REPO_ROOT / "site-docs" / "api" / "validity-report.md"
 REFERENCE_PAGE = REPO_ROOT / "site-docs" / "api" / "reference.md"
 INVENTORY_SCRIPT = REPO_ROOT / "scripts" / "docs_api_inventory.py"
 
@@ -27,6 +29,71 @@ def test_docs_api_inventory_script_validates_generated_artifacts() -> None:
         check=True,
     )
     assert "valid" in result.stdout
+
+
+def test_api_validity_report_command_generates_traceable_outputs(tmp_path: Path) -> None:
+    output_dir = tmp_path / "reports"
+    docs_output = tmp_path / "api"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(INVENTORY_SCRIPT),
+            "report",
+            "--output-dir",
+            str(output_dir),
+            "--docs-output",
+            str(docs_output),
+            "--timestamp",
+            "pytest",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "API validity report is valid" in result.stdout
+
+    json_report = output_dir / "clawsentry-api-validity-pytest.json"
+    md_report = output_dir / "clawsentry-api-validity-pytest.md"
+    docs_json = docs_output / "api-validity.json"
+    docs_md = docs_output / "validity-report.md"
+    for path in [json_report, md_report, docs_json, docs_md]:
+        assert path.exists(), path
+
+    report = json.loads(docs_json.read_text(encoding="utf-8"))
+    assert report["schema_version"] == "clawsentry-api-validity.v1"
+    assert report["summary"]["valid"] is True
+    assert report["summary"]["total_coverage_entries"] == 47
+    assert report["summary"]["openapi_operations"] == 44
+    assert report["summary"]["docs_endpoint_mentions_unmatched"] == 0
+    assert report["docs_reverse_validation"]["rules"]
+    assert not report["validation_errors"]
+
+    for endpoint in report["endpoints"]:
+        assert endpoint["source_line_valid"], endpoint
+        assert endpoint["source_route_present"], endpoint
+        assert endpoint["markdown_anchor_present"], endpoint
+        assert endpoint["runtime_check_result"] in {"contract-verified", "excluded-from-reference"}
+    assert any(
+        mention["rule"] == "group-alias:/report/*"
+        for mention in report["docs_reverse_validation"]["matched"]
+    )
+    assert any(
+        mention["rule"] == "endpoint-alias"
+        for mention in report["docs_reverse_validation"]["matched"]
+    )
+
+
+def test_deployable_api_validity_report_is_current_and_traceable() -> None:
+    assert VALIDITY_JSON_FILE.exists()
+    assert VALIDITY_REPORT_PAGE.exists()
+    report = json.loads(VALIDITY_JSON_FILE.read_text(encoding="utf-8"))
+    assert report["summary"]["valid"] is True
+    assert report["source_artifacts"]["coverage"] == "site-docs/api/api-coverage.json"
+    assert report["summary"]["status_counts"] == {"enterprise": 9, "excluded": 3, "public": 35}
+    report_page = VALIDITY_REPORT_PAGE.read_text(encoding="utf-8")
+    assert "API 有效性报告" in report_page
+    assert "src/clawsentry/gateway/server.py:" in report_page
 
 
 def test_api_coverage_matrix_has_semantic_fields_and_unique_routes() -> None:
@@ -177,10 +244,14 @@ def test_api_reference_page_is_in_nav_and_has_raw_openapi_fallback() -> None:
     mkdocs_text = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")
 
     assert "api/reference.md" in mkdocs_text
+    assert "api/validity-report.md" in mkdocs_text
     assert "交互式 API Reference" in mkdocs_text
+    assert "API 有效性报告" in mkdocs_text
     assert "openapi.json" in reference_text
     assert "Scalar" in reference_text or "scalar" in reference_text
     assert "原始 OpenAPI JSON" in reference_text
+    assert "api-validity.json" in reference_text
+    assert "validity-report.md" in reference_text
     assert 'href="../openapi.json"' in reference_text
     assert "🧭" not in reference_text
     if "cdn.jsdelivr" in reference_text or "unpkg.com" in reference_text:

@@ -82,6 +82,20 @@ class TestCLIParsing:
         assert (codex_home / "hooks.json").exists()
         assert "Codex native hooks updated" in proc.stdout
 
+    def test_init_gemini_cli_setup_writes_project_local_hooks(self, tmp_path):
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "clawsentry",
+                "init", "gemini-cli",
+                "--dir", str(tmp_path),
+                "--setup",
+            ],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+        assert proc.returncode == 0
+        assert (tmp_path / ".gemini" / "settings.json").exists()
+        assert "Gemini CLI native hooks updated" in proc.stdout
+
     def test_rules_subcommand_help(self):
         proc = subprocess.run(
             [sys.executable, "-m", "clawsentry", "rules", "--help"],

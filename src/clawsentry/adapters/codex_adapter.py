@@ -33,6 +33,7 @@ _HOOK_TYPE_MAP: dict[str, EventType] = {
 
 _NATIVE_HOOK_TYPE_MAP: dict[str, EventType] = {
     "PreToolUse": EventType.PRE_ACTION,
+    "PermissionRequest": EventType.PRE_ACTION,
     "PostToolUse": EventType.POST_ACTION,
     "UserPromptSubmit": EventType.PRE_PROMPT,
     "SessionStart": EventType.SESSION,

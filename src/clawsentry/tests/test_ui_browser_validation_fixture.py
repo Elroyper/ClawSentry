@@ -93,6 +93,31 @@ def test_build_runtime_replay_events_matches_runtime_feed_contract() -> None:
     assert finding["handling"] in {"broadcast", "defer", "block"}
 
 
+def test_build_runtime_replay_events_contains_enterprise_defer_popup_seed() -> None:
+    events = build_runtime_replay_events()
+    defer_pending_events = [event for event in events if event.get("type") == "defer_pending"]
+
+    # Keep at least one classic DEFER sample and one enterprise rollout-style sample.
+    assert len(defer_pending_events) >= 2
+    assert any(
+        event.get("command") == "kubectl apply -f prod-rollout.yaml"
+        and event.get("session_id") == "sess-openclaw-beta-001"
+        for event in defer_pending_events
+    )
+    for event in defer_pending_events:
+        for required_key in [
+            "approval_id",
+            "tool_name",
+            "command",
+            "reason",
+            "risk_level",
+            "timeout_s",
+            "session_id",
+            "timestamp",
+        ]:
+            assert required_key in event
+
+
 def test_build_browser_validation_gateway_uses_default_rule_based_policy_stack() -> None:
     gateway = build_browser_validation_gateway()
 

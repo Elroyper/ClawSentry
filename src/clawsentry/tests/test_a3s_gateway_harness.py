@@ -1060,7 +1060,7 @@ class TestCodexNativeHookDispatch:
         }
 
     @pytest.mark.asyncio
-    async def test_codex_non_pretooluse_never_returns_host_block(self):
+    async def test_codex_sessionstart_never_returns_host_block(self):
         from unittest.mock import AsyncMock
 
         adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
@@ -1074,11 +1074,9 @@ class TestCodexNativeHookDispatch:
 
         response = await harness.dispatch_async(
             {
-                "session_id": "sess-post-codex",
-                "hook_event_name": "PostToolUse",
-                "tool_name": "Bash",
-                "tool_input": {"command": "rm -rf /"},
-                "tool_response": {"exit_code": 0},
+                "session_id": "sess-start-codex",
+                "hook_event_name": "SessionStart",
+                "source": "startup",
             }
         )
 
@@ -1109,6 +1107,211 @@ class TestCodexNativeHookDispatch:
 
         assert response is None
         assert "Gateway unreachable" in capsys.readouterr().err
+
+    @pytest.mark.asyncio
+    async def test_codex_permission_request_block_returns_deny_behavior(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="approval request violates policy",
+                risk_level=RiskLevel.HIGH,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-permission-deny",
+                "hook_event_name": "PermissionRequest",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "grep -R api_key .",
+                    "description": "needs file scan approval",
+                },
+            }
+        )
+
+        assert response == {
+            "hookSpecificOutput": {
+                "hookEventName": "PermissionRequest",
+                "decision": {
+                    "behavior": "deny",
+                    "message": "[ClawSentry] approval request violates policy (risk: high)",
+                },
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_permission_request_allow_returns_allow_behavior(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.ALLOW,
+                reason="low risk approval",
+                risk_level=RiskLevel.LOW,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-permission-allow",
+                "hook_event_name": "PermissionRequest",
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls"},
+            }
+        )
+
+        assert response == {
+            "hookSpecificOutput": {
+                "hookEventName": "PermissionRequest",
+                "decision": {"behavior": "allow"},
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_permission_request_medium_allow_declines_to_decide(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.ALLOW,
+                reason="medium risk should keep normal approval",
+                risk_level=RiskLevel.MEDIUM,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-permission-medium",
+                "hook_event_name": "PermissionRequest",
+                "tool_name": "Bash",
+                "tool_input": {"command": "grep -R TODO ."},
+            }
+        )
+
+        assert response is None
+
+    @pytest.mark.asyncio
+    async def test_codex_user_prompt_submit_block_returns_prompt_block_shape(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="prompt contains a secret",
+                risk_level=RiskLevel.CRITICAL,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-prompt-block",
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "my key is sk-test",
+            }
+        )
+
+        assert response == {
+            "decision": "block",
+            "reason": "[ClawSentry] prompt contains a secret (risk: critical)",
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_posttooluse_block_returns_containment_feedback(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="tool output needs review",
+                risk_level=RiskLevel.HIGH,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-post-contain",
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "cat secret.txt"},
+                "tool_response": "SECRET=abc",
+            }
+        )
+
+        assert response == {
+            "continue": False,
+            "stopReason": "[ClawSentry] tool output needs review (risk: high)",
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": (
+                    "[ClawSentry] tool output needs review (risk: high)"
+                ),
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_stop_block_requests_one_continuation_when_not_already_active(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="run one more verification pass",
+                risk_level=RiskLevel.HIGH,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-stop-continue",
+                "hook_event_name": "Stop",
+                "stop_hook_active": False,
+                "last_assistant_message": "done",
+            }
+        )
+
+        assert response == {
+            "decision": "block",
+            "reason": "[ClawSentry] run one more verification pass (risk: high)",
+        }
+
+    @pytest.mark.asyncio
+    async def test_codex_stop_block_fails_open_when_stop_hook_already_active(self):
+        from unittest.mock import AsyncMock
+
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="codex")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="would continue forever",
+                risk_level=RiskLevel.HIGH,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-stop-active",
+                "hook_event_name": "Stop",
+                "stop_hook_active": True,
+            }
+        )
+
+        assert response is None
 
 
 class TestCamelToSnake:

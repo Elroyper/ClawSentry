@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from clawsentry.cli.doctor_command import check_codex_config, check_codex_native_hooks
 from clawsentry.cli.initializers.codex import CodexInitializer
 
@@ -69,6 +67,7 @@ class TestDoctorCodexCheck:
         assert "hooks.json" in result.message
         assert "PreToolUse(Bash)" in result.message
         assert "PreToolUse(Bash): sync" in result.detail
+        assert "PermissionRequest(Bash): sync" in result.detail
         assert "PostToolUse(Bash): async" in result.detail
         assert "UserPromptSubmit: async" in result.detail
         assert "Stop: async" in result.detail
@@ -109,6 +108,24 @@ class TestDoctorCodexCheck:
         assert result.status == "WARN"
         assert "UserPromptSubmit" in result.detail
         assert "--async" in result.detail
+
+    def test_codex_native_hooks_warn_when_permission_request_is_async(self, tmp_path, monkeypatch):
+        codex_home = tmp_path / ".codex"
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home)
+        hooks_path = codex_home / "hooks.json"
+        payload = json.loads(hooks_path.read_text(encoding="utf-8"))
+        payload["hooks"]["PermissionRequest"][0]["hooks"][0]["command"] = (
+            "clawsentry harness --framework codex --async"
+        )
+        hooks_path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setenv("CS_FRAMEWORK", "codex")
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+        result = check_codex_native_hooks()
+
+        assert result.status == "WARN"
+        assert "PermissionRequest(Bash)" in result.detail
+        assert "synchronous" in result.detail
 
     def test_codex_native_hooks_warn_when_required_event_missing(self, tmp_path, monkeypatch):
         codex_home = tmp_path / ".codex"

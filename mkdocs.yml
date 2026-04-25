@@ -106,6 +106,7 @@ nav:
     - a3s-code 集成: integration/a3s-code.md
     - Claude Code 集成: integration/claude-code.md
     - Codex CLI 集成: integration/codex.md
+    - Gemini CLI 集成: integration/gemini-cli.md
     - OpenClaw 集成: integration/openclaw.md
     - Latch 集成: integration/latch.md
   - 配置参考:

@@ -16,12 +16,18 @@ PACKAGE_INIT = REPO_ROOT / "src" / "clawsentry" / "__init__.py"
 ENV_VARS_DOC = REPO_ROOT / "site-docs" / "configuration" / "env-vars.md"
 RELEASE_CHECKLIST = REPO_ROOT / "docs" / "management" / "RELEASE_CHECKLIST.md"
 RULES_CI_EXAMPLE = REPO_ROOT / "examples" / "ci" / "rules-governance.yml"
+PACKAGE_README = REPO_ROOT / "src" / "clawsentry" / "README.md"
+PUBLIC_README = REPO_ROOT / "README_PUBLIC.md"
 
 
 def _extract(pattern: str, source: str) -> str:
     match = re.search(pattern, source, flags=re.MULTILINE)
     assert match is not None
     return match.group(1)
+
+
+def _read_doc(relative_path: str) -> str:
+    return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
 
 def test_workspace_readme_status_and_package_versions_stay_aligned() -> None:
@@ -113,3 +119,160 @@ def test_codex_docs_describe_optional_native_hook_setup() -> None:
     assert "PreToolUse(Bash)" in codex_doc
     assert "permissionDecision: \"deny\"" in codex_doc
     assert "--codex-home PATH" in cli_doc
+
+
+def test_web_ui_auth_docs_align_token_source_proxy_and_paths() -> None:
+    quickstart = (REPO_ROOT / "site-docs" / "getting-started" / "quickstart.md").read_text(
+        encoding="utf-8"
+    )
+    dashboard = (REPO_ROOT / "site-docs" / "dashboard" / "index.md").read_text(
+        encoding="utf-8"
+    )
+    cli_doc = (REPO_ROOT / "site-docs" / "cli" / "index.md").read_text(
+        encoding="utf-8"
+    )
+    installation = (
+        REPO_ROOT / "site-docs" / "getting-started" / "installation.md"
+    ).read_text(encoding="utf-8")
+    troubleshooting = (
+        REPO_ROOT / "site-docs" / "operations" / "troubleshooting.md"
+    ).read_text(encoding="utf-8")
+
+    combined = "\n".join([quickstart, dashboard, cli_doc, installation, troubleshooting])
+    assert "clawsentry start" in combined
+    assert "CS_AUTH_TOKEN" in combined
+    assert "?token=" in combined
+    assert "sessionStorage" in combined
+    assert "401" in combined
+    assert "Gateway" in combined and "unavailable" in combined
+    assert "NO_PROXY=localhost,127.0.0.1,::1" in combined
+    assert "Vite" in combined and "/ui/" in combined
+    assert "https://elroyper.github.io/ClawSentry/" in combined
+    assert "mkdocs serve" in combined
+    assert "stale global" in combined
+    assert "pip install -e" in combined
+
+
+def test_public_docs_explain_high_friction_terms_and_low_risk_smoke_path() -> None:
+    concepts = (REPO_ROOT / "site-docs" / "getting-started" / "concepts.md").read_text(
+        encoding="utf-8"
+    )
+    dashboard = (REPO_ROOT / "site-docs" / "dashboard" / "index.md").read_text(
+        encoding="utf-8"
+    )
+    browser_validation_path = (
+        REPO_ROOT / "docs" / "operations" / "2026-04-10-clawsentry-p2-browser-validation.md"
+    )
+    browser_validation = (
+        browser_validation_path.read_text(encoding="utf-8")
+        if browser_validation_path.exists()
+        else ""
+    )
+
+    for term in [
+        "DEFER",
+        "L3 advisory",
+        "advisory-only",
+        "toolkit evidence budget",
+        "framework",
+        "workspace",
+        "session",
+    ]:
+        assert term in concepts
+
+    assert "Cumulative trajectory records" in dashboard
+    assert "Live Events" not in dashboard
+    assert "remote Google Fonts" in dashboard
+    assert "system-font fallback" in dashboard
+    if browser_validation_path.exists():
+        assert "no new dependency" in browser_validation
+        assert "ui_validation_fixture" in browser_validation
+    else:
+        assert not (REPO_ROOT / "docs" / "operations").exists()
+
+
+def test_public_readmes_share_web_ui_auth_story() -> None:
+    root_public = (PUBLIC_README if PUBLIC_README.exists() else ROOT_README).read_text(encoding="utf-8")
+    package_readme = PACKAGE_README.read_text(encoding="utf-8")
+
+    for source in [root_public, package_readme]:
+        assert "Web UI" in source
+        assert "?token=" in source
+        assert "CS_AUTH_TOKEN" in source
+        assert "invalid token" in source.lower()
+        assert "Gateway unavailable" in source
+        assert "NO_PROXY=localhost,127.0.0.1,::1" in source
+
+
+def test_recent_user_facing_features_have_online_docs_journey_anchors() -> None:
+    """Recent release features should stay discoverable as user journeys."""
+
+    docs = {
+        "l3": _read_doc("site-docs/decision-layers/l3-advisory.md"),
+        "api_decisions": _read_doc("site-docs/api/decisions.md"),
+        "api_reporting": _read_doc("site-docs/api/reporting.md"),
+        "quickstart": _read_doc("site-docs/getting-started/quickstart.md"),
+        "installation": _read_doc("site-docs/getting-started/installation.md"),
+        "rules": _read_doc("site-docs/advanced/rule-governance.md"),
+        "codex": _read_doc("site-docs/integration/codex.md"),
+        "api_overview": _read_doc("site-docs/api/overview.md"),
+    }
+
+    l3_required = [
+        "heartbeat_aggregate",
+        "clawsentry l3 jobs list",
+        "clawsentry l3 jobs run-next",
+        "clawsentry l3 jobs drain",
+        "advisory_only=true",
+        "canonical_decision_mutated=false",
+        "l3_advisory_provider_smoke",
+        "--require-completed",
+    ]
+    for term in l3_required:
+        assert term in docs["l3"]
+
+    decision_effect_terms = [
+        "decision_effects",
+        "adapter_effect_result",
+        "modified_payload",
+        "rewrite_effect",
+        "mark_blocked",
+        "GET /report/session/{session_id}/quarantine",
+        "POST /ahp/adapter-effect-result",
+        "degrade_reason",
+    ]
+    combined_decision_docs = docs["api_decisions"] + "\n" + docs["api_reporting"]
+    for term in decision_effect_terms:
+        assert term in combined_decision_docs
+
+    first_run_docs = docs["quickstart"] + "\n" + docs["installation"]
+    for term in ["invalid token", "Gateway unavailable", "NO_PROXY", "stale global"]:
+        assert term in first_run_docs
+
+    rules_terms = [
+        "clawsentry rules report",
+        "--summary-markdown",
+        "artifacts/rules-dashboard.md",
+        "examples/sample-events.jsonl",
+        "Policy-change review checklist",
+    ]
+    for term in rules_terms:
+        assert term in docs["rules"]
+
+    codex_terms = [
+        "clawsentry init codex --setup",
+        "PreToolUse(Bash)",
+        "PostToolUse(Bash): async",
+        "Gateway 不可达",
+        "clawsentry doctor",
+    ]
+    for term in codex_terms:
+        assert term in docs["codex"]
+
+    api_validity_terms = [
+        "api-validity.json",
+        "validity-report.md",
+        "python scripts/docs_api_inventory.py validate",
+    ]
+    for term in api_validity_terms:
+        assert term in docs["api_overview"]

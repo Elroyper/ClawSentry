@@ -15,7 +15,13 @@ from .initializers.base import ENV_FILE_NAME, read_env_file
 
 
 _PID_FILE = Path("/tmp/clawsentry-gateway.pid")
-_SUPPORTED_FRAMEWORKS = frozenset({"openclaw", "a3s-code", "codex", "claude-code"})
+_SUPPORTED_FRAMEWORKS = frozenset({
+    "openclaw",
+    "a3s-code",
+    "codex",
+    "claude-code",
+    "gemini-cli",
+})
 
 
 def _write_pid_file(path: Path, pid: int) -> None:
@@ -70,6 +76,7 @@ def detect_framework(
     a3s_dir: Path | None = None,
     codex_home: Path | None = None,
     claude_home: Path | None = None,
+    gemini_home: Path | None = None,
 ) -> str | None:
     """Auto-detect which framework is configured.
 
@@ -119,6 +126,20 @@ def detect_framework(
         )
         if (effective_codex_home / "sessions").is_dir():
             return "codex"
+
+    gemini_opt_in = os.environ.get("CS_GEMINI_HOOKS_ENABLED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if gemini_opt_in:
+        explicit_settings = os.environ.get("CS_GEMINI_SETTINGS_PATH", "").strip()
+        if explicit_settings and Path(explicit_settings).expanduser().is_file():
+            return "gemini-cli"
+        effective_gemini_home = gemini_home or Path.cwd() / ".gemini"
+        if (effective_gemini_home / "settings.json").is_file():
+            return "gemini-cli"
 
     return None
 

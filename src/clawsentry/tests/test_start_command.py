@@ -17,7 +17,13 @@ def _isolate_start_command_tests(tmp_path, monkeypatch):
     """Avoid repo-level .env.clawsentry and shell env leaking into detection tests."""
     with patch.dict(os.environ, {}, clear=False):
         monkeypatch.chdir(tmp_path)
-        for key in ("CS_AUTH_TOKEN", "CS_FRAMEWORK", "CS_ENABLED_FRAMEWORKS"):
+        for key in (
+            "CS_AUTH_TOKEN",
+            "CS_FRAMEWORK",
+            "CS_ENABLED_FRAMEWORKS",
+            "CS_GEMINI_HOOKS_ENABLED",
+            "CS_GEMINI_SETTINGS_PATH",
+        ):
             monkeypatch.delenv(key, raising=False)
         yield
 
@@ -105,6 +111,22 @@ class TestDetectFramework:
         )
 
         assert result == "codex"
+
+    def test_detects_gemini_cli_from_explicit_env_and_project_settings(self, tmp_path, monkeypatch):
+        settings_path = tmp_path / ".gemini" / "settings.json"
+        settings_path.parent.mkdir()
+        settings_path.write_text("{}")
+        monkeypatch.setenv("CS_GEMINI_HOOKS_ENABLED", "true")
+        monkeypatch.chdir(tmp_path)
+
+        result = detect_framework(
+            openclaw_home=tmp_path / "nope",
+            a3s_dir=tmp_path / "nope2",
+            codex_home=tmp_path / "nope4",
+            claude_home=tmp_path / "nope3",
+        )
+
+        assert result == "gemini-cli"
 
 
 class TestEnsureInit:

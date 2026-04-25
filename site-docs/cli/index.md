@@ -190,6 +190,11 @@ Web UI: http://127.0.0.1:8080/ui?token=xK7m9p2QaB3...
 ```
 
 点击该 URL 即可自动登录，无需手动输入 token。
+前端会把 `?token=` 保存到 `sessionStorage` 后清理地址栏；后续手动登录时使用同一个 `CS_AUTH_TOKEN`。如果看到 invalid token / `401`，重新复制启动 banner 或 `.env.clawsentry` 中的 token；如果看到 `Gateway unavailable`，这表示本机 Gateway 无法访问而不是凭证错误。代理环境下可先设置：
+
+```bash
+export NO_PROXY=localhost,127.0.0.1,::1
+```
 
 ### 错误处理
 

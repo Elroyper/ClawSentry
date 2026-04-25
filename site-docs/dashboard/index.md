@@ -109,6 +109,11 @@ http://127.0.0.1:8080/ui?token=...
 
 这条带 `?token=` 的链接是最省事的打开方式。页面会先把 URL 中的 token 写入浏览器会话，再开始请求 `summary` 和 SSE 流，避免出现先 401 再重连的认证竞态。
 
+!!! info "路径速查"
+    - Web UI 的前端资源使用 Vite `base: /ui/`，本地 Gateway 挂载路径也是 `/ui/`。
+    - 发布站点是 GitHub Pages：`https://elroyper.github.io/ClawSentry/`。
+    - 本地文档预览请以 `mkdocs serve` 输出为准；它通常是 `http://127.0.0.1:8000/`，不要把发布站点的 `/ClawSentry/` 前缀硬套到本地预览。
+
 ---
 
 ## 认证机制
@@ -133,6 +138,19 @@ Authorization: Bearer <token>
 
 !!! warning "生产环境建议"
     生产环境中请启用 HTTPS。因为浏览器对 SSE 使用 query 参数携带 token，未加密链路会增加令牌泄露风险。
+
+### 登录失败时如何区分
+
+- **invalid token / 401**：token 与 Gateway 的 `CS_AUTH_TOKEN` 不一致，重新复制 `clawsentry start` 打印的 `?token=` 链接或 `.env.clawsentry` 中的值。
+- **Gateway unavailable**：Gateway 未启动、端口不对、浏览器无法访问本机服务或代理拦截。这不是 bad credentials；先确认 `http://127.0.0.1:8080/health`，必要时设置 `NO_PROXY=localhost,127.0.0.1,::1`。
+
+### 字体与离线降级
+
+当前 Web UI 样式会尝试加载 remote Google Fonts；加载失败时会回退到系统字体链路（system-font fallback，例如 `sans-serif` / `monospace` / 中文系统字体）。这不会影响鉴权或 Gateway 安全语义；需要完全离线字体包时请另起资产策略变更，不在本次 no-new-dependency 路径内处理。
+
+### 累计指标而非实时速率
+
+Dashboard 的 **Cumulative trajectory records** 对应 Gateway `/health` 的 `trajectory_count`，表示 Gateway 已记录的轨迹总数，不是每秒实时事件速率。实时变化请看 Runtime Feed / SSE。
 
 ---
 

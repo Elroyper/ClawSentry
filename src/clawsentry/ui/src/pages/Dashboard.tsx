@@ -296,7 +296,7 @@ export default function Dashboard() {
             </p>
             <div className="command-map" aria-hidden="true">
               <div className="command-map-core">
-                <span>LIVE OPS</span>
+                <span>TOTAL TRAJECTORIES</span>
                 <strong>{health?.trajectory_count ?? 0}</strong>
               </div>
               <span className="command-map-node command-map-node-risk">risk</span>
@@ -466,7 +466,7 @@ export default function Dashboard() {
             value={(health?.trajectory_count ?? 0).toLocaleString()}
             accent="blue"
             icon={<Activity size={20} />}
-            subtext={health ? `${formatUptime(health.uptime_seconds)} uptime` : undefined}
+            subtext={health ? `Cumulative records · ${formatUptime(health.uptime_seconds)} uptime` : undefined}
           />
         </div>
 

@@ -35,16 +35,28 @@ FRAMEWORK_CAPABILITIES: dict[str, dict[str, str]] = {
         "maturity_label": "medium-high",
     },
     "codex": {
-        "integration_mode": "session_jsonl_watcher",
-        "integration_mode_label": "session JSONL watcher",
-        "pre_action_interception": "not_supported",
-        "pre_action_label": "no",
-        "post_action_observation": "session_log_watcher",
+        "integration_mode": "session_jsonl_watcher_native_hooks",
+        "integration_mode_label": "session JSONL watcher + optional native hooks",
+        "pre_action_interception": "optional_native_hooks",
+        "pre_action_label": "optional Bash preflight + approval gate",
+        "post_action_observation": "session_log_watcher_native_hooks",
         "post_action_label": "yes",
-        "host_config_dependency": "Codex session logs must be reachable via CS_CODEX_SESSION_DIR or $CODEX_HOME/sessions",
-        "failure_mode": "no blocking; ClawSentry sees nothing when session logs are unavailable",
-        "maturity": "observer_only",
-        "maturity_label": "medium",
+        "host_config_dependency": "Codex session logs and optional .codex/hooks.json must be reachable",
+        "failure_mode": "watcher misses sessions when logs are unavailable; optional native hooks fail open when Gateway is unreachable",
+        "maturity": "bounded_native_defense",
+        "maturity_label": "medium-high",
+    },
+    "gemini-cli": {
+        "integration_mode": "native_command_hooks",
+        "integration_mode_label": "Gemini CLI native command hooks",
+        "pre_action_interception": "supported",
+        "pre_action_label": "yes, real BeforeTool deny smoke proven for run_shell_command",
+        "post_action_observation": "native_hooks_partial_containment",
+        "post_action_label": "yes, but post-tool cannot undo side effects",
+        "host_config_dependency": "project .gemini/settings.json hooksConfig.enabled plus ClawSentry managed hook entries",
+        "failure_mode": "Gemini CLI runs without ClawSentry supervision if hooks are disabled, untrusted, or Gateway is unreachable; fallback policy fails open",
+        "maturity": "real_beforetool_block_supported",
+        "maturity_label": "medium-high (real BeforeTool deny smoke proven)",
     },
     "claude-code": {
         "integration_mode": "host_hooks",
@@ -118,6 +130,13 @@ def _codex_session_dir(values: dict[str, str]) -> Path | None:
     return codex_home / "sessions"
 
 
+def _gemini_settings_path(target_dir: Path, values: dict[str, str]) -> Path:
+    explicit = values.get("CS_GEMINI_SETTINGS_PATH", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    return target_dir / ".gemini" / "settings.json"
+
+
 def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
     """Read a JSON object from disk for host-side readiness checks."""
     if not path.is_file():
@@ -142,6 +161,9 @@ def _build_framework_readiness(
     claude_hook_files: list[str],
     openclaw_restore_files: list[str],
     codex_session_dir: Path | None,
+    gemini_settings_path: Path | None,
+    gemini_settings_payload: dict[str, object] | None,
+    gemini_settings_error: str | None,
     openclaw_home: Path | None = None,
 ) -> dict[str, dict[str, object]]:
     readiness: dict[str, dict[str, object]] = {}
@@ -234,6 +256,53 @@ def _build_framework_readiness(
             ),
         }
 
+    if "gemini-cli" in enabled:
+        hooks_enabled = False
+        managed_entries = False
+        settings_present = gemini_settings_payload is not None
+        if isinstance(gemini_settings_payload, dict):
+            hooks_config = gemini_settings_payload.get("hooksConfig")
+            hooks = gemini_settings_payload.get("hooks")
+            hooks_enabled = (
+                isinstance(hooks_config, dict)
+                and hooks_config.get("enabled") is True
+            ) or (
+                isinstance(hooks, dict)
+                and hooks.get("enabled") is True
+            )
+            managed_entries = "clawsentry harness --framework gemini-cli" in str(
+                gemini_settings_payload
+            )
+        warnings = []
+        if gemini_settings_error:
+            warnings.append(gemini_settings_error)
+        if not hooks_enabled:
+            warnings.append("Gemini CLI hooks are not enabled in settings.")
+        if not managed_entries:
+            warnings.append("ClawSentry managed Gemini CLI hooks were not found.")
+        ready = settings_present and hooks_enabled and managed_entries
+        readiness["gemini-cli"] = {
+            "status": "ready" if ready else "needs_attention",
+            "summary": (
+                "Gemini CLI settings contain enabled ClawSentry managed hooks"
+                if ready
+                else "Gemini CLI hook settings are not fully wired"
+            ),
+            "checks": {
+                "settings_path": str(gemini_settings_path) if gemini_settings_path else None,
+                "settings_present": settings_present,
+                "hooks_enabled": hooks_enabled,
+                "managed_entries_present": managed_entries,
+                "real_beforetool_smoke": True,
+            },
+            "warnings": warnings,
+            "next_step": (
+                "No action required for hook installation; real BeforeTool deny smoke is documented in docs/validation."
+                if ready
+                else "Run clawsentry init gemini-cli --setup (use --dry-run first to preview)."
+            ),
+        }
+
     if "openclaw" in enabled:
         home = openclaw_home or Path.home() / ".openclaw"
         openclaw_json, openclaw_json_error = _read_json_object(home / "openclaw.json")
@@ -315,6 +384,15 @@ def collect_integration_status(
     codex_session_dir = (
         _codex_session_dir(values) if "codex" in enabled else None
     )
+    gemini_settings_path = (
+        _gemini_settings_path(target_dir, values) if "gemini-cli" in enabled else None
+    )
+    gemini_settings_payload: dict[str, object] | None = None
+    gemini_settings_error: str | None = None
+    if gemini_settings_path is not None:
+        gemini_settings_payload, gemini_settings_error = _read_json_object(
+            gemini_settings_path
+        )
     payload = {
         "env_file": str(env_path),
         "env_exists": env_path.is_file(),
@@ -341,6 +419,17 @@ def collect_integration_status(
         "codex_session_dir_reachable": bool(
             codex_session_dir and codex_session_dir.is_dir()
         ),
+        "gemini_cli_hooks": (
+            "gemini-cli" in enabled
+            and gemini_settings_payload is not None
+            and "clawsentry harness --framework gemini-cli" in str(gemini_settings_payload)
+        ),
+        "gemini_cli_settings_path": (
+            str(gemini_settings_path) if gemini_settings_path else None
+        ),
+        "gemini_cli_settings_present": bool(
+            gemini_settings_path and gemini_settings_path.is_file()
+        ),
     }
     payload["framework_readiness"] = _build_framework_readiness(
         values=values,
@@ -348,6 +437,9 @@ def collect_integration_status(
         claude_hook_files=claude_hook_files,
         openclaw_restore_files=openclaw_restore_files,
         codex_session_dir=codex_session_dir,
+        gemini_settings_path=gemini_settings_path,
+        gemini_settings_payload=gemini_settings_payload,
+        gemini_settings_error=gemini_settings_error,
         openclaw_home=openclaw_home,
     )
     return payload
@@ -410,6 +502,19 @@ def run_integrations_status(
         print(f"Codex session dir: {codex_session_dir} ({codex_status})")
     else:
         print("Codex session dir: (not configured)")
+    gemini_settings_path = payload["gemini_cli_settings_path"]
+    if gemini_settings_path:
+        print(
+            "Gemini settings: "
+            f"{gemini_settings_path} "
+            f"({'present' if payload['gemini_cli_settings_present'] else 'missing'})"
+        )
+        print(
+            "Gemini hooks: "
+            f"{'present' if payload['gemini_cli_hooks'] else 'not present'}"
+        )
+    else:
+        print("Gemini settings: (not configured)")
     all_capabilities = payload["framework_capabilities"]
     framework_details = payload["enabled_framework_details"]
     print("Framework capabilities:")

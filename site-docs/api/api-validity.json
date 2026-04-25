@@ -1,6 +1,6 @@
 {
   "schema_version": "clawsentry-api-validity.v1",
-  "generated_at": "2026-04-23T08:51:48+00:00",
+  "generated_at": "2026-04-25T11:14:47+00:00",
   "source_artifacts": {
     "coverage": "site-docs/api/api-coverage.json",
     "openapi": "site-docs/api/openapi.json",
@@ -984,7 +984,7 @@
       },
       {
         "page": "index.md",
-        "line": 279,
+        "line": 290,
         "method": "POST",
         "path": "/ahp/a3s",
         "rule": "exact",
@@ -1108,7 +1108,7 @@
         },
         {
           "page": "index.md",
-          "line": 279,
+          "line": 290,
           "method": "POST",
           "path": "/ahp/a3s",
           "rule": "exact",

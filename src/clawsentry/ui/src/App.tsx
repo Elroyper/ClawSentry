@@ -11,7 +11,7 @@ import Alerts from './pages/Alerts'
 import DeferPanel from './pages/DeferPanel'
 
 export default function App() {
-  const { authenticated, check, login } = useAuth()
+  const { authenticated, checking, authFailure, check, login } = useAuth()
   const [bootstrapped, setBootstrapped] = useState(false)
 
   // Auto-login from URL ?token= parameter
@@ -47,7 +47,7 @@ export default function App() {
   }
 
   if (authenticated === false) {
-    return <LoginForm onLogin={login} />
+    return <LoginForm onLogin={login} authFailure={authFailure} checking={checking} />
   }
 
   return (

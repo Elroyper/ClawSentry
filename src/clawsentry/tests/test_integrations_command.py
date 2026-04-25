@@ -207,10 +207,10 @@ def test_integrations_status_json_includes_framework_capability_matrix(
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert payload["framework_capabilities"]["a3s-code"]["integration_mode"] == "explicit_sdk_transport"
-    assert payload["framework_capabilities"]["codex"]["integration_mode"] == "session_jsonl_watcher"
-    assert payload["framework_capabilities"]["codex"]["pre_action_interception"] == "not_supported"
+    assert payload["framework_capabilities"]["codex"]["integration_mode"] == "session_jsonl_watcher_native_hooks"
+    assert payload["framework_capabilities"]["codex"]["pre_action_interception"] == "optional_native_hooks"
     assert payload["framework_capabilities"]["claude-code"]["host_config_dependency"].startswith("~/.claude")
-    assert payload["enabled_framework_details"]["codex"]["maturity_label"] == "medium"
+    assert payload["enabled_framework_details"]["codex"]["maturity_label"] == "medium-high"
     assert payload["enabled_framework_details"]["claude-code"]["pre_action_label"] == "yes"
 
 
@@ -359,8 +359,8 @@ def test_integrations_status_json_reports_framework_capability_matrix(
     assert capabilities["a3s-code"]["integration_mode"] == "explicit_sdk_transport"
     assert capabilities["a3s-code"]["pre_action_interception"] == "supported"
     assert capabilities["openclaw"]["pre_action_interception"] == "host_config_required"
-    assert capabilities["codex"]["pre_action_interception"] == "not_supported"
-    assert capabilities["codex"]["post_action_observation"] == "session_log_watcher"
+    assert capabilities["codex"]["pre_action_interception"] == "optional_native_hooks"
+    assert capabilities["codex"]["post_action_observation"] == "session_log_watcher_native_hooks"
     assert capabilities["claude-code"]["integration_mode"] == "host_hooks"
     assert capabilities["claude-code"]["maturity"] == "hook_dependent"
 
@@ -388,15 +388,15 @@ def test_integrations_status_text_includes_framework_capability_summary(
     assert "a3s-code" in out
     assert "mode=explicit_sdk_transport" in out
     assert "codex" in out
-    assert "pre=not_supported" in out
+    assert "pre=optional_native_hooks" in out
     assert "openclaw" in out
     assert "maturity=strong_with_host_setup" in out
     assert "Enabled framework details:" in out
-    assert "codex: session JSONL watcher | pre-action: no | post-action: yes | maturity: medium" in out
+    assert "codex: session JSONL watcher + optional native hooks | pre-action: optional Bash preflight + approval gate | post-action: yes | maturity: medium-high" in out
     assert "openclaw: websocket approvals + webhook receiver | pre-action: yes | post-action: yes | maturity: medium-high" in out
 
 
-def test_integrations_status_json_includes_framework_readiness(
+def test_integrations_status_json_includes_multi_framework_readiness(
     tmp_path,
     capsys,
 ):
@@ -497,3 +497,53 @@ def test_integrations_status_text_includes_framework_readiness_section(
     assert "a3s-code: manual verification required" in out
     assert "codex: needs attention" in out
     assert "next step:" in out
+
+
+def test_integrations_status_json_includes_gemini_readiness(tmp_path, capsys):
+    from clawsentry.cli.initializers.gemini_cli import GeminiCLIInitializer
+
+    GeminiCLIInitializer().setup_gemini_hooks(target_dir=tmp_path)
+    settings_path = tmp_path / ".gemini" / "settings.json"
+    (tmp_path / ".env.clawsentry").write_text(
+        "\n".join(
+            [
+                "CS_FRAMEWORK=gemini-cli",
+                "CS_ENABLED_FRAMEWORKS=gemini-cli",
+                "CS_GEMINI_HOOKS_ENABLED=true",
+                f"CS_GEMINI_SETTINGS_PATH={settings_path}",
+                "",
+            ]
+        )
+    )
+
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+
+    payload = json.loads(capsys.readouterr().out)
+    readiness = payload["framework_readiness"]["gemini-cli"]
+    assert exit_code == 0
+    assert payload["gemini_cli_hooks"] is True
+    assert readiness["status"] == "ready"
+    assert readiness["checks"]["managed_entries_present"] is True
+    assert readiness["checks"]["real_beforetool_smoke"] is True
+    assert payload["framework_capabilities"]["gemini-cli"]["maturity"] == "real_beforetool_block_supported"
+
+
+def test_integrations_status_text_includes_gemini_capability(tmp_path, capsys):
+    (tmp_path / ".env.clawsentry").write_text(
+        "\n".join(
+            [
+                "CS_FRAMEWORK=gemini-cli",
+                "CS_ENABLED_FRAMEWORKS=gemini-cli",
+                "CS_GEMINI_HOOKS_ENABLED=true",
+                "",
+            ]
+        )
+    )
+
+    exit_code = run_integrations_status(target_dir=tmp_path)
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "gemini-cli: mode=native_command_hooks" in out
+    assert "real BeforeTool deny smoke proven" in out
+    assert "Gemini settings:" in out

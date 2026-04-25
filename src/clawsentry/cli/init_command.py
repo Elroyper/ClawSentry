@@ -13,6 +13,7 @@ _FRAMEWORK_ENV_KEYS: dict[str, set[str]] = {
     "a3s-code": set(),
     "claude-code": set(),
     "codex": {"CS_CODEX_SESSION_DIR", "CS_CODEX_WATCH_ENABLED"},
+    "gemini-cli": {"CS_GEMINI_HOOKS_ENABLED", "CS_GEMINI_SETTINGS_PATH"},
     "openclaw": {
         "OPENCLAW_ENFORCEMENT_ENABLED",
         "OPENCLAW_OPERATOR_TOKEN",
@@ -33,6 +34,7 @@ def run_init(
     dry_run: bool = False,
     openclaw_home: Path | None = None,
     codex_home: Path | None = None,
+    gemini_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Run init and print results. Returns exit code (0=ok, 1=error).
@@ -60,6 +62,8 @@ def run_init(
             kwargs["openclaw_home"] = openclaw_home
         if codex_home is not None:
             kwargs["codex_home"] = codex_home
+        if gemini_home is not None:
+            kwargs["gemini_home"] = gemini_home
         result = initializer.generate_config(target_dir, **kwargs)
     except FileExistsError as exc:
         print(str(exc), file=sys.stderr)
@@ -131,6 +135,24 @@ def run_init(
                 print(f"  WARNING: {w}")
         print()
 
+    # --- Gemini CLI --setup ---
+    if setup and hasattr(initializer, "setup_gemini_hooks"):
+        setup_kwargs = {"target_dir": target_dir, "dry_run": dry_run}
+        if gemini_home is not None:
+            setup_kwargs["gemini_home"] = gemini_home
+        setup_result = initializer.setup_gemini_hooks(**setup_kwargs)
+
+        if setup_result.dry_run:
+            print("  [DRY RUN] The following Gemini CLI hook changes would be applied:")
+        else:
+            print("  Gemini CLI native hooks updated:")
+        for change in setup_result.changes_applied:
+            print(f"    - {change}")
+        if setup_result.warnings:
+            for w in setup_result.warnings:
+                print(f"  WARNING: {w}")
+        print()
+
     return 0
 
 
@@ -140,6 +162,7 @@ def run_uninstall(
     target_dir: Path,
     claude_home: Path | None = None,
     codex_home: Path | None = None,
+    gemini_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Disable one framework integration without disturbing other frameworks."""
@@ -163,6 +186,13 @@ def run_uninstall(
         uninstall_kwargs = {}
         if codex_home is not None:
             uninstall_kwargs["codex_home"] = codex_home
+        result = initializer.uninstall(**uninstall_kwargs)
+        warnings.extend(result.warnings)
+        next_steps.extend(result.next_steps)
+    elif framework == "gemini-cli" and hasattr(initializer, "uninstall"):
+        uninstall_kwargs = {"target_dir": target_dir}
+        if gemini_home is not None:
+            uninstall_kwargs["gemini_home"] = gemini_home
         result = initializer.uninstall(**uninstall_kwargs)
         warnings.extend(result.warnings)
         next_steps.extend(result.next_steps)

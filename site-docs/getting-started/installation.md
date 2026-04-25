@@ -165,6 +165,9 @@ pip install -e ".[dev]"
 !!! note "`-e` 参数"
     `-e` (editable) 模式会将源码目录直接链接到 Python 环境中。修改源码后无需重新安装即可生效。
 
+!!! warning "editable 安装与 stale global 包"
+    如果你同时装过全局 `clawsentry`（例如 `pip install clawsentry` 或 `uv tool install clawsentry`）又在源码目录里调试，可能会遇到 stale global package：命令行实际加载的是旧的全局包，而不是当前仓库。排查时先运行 `python -c "import clawsentry, pathlib; print(pathlib.Path(clawsentry.__file__).resolve())"`，确认路径指向本仓库；开发调试优先使用 `pip install -e ".[dev]"` 并激活对应虚拟环境。
+
 ---
 
 ## 验证安装
@@ -219,12 +222,12 @@ python -m pytest src/clawsentry/tests/ -v --tb=short
 
 ```
 ========================= test session starts ==========================
-collected 3061 items
+collected 3130 items
 
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 3054 passed, 7 skipped ===============
+========================= 3126 passed, 4 skipped ===============
 ```
 
 !!! success "全部通过即安装成功"

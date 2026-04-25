@@ -2889,7 +2889,25 @@ select:focus {
 .login-card .subtitle {
   font-size: 0.8rem;
   color: var(--color-text-muted);
-  margin-bottom: 18px;
+  margin-bottom: 10px;
+}
+
+.login-help {
+  margin: 0 0 14px;
+  color: var(--color-text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.login-alert {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(194, 65, 58, 0.24);
+  border-radius: 12px;
+  background: rgba(194, 65, 58, 0.08);
+  color: var(--color-block);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .login-label {

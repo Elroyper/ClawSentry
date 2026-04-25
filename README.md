@@ -18,11 +18,11 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Multi-step attack trajectory detection**: 5 built-in sequences with sliding-window analysis, SSE `trajectory_alert` broadcast
 - **Self-evolving pattern library (E-5)**: auto-extract candidates from high-risk events, CANDIDATE→EXPERIMENTAL→STABLE lifecycle, confidence scoring, REST API feedback loop
 - **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with explicit `CS_` / project-level overrides, including high-level L3 routing and trigger controls
-- **Four-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + optional tested `PreToolUse(Bash)` preflight)
+- **Five-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + optional tested `PreToolUse(Bash)` preflight / `PermissionRequest(Bash)` approval gate) + Gemini CLI (native hooks; real provider `BeforeTool` deny smoke proven for `run_shell_command`)
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3050+ regression tests** with release-time CI/build evidence
+- **3126 regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.5
+## What's New in v0.5.6
 
-- **L3 heartbeat advisory automation**: heartbeat / idle / success / rate-limit compatible events can queue frozen advisory snapshots only behind explicit flags, high-risk evidence deltas, and a per-session backlog guard.
-- **Bounded L3 job drain**: `clawsentry l3 jobs list|run-next|drain` and matching API endpoints execute queued advisory jobs with queued-only claim semantics; running/completed/failed jobs are never rerun.
-- **Advisory action summaries**: high/critical or degraded L3 reviews now surface compact operator actions in reports, SSE/watch, and Web UI while preserving `advisory_only=true` and `canonical_decision_mutated=false`.
+- **Gemini CLI native hook support**: `clawsentry init gemini-cli --setup`, Gemini hook normalization, harness dispatch, doctor/status readiness, and online docs are now available.
+- **Real Gemini BeforeTool deny**: real Gemini CLI `run_shell_command` is canonicalized to policy-facing `bash`, and a real provider smoke proved dangerous shell commands are denied before execution.
+- **Codex bounded native defense**: managed Codex hooks now include `PermissionRequest(Bash)` approval gating alongside `PreToolUse(Bash)` preflight, with isolated smoke artifacts.
 
 ## Quick Start
 
@@ -52,11 +52,26 @@ clawsentry start --framework a3s-code --interactive  # enable DEFER interaction
 ```
 
 The `start` command will:
-1. Auto-detect your framework (a3s-code, Claude Code, Codex, or OpenClaw)
+1. Auto-detect your framework (a3s-code, Claude Code, Codex, Gemini CLI, or OpenClaw)
 2. Initialize configuration if needed
 3. Start the gateway in the background
 4. Display live monitoring in the foreground
 5. Show Web UI URL with auto-login token
+
+### Web UI auth quick note
+
+`clawsentry start` prints a Web UI URL such as
+`http://127.0.0.1:8080/ui?token=...`. The browser stores that token in
+`sessionStorage` and removes `?token=` from the address bar before loading data.
+Manual login uses the same `CS_AUTH_TOKEN` from the startup environment or
+`.env.clawsentry`.
+
+- `invalid token` / `401` means the pasted value does not match
+  `CS_AUTH_TOKEN`.
+- `Gateway unavailable` means the local Gateway cannot be reached; this is not
+  an invalid-token error.
+- If your shell exports proxy variables, use
+  `NO_PROXY=localhost,127.0.0.1,::1` for local Gateway calls.
 
 Press Ctrl+C to gracefully shutdown.
 
@@ -82,8 +97,8 @@ clawsentry integrations status --json
 
 `integrations status` now reports more than enabled frameworks: it also shows
 OpenClaw backup restore availability, Claude hook source files, Codex
-session directory reachability, a per-framework readiness verdict with next
-steps, and a machine-readable framework capability matrix. The multi-framework
+session directory reachability, Gemini settings/hook readiness, a per-framework
+readiness verdict with next steps, and a machine-readable framework capability matrix. The multi-framework
 `start` banner now prints the same readiness summary before it returns or
 begins streaming events.
 
@@ -91,6 +106,7 @@ Disable one framework without disturbing the others:
 
 ```bash
 clawsentry init codex --uninstall
+clawsentry init gemini-cli --uninstall  # removes project-local managed Gemini hooks
 clawsentry init claude-code --uninstall  # also removes Claude Code hooks
 clawsentry init openclaw --uninstall     # env only; use --restore for OpenClaw-side backups
 ```
@@ -134,13 +150,25 @@ clawsentry init openclaw --restore
 |---|---|---|---|---|
 | `a3s-code` | Explicit SDK transport + `clawsentry-harness` | Yes | Yes | Agent code must wire `SessionOptions.ahp_transport` |
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks |
-| `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight | Yes | Session logs / optional `.codex/hooks.json` must be reachable |
+| `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight + `PermissionRequest(Bash)` approval gate | Yes | Session logs / optional `.codex/hooks.json` must be reachable |
+| `gemini-cli` | Gemini CLI native command hooks | Yes; real `BeforeTool` deny smoke proven for `run_shell_command` | Yes, with post-action side-effect caveat | Project `.gemini/settings.json` managed hooks; global home only with explicit `--gemini-home` |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed |
 
-`codex` should be understood as observation-first by default; optional managed native hooks now provide a narrow tested `PreToolUse(Bash)` deny path, while `PostToolUse`, `UserPromptSubmit`, `Stop`, and `SessionStart` remain advisory/observational. `a3s-code`
+`codex` should be understood as observation-first by default; optional managed native hooks now provide narrow `PreToolUse(Bash)` deny and `PermissionRequest(Bash)` approval-gate paths, while `PostToolUse`, `UserPromptSubmit`, `Stop`, and `SessionStart` remain advisory/observational by default. `a3s-code`
 should be understood as explicit transport wiring, not `.a3s-code/settings.json`
 auto-loading. `claude-code` and `openclaw` remain more host-config-dependent than
 `a3s-code`.
+
+`gemini-cli` should be understood as native-hook support with real provider
+pre-action evidence: `clawsentry init gemini-cli --setup` installs project-local
+managed hooks in `.gemini/settings.json`, and real Gemini CLI 0.25.0 smoke runs
+proved managed hook execution plus a real `BeforeTool` deny for
+`run_shell_command` after canonicalizing Gemini's shell tool to policy-facing
+`bash`. Kimi/OpenAI-compatible endpoints are not claimed as directly usable by
+Gemini CLI; that remains a future Google-GenAI proxy/adapter spike. Managed
+Gemini hook commands redirect diagnostics away from stderr and exit fail-open on
+harness process failure so Gemini does not treat plain stderr text as hook
+output.
 
 For a machine-readable local view of the same boundaries, run
 `clawsentry integrations status --json`.

@@ -1,12 +1,12 @@
 # OpenAI Codex CLI 集成
 
 !!! tip "本页怎么读"
-    这页面向 Codex CLI 用户。先区分默认监控和可选 Bash preflight，再按验证步骤确认 watcher、native hook 与 Gateway 的实际状态。
+    这页面向 Codex CLI 用户。先区分默认监控、同步 Bash preflight/approval gate 和异步 containment，再按验证步骤确认 watcher、native hook 与 Gateway 的实际状态。
 
 !!! warning "默认仍是监控模式"
-    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试的同步防护范围仅限 `PreToolUse(Bash)`，并已有真实 Codex CLI -> ClawSentry Gateway daemon 端到端验证；其他 native hook 事件仍为异步观察/建议，不承诺前置阻断。
+    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试/单元覆盖的同步防护范围包括 `PreToolUse(Bash)` 与 `PermissionRequest(Bash)`；`PreToolUse(Bash)` 已有真实 Codex CLI -> ClawSentry Gateway daemon 端到端验证。`PostToolUse` 只能做结果 containment，不能撤销已发生副作用；`UserPromptSubmit` / `Stop` 可返回 Codex 支持的 block/continuation 形态，但仍需按项目策略谨慎启用。
 
-将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控和可选 `PreToolUse(Bash)` native hook preflight 实现工具调用的实时安全评估与审计。
+将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控、可选 `PreToolUse(Bash)` native hook preflight、`PermissionRequest(Bash)` approval gate 和后置 containment 实现 Codex 的 bounded native defense。
 
 ---
 
@@ -47,10 +47,10 @@ clawsentry init codex
 clawsentry init codex --setup
 ```
 
-`--setup` 会启用 `.codex/config.toml` 中的 `[features].codex_hooks = true`，并在 `.codex/hooks.json` 中追加 ClawSentry 管理的 hook entries。`PreToolUse(Bash)` 使用同步 `clawsentry harness --framework codex` 以便 Gateway 可返回 `deny`；`PostToolUse`、`UserPromptSubmit`、`Stop`、`SessionStart` 使用 `--async` best-effort 后台观察（短暂 shutdown grace 后退出，绝不返回 host deny）。卸载时可用 `clawsentry init codex --uninstall` 移除 ClawSentry entries，而不删除其他 hook。
+`--setup` 会启用 `.codex/config.toml` 中的 `[features].codex_hooks = true`，并在 `.codex/hooks.json` 中追加 ClawSentry 管理的 hook entries。`PreToolUse(Bash)` 与 `PermissionRequest(Bash)` 使用同步 `clawsentry harness --framework codex` 以便 Gateway 可返回 host deny / approval deny；`PostToolUse`、`UserPromptSubmit`、`Stop`、`SessionStart` 使用 `--async` best-effort 后台观察（短暂 shutdown grace 后退出，除非后续显式改为同步策略，否则不阻塞当前 turn）。卸载时可用 `clawsentry init codex --uninstall` 移除 ClawSentry entries，而不删除其他 hook。
 
 !!! info "监控模式说明"
-    默认 Codex 集成仍以**监控模式**为主——ClawSentry 观察并评估操作，高风险操作通过 SSE 和告警通知运维人员。Native hook 安装是可选增强：仅 `PreToolUse(Bash)` 可在 Gateway 可达且判决为 block/defer 时返回 host deny；Gateway 不可达时默认 fail-open 并输出 stderr 诊断，避免阻断所有开发操作。
+    默认 Codex 集成仍以**监控模式**为主——ClawSentry 观察并评估操作，高风险操作通过 SSE 和告警通知运维人员。Native hook 安装是可选增强：`PreToolUse(Bash)` 可在 Gateway 可达且判决为 block/defer 时返回 host deny；`PermissionRequest(Bash)` 可在 Codex 触发审批前返回 allow/deny；Gateway 不可达时默认 fail-open 并输出 stderr 诊断，避免阻断所有开发操作。
 
 ### 2. 启动 Gateway
 
@@ -128,12 +128,13 @@ SSE 广播 (决策/告警/风险变更)
 | Codex native hook | Matcher | ClawSentry 命令 | Host 阻断语义 |
 |-------------------|---------|-----------------|---------------|
 | `PreToolUse` | `Bash` | `clawsentry harness --framework codex` | Gateway 返回 block/defer 时输出 Codex `permissionDecision: "deny"` |
-| `PostToolUse` | `Bash` | `clawsentry harness --framework codex --async` | best-effort 观察/审计；短暂 shutdown grace 后退出，不返回 deny |
-| `UserPromptSubmit` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 观察/建议；短暂 shutdown grace 后退出，不返回 deny |
-| `Stop` | *(全部)* | `clawsentry harness --framework codex --async` | best-effort 会话收尾观察；不返回 deny |
+| `PermissionRequest` | `Bash` | `clawsentry harness --framework codex` | Gateway 返回 block/defer 时输出 `decision.behavior: "deny"`；仅 low-risk allow 可跳过普通审批提示，medium+ 保留 Codex 正常审批 |
+| `PostToolUse` | `Bash` | `clawsentry harness --framework codex --async` | 默认 best-effort 观察/审计；同步策略下 block/defer 只能替换/contain 工具结果，不能撤销副作用 |
+| `UserPromptSubmit` | *(全部)* | `clawsentry harness --framework codex --async` | 默认 best-effort 观察/建议；同步策略下可返回 Codex `decision: "block"` |
+| `Stop` | *(全部)* | `clawsentry harness --framework codex --async` | 默认 best-effort 会话收尾观察；同步策略下可要求一次 continuation，已带 loop guard |
 | `SessionStart` | `startup|resume` | `clawsentry harness --framework codex --async` | best-effort 会话启动观察；不返回 deny |
 
-Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。生产验证应使用独立测试环境确认真实 Codex CLI、managed hook 与 Gateway daemon 的 host deny 链路。
+Gateway 可达时，`PreToolUse(Bash)` 和 `PermissionRequest(Bash)` 都会经 `CodexAdapter` 归一化为 `event_type=pre_action`、`source_framework=codex`、`tool_name=bash`，然后复用现有 Gateway 决策通道。Gateway 不可达或返回 fallback policy 时，native hook 默认 fail-open，并在 stderr 输出诊断；HTTP `/ahp/codex` 的 fail-closed 语义不适用于 native hook preflight。生产验证应使用独立测试环境确认真实 Codex CLI、managed hook 与 Gateway daemon 的 host deny 链路。
 
 ### 能力边界与 hook 所有权
 
@@ -141,12 +142,12 @@ Gateway 可达时，`PreToolUse(Bash)` 会经 `CodexAdapter` 归一化为 `event
     当前 Codex 防护是“默认 watcher + 可选最小同步 preflight”的组合：
 
     - **默认路径**：Session JSONL watcher 负责实时评估、审计、SSE/watch/UI 告警，不阻断已提交给 Codex 的操作。
-    - **同步防护路径**：只有显式运行 `clawsentry init codex --setup` 后，ClawSentry 才会注册 managed native hooks；已验证可返回 host deny 的范围仅是 `PreToolUse` + `Bash` matcher。
-    - **异步观察路径**：`PostToolUse(Bash)`、`UserPromptSubmit`、`Stop`、`SessionStart(startup|resume)` 使用 `--async`，只写入观察/审计/建议，不返回 host deny。
+    - **同步防护路径**：只有显式运行 `clawsentry init codex --setup` 后，ClawSentry 才会注册 managed native hooks；当前同步防护范围仍限定在 Codex 暴露的 Bash hook 面：`PreToolUse(Bash)` 和 `PermissionRequest(Bash)`。
+    - **异步观察路径**：`PostToolUse(Bash)`、`UserPromptSubmit`、`Stop`、`SessionStart(startup|resume)` 默认使用 `--async`，只写入观察/审计/建议；代码层已具备 Codex 支持的 containment / prompt block / stop continuation 响应翻译，但生产启用前应单独计划和隔离验证。
     - **Gateway 不可达**：native hook preflight 默认 fail-open 并写 stderr 诊断，避免把所有 Codex 开发操作一起卡死。若需要更严格的生产策略，应先在隔离环境验证再调整 fallback。
     - **未知 native events**：Codex adapter 只归一化已声明的事件形态；未知事件不会被当作可阻断 surface 扩大解释。
 
-ClawSentry 的 hook installer 使用 managed entry 标记进行非破坏式合并：它会保留已有用户 hooks 和 OMX hooks，卸载时只移除 ClawSentry 管理的 entries。用 `clawsentry doctor` 可核对当前形态是否仍为 `PreToolUse(Bash): sync`、其他 native events 为 `async`。
+ClawSentry 的 hook installer 使用 managed entry 标记进行非破坏式合并：它会保留已有用户 hooks 和 OMX hooks，卸载时只移除 ClawSentry 管理的 entries。用 `clawsentry doctor` 可核对当前形态是否仍为 `PreToolUse(Bash): sync`、`PermissionRequest(Bash): sync`，其他 native events 为 `async`。
 
 ### 验证安装与防护是否生效 {#verify-codex-hooks}
 
@@ -161,6 +162,7 @@ clawsentry doctor
 ```text
 [PASS] CODEX_NATIVE_HOOKS Codex native hooks installed
        PreToolUse(Bash): sync
+       PermissionRequest(Bash): sync
        PostToolUse(Bash): async
        UserPromptSubmit: async
        Stop: async
@@ -173,7 +175,7 @@ Bash preflight，并观察 Gateway / `clawsentry watch` 中是否出现对应 de
 
 维护者如果需要复现完整 host-deny 链路，可以使用仓库提供的 Codex → Gateway
 验证工具；它会使用临时 `CODEX_HOME`、临时 Gateway 和测试命令，不会改写你的真实
-Codex 配置。普通用户通常只需要 `doctor` 加一次安全的手动验证。
+Codex 配置。维护者开发期间也必须遵守这一点：不要把 ClawSentry hooks 安装到当前正在研发使用的 Codex 窗口/会话对应的 `~/.codex`。普通用户通常只需要 `doctor` 加一次安全的手动验证。
 
 ### 配置变量
 

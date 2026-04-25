@@ -72,10 +72,15 @@ flowchart LR
 
 | 术语 | 说明 |
 | --- | --- |
+| `DEFER` | 延后/审批结果：系统暂停自动放行，等待 operator allow/deny；不是最终 block。 |
+| `L3 advisory` | 深度证据审查，生成 snapshot/job/review 供 operator 判断。 |
+| `advisory-only` | L3 结论只提供建议和证据，不改写既有 canonical decision。 |
+| `toolkit evidence budget` | L3 审查可调用工具收集证据的上限；耗尽时会展示证据边界和降级原因。 |
+| `framework` | 事件来源的 Agent 运行时，例如 `codex`、`claude-code`、`a3s-code`、`openclaw`。 |
+| `workspace` | Agent 正在操作的项目目录或工作区。 |
+| `session` | 某个 workspace 中的一次 Agent 会话，通常对应一段 transcript / event stream。 |
 | `CanonicalEvent` | 归一化后的 Agent 事件。 |
 | `CanonicalDecision` | Gateway 输出的安全判决。 |
-| `session` | 一次 Agent 会话。 |
-| `workspace` | Agent 工作目录或项目空间。 |
 | `approval_id` | DEFER/审批流程里的操作标识。 |
 | `SSE` | `/report/stream` 实时事件流。 |
 

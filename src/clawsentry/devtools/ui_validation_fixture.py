@@ -59,8 +59,6 @@ def _iso_at(base_time: datetime, offset_seconds: int) -> str:
 
 
 def build_seeded_requests(base_time: datetime | None = None) -> list[SeededRequest]:
-    base = base_time or datetime.now(timezone.utc) - timedelta(minutes=4)
-
     return [
         SeededRequest(
             request_id="fixture-a3s-alpha-read",
@@ -216,6 +214,17 @@ def build_runtime_replay_events(base_time: datetime | None = None) -> list[dict[
             "resolved_decision": "allow-once",
             "resolved_reason": "Approved by fixture operator",
             "timestamp": _iso_at(base, 14),
+        },
+        {
+            "type": "defer_pending",
+            "session_id": "sess-openclaw-beta-001",
+            "approval_id": "fixture-defer-002",
+            "tool_name": "bash",
+            "command": "kubectl apply -f prod-rollout.yaml",
+            "reason": "Production rollout needs explicit operator approval",
+            "risk_level": "high",
+            "timeout_s": 180,
+            "timestamp": _iso_at(base, 16),
         },
         {
             "type": "session_enforcement_change",

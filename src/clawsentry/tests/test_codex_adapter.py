@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from clawsentry.adapters.codex_adapter import CodexAdapter
 
 
@@ -219,3 +217,36 @@ class TestCodexAdapter:
         assert event.event_subtype == "UserPromptSubmit"
         assert event.source_framework == "codex"
         assert event.payload["prompt"] == "please run tests"
+
+    def test_normalize_native_permission_request_bash_fixture(self):
+        """Codex PermissionRequest(Bash) normalizes as a pre-action approval gate."""
+        adapter = CodexAdapter()
+
+        event = adapter.normalize_native_hook_event(
+            {
+                "session_id": "sess-codex-permission",
+                "turn_id": "turn-permission",
+                "transcript_path": "/tmp/codex/session.jsonl",
+                "cwd": "/workspace/project",
+                "hook_event_name": "PermissionRequest",
+                "model": "gpt-5.4",
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "grep -R api_key .",
+                    "description": "requires approval because it scans files",
+                },
+            }
+        )
+
+        assert event is not None
+        assert event.event_type.value == "pre_action"
+        assert event.event_subtype == "PermissionRequest"
+        assert event.source_framework == "codex"
+        assert event.tool_name == "bash"
+        assert event.session_id == "sess-codex-permission"
+        assert event.trace_id == "turn-permission"
+        assert event.payload["arguments"]["command"] == "grep -R api_key ."
+        assert event.payload["command"] == "grep -R api_key ."
+        assert event.payload["arguments"]["description"] == (
+            "requires approval because it scans files"
+        )

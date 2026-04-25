@@ -151,8 +151,8 @@ def test_token_sync_cli_not_set():
 
 
 def test_all_checks_count():
-    """ALL_CHECKS should contain 20 checks (14 original + Codex native hooks + 3 latch + 2 bridge)."""
-    assert len(ALL_CHECKS) == 20
+    """ALL_CHECKS should contain core + Codex/Gemini + latch + bridge checks."""
+    assert len(ALL_CHECKS) == 22
 
 
 def test_all_checks_includes_latch():

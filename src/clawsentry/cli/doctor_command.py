@@ -9,8 +9,6 @@ import json
 import math
 import os
 import re
-import stat
-import sys
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -264,15 +262,70 @@ def check_codex_config() -> DoctorCheck:
                        f"Codex configured: /ahp/codex on port {port}.")
 
 
+def _framework_enabled(name: str) -> bool:
+    framework = _env("CS_FRAMEWORK")
+    enabled = {
+        item.strip()
+        for item in _env("CS_ENABLED_FRAMEWORKS").split(",")
+        if item.strip()
+    }
+    return framework == name or name in enabled
+
+
+def check_gemini_config() -> DoctorCheck:
+    if not _framework_enabled("gemini-cli"):
+        return DoctorCheck("GEMINI_CONFIG", "PASS",
+                           "Gemini CLI is not enabled (Gemini check skipped).")
+    token = _env("CS_AUTH_TOKEN")
+    port = _env("CS_HTTP_PORT") or "8080"
+    hooks_enabled = _env("CS_GEMINI_HOOKS_ENABLED").lower() in {
+        "1", "true", "yes", "on",
+    }
+    if not token:
+        return DoctorCheck("GEMINI_CONFIG", "WARN",
+                           "Gemini CLI is enabled but CS_AUTH_TOKEN is not set.",
+                           detail="Gemini hook decisions require an authenticated local Gateway.")
+    if not hooks_enabled:
+        return DoctorCheck("GEMINI_CONFIG", "WARN",
+                           "Gemini CLI is enabled but CS_GEMINI_HOOKS_ENABLED is not true.",
+                           detail="Run clawsentry init gemini-cli to merge Gemini env keys.")
+    return DoctorCheck("GEMINI_CONFIG", "PASS",
+                       f"Gemini CLI configured for local Gateway on port {port}.")
+
+
 _CODEX_HOOK_MARKER = "clawsentry harness --framework codex"
 _CODEX_HOOK_SYNC_COMMAND = "clawsentry harness --framework codex"
 _CODEX_HOOK_ASYNC_COMMAND = "clawsentry harness --framework codex --async"
 _CODEX_REQUIRED_HOOK_SHAPES: tuple[tuple[str, str | None, str, str], ...] = (
     ("PreToolUse", "Bash", _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
+    ("PermissionRequest", "Bash", _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
     ("PostToolUse", "Bash", _CODEX_HOOK_ASYNC_COMMAND, "--async"),
     ("UserPromptSubmit", None, _CODEX_HOOK_ASYNC_COMMAND, "--async"),
     ("Stop", None, _CODEX_HOOK_ASYNC_COMMAND, "--async"),
     ("SessionStart", "startup|resume", _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+)
+
+_GEMINI_HOOK_MARKER = "clawsentry harness --framework gemini-cli"
+_GEMINI_HOOK_SYNC_COMMAND = (
+    "sh -c 'clawsentry harness --framework gemini-cli "
+    "2>>\"${CS_HARNESS_DIAG_LOG:-/dev/null}\" || true'"
+)
+_GEMINI_HOOK_ASYNC_COMMAND = (
+    "sh -c 'clawsentry harness --framework gemini-cli --async "
+    "2>>\"${CS_HARNESS_DIAG_LOG:-/dev/null}\" || true'"
+)
+_GEMINI_REQUIRED_HOOK_SHAPES: tuple[tuple[str, str, str], ...] = (
+    ("BeforeAgent", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("AfterAgent", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("BeforeModel", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("AfterModel", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("BeforeTool", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("AfterTool", _GEMINI_HOOK_SYNC_COMMAND, "synchronous"),
+    ("SessionStart", _GEMINI_HOOK_ASYNC_COMMAND, "--async"),
+    ("SessionEnd", _GEMINI_HOOK_ASYNC_COMMAND, "--async"),
+    ("BeforeToolSelection", _GEMINI_HOOK_ASYNC_COMMAND, "--async"),
+    ("PreCompress", _GEMINI_HOOK_ASYNC_COMMAND, "--async"),
+    ("Notification", _GEMINI_HOOK_ASYNC_COMMAND, "--async"),
 )
 
 
@@ -363,13 +416,7 @@ def _codex_native_hook_shape_detail(hooks_payload: dict[str, Any]) -> str:
 
 
 def check_codex_native_hooks() -> DoctorCheck:
-    framework = _env("CS_FRAMEWORK")
-    enabled = {
-        item.strip()
-        for item in _env("CS_ENABLED_FRAMEWORKS").split(",")
-        if item.strip()
-    }
-    if framework != "codex" and "codex" not in enabled:
+    if not _framework_enabled("codex"):
         return DoctorCheck("CODEX_NATIVE_HOOKS", "PASS",
                            "Codex is not enabled (native hooks check skipped).")
 
@@ -404,7 +451,7 @@ def check_codex_native_hooks() -> DoctorCheck:
             "PASS",
             (
                 f"Codex native hooks installed: {hooks_path}; "
-                "PreToolUse(Bash) sync + advisory hooks async."
+                "PreToolUse(Bash) and PermissionRequest(Bash) sync + advisory hooks async."
             ),
             detail=shape_detail,
         )
@@ -422,6 +469,141 @@ def check_codex_native_hooks() -> DoctorCheck:
         "WARN",
         "Codex native hooks are incomplete.",
         detail=detail,
+    )
+
+
+def _gemini_settings_path() -> Path:
+    explicit = _env("CS_GEMINI_SETTINGS_PATH").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    return Path.cwd() / ".gemini" / "settings.json"
+
+
+def _gemini_managed_hook_commands(
+    settings_payload: dict[str, Any],
+    *,
+    event_name: str,
+) -> list[str]:
+    hooks = settings_payload.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    entries = hooks.get(event_name)
+    if not isinstance(entries, list):
+        return []
+    commands: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        hook_specs = entry.get("hooks")
+        if not isinstance(hook_specs, list):
+            continue
+        for hook_spec in hook_specs:
+            if not isinstance(hook_spec, dict):
+                continue
+            command = hook_spec.get("command")
+            if isinstance(command, str) and _GEMINI_HOOK_MARKER in command:
+                commands.append(command)
+    return commands
+
+
+def _gemini_native_hook_shape_issues(
+    settings_payload: dict[str, Any],
+) -> list[str]:
+    issues: list[str] = []
+    hooks_config = settings_payload.get("hooksConfig")
+    hooks = settings_payload.get("hooks")
+    hooks_enabled = (
+        isinstance(hooks_config, dict) and hooks_config.get("enabled") is True
+    ) or (
+        isinstance(hooks, dict) and hooks.get("enabled") is True
+    )
+    if not hooks_enabled:
+        issues.append("hooksConfig.enabled=true (or hooks.enabled=true)")
+    for event_name, expected_command, expected_mode in _GEMINI_REQUIRED_HOOK_SHAPES:
+        commands = _gemini_managed_hook_commands(settings_payload, event_name=event_name)
+        if not commands:
+            issues.append(f"{event_name}: missing ClawSentry managed entry")
+            continue
+        if expected_command not in commands:
+            issues.append(
+                f"{event_name}: expected {expected_mode} command "
+                f"'{expected_command}', found {commands!r}"
+            )
+    return issues
+
+
+def _gemini_native_hook_shape_detail(settings_payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    for event_name, expected_command, _expected_mode in _GEMINI_REQUIRED_HOOK_SHAPES:
+        expected_display = (
+            "sync" if expected_command == _GEMINI_HOOK_SYNC_COMMAND else "async"
+        )
+        commands = _gemini_managed_hook_commands(settings_payload, event_name=event_name)
+        if expected_command in commands:
+            lines.append(f"{event_name}: {expected_display}")
+        elif not commands:
+            lines.append(f"{event_name}: missing")
+        else:
+            lines.append(f"{event_name}: expected {expected_display}, found {', '.join(commands)}")
+    return "\n".join(lines)
+
+
+def check_gemini_native_hooks() -> DoctorCheck:
+    if not _framework_enabled("gemini-cli"):
+        return DoctorCheck("GEMINI_NATIVE_HOOKS", "PASS",
+                           "Gemini CLI is not enabled (native hooks check skipped).")
+
+    settings_path = _gemini_settings_path()
+    if not settings_path.exists():
+        return DoctorCheck(
+            "GEMINI_NATIVE_HOOKS",
+            "WARN",
+            "Gemini CLI native hooks are not installed.",
+            detail="Run clawsentry init gemini-cli --setup (use --dry-run first).",
+        )
+    try:
+        settings_payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return DoctorCheck(
+            "GEMINI_NATIVE_HOOKS",
+            "WARN",
+            f"Could not inspect Gemini CLI native hooks: {exc}",
+            detail="Run clawsentry init gemini-cli --setup to repair managed hook entries.",
+        )
+    if not isinstance(settings_payload, dict):
+        return DoctorCheck(
+            "GEMINI_NATIVE_HOOKS",
+            "WARN",
+            "Gemini CLI settings are not a JSON object.",
+            detail="Run clawsentry init gemini-cli --setup to repair managed hook entries.",
+        )
+
+    shape_issues = _gemini_native_hook_shape_issues(settings_payload)
+    shape_detail = _gemini_native_hook_shape_detail(settings_payload)
+    if not shape_issues:
+        return DoctorCheck(
+            "GEMINI_NATIVE_HOOKS",
+            "PASS",
+            (
+                f"Gemini CLI native hooks installed: {settings_path}; "
+                "prompt/model/tool hooks sync + lifecycle/advisory hooks async."
+            ),
+            detail=(
+                f"{shape_detail}\n"
+                "Maturity: real CLI smoke proved SessionStart/BeforeAgent/BeforeModel and "
+                "real BeforeTool deny for run_shell_command."
+            ),
+        )
+
+    return DoctorCheck(
+        "GEMINI_NATIVE_HOOKS",
+        "WARN",
+        "Gemini CLI native hooks are incomplete.",
+        detail=(
+            f"{shape_detail}\n"
+            f"Missing: {', '.join(shape_issues)}. "
+            "Run clawsentry init gemini-cli --setup."
+        ),
     )
 
 
@@ -566,6 +748,8 @@ ALL_CHECKS = [
     check_trajectory_db,
     check_codex_config,
     check_codex_native_hooks,
+    check_gemini_config,
+    check_gemini_native_hooks,
     check_latch_binary,
     check_latch_hub_health,
     check_latch_token_sync,
