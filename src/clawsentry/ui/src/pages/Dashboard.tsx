@@ -14,7 +14,17 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '../api/client'
-import type { HealthResponse, LLMUsageBucket, LLMUsageSnapshot, SessionSummary, SummaryResponse } from '../api/types'
+import type {
+  ControlHealthSnapshot,
+  HealthResponse,
+  LLMUsageBucket,
+  LLMUsageSnapshot,
+  RiskVelocity,
+  SessionSummary,
+  SummaryResponse,
+  SystemSecurityPosture,
+  WindowRiskSummary,
+} from '../api/types'
 import MetricCard from '../components/MetricCard'
 import RuntimeFeed from '../components/RuntimeFeed'
 import SkeletonCard from '../components/SkeletonCard'
@@ -44,6 +54,55 @@ function formatUsd(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount)
+}
+
+function formatMetricScore(value?: number | null): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—'
+}
+
+function formatSignedMetric(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+function formatRiskVelocityValue(value?: RiskVelocity | null): string {
+  if (typeof value === 'number') return formatSignedMetric(value)
+  if (value === 'up') return 'up'
+  if (value === 'down') return 'down'
+  if (value === 'flat') return 'flat'
+  return '—'
+}
+
+function windowRiskDensity(windowSummary?: WindowRiskSummary | null): number | null {
+  if (!windowSummary) return null
+  if (typeof windowSummary.risk_density === 'number' && Number.isFinite(windowSummary.risk_density)) {
+    return windowSummary.risk_density
+  }
+  const eventCount = windowSummary.event_count ?? 0
+  const highCount = windowSummary.high_or_critical_count ?? windowSummary.high_risk_event_count ?? 0
+  return eventCount > 0 ? highCount / eventCount : null
+}
+
+function postureScore(posture?: SystemSecurityPosture | null): number | null {
+  if (!posture) return null
+  if (typeof posture.posture_score === 'number') return posture.posture_score
+  if (typeof posture.score_0_100 === 'number') return posture.score_0_100
+  return null
+}
+
+function formatControlHealth(controlHealth?: ControlHealthSnapshot | null): string {
+  if (!controlHealth) return 'Control health unavailable'
+  return [
+    `${controlHealth.enforced_sessions ?? 0} enforced`,
+    `${controlHealth.released_sessions ?? 0} released`,
+    `${controlHealth.l3_required_sessions ?? 0} L3 required`,
+  ].join(' · ')
+}
+
+function formatRiskVelocity(posture?: SystemSecurityPosture | null, windowSummary?: WindowRiskSummary | null): string {
+  const velocity = posture?.risk_velocity ?? windowSummary?.risk_velocity
+  const density = windowRiskDensity(windowSummary)
+  return `Risk velocity ${formatRiskVelocityValue(velocity)} · density ${formatMetricScore(density)}`
 }
 
 function selectTopUsageLabel(buckets: Record<string, LLMUsageBucket>): string | null {
@@ -147,6 +206,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const budgetExhaustionEvent = health?.budget_exhaustion_event
   const llmUsageSnapshot = summary?.llm_usage_snapshot ?? health?.llm_usage_snapshot ?? null
+  const systemSecurityPosture = summary?.system_security_posture ?? null
+  const postureWindowSummary = systemSecurityPosture?.window_risk_summary ?? null
 
   useEffect(() => {
     const load = () =>
@@ -334,6 +395,15 @@ export default function Dashboard() {
                 to={sessionsHref({ minRisk: 'high', action: 'high-risk' })}
                 tone={criticalSessions > 0 ? 'red' : 'cyan'}
               />
+              {systemSecurityPosture && (
+                <CommandBriefCard
+                  icon={ShieldCheck}
+                  label="System Security Posture"
+                  value={`Posture score ${formatMetricScore(postureScore(systemSecurityPosture))}`}
+                  body={`Control health: ${formatControlHealth(systemSecurityPosture.control_health)}`}
+                  tone={systemSecurityPosture.risk_level === 'critical' || systemSecurityPosture.risk_level === 'high' ? 'red' : 'cyan'}
+                />
+              )}
             </div>
           </div>
           <div className="hero-panel command-status-panel">
@@ -367,6 +437,15 @@ export default function Dashboard() {
                   {llmUsageSnapshot ? formatLlmUsageSummary(llmUsageSnapshot) : 'Usage snapshot unavailable'}
                 </div>
               </div>
+              {systemSecurityPosture && (
+                <div>
+                  <span className="hero-panel-label"><ShieldCheck size={13} aria-hidden="true" /> System Security Posture</span>
+                  <strong>{formatMetricScore(systemSecurityPosture.latest_composite_score ?? postureScore(systemSecurityPosture))}</strong>
+                  <div className="mono hero-panel-detail">
+                    {formatRiskVelocity(systemSecurityPosture, postureWindowSummary)}
+                  </div>
+                </div>
+              )}
               <div className="hero-panel-wide">
                 <span className="hero-panel-label"><WalletCards size={13} aria-hidden="true" /> {t('dashboard.panel.dailyBudget')}</span>
                 <strong>{health ? formatUsd(health.budget.daily_budget_usd) : '—'}</strong>

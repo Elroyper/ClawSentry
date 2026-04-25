@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+## [0.5.7] — 2026-04-25
+
+### 新增
+
+- **报表风险指标合同刷新** — `/report/*`、SSE、Dashboard 与 Enterprise OS 现在统一暴露 `latest_composite_score`、`session_risk_sum`、`session_risk_ewma`、`risk_points_sum`、`window_risk_summary` 与 `system_security_posture`，并明确这些字段默认只用于展示/观测，不改变 L1/L2/L3 判决。
+- **Metric Dictionary 在线文档** — 新增公开指标字典，逐字段说明单位、范围、窗口语义、可空性、legacy 状态、消费面与示例 payload，避免把 `cumulative_score` 误读为新窗口累计分。
+- **Enterprise OS posture API** — 企业概览新增系统态势、缓存 fresh/stale/degraded 状态与窗口汇总字段，供外部运营面板读取全局健康状态。
+
+### 改进
+
+- **Dashboard / Sessions / Session Detail / Runtime Feed 指标展示** — Web UI 现在优先展示 EWMA / latest composite / system posture，并在旧 payload 下回退到 legacy `cumulative_score`，同时保留 framework、workspace 与 session 三层扫描路径。
+- **watch 输出与 decision diagnostics** — CLI watch、测试诊断与 API payload 对齐新指标名称，使 terminal、API 与 Web UI 使用同一套解释字段。
+- **API 有效性产物刷新** — coverage、OpenAPI、validity report 与 docs contract 同步更新，确保源码 route、Markdown anchor 与在线文档引用继续可追踪。
+
+### 测试与验证
+
+- Python full regression：`3135 passed, 4 skipped`。
+- Web UI 回归：`49 passed`。
+- Web UI build：PASS。
+- `python scripts/docs_api_inventory.py validate`：PASS。
+- `mkdocs build --strict`：PASS。
+- `git diff --check`：PASS。
+
 ## [0.5.6] — 2026-04-25
 
 ### 新增
@@ -992,6 +1015,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.7
 [0.5.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.6
 [0.5.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.5
 [0.5.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.4

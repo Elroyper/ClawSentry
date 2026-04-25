@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3126 regression tests** with release-time CI/build evidence
+- **3135 regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.6
+## What's New in v0.5.7
 
-- **Gemini CLI native hook support**: `clawsentry init gemini-cli --setup`, Gemini hook normalization, harness dispatch, doctor/status readiness, and online docs are now available.
-- **Real Gemini BeforeTool deny**: real Gemini CLI `run_shell_command` is canonicalized to policy-facing `bash`, and a real provider smoke proved dangerous shell commands are denied before execution.
-- **Codex bounded native defense**: managed Codex hooks now include `PermissionRequest(Bash)` approval gating alongside `PreToolUse(Bash)` preflight, with isolated smoke artifacts.
+- **Risk metric contract refresh**: reporting, SSE, dashboard, and Enterprise OS payloads now expose `latest_composite_score`, `session_risk_ewma`, `window_risk_summary`, and `system_security_posture` with documented display-only boundaries.
+- **Operator dashboard clarity**: Dashboard, Sessions, Session Detail, and Runtime Feed now prioritize framework/workspace/session posture, cache freshness, and legacy score fallbacks so responders can triage without guessing field semantics.
+- **API/docs traceability**: metric dictionary, OpenAPI/coverage/validity artifacts, and release-time docs validation are refreshed together to keep online API docs aligned with source routes.
 
 ## Quick Start
 

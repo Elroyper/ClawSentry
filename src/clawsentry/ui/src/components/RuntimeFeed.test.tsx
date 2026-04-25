@@ -112,6 +112,42 @@ describe('RuntimeFeed', () => {
     expect(screen.getByText('trajectory, file · 2 tool call(s) · toolkit 0/5 (exhausted)')).toBeInTheDocument()
   })
 
+  it('renders compact enterprise live posture rows when runtime events include the enterprise contract', async () => {
+    vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
+      void types
+      callbacks.onStatusChange('connected')
+      callbacks.onEvent('decision', {
+        session_id: 'sess-enterprise',
+        event_id: 'evt-enterprise',
+        risk_level: 'critical',
+        decision: 'block',
+        tool_name: 'bash',
+        actual_tier: 'L3',
+        timestamp: '2026-04-14T06:00:00.000Z',
+        reason: 'Enterprise stream event',
+        command: 'cat secrets.env',
+        live_risk_overview: {
+          active_sessions: 3,
+          high_risk_sessions: 2,
+          mapped_active_sessions: 1,
+          by_trinityguard_tier: { P1: 1, P2: 2 },
+          by_trinityguard_subtype: { cascading_failure: 1 },
+        },
+      })
+      return () => {}
+    })
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <RuntimeFeed />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
+    expectSecondaryLine('Enterprise posture: 3 active · 2 high-risk · 1 mapped')
+    expectSecondaryLine('TrinityGuard tiers: P1:1, P2:2')
+  })
+
   it('renders L3 metadata (request, availability, state, reason code) for decision events', async () => {
     vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
       void types

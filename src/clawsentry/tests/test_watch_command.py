@@ -624,6 +624,71 @@ class TestFormatEvent:
         assert parsed["type"] == "decision"
         assert parsed["decision"] == "allow"
 
+
+    def test_decision_human_output_shows_compact_posture_and_trend_hints(self):
+        event = {
+            "type": "decision",
+            "decision": "block",
+            "risk_level": "high",
+            "command": "deploy prod",
+            "reason": "operator policy",
+            "risk_posture_hint": {"summary": "High-risk posture"},
+            "operator_hints": {"risk_trend_hint": "high-risk trend rising"},
+            "timestamp": "2026-03-22T10:30:45Z",
+        }
+        result = format_event(event, color=False)
+        assert "Posture: High-risk posture" in result
+        assert "Trend: high-risk trend rising" in result
+
+    def test_allow_default_does_not_spam_posture_or_trend_hints(self):
+        event = {
+            "type": "decision",
+            "decision": "allow",
+            "risk_level": "low",
+            "command": "cat README.md",
+            "risk_posture_hint": "Healthy",
+            "risk_trend_hint": "flat",
+            "timestamp": "2026-03-22T10:30:45Z",
+        }
+        result = format_event(event, color=False)
+        assert "ALLOW" in result
+        assert "Posture:" not in result
+        assert "Trend:" not in result
+
+    def test_session_risk_change_human_output_shows_posture_and_trend_hints(self):
+        event = {
+            "type": "session_risk_change",
+            "session_id": "sess-001",
+            "previous_risk": "medium",
+            "current_risk": "high",
+            "posture_hint": "Session entering high-risk posture",
+            "trend_hint": {"direction": "up"},
+            "timestamp": "2026-03-22T10:30:45Z",
+        }
+        result = format_event(event, color=False)
+        assert "Posture: Session entering high-risk posture" in result
+        assert "Trend: up" in result
+
+    def test_json_mode_preserves_full_posture_and_trend_hint_fields(self):
+        event = {
+            "type": "decision",
+            "decision": "block",
+            "risk_level": "high",
+            "command": "deploy prod",
+            "risk_posture_hint": {
+                "summary": "High-risk posture",
+                "windows": {"5m": {"count": 3, "ratio": 0.5}},
+            },
+            "risk_trend_hint": {
+                "direction_5m": "up",
+                "series_5m": [{"high_or_critical_count": 3}],
+            },
+            "timestamp": "2026-03-22T10:30:45Z",
+        }
+        parsed = json.loads(format_event(event, json_mode=True))
+        assert parsed["risk_posture_hint"]["windows"]["5m"]["count"] == 3
+        assert parsed["risk_trend_hint"]["series_5m"][0]["high_or_critical_count"] == 3
+
     def test_verbose_param_forwarded_to_decision(self):
         event = {
             "type": "decision",

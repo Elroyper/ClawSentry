@@ -601,6 +601,23 @@ Session: 无历史
 
 ---
 
+
+## 报表指标不会默认改变 L1 判决 {#reporting-metric-boundary}
+
+当前指标优化新增的 `latest_composite_score`、`session_risk_sum`、`session_risk_ewma`、`risk_points_sum`、`window_risk_summary`、`system_security_posture` 属于报表 / SSE / Dashboard / Enterprise OS 展示合同。它们默认不参与 L1 短路规则、风险等级阈值或 allow/block/defer 判决。
+
+| 字段 | L1 默认读取 | 用途边界 |
+|------|-------------|----------|
+| `latest_composite_score` | 否 | 展示最新 composite score；L1 仍以当前 snapshot 内部计算为准。 |
+| `session_risk_sum` / `session_risk_ewma` | 否 | 窗口趋势和健康分展示；不替代 D1-D6 权重或阈值。 |
+| `risk_points_sum` | 否 | 解释风险压力；不自动替代 L3 trigger 的内部累计逻辑。 |
+| `window_risk_summary` | 否 | API/SSE 窗口聚合容器；不回写 `DecisionContext`，除非调用方显式设置 manual escalation flags。 |
+| `system_security_posture` | 否 | Enterprise OS / Dashboard 顶层态势；不改变单事件判决。 |
+| `cumulative_score` | 否 | Legacy 兼容字段；不要作为新窗口累计分。 |
+
+!!! warning "D4 normalization shadow/default-off"
+    若引入 D4 归一化、平滑或标准化字段，必须默认以 shadow 指标发布，不能直接替换 `dimensions_latest.d4`、L1 短路规则或风险阈值。只有在单独配置和测试明确开启后，才可影响判决路径。
+
 ## L1 → L2 升级条件 {#escalation}
 
 L1 不仅产生自己的判决，还决定是否将事件升级到 L2 语义分析层。升级检查在 L1 评估完成后进行。

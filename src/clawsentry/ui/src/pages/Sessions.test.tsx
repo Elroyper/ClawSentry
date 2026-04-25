@@ -26,6 +26,15 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     transcript_path: '/workspace/demo/session.jsonl',
     current_risk_level: 'high',
     cumulative_score: 0.9,
+    latest_composite_score: 0.94,
+    session_risk_ewma: 0.82,
+    risk_velocity: 'up',
+    window_risk_summary: {
+      window_seconds: 3600,
+      event_count: 12,
+      high_risk_event_count: 3,
+      risk_density: 0.25,
+    },
     event_count: 4,
     high_risk_event_count: 1,
     decision_distribution: { allow: 2, block: 1 },
@@ -114,5 +123,15 @@ describe('Sessions inventory', () => {
     expect(screen.getByRole('combobox', { name: 'Action filter' })).toHaveValue('budget')
     expect(screen.getByRole('textbox', { name: 'Search sessions' })).toHaveValue('agent-alpha')
     expect(screen.getByRole('button', { name: 'Budget exhausted only' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('shows latest score, EWMA, velocity, and density hints in session rows', async () => {
+    renderSessions()
+
+    expect(await screen.findByText('sess-budget-codex')).toBeInTheDocument()
+    expect(screen.getAllByText('Latest 0.94').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('EWMA 0.82').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Velocity up').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Density 0.25').length).toBeGreaterThan(0)
   })
 })

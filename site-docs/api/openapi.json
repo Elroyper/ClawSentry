@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ClawSentry Public API Reference",
-    "version": "0.5.5",
+    "version": "0.5.7",
     "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior."
   },
   "servers": [
@@ -151,7 +151,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:2981",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3202",
         "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
         "requestBody": {
@@ -222,7 +222,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3038",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3259",
         "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-a3s",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
         "requestBody": {
@@ -285,7 +285,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3072",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3293",
         "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-codex",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; production must set Bearer token.",
         "requestBody": {
@@ -343,7 +343,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3002",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3223",
         "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-adapter-effect-result",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth; native hook subprocesses should authenticate when token is configured.",
         "requestBody": {
@@ -447,7 +447,7 @@
             "description": "Error 500"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3111",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3332",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-health",
         "x-clawsentry-auth-note": "Gateway health endpoint is intentionally unauthenticated."
       }
@@ -471,7 +471,7 @@
             "description": "Error 500"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3125",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3346",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-metrics",
         "x-clawsentry-auth-note": "CS_METRICS_AUTH=true requires Bearer token; false/empty exposes metrics without auth."
       }
@@ -533,7 +533,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3137",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3358",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-summary",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -614,7 +614,7 @@
             "description": "Error 500"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3177",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3400",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-stream",
         "x-clawsentry-auth-note": "Accepts Bearer token and browser-friendly ?token= query auth; CS_AUTH_TOKEN empty disables auth.",
         "security": [
@@ -676,7 +676,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3291",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3514",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-sessions",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -744,7 +744,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3384",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3607",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-risk",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -817,7 +817,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3807",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4030",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -881,7 +881,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3855",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4078",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-page",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -941,7 +941,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3919",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4142",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-alerts",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -993,7 +993,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4002",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4225",
         "x-clawsentry-markdown-ref": "api/reporting.md#post-report-alerts-acknowledge",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "requestBody": {
@@ -1057,7 +1057,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4026",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4249",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-enforcement",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -1108,7 +1108,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4033",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4256",
         "x-clawsentry-markdown-ref": "api/reporting.md#post-report-session-enforcement",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "requestBody": {
@@ -1171,7 +1171,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4070",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4293",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-report-session-quarantine",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. Quarantine is explicit session mark-blocked state, not guaranteed host termination.",
         "security": [
@@ -1221,7 +1221,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4080",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4303",
         "x-clawsentry-markdown-ref": "api/reporting.md#post-report-session-quarantine",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. Release is explicit and audited separately from legacy enforcement cooldown.",
         "requestBody": {
@@ -1281,7 +1281,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4125",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4348",
         "x-clawsentry-markdown-ref": "api/reporting.md#get-ahp-patterns",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -1324,7 +1324,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4139",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4362",
         "x-clawsentry-markdown-ref": "api/reporting.md#post-ahp-patterns-confirm",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "requestBody": {
@@ -1505,7 +1505,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3407",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3630",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -1571,7 +1571,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3447",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3670",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "security": [
@@ -1627,7 +1627,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3460",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3683",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "security": [
@@ -1674,7 +1674,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3480",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3703",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "security": [
@@ -1721,7 +1721,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3503",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3726",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -1780,7 +1780,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3530",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3753",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -1848,7 +1848,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3558",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3781",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -1907,7 +1907,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3581",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3804",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -1975,7 +1975,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3625",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3848",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -2043,7 +2043,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3677",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3900",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -2111,7 +2111,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3696",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3919",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -2179,7 +2179,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3715",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3938",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -2247,7 +2247,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3738",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3961",
         "x-clawsentry-markdown-ref": "api/reporting.md#l3-advisory-endpoints",
         "x-clawsentry-auth-note": "CS_AUTH_TOKEN empty disables Gateway bearer auth. L3 advisory is advisory-only and does not mutate historical canonical decisions.",
         "requestBody": {
@@ -2302,7 +2302,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3115",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3336",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2345,7 +2345,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3150",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3371",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2388,7 +2388,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3170",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3391",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2431,7 +2431,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3235",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3458",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2474,7 +2474,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3336",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3559",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2526,7 +2526,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3781",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4004",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2578,7 +2578,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3830",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4053",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2630,7 +2630,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3886",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4109",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [
@@ -2673,7 +2673,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/server.py:3959",
+        "x-clawsentry-source": "src/clawsentry/gateway/server.py:4182",
         "x-clawsentry-markdown-ref": "api/reporting.md#enterprise-endpoints",
         "x-clawsentry-auth-note": "Registered only when enterprise mode is enabled; CS_AUTH_TOKEN empty disables Gateway bearer auth.",
         "security": [

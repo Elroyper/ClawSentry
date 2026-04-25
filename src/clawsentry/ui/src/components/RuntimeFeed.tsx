@@ -115,6 +115,35 @@ function EventBadge({ type }: { type: RuntimeEventType }) {
   )
 }
 
+function formatCountMap(map?: Record<string, number>) {
+  if (!map || Object.keys(map).length === 0) return null
+  return Object.entries(map)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}:${value}`)
+    .join(', ')
+}
+
+function EnterpriseRuntimeLine({ event }: { event: SSERuntimeEvent }) {
+  const overview = event.live_risk_overview
+  if (!overview) return null
+  const tierSummary = formatCountMap(overview.by_trinityguard_tier)
+  return (
+    <>
+      <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+        Enterprise posture:{' '}
+        <span className="mono">
+          {overview.active_sessions} active · {overview.high_risk_sessions} high-risk · {overview.mapped_active_sessions} mapped
+        </span>
+      </div>
+      {tierSummary && (
+        <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+          TrinityGuard tiers: <span className="mono">{tierSummary}</span>
+        </div>
+      )}
+    </>
+  )
+}
+
 function ConnectionStatus({ status, detail }: { status: SSEStatus; detail?: string }) {
   if (status === 'connected') return null
   const icon = status === 'error' ? <WifiOff size={10} /> : <Wifi size={10} />
@@ -648,6 +677,7 @@ export default function RuntimeFeed() {
                 <EventBadge type={event.type} />
               </div>
               <RuntimeSummary event={event} language={language} />
+              <EnterpriseRuntimeLine event={event} />
             </div>
           ))
         )}

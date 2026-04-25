@@ -1341,6 +1341,8 @@ class TrajectoryStore:
                 by_actual_tier[actual_tier] += 1
                 by_caller_adapter[caller_adapter] += 1
 
+            invalid_event = self._build_invalid_event_metrics(records, now_ts)
+            high_risk_trend = self._build_high_risk_trend(records, now_ts)
             return {
                 "total_records": len(records),
                 "by_source_framework": dict(by_source_framework),
@@ -1349,8 +1351,15 @@ class TrajectoryStore:
                 "by_risk_level": dict(by_risk_level),
                 "by_actual_tier": dict(by_actual_tier),
                 "by_caller_adapter": dict(by_caller_adapter),
-                "invalid_event": self._build_invalid_event_metrics(records, now_ts),
-                "high_risk_trend": self._build_high_risk_trend(records, now_ts),
+                "invalid_event": invalid_event,
+                "high_risk_trend": high_risk_trend,
+                "system_security_posture": self._build_system_security_posture(
+                    by_risk_level=dict(by_risk_level),
+                    invalid_event=invalid_event,
+                    high_risk_trend=high_risk_trend,
+                    now_ts=now_ts,
+                    window_seconds=since_seconds or 3600,
+                ),
             }
         finally:
             _observe_io_metric(self._io_metrics["summary"], time.perf_counter() - start)
@@ -1500,6 +1509,76 @@ class TrajectoryStore:
             },
             "direction_5m": direction_5m,
             "series_5m": series_5m,
+        }
+
+    @staticmethod
+    def _system_posture_level(score_0_100: float) -> str:
+        if score_0_100 >= 90:
+            return "healthy"
+        if score_0_100 >= 70:
+            return "guarded"
+        if score_0_100 >= 40:
+            return "degraded"
+        return "critical"
+
+    def _build_system_security_posture(
+        self,
+        *,
+        by_risk_level: dict[str, int],
+        invalid_event: dict[str, Any],
+        high_risk_trend: dict[str, Any],
+        now_ts: float,
+        window_seconds: int,
+    ) -> dict[str, Any]:
+        critical_records = int(by_risk_level.get("critical", 0))
+        high_records = int(by_risk_level.get("high", 0))
+        trend_15m = high_risk_trend.get("windows", {}).get("15m", {})
+        high_risk_ratio_15m = float(trend_15m.get("ratio") or 0.0)
+        invalid_event_rate_15m = float(invalid_event.get("rate_15m") or 0.0)
+
+        risk_exposure = min(
+            100.0,
+            (20.0 * critical_records)
+            + (10.0 * high_records)
+            + (20.0 * high_risk_ratio_15m)
+            + (30.0 * invalid_event_rate_15m),
+        )
+        score = round(max(0.0, 100.0 - risk_exposure), 2)
+
+        drivers = [
+            {
+                "metric": "critical_records",
+                "value": critical_records,
+                "weight": 20.0,
+                "contribution": round(20.0 * critical_records, 2),
+            },
+            {
+                "metric": "high_records",
+                "value": high_records,
+                "weight": 10.0,
+                "contribution": round(10.0 * high_records, 2),
+            },
+            {
+                "metric": "high_risk_ratio_15m",
+                "value": high_risk_ratio_15m,
+                "weight": 20.0,
+                "contribution": round(20.0 * high_risk_ratio_15m, 2),
+            },
+            {
+                "metric": "invalid_event_rate_15m",
+                "value": invalid_event_rate_15m,
+                "weight": 30.0,
+                "contribution": round(30.0 * invalid_event_rate_15m, 2),
+            },
+        ]
+        drivers.sort(key=lambda item: item["contribution"], reverse=True)
+
+        return {
+            "score_0_100": score,
+            "level": self._system_posture_level(score),
+            "drivers": drivers,
+            "window_seconds": int(window_seconds),
+            "generated_at": self._iso_from_ts(now_ts),
         }
 
     def replay_session(

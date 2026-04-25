@@ -262,6 +262,16 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
       "transcript_path": "/workspace/repo-alpha/.a3s/session-001.jsonl",
       "current_risk_level": "high",
       "cumulative_score": 5,
+      "latest_composite_score": 2.4,
+      "session_risk_sum": 6.7,
+      "session_risk_ewma": 1.9,
+      "risk_points_sum": 5,
+      "window_risk_summary": {
+        "window_seconds": null,
+        "event_count": 25,
+        "high_risk_event_count": 3,
+        "critical_event_count": 1
+      },
       "event_count": 25,
       "high_risk_event_count": 3,
       "decision_distribution": {
@@ -307,6 +317,11 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `decision_distribution` | 该 session 内各判决类型分布 |
 | `l3_state` / `l3_reason_code` | 当前 session 最新一次 L3 运行态与原因码摘要 |
 | `evidence_summary` | 当前 session 最新一次保留下来的紧凑证据摘要 |
+| `cumulative_score` | Legacy 兼容字段；不要当作窗口累计 composite score |
+| `latest_composite_score` | 最新事件的原始 composite score，供展示和观测使用 |
+| `session_risk_sum` / `session_risk_ewma` | 与 `window_seconds` 对齐的窗口风险总量和 EWMA 展示分 |
+| `risk_points_sum` | 窗口内风险等级点数累计（low=0, medium=1, high=2, critical=3） |
+| `window_risk_summary` | 窗口聚合容器；字段合同见 [Metric Dictionary](metric-dictionary.md) |
 
 !!! info "为什么这里新增了 `workspace_root` 和 `transcript_path`？"
     从 `0.3.8` 开始，Web UI 的核心视图不再只按 session_id 平铺，而是按 `framework -> workspace -> session` 组织。因此 API 也同步暴露工作空间级元数据，方便前端和外部系统直接做分组与定位。
@@ -445,6 +460,17 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
   "transcript_path": "/workspace/repo-alpha/.a3s/session-001.jsonl",
   "current_risk_level": "high",
   "cumulative_score": 5,
+  "latest_composite_score": 2.4,
+  "session_risk_sum": 6.7,
+  "session_risk_ewma": 1.9,
+  "risk_points_sum": 5,
+  "window_risk_summary": {
+    "window_seconds": 3600,
+    "event_count": 12,
+    "high_risk_event_count": 3,
+    "critical_event_count": 1,
+    "latest_event_at": "2026-03-23T10:30:00+00:00"
+  },
   "event_count": 25,
   "high_risk_event_count": 3,
   "first_event_at": "2026-03-23T10:00:00+00:00",
@@ -801,10 +827,10 @@ event: session_start
 data: {"session_id":"session-002","agent_id":"agent-002","source_framework":"openclaw","timestamp":"2026-03-23T10:31:00+00:00"}
 
 event: session_risk_change
-data: {"session_id":"session-001","previous_risk":"medium","current_risk":"high","trigger_event":"evt-002","timestamp":"2026-03-23T10:32:00+00:00"}
+data: {"session_id":"session-001","previous_risk":"medium","current_risk":"high","trigger_event":"evt-002","latest_composite_score":2.4,"session_risk_ewma":1.9,"risk_points_sum":5,"window_risk_summary":{"window_seconds":3600,"event_count":12,"high_risk_event_count":3},"timestamp":"2026-03-23T10:32:00+00:00"}
 
 event: alert
-data: {"alert_id":"alert-abc123","severity":"high","metric":"session_risk_escalation","session_id":"session-001","current_risk":"high","message":"Session risk escalated to HIGH: 3 high-risk event(s) detected","timestamp":"2026-03-23T10:32:00+00:00"}
+data: {"alert_id":"alert-abc123","severity":"high","metric":"session_risk_escalation","session_id":"session-001","current_risk":"high","latest_composite_score":2.4,"risk_points_sum":5,"message":"Session risk escalated to HIGH: 3 high-risk event(s) detected","timestamp":"2026-03-23T10:32:00+00:00"}
 
 event: session_enforcement_change
 data: {"session_id":"session-001","state":"enforced","action":"defer","high_risk_count":3,"timestamp":"2026-03-23T10:32:00+00:00"}
@@ -813,7 +839,7 @@ event: post_action_finding
 data: {"event_id":"evt-003","session_id":"session-001","source_framework":"a3s-code","tier":"emergency","patterns_matched":["secret_exposure"],"score":0.97,"handling":"block","timestamp":"2026-03-23T10:33:00+00:00"}
 
 event: trajectory_alert
-data: {"session_id":"session-001","sequence_id":"seq-exfil-001","risk_level":"critical","matched_event_ids":["evt-001","evt-003"],"reason":"read secret then exfiltrate","handling":"block","timestamp":"2026-03-23T10:34:00+00:00"}
+data: {"session_id":"session-001","sequence_id":"seq-exfil-001","risk_level":"critical","matched_event_ids":["evt-001","evt-003"],"reason":"read secret then exfiltrate","handling":"block","window_risk_summary":{"window_seconds":3600,"critical_event_count":1},"timestamp":"2026-03-23T10:34:00+00:00"}
 
 event: pattern_candidate
 data: {"pattern_id":"EV-A3F8B2C1","session_id":"session-001","source_framework":"a3s-code","status":"candidate","timestamp":"2026-03-23T10:35:00+00:00"}
@@ -845,6 +871,8 @@ data: {"review_id":"l3adv-001","snapshot_id":"l3snap-001","session_id":"session-
 - `: keepalive` —— 15 秒无事件时发送心跳
 - 每个 SSE 订阅者有独立队列（最大 500 条），队满时丢弃最旧事件
 - 最大并发订阅者数：100
+- `latest_composite_score`、`session_risk_sum`、`session_risk_ewma`、`risk_points_sum`、`window_risk_summary` 在 SSE 中是展示/观测字段；默认不改变 canonical decision。
+- watch/trajectory 类事件可携带 `window_risk_summary`，用于 Watch UI 做窗口解释，而不是重跑 L1/L2/L3。
 
 ### 各事件类型的 data 字段
 
@@ -1064,6 +1092,9 @@ es.addEventListener("alert", (e) => {
         "current_risk": "high",
         "high_risk_count": 3,
         "cumulative_score": 5,
+        "latest_composite_score": 2.4,
+        "risk_points_sum": 5,
+        "window_risk_summary": {"window_seconds": 3600, "high_risk_event_count": 3},
         "trigger_event_id": "evt-003",
         "tool_name": "bash"
       },
@@ -1367,6 +1398,42 @@ Enterprise 端点只在企业模式启用时注册。它们与基础 `/report/*`
 
 !!! note "为什么单独分组"
     这些端点是条件 surface，不应和基础 Gateway API 混在一起理解。`api-coverage.json` 使用 `public_status: enterprise` 标记。
+
+### Enterprise overview/cache 合同
+
+企业端点应优先返回 `system_security_posture`，用于 Enterprise OS 和 Dashboard 顶层态势展示。该对象是展示/观测合同，默认不改变 Gateway 判决。
+
+```json
+{
+  "system_security_posture": {
+    "posture": "elevated",
+    "score": 72.5,
+    "window_seconds": 3600,
+    "generated_at": "2026-04-25T12:00:05Z",
+    "cache": {
+      "state": "fresh",
+      "ttl_seconds": 10,
+      "age_seconds": 2.1,
+      "stale": false,
+      "degraded": false
+    },
+    "summary": {
+      "tracked_sessions": 18,
+      "high_risk_sessions": 3,
+      "session_risk_sum": 24.8,
+      "risk_points_sum": 17
+    }
+  }
+}
+```
+
+约束：
+
+- `cache.stale=true` 表示可展示但需要降级标识；不要当成空数据。
+- `cache.degraded=true` 或 `posture="degraded"` 表示数据源不可用、节流命中或 payload cap 触发；UI 应显示降级原因并保留最后可用快照。
+- `GET /enterprise/report/live` 可做短 TTL 缓存和 throttle；payload 超过上限时应裁剪明细列表，保留 `system_security_posture.summary`。
+- `cumulative_score` 若被透传，只能作为 legacy 字段，Enterprise OS 首选 `session_risk_ewma` 与 `system_security_posture.score`。
+
 
 ## GET /report/session/{id}/quarantine — session quarantine 状态 {#get-report-session-quarantine}
 

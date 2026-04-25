@@ -10,6 +10,8 @@ import type {
   SessionReplayPageResponse,
   SessionRisk,
   SessionRiskResponse,
+  RiskVelocity,
+  WindowRiskSummary,
   TrajectoryRecord,
 } from '../api/types'
 import {
@@ -48,6 +50,7 @@ const DIMENSION_LABELS: Record<string, string> = {
   d3: 'Data flow',
   d4: 'Frequency',
   d5: 'Context',
+  d6: 'Injection',
 }
 
 const TOOLTIP_STYLE = {
@@ -94,6 +97,46 @@ function formatUsd(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount)
+}
+
+function formatMetricScore(value?: number | null): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—'
+}
+
+function formatSignedMetric(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+function formatRiskVelocityValue(value?: RiskVelocity | null): string {
+  if (typeof value === 'number') return formatSignedMetric(value)
+  if (value === 'up') return 'up'
+  if (value === 'down') return 'down'
+  if (value === 'flat') return 'flat'
+  return '—'
+}
+
+function windowHighRiskCount(summary?: WindowRiskSummary | null): number {
+  return summary?.high_or_critical_count ?? summary?.high_risk_event_count ?? 0
+}
+
+function windowRiskDensity(summary?: WindowRiskSummary | null): number | null {
+  if (!summary) return null
+  if (typeof summary.risk_density === 'number' && Number.isFinite(summary.risk_density)) {
+    return summary.risk_density
+  }
+  const eventCount = summary.event_count ?? 0
+  return eventCount > 0 ? windowHighRiskCount(summary) / eventCount : null
+}
+
+function formatWindowRiskSummary(risk: SessionRisk | null): string {
+  const summary = risk?.window_risk_summary
+  if (!summary) return 'Window metrics unavailable'
+  return [
+    `${summary.event_count ?? 0} events`,
+    `${windowHighRiskCount(summary)} high-risk`,
+    `density ${formatMetricScore(windowRiskDensity(summary))}`,
+  ].join(' · ')
 }
 
 function TierBadge({ tier }: { tier: string }) {
@@ -390,8 +433,9 @@ export default function SessionDetail() {
   const capturedSummary = risk
     ? `${formatRelativeTime(risk.first_event_at)} · ${risk.source_framework}`
     : 'Waiting for session telemetry.'
+  const latestCompositeScore = risk?.latest_composite_score ?? risk?.cumulative_score ?? null
   const classifiedSummary = risk
-    ? `${risk.current_risk_level} posture · score ${risk.cumulative_score.toFixed(2)}`
+    ? `${risk.current_risk_level} posture · score ${formatMetricScore(latestCompositeScore)}`
     : 'Risk posture unavailable.'
   const replayEvidenceSummary = trajectory.length > 0
     ? `${trajectory.length} decision event(s) loaded for operator review.`
@@ -576,8 +620,24 @@ export default function SessionDetail() {
                 </div>
               </div>
               <div className="session-analysis-stat">
+                <span>Latest composite score</span>
+                <strong className="mono">{formatMetricScore(latestCompositeScore)}</strong>
+              </div>
+              <div className="session-analysis-stat">
                 <span>Cumulative score</span>
-                <strong className="mono">{risk?.cumulative_score.toFixed(2) ?? '0.00'}</strong>
+                <strong className="mono">{formatMetricScore(risk?.cumulative_score)}</strong>
+              </div>
+              <div className="session-analysis-stat">
+                <span>Session risk EWMA</span>
+                <strong className="mono">{formatMetricScore(risk?.session_risk_ewma)}</strong>
+              </div>
+              <div className="session-analysis-stat">
+                <span>Risk velocity</span>
+                <strong className="mono">{formatRiskVelocityValue(risk?.risk_velocity ?? risk?.window_risk_summary?.risk_velocity)}</strong>
+              </div>
+              <div className="session-analysis-stat">
+                <span>Window risk summary</span>
+                <strong className="mono">{formatWindowRiskSummary(risk)}</strong>
               </div>
               <div className="session-analysis-stat">
                 <span>High-risk events</span>
@@ -677,14 +737,23 @@ export default function SessionDetail() {
             </div>
             <div className="chart-card-body chart-card-radar">
               {radarData.length > 0 ? (
-                <ResponsiveContainer>
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="rgba(120, 196, 255, 0.12)" />
-                    <PolarAngleAxis dataKey="dimension" tick={{ fill: '#89a4bd', fontSize: 10 }} />
-                    <PolarRadiusAxis tick={{ fill: '#55708a', fontSize: 9 }} domain={[0, 1]} />
-                    <Radar dataKey="value" stroke="#5ea5ff" fill="#5ea5ff" fillOpacity={0.2} strokeWidth={2} />
-                  </RadarChart>
-                </ResponsiveContainer>
+                <>
+                  <ResponsiveContainer>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke="rgba(120, 196, 255, 0.12)" />
+                      <PolarAngleAxis dataKey="dimension" tick={{ fill: '#89a4bd', fontSize: 10 }} />
+                      <PolarRadiusAxis tick={{ fill: '#55708a', fontSize: 9 }} domain={[0, 1]} />
+                      <Radar dataKey="value" stroke="#5ea5ff" fill="#5ea5ff" fillOpacity={0.2} strokeWidth={2} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                  <div className="detail-pill-row">
+                    {radarData.map(item => (
+                      <span key={item.dimension}>
+                        {item.dimension} <span className="mono">{formatMetricScore(item.value)}</span>
+                      </span>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <p className="empty-inline">No dimension data yet.</p>
               )}

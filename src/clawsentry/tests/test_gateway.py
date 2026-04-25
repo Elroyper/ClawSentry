@@ -12,7 +12,7 @@ import os
 import struct
 import time
 from collections import deque
-from datetime import date
+from datetime import date, datetime, timezone
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -72,6 +72,10 @@ def _sync_decision_params(**overrides) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def _iso_at(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
 
 
 # ===========================================================================
@@ -786,6 +790,109 @@ class TestGatewayCore:
         assert "l3_state" not in basic_session
         assert "l3_reason" not in basic_session
         assert "l3_reason_code" not in basic_session
+
+    def test_session_registry_display_metrics_use_raw_float_scores(self, gw):
+        session_id = "sess-display-metrics"
+        events = [
+            ("evt-display-1", "low", 1.7, "2026-03-19T12:00:00+00:00"),
+            ("evt-display-2", "medium", 2.2, "2026-03-19T12:01:00+00:00"),
+            ("evt-display-3", "critical", 2.9, "2026-03-19T12:02:00+00:00"),
+        ]
+
+        for event_id, risk_level, composite_score, occurred_at in events:
+            gw.session_registry.record(
+                event={
+                    "event_id": event_id,
+                    "occurred_at": occurred_at,
+                    "session_id": session_id,
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "tool_name": "bash",
+                    "payload": {"tool": "bash"},
+                },
+                decision={
+                    "decision": "block" if risk_level == "critical" else "allow",
+                    "risk_level": risk_level,
+                },
+                snapshot={
+                    "risk_level": risk_level,
+                    "composite_score": composite_score,
+                    "dimensions": {"d1": 0, "d2": 1, "d3": 0, "d4": 1, "d5": 0, "d6": 2},
+                    "classified_by": "L1",
+                    "classified_at": occurred_at,
+                },
+                meta={"actual_tier": "L1", "caller_adapter": "test-harness"},
+            )
+
+        session = gw.session_registry.list_sessions()["sessions"][0]
+        risk = gw.session_registry.get_session_risk(session_id)
+
+        assert session["cumulative_score"] == 2
+        assert session["latest_composite_score"] == pytest.approx(2.9)
+        assert session["session_risk_sum"] == pytest.approx(6.8)
+        assert session["session_risk_ewma"] == pytest.approx(2.165)
+        assert session["risk_points_sum"] == 4
+        assert session["risk_velocity"] == "up"
+        assert session["window_risk_summary"]["composite_score_sum"] == pytest.approx(6.8)
+
+        assert risk["latest_composite_score"] == pytest.approx(2.9)
+        assert risk["risk_timeline"][-1]["composite_score"] == pytest.approx(2.9)
+        assert risk["dimensions_latest"]["d6"] == 2
+
+    def test_session_risk_window_summary_is_separate_from_legacy_score(self, gw):
+        session_id = "sess-window-metrics"
+        now = time.time()
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-window-old",
+                "occurred_at": _iso_at(now - 120),
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "bash",
+                "payload": {"tool": "bash"},
+            },
+            decision={"decision": "block", "risk_level": "critical"},
+            snapshot={
+                "risk_level": "critical",
+                "composite_score": 9.5,
+                "dimensions": {"d1": 3, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+            },
+            meta={"actual_tier": "L1", "caller_adapter": "test-harness"},
+        )
+        gw.session_registry.record(
+            event={
+                "event_id": "evt-window-new",
+                "occurred_at": _iso_at(now),
+                "session_id": session_id,
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "tool_name": "read_file",
+                "payload": {"tool": "read_file"},
+            },
+            decision={"decision": "allow", "risk_level": "low"},
+            snapshot={
+                "risk_level": "low",
+                "composite_score": 1.25,
+                "dimensions": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+            },
+            meta={"actual_tier": "L1", "caller_adapter": "test-harness"},
+        )
+
+        risk = gw.session_registry.get_session_risk(session_id, since_seconds=60)
+
+        assert risk["cumulative_score"] == 1
+        assert risk["session_risk_sum"] == pytest.approx(10.75)
+        assert [item["event_id"] for item in risk["risk_timeline"]] == ["evt-window-new"]
+        window_summary = risk["window_risk_summary"]
+        assert window_summary["window_seconds"] == 60
+        assert window_summary["event_count"] == 1
+        assert window_summary["high_or_critical_count"] == 0
+        assert window_summary["latest_composite_score"] == pytest.approx(1.25)
+        assert window_summary["composite_score_sum"] == pytest.approx(1.25)
+        assert window_summary["session_risk_ewma"] == pytest.approx(1.25)
+        assert window_summary["risk_points_sum"] == 0
+        assert window_summary["risk_velocity"] == "unknown"
 
     def test_report_session_risk_surfaces_latest_l3_metadata(self, gw):
         session_id = "sess-risk-contract-001"
@@ -1931,6 +2038,41 @@ class TestGatewayCore:
         assert trend["windows"]["5m"]["ratio"] == pytest.approx(0.6)
         assert trend["direction_5m"] == "up"
         assert trend["series_5m"][-1]["high_or_critical_count"] == 6
+
+    def test_report_summary_includes_system_security_posture(self, tmp_path):
+        db_path = tmp_path / "trajectory-system-posture.db"
+        gw = SupervisionGateway(trajectory_db_path=str(db_path))
+        now = time.time()
+
+        for i, risk_level in enumerate(["critical", "high", "low", "low"]):
+            gw.trajectory_store.record(
+                event={
+                    "event_id": f"evt-posture-{i}",
+                    "session_id": "sess-posture",
+                    "source_framework": "test",
+                    "event_type": "pre_action",
+                    "event_subtype": "invalid_event" if i == 0 else "exec.approval.requested",
+                },
+                decision={
+                    "decision": "block" if risk_level in {"critical", "high"} else "allow",
+                    "risk_level": risk_level,
+                    **({"failure_class": "input_invalid"} if i == 0 else {}),
+                },
+                snapshot={},
+                meta={},
+                recorded_at_ts=now - i,
+            )
+
+        posture = gw.report_summary(window_seconds=900)["system_security_posture"]
+
+        assert posture["window_seconds"] == 900
+        assert posture["level"] in {"watch", "elevated", "critical"}
+        assert posture["score_0_100"] < 90
+        assert posture["generated_at"]
+        driver_by_key = {driver["key"]: driver for driver in posture["drivers"]}
+        assert driver_by_key["critical_sessions"]["value"] == 1
+        assert driver_by_key["high_sessions"]["value"] == 1
+        assert driver_by_key["high_risk_ratio_15m"]["value"] == pytest.approx(0.5)
 
 
 # ===========================================================================

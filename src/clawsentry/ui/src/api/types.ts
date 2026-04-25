@@ -52,6 +52,74 @@ export interface SummaryResponse extends ReportingEnvelope {
   by_caller_adapter: Record<string, number>
   generated_at: string
   window_seconds: number | null
+  system_security_posture?: SystemSecurityPosture | null
+}
+
+export interface RiskDimensions {
+  d1: number
+  d2: number
+  d3: number
+  d4: number
+  d5: number
+  d6?: number
+}
+
+export type RiskVelocity = 'up' | 'down' | 'flat' | 'unknown' | number
+
+export interface WindowRiskSummary {
+  window_seconds?: number | null
+  event_count?: number
+  high_risk_event_count?: number
+  high_or_critical_count?: number
+  max_composite_score?: number
+  mean_composite_score?: number
+  latest_composite_score?: number
+  composite_score_sum?: number
+  session_risk_sum?: number
+  session_risk_ewma?: number
+  risk_points_sum?: number
+  risk_density?: number
+  risk_velocity?: RiskVelocity
+  decision_affecting?: boolean
+}
+
+export interface ControlHealthSnapshot {
+  enforced_sessions?: number
+  released_sessions?: number
+  l3_required_sessions?: number
+  budget_exhausted_sessions?: number
+  high_risk_session_count?: number
+}
+
+export interface SystemSecurityPosture {
+  posture_score?: number
+  score_0_100?: number
+  risk_level?: RiskLevel
+  level?: string
+  latest_composite_score?: number
+  session_risk_ewma?: number
+  risk_velocity?: RiskVelocity
+  drivers?: Array<Record<string, unknown>>
+  window_seconds?: number | null
+  generated_at?: string
+  decision_affecting?: boolean
+  control_health?: ControlHealthSnapshot | null
+  window_risk_summary?: WindowRiskSummary | null
+}
+
+export interface EnterpriseLiveRiskOverview {
+  generated_at?: string
+  active_sessions: number
+  high_risk_sessions: number
+  mapped_active_sessions: number
+  by_risk_level?: Record<string, number>
+  by_trinityguard_tier?: Record<string, number>
+  by_trinityguard_subtype?: Record<string, number>
+}
+
+export interface EnterpriseRuntimeTelemetry {
+  live_risk_overview?: EnterpriseLiveRiskOverview
+  trinityguard_classification?: Record<string, unknown>
 }
 
 export interface SessionSummary {
@@ -74,6 +142,12 @@ export interface SessionSummary {
   evidence_summary?: L3EvidenceSummary | null
   l3_advisory_latest?: L3AdvisoryReview | null
   l3_advisory_latest_action?: L3AdvisoryAction | null
+  latest_composite_score?: number
+  session_risk_sum?: number
+  session_risk_ewma?: number
+  risk_points_sum?: number
+  risk_velocity?: RiskVelocity
+  window_risk_summary?: WindowRiskSummary | null
 }
 
 export interface SessionRisk {
@@ -85,7 +159,13 @@ export interface SessionRisk {
   transcript_path: string
   current_risk_level: RiskLevel
   cumulative_score: number
-  dimensions_latest: { d1: number; d2: number; d3: number; d4: number; d5: number }
+  latest_composite_score?: number
+  session_risk_sum?: number
+  session_risk_ewma?: number
+  risk_points_sum?: number
+  risk_velocity?: RiskVelocity
+  window_risk_summary?: WindowRiskSummary | null
+  dimensions_latest: RiskDimensions
   event_count: number
   high_risk_event_count: number
   first_event_at: string
@@ -99,6 +179,7 @@ export interface SessionRisk {
     occurred_at: string
     risk_level: RiskLevel
     composite_score: number
+    risk_velocity?: RiskVelocity
     tool_name: string
     decision: DecisionVerdict
     actual_tier: DecisionTier
@@ -232,7 +313,7 @@ export interface TrajectoryRecord {
   risk_snapshot: {
     risk_level: RiskLevel
     composite_score: number
-    dimensions: { d1: number; d2: number; d3: number; d4: number; d5: number }
+    dimensions: RiskDimensions
   }
   meta: {
     actual_tier: DecisionTier
@@ -449,8 +530,8 @@ export type RuntimeEventType =
   | 'l3_advisory_job'
   | 'l3_advisory_action'
 
-export type SSERuntimeEvent =
-  | (SSEDecisionEvent & { type: 'decision' })
+export type SSERuntimeEvent = (
+  (SSEDecisionEvent & { type: 'decision' })
   | (SSEAlertEvent & { type: 'alert' })
   | (SSEPostActionFindingEvent & { type: 'post_action_finding' })
   | (SSETrajectoryAlertEvent & { type: 'trajectory_alert' })
@@ -464,3 +545,4 @@ export type SSERuntimeEvent =
   | (SSEL3AdvisoryReviewEvent & { type: 'l3_advisory_review' })
   | (SSEL3AdvisoryJobEvent & { type: 'l3_advisory_job' })
   | (SSEL3AdvisoryActionEvent & { type: 'l3_advisory_action' })
+) & EnterpriseRuntimeTelemetry

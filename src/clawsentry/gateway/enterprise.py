@@ -36,6 +36,9 @@ _RISK_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 _EXEC_TOOLS = {"bash", "shell", "exec", "sudo"}
 _ENTERPRISE_LLM_TIMEOUT_MS = 3000.0
 _ENTERPRISE_LLM_MAX_TOKENS = 256
+ENTERPRISE_LIVE_OVERVIEW_CACHE_TTL_MS = 1000
+ENTERPRISE_LIVE_OVERVIEW_PAYLOAD_CAP = 10
+_ENTERPRISE_LIVE_CACHE_ATTR = "_enterprise_live_overview_cache"
 
 _TRINITYGUARD_TAXONOMY: dict[str, dict[str, str]] = {
     "prompt_injection": {"tier": "RT1", "label": "Prompt Injection"},
@@ -573,6 +576,125 @@ def _filter_records(
     return filtered
 
 
+def _payload_cap() -> int:
+    raw = os.getenv("CS_ENTERPRISE_LIVE_OVERVIEW_PAYLOAD_CAP")
+    if raw:
+        try:
+            return max(1, int(raw))
+        except ValueError:
+            pass
+    return ENTERPRISE_LIVE_OVERVIEW_PAYLOAD_CAP
+
+
+def _cache_ttl_ms() -> int:
+    raw = os.getenv("CS_ENTERPRISE_LIVE_OVERVIEW_CACHE_TTL_MS")
+    if raw:
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            pass
+    return ENTERPRISE_LIVE_OVERVIEW_CACHE_TTL_MS
+
+
+def _risk_level_for_posture(score: float) -> str:
+    if score < 50:
+        return "critical"
+    if score < 75:
+        return "elevated"
+    if score < 90:
+        return "watch"
+    return "healthy"
+
+
+def _session_counts_by_key(sessions: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, int]] = {}
+    for session in sessions:
+        raw_key = str(session.get(key) or "unknown")
+        entry = grouped.setdefault(raw_key, {"total_sessions": 0, "high_or_critical_count": 0, "critical_count": 0})
+        entry["total_sessions"] += 1
+        risk_level = str(session.get("current_risk_level") or "low").lower()
+        if _risk_rank(risk_level) >= _risk_rank("high"):
+            entry["high_or_critical_count"] += 1
+        if risk_level == "critical":
+            entry["critical_count"] += 1
+    rows = []
+    for name, counts in grouped.items():
+        total = counts["total_sessions"]
+        high = counts["high_or_critical_count"]
+        critical = counts["critical_count"]
+        rows.append(
+            {
+                "name": name,
+                "total_sessions": total,
+                "high_or_critical_count": high,
+                "critical_count": critical,
+                "high_or_critical_ratio": (high / total) if total else 0.0,
+                "critical_ratio": (critical / total) if total else 0.0,
+            }
+        )
+    rows.sort(key=lambda item: (item["high_or_critical_count"], item["critical_count"], item["total_sessions"]), reverse=True)
+    return rows[:_payload_cap()]
+
+
+def _top_count_rows(counts: dict[str, int], *, label_key: str) -> list[dict[str, Any]]:
+    rows = [
+        {label_key: key, "count": value}
+        for key, value in counts.items()
+        if value
+    ]
+    rows.sort(key=lambda item: item["count"], reverse=True)
+    return rows[:_payload_cap()]
+
+
+def _live_overview_extras(
+    *,
+    sessions: list[dict[str, Any]],
+    by_risk_level: dict[str, int],
+    by_tier: dict[str, int],
+    by_subtype: dict[str, int],
+    generated_at: str,
+    cache_ttl_ms: int,
+    stale: bool,
+    degraded: bool,
+    degraded_reason: str | None,
+) -> dict[str, Any]:
+    critical_sessions = int(by_risk_level.get("critical") or 0)
+    high_sessions = int(by_risk_level.get("high") or 0)
+    risk_exposure = min(100.0, (20.0 * critical_sessions) + (10.0 * high_sessions))
+    posture_score = max(0.0, 100.0 - risk_exposure)
+    top_drivers = [
+        {"key": "critical_sessions", "label": "Critical sessions", "value": critical_sessions}
+        if critical_sessions
+        else None,
+        {"key": "high_sessions", "label": "High-risk sessions", "value": high_sessions}
+        if high_sessions
+        else None,
+        {"key": "mapped_active_sessions", "label": "Mapped enterprise-risk sessions", "value": sum(by_tier.values())}
+        if sum(by_tier.values())
+        else None,
+    ]
+    capped_drivers = [item for item in top_drivers if item is not None][:_payload_cap()]
+    return {
+        "cache_ttl_ms": cache_ttl_ms,
+        "stale": stale,
+        "degraded": degraded,
+        "degraded_reason": degraded_reason,
+        "system_security_posture": {
+            "score_0_100": round(posture_score, 1),
+            "level": _risk_level_for_posture(posture_score),
+            "drivers": capped_drivers,
+            "window_seconds": 3600,
+            "generated_at": generated_at,
+            "decision_affecting": False,
+        },
+        "top_drivers": capped_drivers,
+        "by_framework": _session_counts_by_key(sessions, "source_framework"),
+        "by_workspace": _session_counts_by_key(sessions, "workspace_root"),
+        "top_trinityguard_tiers": _top_count_rows(by_tier, label_key="tier"),
+        "top_trinityguard_subtypes": _top_count_rows(by_subtype, label_key="subtype"),
+    }
+
+
 def _latest_session_record(gateway: SupervisionGateway, session_id: str) -> dict[str, Any] | None:
     replay = gateway.replay_session(session_id, limit=1)
     records = replay.get("records") if isinstance(replay.get("records"), list) else []
@@ -620,8 +742,9 @@ def build_enterprise_live_snapshot(gateway: SupervisionGateway) -> dict[str, Any
             by_tier[tier] = by_tier.get(tier, 0) + 1
             by_subtype[subtype] = by_subtype.get(subtype, 0) + 1
 
-    return {
-        "generated_at": utc_now_iso(),
+    generated_at = utc_now_iso()
+    payload = {
+        "generated_at": generated_at,
         "active_sessions": len(sessions),
         "high_risk_sessions": high_risk_sessions,
         "mapped_active_sessions": mapped_active_sessions,
@@ -629,6 +752,20 @@ def build_enterprise_live_snapshot(gateway: SupervisionGateway) -> dict[str, Any
         "by_trinityguard_tier": by_tier,
         "by_trinityguard_subtype": by_subtype,
     }
+    payload.update(
+        _live_overview_extras(
+            sessions=sessions,
+            by_risk_level=by_risk_level,
+            by_tier=by_tier,
+            by_subtype=by_subtype,
+            generated_at=generated_at,
+            cache_ttl_ms=_cache_ttl_ms(),
+            stale=False,
+            degraded=False,
+            degraded_reason=None,
+        )
+    )
+    return payload
 
 
 async def build_enterprise_live_snapshot_async(gateway: SupervisionGateway) -> dict[str, Any]:
@@ -664,8 +801,9 @@ async def build_enterprise_live_snapshot_async(gateway: SupervisionGateway) -> d
             by_tier[tier] = by_tier.get(tier, 0) + 1
             by_subtype[subtype] = by_subtype.get(subtype, 0) + 1
 
-    return {
-        "generated_at": utc_now_iso(),
+    generated_at = utc_now_iso()
+    payload = {
+        "generated_at": generated_at,
         "active_sessions": len(sessions),
         "high_risk_sessions": high_risk_sessions,
         "mapped_active_sessions": mapped_active_sessions,
@@ -673,6 +811,90 @@ async def build_enterprise_live_snapshot_async(gateway: SupervisionGateway) -> d
         "by_trinityguard_tier": by_tier,
         "by_trinityguard_subtype": by_subtype,
     }
+    payload.update(
+        _live_overview_extras(
+            sessions=sessions,
+            by_risk_level=by_risk_level,
+            by_tier=by_tier,
+            by_subtype=by_subtype,
+            generated_at=generated_at,
+            cache_ttl_ms=_cache_ttl_ms(),
+            stale=False,
+            degraded=False,
+            degraded_reason=None,
+        )
+    )
+    return payload
+
+
+async def build_enterprise_live_snapshot_cached_async(
+    gateway: SupervisionGateway,
+    *,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """Return cached enterprise live overview with stale/degraded metadata.
+
+    Enterprise SSE calls this lightweight path so standard ``/report/stream`` stays
+    unchanged and enterprise streams avoid recomputing the full live overview for
+    every event.
+    """
+    ttl_ms = _cache_ttl_ms()
+    now = time.monotonic()
+    cache = getattr(gateway, _ENTERPRISE_LIVE_CACHE_ATTR, None)
+    if (
+        not force_refresh
+        and isinstance(cache, dict)
+        and ttl_ms > 0
+        and (now - float(cache.get("computed_at", 0.0))) * 1000.0 <= ttl_ms
+    ):
+        payload = dict(cache["payload"])
+        payload["cache_ttl_ms"] = ttl_ms
+        payload["stale"] = False
+        payload["degraded"] = bool(payload.get("degraded", False))
+        payload["degraded_reason"] = payload.get("degraded_reason")
+        return payload
+
+    try:
+        payload = await build_enterprise_live_snapshot_async(gateway)
+        payload["cache_ttl_ms"] = ttl_ms
+        payload["stale"] = False
+        payload["degraded"] = False
+        payload["degraded_reason"] = None
+        setattr(gateway, _ENTERPRISE_LIVE_CACHE_ATTR, {"computed_at": now, "payload": dict(payload)})
+        return payload
+    except Exception as exc:  # pragma: no cover - exercised via tests with monkeypatch
+        logger.exception("enterprise live overview recomputation failed")
+        if isinstance(cache, dict) and isinstance(cache.get("payload"), dict):
+            payload = dict(cache["payload"])
+            payload["cache_ttl_ms"] = ttl_ms
+            payload["stale"] = True
+            payload["degraded"] = True
+            payload["degraded_reason"] = str(exc)
+            return payload
+        return {
+            "generated_at": utc_now_iso(),
+            "cache_ttl_ms": ttl_ms,
+            "stale": True,
+            "degraded": True,
+            "degraded_reason": str(exc),
+            "active_sessions": 0,
+            "high_risk_sessions": 0,
+            "mapped_active_sessions": 0,
+            "by_risk_level": {},
+            "by_trinityguard_tier": {},
+            "by_trinityguard_subtype": {},
+            "system_security_posture": {
+                "score_0_100": 0.0,
+                "level": "critical",
+                "drivers": [{"key": "enterprise_live_overview", "label": "Enterprise live overview unavailable", "value": 1}],
+                "window_seconds": 3600,
+                "generated_at": utc_now_iso(),
+                "decision_affecting": False,
+            },
+            "top_drivers": [],
+            "by_framework": [],
+            "by_workspace": [],
+        }
 
 
 def build_enterprise_event(event: dict[str, Any], gateway: SupervisionGateway) -> dict[str, Any]:
@@ -690,7 +912,7 @@ def build_enterprise_event(event: dict[str, Any], gateway: SupervisionGateway) -
 async def build_enterprise_event_async(event: dict[str, Any], gateway: SupervisionGateway) -> dict[str, Any]:
     payload = dict(event)
     payload["trinityguard_classification"] = await classify_runtime_event_async(event)
-    payload["live_risk_overview"] = await build_enterprise_live_snapshot_async(gateway)
+    payload["live_risk_overview"] = await build_enterprise_live_snapshot_cached_async(gateway)
     return payload
 
 
@@ -841,7 +1063,7 @@ async def enrich_health_payload_async(
 ) -> dict[str, Any]:
     enriched = dict(payload)
     enriched["enterprise"] = {
-        "live_risk_overview": await build_enterprise_live_snapshot_async(gateway),
+        "live_risk_overview": await build_enterprise_live_snapshot_cached_async(gateway),
     }
     return enriched
 
@@ -862,7 +1084,7 @@ async def enrich_summary_payload_async(
         **_count_classifications(list(classifications)),
     }
     enriched["enterprise"] = {
-        "live_risk_overview": await build_enterprise_live_snapshot_async(gateway),
+        "live_risk_overview": await build_enterprise_live_snapshot_cached_async(gateway),
     }
     return enriched
 
@@ -892,7 +1114,7 @@ async def enrich_sessions_payload_async(
 
     enriched["sessions"] = sessions
     enriched["enterprise"] = {
-        "live_risk_overview": await build_enterprise_live_snapshot_async(gateway),
+        "live_risk_overview": await build_enterprise_live_snapshot_cached_async(gateway),
     }
     return enriched
 

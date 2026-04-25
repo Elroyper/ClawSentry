@@ -88,6 +88,7 @@ from .session_enforcement import (
 )
 from .enterprise import (
     build_enterprise_event_async,
+    build_enterprise_live_snapshot_cached_async,
     build_enterprise_live_snapshot_async,
     enterprise_mode_enabled,
     enrich_alerts_payload_async,
@@ -110,6 +111,168 @@ _RISK_LEVEL_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical"
 
 def _risk_rank(risk_level: Optional[str]) -> int:
     return _RISK_LEVEL_RANK.get(str(risk_level or "low").lower(), 0)
+
+
+def _risk_points(risk_level: Any) -> int:
+    """Return the display/L3-explainability ordinal for a risk level."""
+    return _risk_rank(str(risk_level or "low"))
+
+
+def _float_or_zero(value: Any) -> float:
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _risk_velocity_from_scores(scores: list[float]) -> str:
+    """Return a compact trend label for a session risk score series."""
+    if len(scores) < 2:
+        return "unknown"
+    delta = scores[-1] - scores[0]
+    if delta > 0.25:
+        return "up"
+    if delta < -0.25:
+        return "down"
+    return "flat"
+
+
+def _build_window_risk_summary(
+    timeline: list[dict[str, Any]],
+    *,
+    window_seconds: Optional[int],
+    generated_at: Optional[str] = None,
+) -> dict[str, Any]:
+    """Build API display metrics from a session timeline.
+
+    This reporting helper is intentionally read-only.  It never feeds the
+    policy engine, and it treats legacy ``cumulative_score`` separately from
+    window-aware fields.
+    """
+    scores = [_float_or_zero(item.get("composite_score")) for item in timeline]
+    risk_points = [_risk_points(item.get("risk_level")) for item in timeline]
+    high_or_critical = sum(1 for item in timeline if _risk_rank(item.get("risk_level")) >= _risk_rank("high"))
+    latest_score = scores[-1] if scores else 0.0
+
+    ewma = 0.0
+    alpha = 0.3
+    for score in scores:
+        ewma = score if ewma == 0.0 else (alpha * score) + ((1.0 - alpha) * ewma)
+
+    return {
+        "window_seconds": window_seconds,
+        "generated_at": generated_at or utc_now_iso(),
+        "event_count": len(timeline),
+        "latest_composite_score": latest_score,
+        "session_risk_sum": round(sum(scores), 4),
+        "session_risk_ewma": round(ewma, 4),
+        "risk_points_sum": int(sum(risk_points)),
+        "risk_velocity": _risk_velocity_from_scores(scores),
+        "high_or_critical_count": high_or_critical,
+        "decision_affecting": False,
+    }
+
+
+def _build_system_security_posture(
+    summary: dict[str, Any],
+    *,
+    window_seconds: Optional[int],
+    generated_at: str,
+) -> dict[str, Any]:
+    """Build a display-only 0-100 system posture from reporting summary data."""
+    by_risk = summary.get("by_risk_level") if isinstance(summary.get("by_risk_level"), dict) else {}
+    critical_sessions = int(by_risk.get("critical") or 0)
+    high_sessions = int(by_risk.get("high") or 0)
+    high_trend = summary.get("high_risk_trend") if isinstance(summary.get("high_risk_trend"), dict) else {}
+    trend_windows = high_trend.get("windows") if isinstance(high_trend.get("windows"), dict) else {}
+    trend_15m = trend_windows.get("15m") if isinstance(trend_windows.get("15m"), dict) else {}
+    high_ratio_15m = _float_or_zero(trend_15m.get("ratio"))
+    invalid_event = summary.get("invalid_event") if isinstance(summary.get("invalid_event"), dict) else {}
+    invalid_rate_15m = _float_or_zero(invalid_event.get("rate_15m"))
+
+    risk_exposure = min(
+        100.0,
+        (20.0 * critical_sessions)
+        + (10.0 * high_sessions)
+        + (25.0 * high_ratio_15m)
+        + (15.0 * invalid_rate_15m),
+    )
+    score = max(0.0, 100.0 - risk_exposure)
+    if score < 50:
+        level = "critical"
+    elif score < 75:
+        level = "elevated"
+    elif score < 90:
+        level = "watch"
+    else:
+        level = "healthy"
+
+    driver_candidates = [
+        {
+            "key": "critical_sessions",
+            "label": "Critical sessions",
+            "value": critical_sessions,
+            "impact": 20.0 * critical_sessions,
+        },
+        {
+            "key": "high_sessions",
+            "label": "High-risk sessions",
+            "value": high_sessions,
+            "impact": 10.0 * high_sessions,
+        },
+        {
+            "key": "high_risk_ratio_15m",
+            "label": "15m high-risk ratio",
+            "value": round(high_ratio_15m, 4),
+            "impact": 25.0 * high_ratio_15m,
+        },
+        {
+            "key": "invalid_event_rate_15m",
+            "label": "15m invalid-event rate",
+            "value": round(invalid_rate_15m, 4),
+            "impact": 15.0 * invalid_rate_15m,
+        },
+    ]
+    drivers = [
+        {k: v for k, v in item.items() if k != "impact"}
+        for item in sorted(driver_candidates, key=lambda item: item["impact"], reverse=True)
+        if item["impact"] > 0
+    ][:3]
+
+    return {
+        "score_0_100": round(score, 1),
+        "level": level,
+        "drivers": drivers,
+        "window_seconds": window_seconds or 3600,
+        "generated_at": generated_at,
+        "decision_affecting": False,
+    }
+
+
+def _build_decision_path_io_pressure(io_snapshot: dict[str, Any]) -> dict[str, Any]:
+    reporting = io_snapshot.get("reporting") if isinstance(io_snapshot.get("reporting"), dict) else {}
+    record_path = io_snapshot.get("record_path") if isinstance(io_snapshot.get("record_path"), dict) else {}
+    max_reporting_seconds = 0.0
+    for item in reporting.values():
+        if isinstance(item, dict):
+            max_reporting_seconds = max(max_reporting_seconds, _float_or_zero(item.get("max_seconds")))
+    max_record_seconds = _float_or_zero(record_path.get("max_seconds"))
+    max_seconds = max(max_reporting_seconds, max_record_seconds)
+    if max_seconds >= 1.0:
+        level = "critical"
+    elif max_seconds >= 0.25:
+        level = "elevated"
+    elif max_seconds >= 0.05:
+        level = "watch"
+    else:
+        level = "healthy"
+    return {
+        "level": level,
+        "max_seconds": round(max_seconds, 6),
+        "max_reporting_seconds": round(max_reporting_seconds, 6),
+        "max_record_path_seconds": round(max_record_seconds, 6),
+        "decision_affecting": False,
+    }
 
 
 def _compact_l3_evidence_summary(l3_trace: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -2015,11 +2178,21 @@ class SupervisionGateway:
         start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         summary = self.trajectory_store.summary(since_seconds=since_seconds)
-        summary["generated_at"] = utc_now_iso()
+        generated_at = utc_now_iso()
+        summary["generated_at"] = generated_at
         summary["window_seconds"] = since_seconds
+        summary["system_security_posture"] = _build_system_security_posture(
+            summary,
+            window_seconds=since_seconds,
+            generated_at=generated_at,
+        )
         summary.update(self._reporting_state())
         self._observe_reporting_io("report_summary", time.perf_counter() - start)
-        summary.update(self._reporting_io_state())
+        io_state = self._reporting_io_state()
+        summary.update(io_state)
+        summary["decision_path_io_pressure"] = _build_decision_path_io_pressure(
+            io_state["decision_path_io"]
+        )
         return summary
 
     def replay_session(
@@ -2092,6 +2265,7 @@ class SupervisionGateway:
         start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
         effective_limit = min(max(limit, 1), 200)
+        generated_at = utc_now_iso()
         result = self.session_registry.list_sessions(
             status=status,
             sort=sort,
@@ -2099,18 +2273,54 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        generated_at = utc_now_iso()
+        raw_sessions = getattr(self.session_registry, "_sessions", {})
         for session in result.get("sessions", []):
             if not isinstance(session, dict):
                 continue
+            session_id = str(session.get("session_id") or "")
+            if since_seconds is None:
+                window_summary = {
+                    "window_seconds": since_seconds,
+                    "generated_at": generated_at,
+                    "event_count": int(session.get("event_count") or 0),
+                    "latest_composite_score": _float_or_zero(session.get("latest_composite_score")),
+                    "session_risk_sum": round(_float_or_zero(session.get("session_risk_sum")), 4),
+                    "session_risk_ewma": round(_float_or_zero(session.get("session_risk_ewma")), 4),
+                    "risk_points_sum": int(session.get("risk_points_sum") or 0),
+                    "risk_velocity": str(session.get("risk_velocity") or "unknown"),
+                    "high_or_critical_count": int(session.get("high_risk_event_count") or 0),
+                    "decision_affecting": False,
+                }
+                session["window_risk_summary"] = window_summary
+            else:
+                timeline = self.session_registry.get_session_risk(
+                    session_id,
+                    limit=1000,
+                    since_seconds=since_seconds,
+                ).get("risk_timeline", [])
+                if not isinstance(timeline, list):
+                    timeline = []
+                window_summary = _build_window_risk_summary(
+                    timeline,
+                    window_seconds=since_seconds,
+                    generated_at=generated_at,
+                )
+                session["latest_composite_score"] = window_summary["latest_composite_score"]
+                session["session_risk_sum"] = window_summary["session_risk_sum"]
+                session["session_risk_ewma"] = window_summary["session_risk_ewma"]
+                session["risk_points_sum"] = window_summary["risk_points_sum"]
+                session["risk_velocity"] = window_summary["risk_velocity"]
+                session["window_risk_summary"] = window_summary
             latest_review = self.trajectory_store.latest_l3_advisory_review(
-                session_id=str(session.get("session_id") or "")
+                session_id=session_id
             )
             if latest_review is not None:
                 session["l3_advisory_latest"] = latest_review
                 latest_action = self._l3_advisory_action_for_review(latest_review)
                 if latest_action is not None:
                     session["l3_advisory_latest_action"] = latest_action
-        result["generated_at"] = utc_now_iso()
+        result["generated_at"] = generated_at
         result["window_seconds"] = since_seconds
         result.update(self._reporting_state())
         self._observe_reporting_io("report_sessions", time.perf_counter() - start)
@@ -2205,6 +2415,17 @@ class SupervisionGateway:
             limit=effective_limit,
             since_seconds=since_seconds,
         )
+        timeline = result.get("risk_timeline") if isinstance(result.get("risk_timeline"), list) else []
+        window_summary = _build_window_risk_summary(
+            timeline,
+            window_seconds=since_seconds,
+        )
+        result["latest_composite_score"] = window_summary["latest_composite_score"]
+        result["session_risk_sum"] = window_summary["session_risk_sum"]
+        result["session_risk_ewma"] = window_summary["session_risk_ewma"]
+        result["risk_points_sum"] = window_summary["risk_points_sum"]
+        result["risk_velocity"] = window_summary["risk_velocity"]
+        result["window_risk_summary"] = window_summary
         result["l3_advisory"] = self._l3_advisory_payload(session_id)
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
@@ -3168,11 +3389,13 @@ def create_http_app(
         )
 
     @_enterprise_get("/enterprise/report/live")
-    async def enterprise_report_live_endpoint(request: Request):
+    async def enterprise_report_live_endpoint(request: Request, cached: bool = False):
         auth_result = await verify_auth(request)
         if isinstance(auth_result, Response):
             return auth_result
-        return await build_enterprise_live_snapshot_async(gateway)
+        if cached:
+            return await build_enterprise_live_snapshot_cached_async(gateway)
+        return await build_enterprise_live_snapshot_cached_async(gateway, force_refresh=True)
 
     @app.get("/report/stream")
     async def report_stream_endpoint(

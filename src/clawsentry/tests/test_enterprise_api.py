@@ -9,6 +9,7 @@ from clawsentry.gateway.models import RPC_VERSION
 from clawsentry.gateway.enterprise import (
     build_enterprise_event,
     build_enterprise_live_snapshot,
+    build_enterprise_live_snapshot_cached_async,
     classify_runtime_event,
     classify_trajectory_record,
 )
@@ -326,6 +327,47 @@ class TestEnterpriseHttpEndpoints:
         assert "trinityguard_classification" in alerts_payload["alerts"][0]
         assert "by_trinityguard_subtype" in live_payload
         assert live_payload["active_sessions"] >= 1
+        assert live_payload["cache_ttl_ms"] == 1000
+        assert live_payload["stale"] is False
+        assert live_payload["degraded"] is False
+        assert live_payload["degraded_reason"] is None
+        assert "system_security_posture" in live_payload
+        assert "top_drivers" in live_payload
+        assert len(live_payload["top_drivers"]) <= 10
+        assert "by_framework" in live_payload
+        assert len(live_payload["by_framework"]) <= 10
+        assert "by_workspace" in live_payload
+        assert len(live_payload["by_workspace"]) <= 10
+
+    @pytest.mark.asyncio
+    async def test_standard_reporting_surfaces_include_display_metrics(self, app):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            summary = await client.get("/report/summary")
+            sessions = await client.get("/report/sessions")
+            risk = await client.get("/report/session/sess-enterprise-sensitive/risk")
+
+        assert summary.status_code == 200
+        assert sessions.status_code == 200
+        assert risk.status_code == 200
+
+        summary_payload = summary.json()
+        sessions_payload = sessions.json()
+        risk_payload = risk.json()
+
+        assert summary_payload["system_security_posture"]["decision_affecting"] is False
+        assert summary_payload["system_security_posture"]["score_0_100"] >= 0
+        assert "decision_path_io_pressure" in summary_payload
+        assert sessions_payload["sessions"]
+        assert "latest_composite_score" in sessions_payload["sessions"][0]
+        assert "window_risk_summary" in sessions_payload["sessions"][0]
+        assert "cumulative_score" in risk_payload
+        assert "latest_composite_score" in risk_payload
+        assert "session_risk_sum" in risk_payload
+        assert "session_risk_ewma" in risk_payload
+        assert "risk_points_sum" in risk_payload
+        assert "risk_velocity" in risk_payload
+        assert risk_payload["window_risk_summary"]["decision_affecting"] is False
 
     @pytest.mark.asyncio
     async def test_enterprise_unmapped_records_can_use_llm_fallback(self, monkeypatch):
@@ -416,6 +458,29 @@ class TestEnterpriseRealtime:
         assert snapshot["active_sessions"] >= 1
         assert snapshot["mapped_active_sessions"] >= 1
         assert "by_trinityguard_subtype" in snapshot
+        assert snapshot["cache_ttl_ms"] == 1000
+        assert snapshot["stale"] is False
+        assert snapshot["degraded"] is False
+        assert "system_security_posture" in snapshot
+        assert len(snapshot["by_framework"]) <= 10
+
+    @pytest.mark.asyncio
+    async def test_enterprise_live_cache_uses_stale_last_known_on_recompute_failure(self, gw, monkeypatch):
+        await _seed_gateway(gw)
+        first = await build_enterprise_live_snapshot_cached_async(gw, force_refresh=True)
+        assert first["stale"] is False
+
+        async def fail_recompute(_gateway):
+            raise RuntimeError("forced live overview failure")
+
+        monkeypatch.setattr(enterprise_module, "build_enterprise_live_snapshot_async", fail_recompute)
+
+        stale = await build_enterprise_live_snapshot_cached_async(gw, force_refresh=True)
+
+        assert stale["stale"] is True
+        assert stale["degraded"] is True
+        assert stale["degraded_reason"] == "forced live overview failure"
+        assert stale["active_sessions"] == first["active_sessions"]
 
     @pytest.mark.asyncio
     async def test_build_enterprise_event_enriches_runtime_event(self, gw):

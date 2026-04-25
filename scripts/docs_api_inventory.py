@@ -437,7 +437,7 @@ def write_openapi() -> None:
         "openapi": "3.1.0",
         "info": {
             "title": "ClawSentry Public API Reference",
-            "version": "0.5.5",
+            "version": "0.5.7",
             "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior.",
         },
         "servers": [
@@ -698,7 +698,7 @@ def render_validity_markdown(report: dict[str, Any]) -> str:
         "",
         "# API 有效性报告",
         "",
-        f"生成时间：`{report['generated_at']}`<br>",
+        f"生成时间：`{report['generated_at']}`  ",
         f"核验状态：**{status}**",
         "",
         "本报告从同一份 docs-owned inventory 生成，核对源码 route decorator/registration、Markdown anchor、OpenAPI operation 和端点提及规则。它不修改后端 API 行为，也不会对写入型 API 做盲目 live 调用。",

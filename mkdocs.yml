@@ -119,6 +119,7 @@ nav:
     - API 概览: api/overview.md
     - 交互式 API Reference: api/reference.md
     - API 有效性报告: api/validity-report.md
+    - 指标字典: api/metric-dictionary.md
     - 鉴权与安全: api/authentication.md
     - 决策 / AHP 端点: api/decisions.md
     - 报表 / SSE / L3 Advisory: api/reporting.md

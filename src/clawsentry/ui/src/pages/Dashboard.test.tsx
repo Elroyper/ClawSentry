@@ -62,6 +62,24 @@ function makeSummaryResponse() {
     by_caller_adapter: { 'codex-http': 1 },
     generated_at: '2026-04-15T07:15:00Z',
     window_seconds: null,
+    system_security_posture: {
+      posture_score: 0.82,
+      risk_level: 'high',
+      latest_composite_score: 0.91,
+      session_risk_ewma: 0.74,
+      risk_velocity: 'up',
+      control_health: {
+        enforced_sessions: 2,
+        released_sessions: 4,
+        l3_required_sessions: 1,
+      },
+      window_risk_summary: {
+        window_seconds: 3600,
+        event_count: 18,
+        high_risk_event_count: 5,
+        risk_density: 0.28,
+      },
+    },
     budget: {
       daily_budget_usd: 10,
       daily_spend_usd: 3.25,
@@ -178,5 +196,14 @@ describe('Dashboard', () => {
     expect(metricCard).toBeTruthy()
     expect(within(metricCard as HTMLElement).getByText('0')).toBeInTheDocument()
     expect(screen.getByText('No sessions are currently hitting toolkit evidence budget.')).toBeInTheDocument()
+  })
+
+  it('surfaces system security posture, control health, and risk velocity metrics', async () => {
+    renderDashboard()
+
+    expect((await screen.findAllByText('System Security Posture')).length).toBeGreaterThan(0)
+    expect(screen.getByText('Posture score 0.82')).toBeInTheDocument()
+    expect(screen.getByText('Control health: 2 enforced · 4 released · 1 L3 required')).toBeInTheDocument()
+    expect(screen.getByText('Risk velocity up · density 0.28')).toBeInTheDocument()
   })
 })

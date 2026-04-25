@@ -15,6 +15,7 @@ ClawSentry 的公开 API 分为决策入口、报表监控、实时 SSE、L3 adv
 <div class="cs-actions" markdown>
 [查看交互 Reference](reference.md){ .md-button .md-button--primary }
 [API 有效性报告](validity-report.md){ .md-button }
+[Metric Dictionary](metric-dictionary.md){ .md-button }
 [下载 OpenAPI JSON](openapi.json){ .md-button }
 </div>
 </section>
@@ -42,6 +43,22 @@ ClawSentry 的公开 API 分为决策入口、报表监控、实时 SSE、L3 adv
 | 会话详情分页 | `GET /report/session/{session_id}/page` | 推荐给前端使用，避免一次性拉取过多事件 | [分页回放](reporting.md#get-report-session-page) |
 | 实时事件 | `GET /report/stream` | SSE；支持浏览器 query token | [SSE 事件流](reporting.md#get-report-stream) |
 | 告警处置 | `GET /report/alerts` / `POST /report/alerts/{alert_id}/acknowledge` | 查询和确认告警 | [告警端点](reporting.md#get-report-alerts) |
+| 风险指标字段 | `latest_composite_score` / `session_risk_ewma` / `system_security_posture` | 新增报表、SSE、Dashboard、Enterprise OS 展示字段；`cumulative_score` 仅 legacy 兼容 | [Metric Dictionary](metric-dictionary.md) |
+
+## 风险指标与决策边界
+
+新增报表字段遵循“显示先行、决策不变”的边界：
+
+| 字段族 | 默认用途 | 决策影响 | 说明 |
+| --- | --- | --- | --- |
+| `cumulative_score` | 旧 UI / 旧告警兼容 | 否 | 保留原字段，不重新定义为窗口累计分。 |
+| `latest_composite_score` | 当前风险读数 | 否 | 最新事件 composite score；Dashboard 可作为 fallback。 |
+| `session_risk_sum` / `session_risk_ewma` | 窗口趋势与主展示分 | 否 | UI/Enterprise OS 首选 `session_risk_ewma`，暴露量看 `session_risk_sum`。 |
+| `risk_points_sum` | L3 风险压力解释 | 否 | 与 L3 内部阈值口径相近，但外显字段不自动替代触发逻辑。 |
+| `window_risk_summary` | API/SSE/Dashboard 窗口容器 | 否 | 必须声明窗口、事件数和同窗口聚合字段。 |
+| `system_security_posture` | Enterprise OS / Dashboard 全局态势 | 否 | 必须支持 fresh/stale/degraded cache 状态。 |
+
+完整字段字典见 [Metric Dictionary](metric-dictionary.md)。
 
 ## API 分区
 
@@ -58,14 +75,14 @@ ClawSentry 的公开 API 分为决策入口、报表监控、实时 SSE、L3 adv
 ### 报表与监控
 `GET /report/*`、`GET /metrics`、`GET /health`
 
-查询聚合统计、会话轨迹、风险时间线、告警和 Prometheus 指标；`/report/*` 是文档分组别名，不是实际 route。
+查询聚合统计、会话轨迹、风险时间线、告警和 Prometheus 指标；`/report/*` 是文档分组别名，不是实际 route。新增风险展示字段以 [Metric Dictionary](metric-dictionary.md) 为准，默认不改变决策语义。
 </div>
 
 <div class="cs-card" markdown>
 ### 实时事件流
 `GET /report/stream`
 
-通过 SSE 接收 decision、alert、risk、DEFER、budget 和 L3 advisory 事件；浏览器可使用 query token。
+通过 SSE 接收 decision、alert、risk、DEFER、budget、watch/trajectory 和 L3 advisory 事件；浏览器可使用 query token。SSE 中的 `latest_composite_score`、`window_risk_summary` 等字段是观测/展示合同，默认不回写判决。
 </div>
 
 <div class="cs-card" markdown>

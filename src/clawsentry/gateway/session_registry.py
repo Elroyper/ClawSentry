@@ -11,10 +11,20 @@ from .models import adapter_effect_result_summary, decision_effect_summary, utc_
 from .trajectory_store import _parse_iso_timestamp
 
 _RISK_LEVEL_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+SESSION_RISK_EWMA_ALPHA = 0.3
 
 
 def _risk_rank(risk_level: Optional[str]) -> int:
     return _RISK_LEVEL_RANK.get(str(risk_level or "low").lower(), 0)
+
+
+def _safe_float(value: Any) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _new_io_metric_bucket() -> dict[str, float | int]:
@@ -449,6 +459,85 @@ class SessionRegistry:
         return compact_evidence_summary(summary)
 
     @staticmethod
+    def _timeline_display_metrics(
+        timeline: list[dict[str, Any]],
+        *,
+        alpha: float = SESSION_RISK_EWMA_ALPHA,
+    ) -> dict[str, Any]:
+        scores = [_safe_float(item.get("composite_score")) for item in timeline]
+        points = [_risk_rank(str(item.get("risk_level") or "low")) for item in timeline]
+
+        if not scores:
+            latest_score = 0.0
+            risk_sum = 0.0
+            ewma = 0.0
+            velocity = "unknown"
+        else:
+            latest_score = scores[-1]
+            risk_sum = sum(scores)
+            ewma = scores[0]
+            for score in scores[1:]:
+                ewma = (alpha * score) + ((1.0 - alpha) * ewma)
+            if len(scores) < 2:
+                velocity = "unknown"
+            elif scores[-1] > scores[-2]:
+                velocity = "up"
+            elif scores[-1] < scores[-2]:
+                velocity = "down"
+            else:
+                velocity = "flat"
+
+        return {
+            "latest_composite_score": latest_score,
+            "session_risk_sum": risk_sum,
+            "session_risk_ewma": ewma,
+            "risk_points_sum": sum(points),
+            "risk_velocity": velocity,
+        }
+
+    @classmethod
+    def _window_risk_summary(
+        cls,
+        timeline: list[dict[str, Any]],
+        *,
+        window_seconds: Optional[int],
+    ) -> dict[str, Any]:
+        metrics = cls._timeline_display_metrics(timeline)
+        high_or_critical_count = sum(
+            1 for item in timeline
+            if _risk_rank(str(item.get("risk_level") or "low")) >= _risk_rank("high")
+        )
+        return {
+            "window_seconds": window_seconds,
+            "event_count": len(timeline),
+            "high_or_critical_count": high_or_critical_count,
+            "latest_composite_score": metrics["latest_composite_score"],
+            "composite_score_sum": metrics["session_risk_sum"],
+            "session_risk_ewma": metrics["session_risk_ewma"],
+            "risk_points_sum": metrics["risk_points_sum"],
+            "risk_velocity": metrics["risk_velocity"],
+        }
+
+    @classmethod
+    def _session_display_metrics(
+        cls,
+        session: dict[str, Any],
+        *,
+        window_timeline: Optional[list[dict[str, Any]]] = None,
+        window_seconds: Optional[int] = None,
+    ) -> dict[str, Any]:
+        timeline = [
+            item for item in list(session.get("risk_timeline") or [])
+            if isinstance(item, dict)
+        ]
+        metrics = cls._timeline_display_metrics(timeline)
+        metrics["window_risk_summary"] = cls._window_risk_summary(
+            window_timeline if window_timeline is not None else timeline,
+            window_seconds=window_seconds,
+        )
+        return metrics
+
+    @staticmethod
     def _latest_session_annotations(session: dict[str, Any]) -> dict[str, Any]:
         annotations: dict[str, Any] = {}
 
@@ -613,7 +702,7 @@ class SessionRegistry:
             "occurred_at": occurred_at,
             "occurred_at_ts": occurred_at_ts,
             "risk_level": risk_level,
-            "composite_score": int(snapshot.get("composite_score") or 0),
+            "composite_score": _safe_float(snapshot.get("composite_score")),
             "tool_name": tool_name,
             "decision": decision_verdict,
             "actual_tier": actual_tier,
@@ -714,13 +803,16 @@ class SessionRegistry:
         session["current_risk_level"] = risk_level
         if dimensions:
             session["cumulative_score"] = int(snapshot.get("composite_score") or 0)
-            session["dimensions_latest"] = {
+            dimensions_latest = {
                 "d1": int(dimensions.get("d1") or 0),
                 "d2": int(dimensions.get("d2") or 0),
                 "d3": int(dimensions.get("d3") or 0),
                 "d4": int(dimensions.get("d4") or 0),
                 "d5": int(dimensions.get("d5") or 0),
             }
+            if "d6" in dimensions:
+                dimensions_latest["d6"] = int(dimensions.get("d6") or 0)
+            session["dimensions_latest"] = dimensions_latest
         if occurred_at_ts and occurred_at_ts < _parse_iso_timestamp(session["first_event_at"]):
             session["first_event_at"] = occurred_at
         if occurred_at_ts >= float(session.get("last_event_ts", 0.0)):
@@ -876,6 +968,12 @@ class SessionRegistry:
                     "latest_decision_effect_summary": session.get("latest_decision_effect_summary"),
                     "latest_adapter_effect_result_summary": session.get("latest_adapter_effect_result_summary"),
                 }
+                serialized_session.update(
+                    self._session_display_metrics(
+                        session,
+                        window_seconds=since_seconds,
+                    )
+                )
                 serialized_session.update(self._latest_session_annotations(session))
                 serialized_sessions.append(serialized_session)
 
@@ -901,6 +999,15 @@ class SessionRegistry:
                     "session_id": session_id,
                     "current_risk_level": "low",
                     "cumulative_score": 0,
+                    "latest_composite_score": 0.0,
+                    "session_risk_sum": 0.0,
+                    "session_risk_ewma": 0.0,
+                    "risk_points_sum": 0,
+                    "risk_velocity": "unknown",
+                    "window_risk_summary": self._window_risk_summary(
+                        [],
+                        window_seconds=since_seconds,
+                    ),
                     "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
                     "risk_timeline": [],
                     "evidence_summary": None,
@@ -1004,6 +1111,11 @@ class SessionRegistry:
                 ),
                 "latest_decision_effect_summary": session.get("latest_decision_effect_summary"),
                 "latest_adapter_effect_result_summary": session.get("latest_adapter_effect_result_summary"),
+                **self._session_display_metrics(
+                    session,
+                    window_timeline=timeline,
+                    window_seconds=since_seconds,
+                ),
                 **self._latest_session_annotations(session),
             }
         finally:

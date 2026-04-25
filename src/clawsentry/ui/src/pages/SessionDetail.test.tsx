@@ -42,7 +42,18 @@ function makeRiskResponse(overrides: Record<string, unknown> = {}) {
     transcript_path: '/workspace/demo/session.jsonl',
     current_risk_level: 'medium',
     cumulative_score: 0.62,
-    dimensions_latest: { d1: 0.2, d2: 0.1, d3: 0.3, d4: 0.0, d5: 0.1 },
+    latest_composite_score: 0.68,
+    session_risk_ewma: 0.55,
+    risk_velocity: 'down',
+    window_risk_summary: {
+      window_seconds: 3600,
+      event_count: 9,
+      high_risk_event_count: 2,
+      risk_density: 0.22,
+      max_composite_score: 0.71,
+      mean_composite_score: 0.49,
+    },
+    dimensions_latest: { d1: 0.2, d2: 0.1, d3: 0.3, d4: 0.0, d5: 0.1, d6: 0.4 },
     event_count: 3,
     high_risk_event_count: 0,
     first_event_at: '2026-04-14T08:00:00Z',
@@ -89,7 +100,7 @@ function makeReplayPageResponse(overrides: Record<string, unknown> = {}) {
         risk_snapshot: {
           risk_level: 'low',
           composite_score: 0.21,
-          dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0 },
+          dimensions: { d1: 0.1, d2: 0.0, d3: 0.1, d4: 0.0, d5: 0.0, d6: 0.0 },
         },
         meta: {
           actual_tier: 'L1',
@@ -224,6 +235,20 @@ describe('SessionDetail', () => {
 
     expect(await screen.findByText('Evidence:')).toBeInTheDocument()
     expect(screen.getByText('trajectory, file · 2 tool call(s) · toolkit 0/5 (exhausted)')).toBeInTheDocument()
+  })
+
+  it('renders latest/window risk metrics and the D6 injection dimension', async () => {
+    renderSessionDetail()
+
+    expect(await screen.findByText('Latest composite score')).toBeInTheDocument()
+    expect(screen.getByText('0.68')).toBeInTheDocument()
+    expect(screen.getByText('Session risk EWMA')).toBeInTheDocument()
+    expect(screen.getByText('0.55')).toBeInTheDocument()
+    expect(screen.getByText('Risk velocity')).toBeInTheDocument()
+    expect(screen.getByText('down')).toBeInTheDocument()
+    expect(screen.getByText('Window risk summary')).toBeInTheDocument()
+    expect(screen.getByText('9 events · 2 high-risk · density 0.22')).toBeInTheDocument()
+    expect(screen.getByText('Injection')).toBeInTheDocument()
   })
 
   it('lets operators request a deterministic L3 full review from session detail', async () => {

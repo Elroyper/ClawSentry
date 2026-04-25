@@ -9,7 +9,7 @@ import time
 import urllib.request
 import urllib.error
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Callable
 
 from clawsentry.cli.http_utils import urlopen_gateway
@@ -162,6 +162,91 @@ def _format_evidence_summary(summary: dict[str, Any] | None) -> str | None:
 
     return " · ".join(parts) if parts else None
 
+
+
+
+def _stringify_operator_hint(value: Any) -> str | None:
+    """Return a concise human-readable operator hint.
+
+    Machine-readable payloads may carry richer dictionaries/lists; watch human
+    output intentionally keeps only a compact summary while ``--json`` keeps the
+    original fields intact.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    if isinstance(value, dict):
+        for key in ("summary", "message", "hint", "label", "status", "direction", "state"):
+            text = _stringify_operator_hint(value.get(key))
+            if text:
+                return text
+        return None
+    if isinstance(value, (list, tuple)):
+        items = [_stringify_operator_hint(item) for item in value]
+        compact_items = [item for item in items if item]
+        if compact_items:
+            return ", ".join(compact_items[:3])
+    return None
+
+
+def _event_hint(event: dict[str, Any], *keys: str) -> str | None:
+    """Extract a compact hint from top-level or watch/operator hint maps."""
+    containers: list[dict[str, Any]] = [event]
+    for container_key in ("operator_hints", "watch_hints", "risk_hints_summary"):
+        value = event.get(container_key)
+        if isinstance(value, dict):
+            containers.append(value)
+
+    for container in containers:
+        for key in keys:
+            text = _stringify_operator_hint(container.get(key))
+            if text:
+                return text
+    return None
+
+
+def _posture_hint(event: dict[str, Any]) -> str | None:
+    return _event_hint(
+        event,
+        "risk_posture_hint",
+        "posture_hint",
+        "operator_posture_hint",
+        "risk_posture",
+        "posture",
+    )
+
+
+def _trend_hint(event: dict[str, Any]) -> str | None:
+    return _event_hint(
+        event,
+        "risk_trend_hint",
+        "trend_hint",
+        "operator_trend_hint",
+        "high_risk_trend_hint",
+        "risk_trend",
+        "trend",
+    )
+
+
+def _append_posture_trend_items(
+    detail_items: list[str],
+    event: dict[str, Any],
+    *,
+    color: bool = True,
+) -> None:
+    """Append compact posture/trend detail rows when present.
+
+    Keep this helper human-output only. ``format_event(..., json_mode=True)``
+    returns the raw event so automation receives the full structured fields.
+    """
+    posture = _posture_hint(event)
+    trend = _trend_hint(event)
+    if posture:
+        detail_items.append(f"Posture: {_c('grey', posture, color=color)}")
+    if trend:
+        detail_items.append(f"Trend: {_c('grey', trend, color=color)}")
 
 def _operator_action_hint(event: dict[str, Any]) -> str | None:
     """Return a human scanning hint for action-oriented watch events.
@@ -489,6 +574,8 @@ def format_decision(
     if action_hint:
         detail_items.append(f"Action: {_c('grey', action_hint, color=color)}")
 
+    _append_posture_trend_items(detail_items, event, color=color)
+
     trigger_detail = str(event.get("trigger_detail") or "")
     if trigger_detail:
         detail_items.append(f"Trigger: {_c('grey', trigger_detail, color=color)}")
@@ -612,6 +699,7 @@ def format_alert(
         f"Session: {_c('grey', session_id, color=color)}",
         f"Severity: {_risk_display(severity, color=color, no_emoji=no_emoji)}",
     ]
+    _append_posture_trend_items(detail_items, event, color=color)
     for i, item in enumerate(detail_items):
         connector = "└─" if i == len(detail_items) - 1 else "├─"
         lines.append(f"{_TREE_INDENT}{connector} {item}")
@@ -658,7 +746,17 @@ def _format_risk_change(
 
     prev_str = _risk_display(prev, color=color, no_emoji=no_emoji) if prev != "?" else prev
     curr_str = _risk_display(curr, color=color, no_emoji=no_emoji) if curr != "?" else curr
-    return f"{ts_str} {label}  {session_id}: {prev_str} → {curr_str}"
+    line = f"{ts_str} {label}  {session_id}: {prev_str} → {curr_str}"
+    hint_parts: list[str] = []
+    posture = _posture_hint(event)
+    trend = _trend_hint(event)
+    if posture:
+        hint_parts.append(f"Posture: {posture}")
+    if trend:
+        hint_parts.append(f"Trend: {trend}")
+    if hint_parts:
+        line = f"{line}  ·  {_c('grey', ' · '.join(hint_parts), color=color)}"
+    return line
 
 
 def _format_enforcement_change(

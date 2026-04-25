@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import { createManagedSSE } from '../api/sse'
 import { RiskBadge } from '../components/badges'
 import EmptyState from '../components/EmptyState'
-import type { SessionSummary } from '../api/types'
+import type { RiskVelocity, SessionSummary, WindowRiskSummary } from '../api/types'
 import {
   activityState,
   formatRelativeTime,
@@ -24,6 +24,33 @@ function scoreTone(score: number): 'critical' | 'high' | 'medium' | 'low' {
   if (score >= 0.5) return 'high'
   if (score >= 0.25) return 'medium'
   return 'low'
+}
+
+function formatMetricScore(value?: number | null): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(2) : '—'
+}
+
+function formatSignedMetric(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+function formatRiskVelocityValue(value?: RiskVelocity | null): string {
+  if (typeof value === 'number') return formatSignedMetric(value)
+  if (value === 'up') return 'up'
+  if (value === 'down') return 'down'
+  if (value === 'flat') return 'flat'
+  return '—'
+}
+
+function windowRiskDensity(windowSummary?: WindowRiskSummary | null): number | null {
+  if (!windowSummary) return null
+  if (typeof windowSummary.risk_density === 'number' && Number.isFinite(windowSummary.risk_density)) {
+    return windowSummary.risk_density
+  }
+  const eventCount = windowSummary.event_count ?? 0
+  const highCount = windowSummary.high_or_critical_count ?? windowSummary.high_risk_event_count ?? 0
+  return eventCount > 0 ? highCount / eventCount : null
 }
 
 function VerdictBar({ dist }: { dist: Record<string, number> }) {
@@ -347,6 +374,8 @@ export default function Sessions() {
                     <div className="session-card-stack">
                       {workspace.sessions.map(session => {
                         const sessionL3Annotation = formatSessionL3Annotation(session, language)
+                        const latestScore = session.latest_composite_score ?? session.cumulative_score
+                        const density = windowRiskDensity(session.window_risk_summary)
                         return (
                           <Link
                             key={session.session_id}
@@ -366,10 +395,19 @@ export default function Sessions() {
                                   {sessionL3Annotation}
                                 </p>
                               )}
+                              <p className="session-card-meta session-card-annotation mono">
+                                <span>Latest {formatMetricScore(latestScore)}</span>
+                                {' · '}
+                                <span>EWMA {formatMetricScore(session.session_risk_ewma)}</span>
+                                {' · '}
+                                <span>Velocity {formatRiskVelocityValue(session.risk_velocity ?? session.window_risk_summary?.risk_velocity)}</span>
+                                {' · '}
+                                <span>Density {formatMetricScore(density)}</span>
+                              </p>
                               <VerdictBar dist={session.decision_distribution} />
                             </div>
                             <div className="session-card-side">
-                              <ScoreBar score={session.cumulative_score} />
+                              <ScoreBar score={latestScore} />
                               <div className="session-card-statline">
                                 <span>{session.event_count} events</span>
                                 <span>{session.high_risk_event_count} high-risk</span>

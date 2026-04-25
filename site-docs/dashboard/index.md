@@ -152,6 +152,17 @@ Authorization: Bearer <token>
 
 Dashboard 的 **Cumulative trajectory records** 对应 Gateway `/health` 的 `trajectory_count`，表示 Gateway 已记录的轨迹总数，不是每秒实时事件速率。实时变化请看 Runtime Feed / SSE。
 
+### 风险分数显示顺序
+
+新 UI 类型会把 `latest_composite_score`、`session_risk_ewma`、`window_risk_summary`、`system_security_posture` 作为可选展示字段，同时保留 `cumulative_score` fallback。默认推荐顺序：
+
+1. Session 行/详情主分：优先 `session_risk_ewma`。
+2. 当前事件或无窗口 EWMA 时：回退 `latest_composite_score`。
+3. 兼容旧 payload 时：最后回退 `cumulative_score`，并标记为 legacy，不要按 0-1 进度条解释。
+4. 系统顶层态势：优先 `system_security_posture`，遇到 `cache.stale=true` 或 `cache.degraded=true` 时显示降级状态而不是隐藏卡片。
+
+这些字段只影响显示和观测；默认不改变 allow/block/defer/L3 判决。完整字段语义见 [Metric Dictionary](../api/metric-dictionary.md)。
+
 ---
 
 ## 每个页面回答什么问题？
@@ -311,6 +322,8 @@ DEFER Panel 回答：
 - `defer_pending`
 - `defer_resolved`
 - `session_enforcement_change`
+- `session_risk_change`（可携带 `latest_composite_score` / `session_risk_ewma` / `window_risk_summary`）
+- enterprise/watch posture refresh（可携带 `system_security_posture`）
 
 ---
 
@@ -371,6 +384,7 @@ Session Detail 页现在首先回答“这个 session 是谁”：
 - compact `evidence_summary`
 - `budget_exhaustion_event`
 - `decision_path_io`
+- `latest_composite_score`、`session_risk_ewma`、`window_risk_summary`（存在时优先用于展示）
 
 对于需要人工复盘的 session，Session Detail 还提供 **Request L3 full review** 操作。它会调用 `POST /report/session/{id}/l3-advisory/full-review`，冻结 bounded evidence snapshot，排队并可执行一次 advisory job，然后在页面中展示：
 
@@ -400,7 +414,7 @@ Session Detail 页现在首先回答“这个 session 是谁”：
 - `agent_id`
 - `caller_adapter`
 
-如果你在做二次开发，建议直接用这些字段做分组，而不是只靠 `session_id`。
+如果你在做二次开发，建议直接用这些字段做分组，而不是只靠 `session_id`。风险分数则按 `session_risk_ewma -> latest_composite_score -> cumulative_score` 回退；`cumulative_score` 只用于兼容旧 API。
 
 ---
 
@@ -425,6 +439,8 @@ GET /report/stream?token=<token>&types=decision,alert
 | `types` | 订阅的事件类型列表 |
 | `session_id` | 只接收某个 session 的事件 |
 | `min_risk` | 风险等级过滤 |
+
+SSE data 中出现的 `window_risk_summary`、`latest_composite_score`、`session_risk_ewma` 是运营展示字段；Runtime Feed 不应据此自行修改 Gateway 判决结果。
 
 ---
 
