@@ -577,7 +577,7 @@ DEFER 桥接在以下**所有条件**同时满足时激活：
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `CS_DEFER_BRIDGE_ENABLED` | `true` | 启用 DEFER 桥接 |
-| `CS_DEFER_TIMEOUT_S` | `300` | 超时时间（秒） |
+| `CS_DEFER_TIMEOUT_S` | `86400` | normal mode 人工审批软超时（秒）；benchmark mode 不等待 |
 | `CS_DEFER_TIMEOUT_ACTION` | `block` | 超时动作：`block` 或 `allow` |
 
 ### 完整示例
@@ -585,7 +585,7 @@ DEFER 桥接在以下**所有条件**同时满足时激活：
 ```bash title=".env.clawsentry"
 # 启用 DEFER 桥接
 CS_DEFER_BRIDGE_ENABLED=true
-CS_DEFER_TIMEOUT_S=180          # 3 分钟超时
+CS_DEFER_TIMEOUT_S=86400        # normal mode 24 小时软超时；CI 用 benchmark mode
 CS_DEFER_TIMEOUT_ACTION=block   # 超时阻断
 
 # 使用 watch CLI 交互审批

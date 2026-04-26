@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3135 regression tests** with release-time CI/build evidence
+- **3170 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.7
+## What's New in v0.5.8
 
-- **Risk metric contract refresh**: reporting, SSE, dashboard, and Enterprise OS payloads now expose `latest_composite_score`, `session_risk_ewma`, `window_risk_summary`, and `system_security_posture` with documented display-only boundaries.
-- **Operator dashboard clarity**: Dashboard, Sessions, Session Detail, and Runtime Feed now prioritize framework/workspace/session posture, cache freshness, and legacy score fallbacks so responders can triage without guessing field semantics.
-- **API/docs traceability**: metric dictionary, OpenAPI/coverage/validity artifacts, and release-time docs validation are refreshed together to keep online API docs aligned with source routes.
+- **Config UX overhaul**: `clawsentry config show --effective` now reports canonical/project/env/default sources with secret redaction, and the setup path documents project config, LLM, token budgets, defer, and benchmark mode together.
+- **Token-budget enforcement**: LLM budget governance uses provider-reported input/output/total tokens instead of hardcoded USD estimates; unknown provider usage is tracked without fabricating token counts.
+- **Benchmark/deployment workflow**: new `clawsentry benchmark env|enable|disable|run` helpers support isolated Codex benchmark homes, while service/Docker/systemd templates use canonical token-budget and timeout variables.
 
 ## Quick Start
 

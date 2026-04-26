@@ -132,6 +132,29 @@ class TestCLIParsing:
         assert proc.returncode != 0
         assert "--bogus" in (proc.stderr or proc.stdout)
 
+    def test_service_validate_from_cli(self, tmp_path):
+        env_file = tmp_path / "gateway.env"
+        env_file.write_text(
+            "CS_AUTH_TOKEN=abcdefghijklmnopqrstuvwxyz123456\n"
+            "CS_HTTP_PORT=8080\n"
+            "CS_LLM_TOKEN_BUDGET_ENABLED=false\n"
+            "CS_LLM_DAILY_TOKEN_BUDGET=0\n",
+            encoding="utf-8",
+        )
+
+        proc = subprocess.run(
+            [
+                sys.executable, "-m", "clawsentry",
+                "service", "validate",
+                "--env-file", str(env_file),
+            ],
+            capture_output=True, text=True, timeout=10, env=_cli_env(),
+        )
+
+        assert proc.returncode == 0
+        assert "PASS: service deployment validation succeeded" in proc.stdout
+        assert "abcdefghijklmnopqrstuvwxyz123456" not in proc.stdout
+
     def test_rules_report_writes_artifact_from_cli(self, tmp_path):
         output_path = tmp_path / "rules-report.json"
 

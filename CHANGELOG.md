@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## [0.5.8] — 2026-04-26
+
+### 新增
+
+- **有效配置与启动向导** — `clawsentry config show --effective` 现在展示项目配置、环境变量、默认值与 legacy alias 的来源信息，并对 LLM key / token 等敏感字段做稳定脱敏；配置向导与 canonical `.clawsentry.toml` section 覆盖项目模式、LLM、features、budgets、defer 与 benchmark。
+- **Token budget enforcement** — LLM budget 现在以 provider-reported input/output/total tokens 为执行依据，保留 legacy USD 字段为兼容/展示信息；缺失 usage 的 provider 调用会计入 `unknown_usage_calls`，不会伪造 token 用量触发拦截。
+- **Benchmark 模式 CLI** — 新增 `clawsentry benchmark env|enable|disable|run`，为 Codex benchmark/autonomous runs 生成显式 no-human env、安装/清理临时 managed hooks，并默认拒绝修改当前用户真实 `~/.codex`。
+
+### 改进
+
+- **部署 UX 与 service validate** — systemd / Docker env 模板改用 canonical token-budget 与 timeout 变量，`clawsentry service validate` 输出脱敏摘要、legacy warning、缺失 auth / 非法 token budget / timeout 错误，并在成功时给出明确 PASS 信号。
+- **Bounded-large timeout defaults** — L2 / L3 / DEFER 默认从短探索窗口调整为更适合本地/持久部署的大窗口，同时保持 hard timeout cap；L2 路径不会因为默认 L3 timeout 变长而继承 5 分钟等待。
+- **在线文档配置旅程** — 新增/更新配置概览、模板、env vars、部署与 benchmark-mode 文档，并把 quickstart / CLI 文档改为 canonical config + effective config 的用户路径。
+
+### 测试与验证
+
+- Python full regression：dev repo `3173 passed, 4 skipped`；public repo `3170 passed, 7 skipped`。
+- Focused UX/config/benchmark/service regression：`175 passed`。
+- `python -m ruff check <changed Python files>`：PASS。
+- `python -m compileall`：PASS。
+- `python scripts/docs_api_inventory.py validate`：PASS。
+- `mkdocs build --strict`：PASS。
+- `python -m build`：PASS（setuptools license deprecation warnings only）。
+- `git diff --check`：PASS。
+
 ## [0.5.7] — 2026-04-25
 
 ### 新增
@@ -1015,6 +1040,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.8
 [0.5.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.7
 [0.5.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.6
 [0.5.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.5

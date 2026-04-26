@@ -13,7 +13,10 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import urllib.error
+import urllib.request
 from pathlib import Path
+from typing import Iterable
 
 
 def _which_clawsentry() -> str:
@@ -48,14 +51,228 @@ def _ensure_env_file() -> Path:
 
             # LLM provider for L2/L3 (optional)
             # CS_LLM_PROVIDER=anthropic
-            # ANTHROPIC_API_KEY=sk-ant-...
+            # CS_LLM_API_KEY=sk-...
+            # CS_LLM_MODEL=claude-haiku-4-5-20251001
+
+            # Token budget enforcement (optional; actual provider-reported tokens)
+            # CS_LLM_TOKEN_BUDGET_ENABLED=false
+            # CS_LLM_DAILY_TOKEN_BUDGET=0
+            # CS_LLM_TOKEN_BUDGET_SCOPE=total
+
+            # Bounded-large timeouts
+            # CS_L2_TIMEOUT_MS=60000
+            # CS_L3_TIMEOUT_MS=300000
+            # CS_HARD_TIMEOUT_MS=600000
 
             # HTTP listen address
             # CS_HTTP_HOST=127.0.0.1
             # CS_HTTP_PORT=8080
+
+            # DEFER configuration
+            # CS_DEFER_TIMEOUT_S=86400
+            # CS_DEFER_TIMEOUT_ACTION=block
+            # CS_DEFER_BRIDGE_ENABLED=true
         """), encoding="utf-8")
         os.chmod(str(env_file), 0o600)
     return env_file
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+_PLACEHOLDER_VALUES = {
+    "",
+    "changeme",
+    "change-me",
+    "replace-me",
+    "your-token",
+    "your-strong-random-token",
+    "changeme-replace-with-a-strong-random-token",
+    "sk-ant-...",
+    "sk-...",
+}
+
+_SECRET_KEY_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD")
+
+
+def _parse_env_lines(lines: Iterable[str]) -> tuple[dict[str, str], list[str]]:
+    """Parse simple KEY=VALUE env lines and return invalid line messages."""
+    env: dict[str, str] = {}
+    invalid: list[str] = []
+    for line_no, raw_line in enumerate(lines, start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            invalid.append(f"line {line_no}: expected KEY=VALUE")
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if not key:
+            invalid.append(f"line {line_no}: missing key")
+            continue
+        env[key] = value
+    return env, invalid
+
+
+def _read_env_file(env_file: Path) -> tuple[dict[str, str], list[str]]:
+    if not env_file.exists():
+        return {}, [f"env file not found: {env_file}"]
+    try:
+        return _parse_env_lines(env_file.read_text(encoding="utf-8").splitlines())
+    except OSError as exc:
+        return {}, [f"failed to read {env_file}: {exc}"]
+
+
+def _is_placeholder(value: str | None) -> bool:
+    if value is None:
+        return True
+    lowered = value.strip().lower()
+    return lowered in _PLACEHOLDER_VALUES or "replace" in lowered or "changeme" in lowered
+
+
+def _redact_env_value(key: str, value: str) -> str:
+    if any(part in key.upper() for part in _SECRET_KEY_PARTS):
+        if not value:
+            return "<empty>"
+        if _is_placeholder(value):
+            return "<placeholder>"
+        if len(value) <= 8:
+            return "<redacted>"
+        return f"{value[:4]}…{value[-4:]}"
+    return value
+
+
+def _parse_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    lowered = value.strip().lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _positive_int(value: str | None) -> bool:
+    if value is None:
+        return True
+    try:
+        return int(value) > 0
+    except ValueError:
+        return False
+
+
+def _llm_api_key_candidates(provider: str) -> tuple[str, ...]:
+    """Return supported API-key env names in effective-precedence order."""
+    provider_key = {
+        "anthropic": "ANTHROPIC_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "openai-compatible": "OPENAI_API_KEY",
+    }.get(provider.strip().lower())
+    if provider_key:
+        return ("CS_LLM_API_KEY", provider_key)
+    return ("CS_LLM_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+
+
+def _has_usable_llm_api_key(env: dict[str, str], provider: str) -> bool:
+    return any(not _is_placeholder(env.get(key)) for key in _llm_api_key_candidates(provider))
+
+
+def _validate_health_url(health_url: str, token: str | None) -> list[str]:
+    request = urllib.request.Request(health_url)
+    if token and not _is_placeholder(token):
+        request.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            status = getattr(response, "status", 200)
+    except urllib.error.HTTPError as exc:
+        return [f"health check failed: HTTP {exc.code} for {health_url}"]
+    except urllib.error.URLError as exc:
+        return [f"health check failed: {exc.reason} for {health_url}"]
+    except OSError as exc:
+        return [f"health check failed: {exc} for {health_url}"]
+    if status >= 500:
+        return [f"health check failed: HTTP {status} for {health_url}"]
+    return []
+
+
+def _validate_service_env(
+    env: dict[str, str],
+    *,
+    require_auth: bool = True,
+) -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for a deployment env mapping."""
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    auth_token = env.get("CS_AUTH_TOKEN")
+    if require_auth and _is_placeholder(auth_token):
+        errors.append("CS_AUTH_TOKEN is required and must not be a placeholder")
+    elif auth_token and len(auth_token) < 16:
+        warnings.append("CS_AUTH_TOKEN is short; use a high-entropy token for deployment")
+
+    port = env.get("CS_HTTP_PORT")
+    if port is not None:
+        try:
+            parsed_port = int(port)
+            if parsed_port < 1 or parsed_port > 65535:
+                errors.append("CS_HTTP_PORT must be between 1 and 65535")
+        except ValueError:
+            errors.append("CS_HTTP_PORT must be an integer")
+
+    if env.get("CS_HTTP_HOST") == "":
+        errors.append("CS_HTTP_HOST must not be empty when set")
+
+    provider = env.get("CS_LLM_PROVIDER", "").strip()
+    if provider and not _has_usable_llm_api_key(env, provider):
+        key_names = "/".join(_llm_api_key_candidates(provider))
+        warnings.append(f"CS_LLM_PROVIDER is set but {key_names} is missing or placeholder")
+    if not provider and any(
+        not _is_placeholder(env.get(key))
+        for key in ("CS_LLM_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+    ):
+        warnings.append("LLM API key is set but CS_LLM_PROVIDER is missing")
+
+    deprecated_aliases = {
+        "CS_L2_BUDGET_MS": "CS_L2_TIMEOUT_MS",
+        "CS_L3_BUDGET_MS": "CS_L3_TIMEOUT_MS",
+        "CS_LLM_DAILY_BUDGET_USD": "CS_LLM_TOKEN_BUDGET_ENABLED/CS_LLM_DAILY_TOKEN_BUDGET",
+    }
+    for legacy, canonical in deprecated_aliases.items():
+        if legacy in env:
+            warnings.append(f"{legacy} is deprecated; use {canonical}")
+
+    for timeout_key in ("CS_L2_TIMEOUT_MS", "CS_L3_TIMEOUT_MS", "CS_HARD_TIMEOUT_MS"):
+        if not _positive_int(env.get(timeout_key)):
+            errors.append(f"{timeout_key} must be a positive integer when set")
+
+    token_budget_enabled = _parse_bool(env.get("CS_LLM_TOKEN_BUDGET_ENABLED"))
+    if env.get("CS_LLM_TOKEN_BUDGET_ENABLED") is not None and token_budget_enabled is None:
+        errors.append("CS_LLM_TOKEN_BUDGET_ENABLED must be true or false")
+    token_budget = env.get("CS_LLM_DAILY_TOKEN_BUDGET")
+    if token_budget is not None:
+        try:
+            parsed_budget = int(token_budget)
+        except ValueError:
+            errors.append("CS_LLM_DAILY_TOKEN_BUDGET must be an integer")
+        else:
+            if parsed_budget < 0:
+                errors.append("CS_LLM_DAILY_TOKEN_BUDGET must be >= 0")
+            if token_budget_enabled is True and parsed_budget <= 0:
+                errors.append(
+                    "CS_LLM_DAILY_TOKEN_BUDGET must be > 0 when token budget enforcement is enabled"
+                )
+
+    scope = env.get("CS_LLM_TOKEN_BUDGET_SCOPE")
+    if scope is not None and scope not in {"total", "input", "output"}:
+        errors.append("CS_LLM_TOKEN_BUDGET_SCOPE must be one of: total, input, output")
+
+    return errors, warnings
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +452,7 @@ def _install_launchd(enable: bool = True) -> int:
         print(f"  Loaded {_LAUNCHD_LABEL}")
         print()
         print("  Useful commands:")
-        print(f"    launchctl list | grep clawsentry")
+        print("    launchctl list | grep clawsentry")
         print(f"    launchctl unload {plist_path}")
         print(f"    tail -f {log_dir}/gateway.log")
 
@@ -310,3 +527,58 @@ def run_service_status() -> int:
     else:
         print(f"  Service management not supported on {system}.")
         return 1
+
+
+def _read_env_assignments(env_file: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def run_service_validate(*, env_file: Path | None = None) -> int:
+    """Validate deployment env without touching systemd/launchd host state."""
+    path = env_file or _env_file_path()
+    print(f"  Validating ClawSentry service env: {path}")
+    values, parse_errors = _read_env_file(path)
+    if parse_errors:
+        for error in parse_errors:
+            print(f"  FAIL {error}")
+        return 1
+
+    errors, warnings = _validate_service_env(values)
+
+    token = values.get("CS_AUTH_TOKEN")
+    if token:
+        print(f"  PASS CS_AUTH_TOKEN={_redact_env_value('CS_AUTH_TOKEN', token)}")
+
+    for key in (
+        "CS_LLM_PROVIDER",
+        "CS_LLM_MODEL",
+        "CS_LLM_DAILY_TOKEN_BUDGET",
+        "CS_LLM_TOKEN_BUDGET_ENABLED",
+    ):
+        if key in values:
+            print(f"  PASS {key}={_redact_env_value(key, values[key])}")
+
+    for key in ("CS_L2_TIMEOUT_MS", "CS_L3_TIMEOUT_MS", "CS_HARD_TIMEOUT_MS"):
+        if key in values:
+            print(f"  PASS {key}={values[key]}")
+
+    host = values.get("CS_HTTP_HOST", "127.0.0.1")
+    print(f"  PASS CS_HTTP_HOST={host}")
+
+    for warning in warnings:
+        print(f"  WARN {warning}")
+    for error in errors:
+        print(f"  FAIL {error}")
+
+    if errors:
+        print("  FAIL: service deployment validation found errors")
+        return 1
+    print("PASS: service deployment validation succeeded")
+    return 0

@@ -326,6 +326,45 @@ def _print_framework_readiness(
     return False
 
 
+def _print_effective_config_summary(target_dir: Path) -> None:
+    """Render a compact non-secret config summary for startup UX."""
+    try:
+        from ..gateway.project_config import resolve_effective_config
+
+        eff = resolve_effective_config(target_dir)
+    except Exception:
+        return
+    v = eff.values
+    provider = v.get("llm.provider") or "disabled"
+    budget = (
+        f"{v.get('budgets.llm_daily_token_budget')} tokens"
+        if v.get("budgets.llm_token_budget_enabled")
+        else "disabled"
+    )
+    print("  Effective config:")
+    print(f"    mode={v.get('project.mode')} preset={v.get('project.preset')}")
+    print(
+        "    llm="
+        f"{provider} key={'present' if v.get('llm.api_key') else 'missing'} "
+        f"model={v.get('llm.model') or '(default)'}"
+    )
+    print(
+        "    features="
+        f"L2={v.get('features.l2')} L3={v.get('features.l3')} "
+        f"enterprise={v.get('features.enterprise')}"
+    )
+    print(
+        "    budgets="
+        f"token={budget} l2_timeout_ms={v.get('budgets.l2_timeout_ms')} "
+        f"l3_timeout_ms={v.get('budgets.l3_timeout_ms')}"
+    )
+    print(
+        "    defer="
+        f"bridge={v.get('defer.bridge_enabled')} timeout_s={v.get('defer.timeout_s')} "
+        f"action={v.get('defer.timeout_action')}"
+    )
+
+
 def run_watch_loop(
     *,
     gateway_url: str,
@@ -481,6 +520,7 @@ def run_start(
         active_frameworks=active_frameworks,
         readiness=framework_readiness,
     )
+    _print_effective_config_summary(target_dir)
     if has_next_actions:
         print("  Full diagnostics: clawsentry integrations status --json")
     print()

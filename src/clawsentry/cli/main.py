@@ -346,6 +346,41 @@ def _build_parser() -> argparse.ArgumentParser:
     l3_jobs_drain.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
     l3_jobs_drain.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
 
+
+    # --- benchmark ---
+    benchmark_parser = sub.add_parser(
+        "benchmark",
+        help="Benchmark/autonomous no-human-defer helpers.",
+    )
+    benchmark_sub = benchmark_parser.add_subparsers(dest="benchmark_command")
+
+    benchmark_env = benchmark_sub.add_parser("env", help="Print benchmark env vars.")
+    benchmark_env.add_argument("--framework", default="codex", choices=["codex"])
+    benchmark_env.add_argument("--mode", default="guarded", choices=["guarded", "permissive", "strict"])
+    benchmark_env.add_argument("--output", type=Path, default=None)
+
+    benchmark_enable = benchmark_sub.add_parser("enable", help="Persist benchmark env/hooks.")
+    benchmark_enable.add_argument("--dir", type=Path, default=Path("."))
+    benchmark_enable.add_argument("--framework", default="codex", choices=["codex"])
+    benchmark_enable.add_argument("--mode", default="guarded", choices=["guarded", "permissive", "strict"])
+    benchmark_enable.add_argument("--codex-home", type=Path, default=None)
+    benchmark_enable.add_argument("--force-user-home", action="store_true", default=False)
+
+    benchmark_disable = benchmark_sub.add_parser("disable", help="Remove benchmark env/hooks.")
+    benchmark_disable.add_argument("--dir", type=Path, default=Path("."))
+    benchmark_disable.add_argument("--framework", default="codex", choices=["codex"])
+    benchmark_disable.add_argument("--codex-home", type=Path, default=None)
+    benchmark_disable.add_argument("--force-user-home", action="store_true", default=False)
+
+    benchmark_run = benchmark_sub.add_parser("run", help="Run a command with benchmark env.")
+    benchmark_run.add_argument("--dir", type=Path, default=Path("."))
+    benchmark_run.add_argument("--framework", default="codex", choices=["codex"])
+    benchmark_run.add_argument("--mode", default="guarded", choices=["guarded", "permissive", "strict"])
+    benchmark_run.add_argument("--codex-home", type=Path, default=None)
+    benchmark_run.add_argument("--keep-artifacts", action="store_true", default=False)
+    benchmark_run.add_argument("--force-user-home", action="store_true", default=False)
+    benchmark_run.add_argument("benchmark_argv", nargs=argparse.REMAINDER)
+
     # --- service ---
     service_parser = sub.add_parser(
         "service",
@@ -361,6 +396,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     service_sub.add_parser("uninstall", help="Stop and remove auto-start service.")
     service_sub.add_parser("status", help="Show service status.")
+    service_validate = service_sub.add_parser("validate", help="Validate service env/templates without host side effects.")
+    service_validate.add_argument("--env-file", type=Path, default=None, help="Env file to validate.")
 
     # --- config ---
     config_parser = sub.add_parser(
@@ -373,10 +410,24 @@ def _build_parser() -> argparse.ArgumentParser:
     config_init.add_argument("--preset", default="medium", choices=["low", "medium", "high", "strict"])
     config_init.add_argument("--force", action="store_true", default=False)
 
-    config_sub.add_parser("show", help="Show current project config.")
+    config_show = config_sub.add_parser("show", help="Show current project config.")
+    config_show.add_argument("--effective", action="store_true", default=False)
 
-    config_set = config_sub.add_parser("set", help="Change project preset.")
-    config_set.add_argument("preset", choices=["low", "medium", "high", "strict"])
+    config_set = config_sub.add_parser("set", help="Change project preset or section.field key.")
+    config_set.add_argument("key_or_preset")
+    config_set.add_argument("value", nargs="?")
+
+    config_wizard = config_sub.add_parser("wizard", help="Guided ClawSentry configuration.")
+    config_wizard.add_argument("--non-interactive", action="store_true", default=False)
+    config_wizard.add_argument("--framework", default="codex")
+    config_wizard.add_argument("--mode", default="normal", choices=["normal", "strict", "permissive", "benchmark"])
+    config_wizard.add_argument("--llm-provider", default="", choices=["", "openai", "anthropic"])
+    config_wizard.add_argument("--llm-model", default="")
+    config_wizard.add_argument("--llm-base-url", default="")
+    config_wizard.add_argument("--l2", action=argparse.BooleanOptionalAction, default=None)
+    config_wizard.add_argument("--l3", action=argparse.BooleanOptionalAction, default=False)
+    config_wizard.add_argument("--token-budget", type=int, default=0)
+    config_wizard.add_argument("--force", action="store_true", default=False)
 
     config_sub.add_parser("disable", help="Disable ClawSentry for this project.")
     config_sub.add_parser("enable", help="Enable ClawSentry for this project.")
@@ -748,9 +799,56 @@ def main(argv: list[str] | None = None) -> None:
                 ))
         print("Usage: clawsentry l3 {full-review,jobs}")
 
+
+    elif args.command == "benchmark":
+        from .benchmark_command import (
+            run_benchmark_disable,
+            run_benchmark_enable,
+            run_benchmark_env,
+            run_benchmark_run,
+        )
+
+        try:
+            if args.benchmark_command == "env":
+                sys.exit(run_benchmark_env(
+                    framework=args.framework,
+                    mode=args.mode,
+                    output_path=args.output,
+                ))
+            if args.benchmark_command == "enable":
+                sys.exit(run_benchmark_enable(
+                    target_dir=args.dir,
+                    framework=args.framework,
+                    mode=args.mode,
+                    codex_home=args.codex_home,
+                    force_user_home=args.force_user_home,
+                ))
+            if args.benchmark_command == "disable":
+                sys.exit(run_benchmark_disable(
+                    target_dir=args.dir,
+                    framework=args.framework,
+                    codex_home=args.codex_home,
+                    force_user_home=args.force_user_home,
+                ))
+            if args.benchmark_command == "run":
+                sys.exit(run_benchmark_run(
+                    command=args.benchmark_argv,
+                    target_dir=args.dir,
+                    framework=args.framework,
+                    mode=args.mode,
+                    codex_home=args.codex_home,
+                    keep_artifacts=args.keep_artifacts,
+                    force_user_home=args.force_user_home,
+                ))
+            print("Usage: clawsentry benchmark {env,enable,disable,run}")
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(2)
+
     elif args.command == "service":
         from .service_command import (
             run_service_install, run_service_uninstall, run_service_status,
+            run_service_validate,
         )
         if args.service_command == "install":
             sys.exit(run_service_install(no_enable=args.no_enable))
@@ -758,27 +856,47 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(run_service_uninstall())
         elif args.service_command == "status":
             sys.exit(run_service_status())
+        elif args.service_command == "validate":
+            from .service_command import run_service_validate
+            sys.exit(run_service_validate(env_file=args.env_file))
         else:
-            print("Usage: clawsentry service {install,uninstall,status}")
+            print("Usage: clawsentry service {install,uninstall,status,validate}")
 
     elif args.command == "config":
         from .config_command import (
             run_config_init, run_config_show, run_config_set,
-            run_config_disable, run_config_enable,
+            run_config_disable, run_config_enable, run_config_wizard,
         )
         target = Path(".")
         if args.config_command == "init":
             run_config_init(target_dir=target, preset=args.preset, force=args.force)
         elif args.config_command == "show":
-            run_config_show(target_dir=target)
+            run_config_show(target_dir=target, effective=args.effective)
         elif args.config_command == "set":
-            run_config_set(target_dir=target, preset=args.preset)
+            if args.value is None:
+                run_config_set(target_dir=target, preset=args.key_or_preset)
+            else:
+                run_config_set(target_dir=target, key=args.key_or_preset, value=args.value)
+        elif args.config_command == "wizard":
+            run_config_wizard(
+                target_dir=target,
+                non_interactive=args.non_interactive,
+                framework=args.framework,
+                mode=args.mode,
+                llm_provider=args.llm_provider,
+                llm_model=args.llm_model,
+                llm_base_url=args.llm_base_url,
+                l2=args.l2,
+                l3=args.l3,
+                token_budget=args.token_budget,
+                force=args.force,
+            )
         elif args.config_command == "disable":
             run_config_disable(target_dir=target)
         elif args.config_command == "enable":
             run_config_enable(target_dir=target)
         else:
-            print("Usage: clawsentry config {init,show,set,disable,enable}")
+            print("Usage: clawsentry config {init,show,set,wizard,disable,enable}")
 
     elif args.command == "rules":
         from .rules_command import run_rules_dry_run, run_rules_lint, run_rules_report

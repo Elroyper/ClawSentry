@@ -4692,7 +4692,7 @@ def test_trajectory_store_records_decision_resolution(tmp_path):
 
 def test_policy_engine_carries_l3_trace_to_snapshot():
     """L2Result.trace flows from analyzer through policy_engine to RiskSnapshot.l3_trace."""
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
     from clawsentry.gateway.policy_engine import L1PolicyEngine
     from clawsentry.gateway.semantic_analyzer import L2Result
     from clawsentry.gateway.models import (
@@ -4837,11 +4837,13 @@ def test_l2_budget_uncapped_without_deadline():
     )
     ctx = DecisionContext(session_risk_summary={"l2_escalate": True})
 
-    # No deadline → budget = 5000ms; inner = 5000 - 300 = 4700
+    # No deadline → default L2 budget = 60000ms; inner = 60000 - 300.
+    # The larger default L3 budget is reserved for explicitly requested L3
+    # review paths so ordinary L2 timeouts stay bounded.
     from clawsentry.gateway.policy_engine import _INNER_BUDGET_MARGIN_MS
     _, _, _ = engine.evaluate(event, ctx, DecisionTier.L2)
     assert len(captured_budget) == 1
-    assert captured_budget[0] == 5000.0 - _INNER_BUDGET_MARGIN_MS
+    assert captured_budget[0] == 60_000.0 - _INNER_BUDGET_MARGIN_MS
 
 
 def test_l2_budget_reserves_overhead_margin():
@@ -5271,7 +5273,7 @@ class TestCS012RecordBeforeDeadline:
 
 def test_l3_budget_overrides_l2_budget():
     """CS_L3_BUDGET_MS should increase L2 analysis budget when L3 is present."""
-    from clawsentry.gateway.policy_engine import L1PolicyEngine, _L2_OVERHEAD_MARGIN_MS
+    from clawsentry.gateway.policy_engine import L1PolicyEngine
     from clawsentry.gateway.semantic_analyzer import L2Result
     from clawsentry.gateway.detection_config import DetectionConfig
     from clawsentry.gateway.models import (
@@ -5312,7 +5314,7 @@ def test_l3_budget_overrides_l2_budget():
 
     # No deadline → budget = max(5000, 15000) = 15000; inner = 15000 - 300 = 14700
     from clawsentry.gateway.policy_engine import _INNER_BUDGET_MARGIN_MS
-    _, _, _ = engine.evaluate(event, ctx, DecisionTier.L2)
+    _, _, _ = engine.evaluate(event, ctx, DecisionTier.L3)
     assert len(captured_budget) == 1
     expected = 15000.0 - _INNER_BUDGET_MARGIN_MS
     assert captured_budget[0] == expected, (
@@ -5363,7 +5365,7 @@ def test_l3_budget_still_capped_by_deadline():
 
     # deadline=10000 → budget = min(15000, 10000-200) = 9800; inner = 9800-300 = 9500
     from clawsentry.gateway.policy_engine import _INNER_BUDGET_MARGIN_MS
-    _, _, _ = engine.evaluate(event, ctx, DecisionTier.L2, deadline_budget_ms=10000.0)
+    _, _, _ = engine.evaluate(event, ctx, DecisionTier.L3, deadline_budget_ms=10000.0)
     assert len(captured_budget) == 1
     expected = 10000.0 - _L2_OVERHEAD_MARGIN_MS - _INNER_BUDGET_MARGIN_MS
     assert captured_budget[0] == expected, (

@@ -858,7 +858,7 @@ description: ClawSentry 常见问题诊断与解决方案
 | `LatchHubBridge: hub not reachable` | WARNING | Hub URL 不可达，Bridge 未自动启用 |
 | `LatchHubBridge: token mismatch` | ERROR | CS_AUTH_TOKEN 与 Hub CLI_API_TOKEN 不一致 |
 | `DEFER timed out, applying timeout action` | INFO | DEFER 超时，按 CS_DEFER_TIMEOUT_ACTION 处理 |
-| `LLM budget exceeded` | WARNING | LLM 日费用超出 CS_LLM_DAILY_BUDGET_USD 限额，降级 L1 |
+| `LLM budget exceeded` | WARNING | LLM token budget exhausted；基于 provider 真实 usage 降级/阻断，旧 `CS_LLM_DAILY_BUDGET_USD` 仅兼容提示 |
 
 ### 日志级别建议
 

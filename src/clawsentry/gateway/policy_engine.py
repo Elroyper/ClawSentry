@@ -138,6 +138,7 @@ class L1PolicyEngine:
             try:
                 snapshot, actual_tier = self._run_l2_analysis(
                     event, context, l1_snapshot, deadline_budget_ms,
+                    requested_tier=requested_tier,
                     config_override=effective_config,
                 )
                 decision = self._decide(event, snapshot)
@@ -292,6 +293,7 @@ class L1PolicyEngine:
         context: Optional[DecisionContext],
         l1_snapshot: RiskSnapshot,
         deadline_budget_ms: float | None = None,
+        requested_tier: DecisionTier = DecisionTier.L2,
         config_override: Optional[DetectionConfig] = None,
     ) -> tuple[RiskSnapshot, DecisionTier]:
         # Run async analyzer synchronously
@@ -302,7 +304,7 @@ class L1PolicyEngine:
 
         cfg = config_override if config_override is not None else self._config
         budget = cfg.l2_budget_ms
-        if cfg.l3_budget_ms is not None:
+        if requested_tier == DecisionTier.L3 and cfg.l3_budget_ms is not None:
             budget = max(budget, cfg.l3_budget_ms)
         if deadline_budget_ms is not None:
             budget = min(budget, max(0, deadline_budget_ms - _L2_OVERHEAD_MARGIN_MS))

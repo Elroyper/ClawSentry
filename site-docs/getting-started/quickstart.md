@@ -19,6 +19,37 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 </div>
 </section>
 
+
+## Copy this first：最短可运行路径 {#copy-this-first}
+
+如果你只是想先看到 Gateway 和 Web UI，可先走 L1-only 默认路径；之后再用 `config wizard` 打开 L2/L3、token budget 或 benchmark。
+
+```bash
+pip install clawsentry
+clawsentry config wizard --non-interactive --mode normal --llm-provider none --write-project-config
+clawsentry start --framework codex --open-browser
+```
+
+接着确认当前有效配置：
+
+```bash
+clawsentry config show --effective
+```
+
+你应该能看到：`mode=normal`、LLM provider 未配置、token budget disabled、DEFER timeout 使用较宽松的 normal-mode 默认值。需要 LLM 时再参考[配置模板](../configuration/templates.md)，需要无人 benchmark 时直接看[Benchmark 模式](../operations/benchmark-mode.md)。
+
+---
+
+## 选择运行模式 {#choose-mode}
+
+| 你要做什么 | 推荐模式 | 下一步 |
+|---|---|---|
+| 本地先看审计/Web UI | `normal` + L1-only | `clawsentry start --framework <name>` |
+| 团队仓库，想启用 L2 | `normal` + token budget | [团队模板](../configuration/templates.md#team-maintainer-l2-token-budget) |
+| 安全敏感变更 | `strict` | 配置 L2/L3 与持久化审计库 |
+| CI 或安全 benchmark | `benchmark` | [Benchmark 模式](../operations/benchmark-mode.md)，使用临时 `CODEX_HOME` |
+
+---
 ## 框架能力对比 {#framework-capabilities}
 
 | 能力 | Claude Code | a3s-code | OpenClaw | Codex |

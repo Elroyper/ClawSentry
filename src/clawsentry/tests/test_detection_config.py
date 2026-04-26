@@ -99,7 +99,7 @@ class TestDetectionConfigDefaults:
 
     def test_l2_defaults(self):
         c = DetectionConfig()
-        assert c.l2_budget_ms == 5000.0
+        assert c.l2_budget_ms == 60_000.0
         assert c.attack_patterns_path is None
 
     def test_l3_advisory_async_defaults_are_disabled(self):
@@ -799,7 +799,7 @@ class TestDeferTimeoutConfig:
 
     def test_default_defer_timeout_s(self):
         cfg = DetectionConfig()
-        assert cfg.defer_timeout_s == 300.0  # 5 minutes
+        assert cfg.defer_timeout_s == 86_400.0  # 24 hours; benchmark mode auto-resolves
 
     def test_env_override_defer_timeout_action(self, monkeypatch):
         monkeypatch.setenv("CS_DEFER_TIMEOUT_ACTION", "allow")

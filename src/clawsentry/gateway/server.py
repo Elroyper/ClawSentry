@@ -748,6 +748,10 @@ class SupervisionGateway:
         # P3: LLM daily budget tracker
         self.budget_tracker = LLMBudgetTracker(
             daily_budget_usd=self._detection_config.llm_daily_budget_usd,
+            enabled=self._detection_config.llm_token_budget_enabled,
+            limit_tokens=self._detection_config.llm_daily_token_budget,
+            scope=self._detection_config.llm_token_budget_scope,
+            source="config",
         )
         self._budget_exhaustion_event: dict[str, Any] | None = None
         # P3: Prometheus metrics collector
@@ -1854,6 +1858,30 @@ class SupervisionGateway:
                     "resolved_reason": decision_dict["reason"],
                     "timestamp": resolution_recorded_at,
                 })
+
+        # --- Benchmark mode: no human DEFER waits ---
+        effective_mode = (project_config or self._detection_config).mode
+        if (
+            effective_mode == "benchmark"
+            and decision.decision == DecisionVerdict.DEFER
+            and req.event.event_type == EventType.PRE_ACTION
+        ):
+            original_reason = decision.reason
+            decision = CanonicalDecision(
+                decision=DecisionVerdict.BLOCK,
+                reason=f"Benchmark mode auto-resolved DEFER to block: {original_reason}",
+                policy_id=decision.policy_id or "benchmark-auto-resolve",
+                risk_level=decision.risk_level,
+                decision_source=DecisionSource.POLICY,
+                final=True,
+            )
+            decision_dict = decision.model_dump(mode="json")
+            meta_dict.update({
+                "auto_resolved": True,
+                "auto_resolve_mode": "benchmark",
+                "original_verdict": "defer",
+                "benchmark_defer_action": "block",
+            })
 
         # --- P1: DEFER bridge — wait for operator approval ---
         if (

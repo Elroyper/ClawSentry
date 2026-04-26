@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 _DOCKER_DIR = Path(__file__).resolve().parents[3] / "docker"
 
 
@@ -57,3 +55,10 @@ class TestEnvExample:
     def test_has_auth_token(self) -> None:
         content = (_DOCKER_DIR / ".env.example").read_text()
         assert "CS_AUTH_TOKEN" in content
+
+    def test_uses_canonical_budget_and_timeout_names(self) -> None:
+        content = (_DOCKER_DIR / ".env.example").read_text()
+        assert "CS_L2_TIMEOUT_MS" in content
+        assert "CS_LLM_TOKEN_BUDGET_ENABLED" in content
+        assert "CS_LLM_DAILY_BUDGET_USD" not in content
+        assert "CS_L2_BUDGET_MS" not in content

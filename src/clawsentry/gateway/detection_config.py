@@ -1,8 +1,8 @@
 """
-Unified detection configuration — single source of truth for all tunable parameters.
+Unified detection configuration — single source of truth for tunable parameters.
 
-All defaults match the pre-existing hardcoded values for 100% backward compatibility.
-Parameters can be overridden via constructor or ``CS_`` environment variables.
+The runtime keeps old field names such as ``l2_budget_ms`` for compatibility,
+but the canonical operator-facing vocabulary is now timeout/token based.
 """
 
 from __future__ import annotations
@@ -38,9 +38,13 @@ class DetectionConfig:
     d4_high_threshold: int = 5   # count >= X → d4=2
     d4_mid_threshold: int = 2    # count >= X → d4=1
 
-    # --- L2 semantic analysis ---
-    l2_budget_ms: float = 5000.0
-    l3_budget_ms: Optional[float] = None  # Separate L3 budget; None = use l2_budget_ms
+    # --- Operating mode ---
+    mode: str = "normal"  # "normal", "strict", "permissive", or "benchmark"
+
+    # --- L2/L3 semantic analysis ---
+    l2_budget_ms: float = 60_000.0
+    l3_budget_ms: Optional[float] = 300_000.0
+    hard_timeout_ms: float = 600_000.0
     l3_routing_mode: str = "normal"  # "normal" or "replace_l2"
     l3_trigger_profile: str = "default"  # "default" or "eager"
     l3_budget_tuning_enabled: bool = False
@@ -74,12 +78,20 @@ class DetectionConfig:
 
     # --- E-9: DEFER timeout ---
     defer_timeout_action: str = "block"   # "block" or "allow"
-    defer_timeout_s: float = 300.0        # 5 minutes default
+    defer_timeout_s: float = 86_400.0     # 24 hours; benchmark mode never waits
     defer_bridge_enabled: bool = True     # Enable DEFER→operator bridge
-    defer_max_pending: int = 100          # Max concurrent pending DEFERs (0 = unlimited)
+    defer_max_pending: int = 0            # Max concurrent pending DEFERs (0 = unlimited)
 
-    # --- P3: LLM daily budget ---
-    llm_daily_budget_usd: float = 0.0    # 0 = unlimited
+    # --- LLM token budgets ---
+    llm_token_budget_enabled: bool = False
+    llm_daily_token_budget: int = 0
+    llm_token_budget_scope: str = "total"  # "total", "input", or "output"
+    llm_daily_budget_usd: float = 0.0      # deprecated; informational only
+
+    # --- Benchmark/autonomous mode ---
+    benchmark_auto_resolve_defer: bool = True
+    benchmark_defer_action: str = "block"
+    benchmark_persist_scope: str = "project"
 
     # --- E-5: Self-evolving pattern repository ---
     evolving_enabled: bool = False
@@ -103,10 +115,19 @@ class DetectionConfig:
         for wname in ("composite_weight_max_d123", "composite_weight_d4", "composite_weight_d5", "d6_injection_multiplier"):
             if getattr(self, wname) < 0:
                 raise ValueError(f"weight {wname} must be >= 0, got {getattr(self, wname)}")
+        if self.mode not in ("normal", "strict", "permissive", "benchmark"):
+            logger.warning("Invalid mode=%r, falling back to 'normal'", self.mode)
+            object.__setattr__(self, "mode", "normal")
         if self.l2_budget_ms <= 0:
             raise ValueError(f"l2_budget_ms must be > 0, got {self.l2_budget_ms}")
         if self.l3_budget_ms is not None and self.l3_budget_ms <= 0:
             raise ValueError(f"l3_budget_ms must be > 0, got {self.l3_budget_ms}")
+        if self.hard_timeout_ms <= 0:
+            raise ValueError(f"hard_timeout_ms must be > 0, got {self.hard_timeout_ms}")
+        if self.hard_timeout_ms < self.l2_budget_ms:
+            raise ValueError("hard_timeout_ms must be >= l2_budget_ms")
+        if self.l3_budget_ms is not None and self.hard_timeout_ms < self.l3_budget_ms:
+            raise ValueError("hard_timeout_ms must be >= l3_budget_ms")
         if self.l3_routing_mode not in ("normal", "replace_l2"):
             logger.warning(
                 "Invalid l3_routing_mode=%r, falling back to 'normal'",
@@ -142,6 +163,33 @@ class DetectionConfig:
             raise ValueError(f"defer_timeout_s must be > 0, got {self.defer_timeout_s}")
         if self.llm_daily_budget_usd < 0:
             raise ValueError(f"llm_daily_budget_usd must be >= 0, got {self.llm_daily_budget_usd}")
+        if self.llm_token_budget_scope not in ("total", "input", "output"):
+            logger.warning(
+                "Invalid llm_token_budget_scope=%r, falling back to 'total'",
+                self.llm_token_budget_scope,
+            )
+            object.__setattr__(self, "llm_token_budget_scope", "total")
+        if self.llm_daily_token_budget < 0:
+            raise ValueError(
+                f"llm_daily_token_budget must be >= 0, got {self.llm_daily_token_budget}"
+            )
+        if self.llm_token_budget_enabled and self.llm_daily_token_budget <= 0:
+            logger.error(
+                "LLM token budget enabled with non-positive limit; disabling token budget enforcement"
+            )
+            object.__setattr__(self, "llm_token_budget_enabled", False)
+        if self.benchmark_defer_action not in ("block", "allow", "allow_low_block_high"):
+            logger.warning(
+                "Invalid benchmark_defer_action=%r, falling back to 'block'",
+                self.benchmark_defer_action,
+            )
+            object.__setattr__(self, "benchmark_defer_action", "block")
+        if self.benchmark_persist_scope not in ("project", "temp"):
+            logger.warning(
+                "Invalid benchmark_persist_scope=%r, falling back to 'project'",
+                self.benchmark_persist_scope,
+            )
+            object.__setattr__(self, "benchmark_persist_scope", "project")
         if self.threshold_critical > 3.0:
             logger.warning(
                 "threshold_critical=%.2f exceeds max achievable score (3.0) with default weights; "
@@ -149,12 +197,23 @@ class DetectionConfig:
                 self.threshold_critical,
             )
 
+    @property
+    def l2_timeout_ms(self) -> float:
+        """Canonical alias retained for compatibility with the new config contract."""
+        return self.l2_budget_ms
+
+    @property
+    def l3_timeout_ms(self) -> float | None:
+        """Canonical alias retained for compatibility with the new config contract."""
+        return self.l3_budget_ms
+
 
 # ---------------------------------------------------------------------------
 # Environment-variable mapping: CS_<FIELD_NAME> → field
 # ---------------------------------------------------------------------------
 
 _ENV_MAP: list[tuple[str, str, type]] = [
+    ("CS_MODE", "mode", str),
     ("CS_COMPOSITE_WEIGHT_MAX_D123", "composite_weight_max_d123", float),
     ("CS_COMPOSITE_WEIGHT_D4", "composite_weight_d4", float),
     ("CS_COMPOSITE_WEIGHT_D5", "composite_weight_d5", float),
@@ -164,8 +223,9 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_THRESHOLD_MEDIUM", "threshold_medium", float),
     ("CS_D4_HIGH_THRESHOLD", "d4_high_threshold", int),
     ("CS_D4_MID_THRESHOLD", "d4_mid_threshold", int),
-    ("CS_L2_BUDGET_MS", "l2_budget_ms", float),
-    ("CS_L3_BUDGET_MS", "l3_budget_ms", float),
+    ("CS_L2_TIMEOUT_MS", "l2_budget_ms", float),
+    ("CS_L3_TIMEOUT_MS", "l3_budget_ms", float),
+    ("CS_HARD_TIMEOUT_MS", "hard_timeout_ms", float),
     ("CS_L3_ROUTING_MODE", "l3_routing_mode", str),
     ("CS_L3_TRIGGER_PROFILE", "l3_trigger_profile", str),
     ("CS_ATTACK_PATTERNS_PATH", "attack_patterns_path", str),
@@ -187,7 +247,16 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_DEFER_TIMEOUT_ACTION", "defer_timeout_action", str),
     ("CS_DEFER_TIMEOUT_S", "defer_timeout_s", float),
     ("CS_DEFER_MAX_PENDING", "defer_max_pending", int),
+    ("CS_LLM_DAILY_TOKEN_BUDGET", "llm_daily_token_budget", int),
+    ("CS_LLM_TOKEN_BUDGET_SCOPE", "llm_token_budget_scope", str),
     ("CS_LLM_DAILY_BUDGET_USD", "llm_daily_budget_usd", float),
+    ("CS_BENCHMARK_DEFER_ACTION", "benchmark_defer_action", str),
+    ("CS_BENCHMARK_PERSIST_SCOPE", "benchmark_persist_scope", str),
+]
+
+_ENV_ALIAS_MAP: list[tuple[str, str, type, str]] = [
+    ("CS_L2_BUDGET_MS", "l2_budget_ms", float, "CS_L2_TIMEOUT_MS"),
+    ("CS_L3_BUDGET_MS", "l3_budget_ms", float, "CS_L3_TIMEOUT_MS"),
 ]
 
 # Comma-separated list vars handled separately
@@ -211,6 +280,23 @@ def build_detection_config_from_env() -> DetectionConfig:
             continue
         try:
             overrides[field_name] = typ(raw)
+        except (ValueError, TypeError):
+            logger.warning("Invalid value for %s=%r, using default", env_key, raw)
+
+    for env_key, field_name, typ, canonical_key in _ENV_ALIAS_MAP:
+        raw = os.getenv(env_key)
+        if raw is None:
+            continue
+        if os.getenv(canonical_key) is not None or field_name in overrides:
+            logger.warning(
+                "Ignoring deprecated %s because canonical %s is set",
+                env_key,
+                canonical_key,
+            )
+            continue
+        try:
+            overrides[field_name] = typ(raw)
+            logger.warning("Deprecated %s is accepted as alias for %s", env_key, canonical_key)
         except (ValueError, TypeError):
             logger.warning("Invalid value for %s=%r, using default", env_key, raw)
 
@@ -238,6 +324,17 @@ def build_detection_config_from_env() -> DetectionConfig:
     _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
     _parse_bool_env("CS_L3_ADVISORY_ASYNC_ENABLED", "l3_advisory_async_enabled")
     _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
+    _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
+    _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
+
+    # When token budgets are enabled, the legacy USD field is informational only
+    # and must not mutate enforcement behavior in token mode.
+    if (
+        bool(overrides.get("llm_token_budget_enabled"))
+        and int(overrides.get("llm_daily_token_budget") or 0) > 0
+        and "llm_daily_budget_usd" in overrides
+    ):
+        overrides["llm_daily_budget_usd"] = 0.0
 
     try:
         return DetectionConfig(**overrides)
@@ -338,6 +435,23 @@ def build_detection_config_with_preset(
         except (ValueError, TypeError):
             logger.warning("Invalid value for %s=%r, using default", env_key, raw)
 
+    for env_key, field_name, typ, canonical_key in _ENV_ALIAS_MAP:
+        raw = os.getenv(env_key)
+        if raw is None:
+            continue
+        if os.getenv(canonical_key) is not None or field_name in params:
+            logger.warning(
+                "Ignoring deprecated %s because canonical %s is set",
+                env_key,
+                canonical_key,
+            )
+            continue
+        try:
+            params[field_name] = typ(raw)
+            logger.warning("Deprecated %s is accepted as alias for %s", env_key, canonical_key)
+        except (ValueError, TypeError):
+            logger.warning("Invalid value for %s=%r, using default", env_key, raw)
+
     for env_key, field_name in _ENV_LIST_MAP:
         raw = os.getenv(env_key)
         if raw is None:
@@ -361,6 +475,16 @@ def build_detection_config_with_preset(
     _parse_bool_env("CS_L3_BUDGET_TUNING_ENABLED", "l3_budget_tuning_enabled")
     _parse_bool_env("CS_L3_ADVISORY_ASYNC_ENABLED", "l3_advisory_async_enabled")
     _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
+    _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
+    _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
+
+    # Keep legacy USD budgets informational when token budgeting is active.
+    if (
+        bool(params.get("llm_token_budget_enabled"))
+        and int(params.get("llm_daily_token_budget") or 0) > 0
+        and "llm_daily_budget_usd" in params
+    ):
+        params["llm_daily_budget_usd"] = 0.0
 
     try:
         return DetectionConfig(**params)

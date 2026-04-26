@@ -365,7 +365,7 @@ ClawSentry 的分层架构天然具备成本控制能力。
     | OpenAI | GPT-4o mini | GPT-4o |
     | 本地 | Qwen2.5 7B | Qwen2.5 72B |
 
-4. **L2 超时控制**：LLMAnalyzer 默认 3000ms 超时，超时自动降级为 L1 结果，避免长时间挂起计费
+4. **L2 超时控制**：`CS_L2_TIMEOUT_MS` 默认采用 60 秒软超时，并受 `CS_HARD_TIMEOUT_MS` 兜底，避免 provider 长时间挂起
 
 ---
 
@@ -459,54 +459,48 @@ class LLMUsage:
 | 其他（默认） | $5.00 | $15.00 |
 
 !!! note "价格仅为估算"
-    预估价格用于 Prometheus 指标展示和预算控制，不代表实际账单金额。实际费用请参考各提供商官方定价页面。
+    预估价格仅用于 Prometheus/报表展示，不代表实际账单金额，也不应作为预算执法依据。实际费用请参考各提供商官方定价页面。
 
 ---
 
-## LLM 每日预算控制
+## LLM Token 预算控制
 
-`LLMBudgetTracker` 提供线程安全的每日 LLM 支出限制，防止 L2/L3 决策层成本失控。
+Token budget 使用 provider 返回的真实 `LLMUsage` 执法，避免把过期价格表或 OpenAI-compatible provider 估算误当作真实花费。
 
 ### 配置
 
 ```bash title=".env.clawsentry"
-# 设置每日预算为 $5.00
-CS_LLM_DAILY_BUDGET_USD=5.0
+# 按每日总 token 限制 L2/L3
+CS_LLM_TOKEN_BUDGET_ENABLED=true
+CS_LLM_DAILY_TOKEN_BUDGET=200000
+CS_LLM_TOKEN_BUDGET_SCOPE=total  # total | input | output
 
-# 0.0 = 无限制（默认）
-CS_LLM_DAILY_BUDGET_USD=0.0
+# 旧字段仅用于迁移提示/估算 telemetry，新部署不要依赖它执法
+# CS_LLM_DAILY_BUDGET_USD=5.0
 ```
 
 ### 工作机制
 
-1. **费用记录**：每次 LLM 调用完成后，`InstrumentedProvider` 计算预估费用并调用 `record_spend()`
-2. **预算检查**：下一次 LLM 调用前，`can_spend()` 检查当日累计是否超出预算
-3. **自动降级**：预算耗尽后，L2/L3 调用被跳过，所有事件仅走 L1 规则引擎
-4. **UTC 日期翻转**：每天 UTC 00:00 自动重置累计支出和状态
+1. **usage 记录**：每次 LLM 调用完成后，`InstrumentedProvider` 读取 provider 报告的 input/output token
+2. **预算检查**：下一次 LLM 调用前检查所选 scope 的累计 token 是否超出上限
+3. **自动降级/阻断**：预算耗尽后，L2/L3 调用被跳过或按当前模式策略阻断；benchmark mode 默认确定性 block
+4. **UTC 日期翻转**：每天 UTC 00:00 自动重置累计 token 和状态
+5. **unknown usage**：provider 未返回 usage 时增加 `unknown_usage_calls`，不使用估算价格伪造 token
 
 ### 降级行为
 
 | 状态 | 行为 |
 |------|------|
 | 预算充足 | 正常 L1+L2(+L3) 决策流程 |
-| 预算耗尽 | L2/L3 跳过，仅 L1 规则引擎 |
+| Token 预算耗尽 | L2/L3 跳过或按模式策略阻断，并广播兼容 `budget_exhausted` 事件 |
 | 新的 UTC 日期 | 自动重置，恢复完整决策流程 |
 
 ### SSE 通知
 
-预算首次耗尽时，Gateway 通过 EventBus 广播事件通知运维人员。
+预算首次耗尽时，Gateway 通过 EventBus 广播事件通知运维人员；事件应包含 token limit、used/remaining、scope 和 source。
 
-### 线程安全
-
-`LLMBudgetTracker` 使用 `threading.Lock` 保护所有状态访问，适合多线程/异步环境。
-
-!!! tip "建议预算设置"
-    | 场景 | 建议值 |
-    |------|--------|
-    | 开发/测试 | $1.00 - $2.00 |
-    | 小型生产 | $5.00 - $10.00 |
-    | 大规模生产 | $20.00 - $50.00 |
-    | 无限制 | `0.0`（默认） |
+!!! tip "建议 token budget"
+    先用 `config show --effective` 和报表观察真实 usage，再设置每日 token 上限。个人开发可从 `50000`-`200000` 开始，团队共享环境按用户数和 L3 使用率放大。
 
 ---
 
@@ -530,7 +524,7 @@ CS_LLM_DAILY_BUDGET_USD=0.0
     3. 自定义 `AHP_SKILLS_DIR` 路径不存在或无读取权限
 
 ??? question "LLM 分析超时，决策延迟过高"
-    - LLMAnalyzer 默认 3000ms 超时，超时后自动降级为 L1 结果
+    - 检查 `CS_L2_TIMEOUT_MS` / `CS_L3_TIMEOUT_MS` / `CS_HARD_TIMEOUT_MS` 是否过低；默认软超时分别适合 L2/L3 较慢 provider
     - 如使用远程 API，检查网络连通性
     - 如使用本地模型，确认 GPU 资源是否充足
     - 考虑使用更小的模型以降低延迟

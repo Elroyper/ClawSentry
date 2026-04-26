@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import platform
 import textwrap
 from pathlib import Path
@@ -15,10 +14,12 @@ from clawsentry.cli.service_command import (
     _ensure_env_file,
     _generate_systemd_unit,
     _generate_launchd_plist,
-    _env_file_path,
+    _parse_env_lines,
+    _redact_env_value,
+    _validate_service_env,
     run_service_install,
     run_service_uninstall,
-    run_service_status,
+    run_service_validate,
 )
 
 
@@ -50,6 +51,9 @@ class TestEnsureEnvFile:
         assert env_file.exists()
         content = env_file.read_text()
         assert "CS_AUTH_TOKEN" in content
+        assert "CS_L2_TIMEOUT_MS" in content
+        assert "CS_LLM_TOKEN_BUDGET_ENABLED" in content
+        assert "CS_LLM_DAILY_BUDGET_USD" not in content
         # Check permissions (owner-only)
         if platform.system() != "Windows":
             mode = oct(env_file.stat().st_mode & 0o777)
@@ -66,6 +70,100 @@ class TestEnsureEnvFile:
         )
         result = _ensure_env_file()
         assert result.read_text() == "CUSTOM=value\n"
+
+
+# ---------------------------------------------------------------------------
+# validation helpers
+# ---------------------------------------------------------------------------
+
+
+class TestServiceValidationHelpers:
+    def test_parse_env_lines_supports_export_and_quotes(self):
+        env, invalid = _parse_env_lines([
+            "# comment",
+            "export CS_AUTH_TOKEN='secret-token-value'",
+            "CS_HTTP_PORT=8080",
+            "not-a-var",
+        ])
+        assert env["CS_AUTH_TOKEN"] == "secret-token-value"
+        assert env["CS_HTTP_PORT"] == "8080"
+        assert invalid == ["line 4: expected KEY=VALUE"]
+
+    def test_redacts_secret_values(self):
+        assert _redact_env_value("CS_AUTH_TOKEN", "abcdefghijklmnopqrstuvwxyz") == "abcd…wxyz"
+        assert _redact_env_value("CS_AUTH_TOKEN", "changeme") == "<placeholder>"
+        assert _redact_env_value("CS_HTTP_HOST", "127.0.0.1") == "127.0.0.1"
+
+    def test_validate_accepts_canonical_deployment_env(self):
+        errors, warnings = _validate_service_env({
+            "CS_AUTH_TOKEN": "abcdefghijklmnopqrstuvwxyz123456",
+            "CS_HTTP_PORT": "8080",
+            "CS_LLM_PROVIDER": "anthropic",
+            "CS_LLM_API_KEY": "sk-ant-real-looking-key",
+            "CS_L2_TIMEOUT_MS": "60000",
+            "CS_L3_TIMEOUT_MS": "300000",
+            "CS_HARD_TIMEOUT_MS": "600000",
+            "CS_LLM_TOKEN_BUDGET_ENABLED": "true",
+            "CS_LLM_DAILY_TOKEN_BUDGET": "100000",
+            "CS_LLM_TOKEN_BUDGET_SCOPE": "total",
+        })
+        assert errors == []
+        assert warnings == []
+
+    def test_validate_accepts_supported_provider_key_alias(self):
+        errors, warnings = _validate_service_env({
+            "CS_AUTH_TOKEN": "abcdefghijklmnopqrstuvwxyz123456",
+            "CS_LLM_PROVIDER": "anthropic",
+            "ANTHROPIC_API_KEY": "sk-ant-real-looking-key",
+        })
+        assert errors == []
+        assert warnings == []
+
+    def test_validate_warns_when_api_key_alias_lacks_provider(self):
+        errors, warnings = _validate_service_env({
+            "CS_AUTH_TOKEN": "abcdefghijklmnopqrstuvwxyz123456",
+            "OPENAI_API_KEY": "sk-real-looking-key",
+        })
+        assert errors == []
+        assert warnings == ["LLM API key is set but CS_LLM_PROVIDER is missing"]
+
+    def test_validate_rejects_placeholder_auth_and_invalid_token_budget(self):
+        errors, warnings = _validate_service_env({
+            "CS_AUTH_TOKEN": "changeme-replace-with-a-strong-random-token",
+            "CS_HTTP_PORT": "99999",
+            "CS_LLM_TOKEN_BUDGET_ENABLED": "true",
+            "CS_LLM_DAILY_TOKEN_BUDGET": "0",
+            "CS_LLM_TOKEN_BUDGET_SCOPE": "usd",
+            "CS_L2_BUDGET_MS": "5000",
+        })
+        assert any("CS_AUTH_TOKEN" in error for error in errors)
+        assert any("CS_HTTP_PORT" in error for error in errors)
+        assert any("CS_LLM_DAILY_TOKEN_BUDGET" in error for error in errors)
+        assert any("CS_LLM_TOKEN_BUDGET_SCOPE" in error for error in errors)
+        assert any("CS_L2_BUDGET_MS is deprecated" in warning for warning in warnings)
+
+    def test_run_service_validate_prints_redacted_summary(self, tmp_path, capsys):
+        env_file = tmp_path / "gateway.env"
+        env_file.write_text(textwrap.dedent("""\
+            CS_AUTH_TOKEN=abcdefghijklmnopqrstuvwxyz123456
+            CS_HTTP_PORT=8080
+            CS_LLM_TOKEN_BUDGET_ENABLED=false
+            CS_LLM_DAILY_TOKEN_BUDGET=0
+        """))
+        code = run_service_validate(env_file=env_file)
+        out = capsys.readouterr().out
+        assert code == 0
+        assert "PASS: service deployment validation succeeded" in out
+        assert "abcdefghijklmnopqrstuvwxyz123456" not in out
+        assert "abcd…3456" in out
+
+    def test_run_service_validate_fails_missing_auth(self, tmp_path, capsys):
+        env_file = tmp_path / "gateway.env"
+        env_file.write_text("CS_HTTP_PORT=8080\n")
+        code = run_service_validate(env_file=env_file)
+        out = capsys.readouterr().out
+        assert code == 1
+        assert "CS_AUTH_TOKEN is required" in out
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +258,6 @@ class TestRunServiceInstall:
             "clawsentry.cli.service_command._env_file_path",
             lambda: tmp_path / "gateway.env",
         )
-        log_dir = tmp_path / "log"
         monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
         mock_run.return_value = MagicMock(returncode=0)
         code = run_service_install(no_enable=True)
@@ -181,3 +278,13 @@ class TestRunServiceInstall:
             )
         code = run_service_uninstall()
         assert code == 0
+
+
+class TestSystemdEnvExample:
+    def test_uses_canonical_budget_and_timeout_names(self):
+        env_example = Path(__file__).resolve().parents[3] / "systemd" / "gateway.env.example"
+        content = env_example.read_text(encoding="utf-8")
+        assert "CS_L2_TIMEOUT_MS" in content
+        assert "CS_LLM_TOKEN_BUDGET_ENABLED" in content
+        assert "CS_LLM_DAILY_BUDGET_USD" not in content
+        assert "CS_L2_BUDGET_MS" not in content

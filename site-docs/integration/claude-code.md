@@ -233,7 +233,7 @@ Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒
 | `CS_AUTH_TOKEN` | *(自动生成)* | Bearer Token 认证 |
 | `CS_FRAMEWORK` | `claude-code` | 框架标识（init 自动设置） |
 | `CS_DEFER_TIMEOUT_ACTION` | `block` | DEFER 超时行为：`block` 或 `allow` |
-| `CS_DEFER_TIMEOUT_S` | `300` | DEFER 超时秒数（默认 5 分钟） |
+| `CS_DEFER_TIMEOUT_S` | `86400` | normal mode DEFER 软超时秒数；benchmark mode 不等待人工审批 |
 
 ### DEFER 超时策略
 
@@ -245,7 +245,7 @@ Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒
 
     ```bash
     CS_DEFER_TIMEOUT_ACTION=block
-    CS_DEFER_TIMEOUT_S=300
+    CS_DEFER_TIMEOUT_S=86400
     ```
 
 === "allow"
@@ -426,7 +426,7 @@ clawsentry doctor
     4. 检查是否触发了会话级强制策略
 
 ??? question "DEFER 超时导致操作被阻止"
-    1. 默认超时为 300 秒（5 分钟），可通过 `CS_DEFER_TIMEOUT_S` 调整
+    1. normal mode 默认软超时为 86400 秒（24 小时），可通过 `CS_DEFER_TIMEOUT_S` 调整；CI/benchmark 请使用 benchmark mode 避免人工等待
     2. 设置 `CS_DEFER_TIMEOUT_ACTION=allow` 可在超时后自动放行
     3. 使用 `clawsentry watch --interactive` 及时处理 DEFER 审批
 

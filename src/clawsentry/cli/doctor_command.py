@@ -217,20 +217,21 @@ def check_whitelist_regex() -> DoctorCheck:
 
 
 def check_l2_budget() -> DoctorCheck:
-    raw = _env("CS_L2_BUDGET_MS")
+    raw = _env("CS_L2_TIMEOUT_MS") or _env("CS_L2_BUDGET_MS")
+    env_name = "CS_L2_TIMEOUT_MS" if _env("CS_L2_TIMEOUT_MS") else "CS_L2_BUDGET_MS"
     if not raw:
-        return DoctorCheck("L2_BUDGET", "PASS",
-                           "L2 budget using default (5000ms).")
+        return DoctorCheck("L2_TIMEOUT", "PASS",
+                           "L2 timeout using default (60000ms).")
     try:
         val = float(raw)
     except ValueError:
-        return DoctorCheck("L2_BUDGET", "FAIL",
-                           f"CS_L2_BUDGET_MS='{raw}' is not a number.")
+        return DoctorCheck("L2_TIMEOUT", "FAIL",
+                           f"{env_name}='{raw}' is not a number.")
     if val > 0:
-        return DoctorCheck("L2_BUDGET", "PASS", f"L2 budget: {val}ms.")
-    return DoctorCheck("L2_BUDGET", "FAIL",
-                       f"CS_L2_BUDGET_MS={val} <= 0.",
-                       detail="L2 budget must be positive.")
+        return DoctorCheck("L2_TIMEOUT", "PASS", f"L2 timeout: {val}ms.")
+    return DoctorCheck("L2_TIMEOUT", "FAIL",
+                       f"{env_name}={val} <= 0.",
+                       detail="L2 timeout must be positive.")
 
 
 def check_trajectory_db() -> DoctorCheck:

@@ -907,7 +907,7 @@ clawsentry doctor [--json] [--no-color]
 | `OPENCLAW_SECRET` | OpenClaw | 已设置 `CS_OPENCLAW_WEBHOOK_SECRET` |
 | `LISTEN_ADDRESS` | 网络 | 监听 localhost（公网地址警告） |
 | `WHITELIST_REGEX` | 正则 | Post-action 白名单正则可编译 |
-| `L2_BUDGET` | LLM | `CS_L2_BUDGET_MS` 为正数 |
+| `L2_TIMEOUT` | LLM | `CS_L2_TIMEOUT_MS` 为正数（旧 `CS_L2_BUDGET_MS` 仅兼容） |
 | `TRAJECTORY_DB` | 数据库 | 数据库目录可写 |
 | `CODEX_CONFIG` | Codex | `CS_FRAMEWORK=codex` 时 auth token 已设置 |
 | `LATCH_BINARY` | Latch | Latch 二进制已安装且可执行 |
@@ -938,7 +938,7 @@ clawsentry doctor
     [WARN] OPENCLAW_SECRET    CS_OPENCLAW_WEBHOOK_SECRET not set
     [PASS] LISTEN_ADDRESS     Listening on localhost
     [PASS] WHITELIST_REGEX    All whitelist patterns compile OK
-    [PASS] L2_BUDGET          CS_L2_BUDGET_MS is positive
+    [PASS] L2_TIMEOUT         CS_L2_TIMEOUT_MS is positive
     [PASS] TRAJECTORY_DB      Database directory is writable
     [PASS] CODEX_CONFIG       Codex config OK
     [PASS] CODEX_NATIVE_HOOKS Codex native hooks installed
@@ -1128,7 +1128,7 @@ clawsentry service uninstall
 
 ## clawsentry config
 
-管理项目级 `.clawsentry.toml` 配置文件。通过预设等级快速配置检测灵敏度。
+管理项目级 `.clawsentry.toml`、引导式 wizard 和最终生效配置。新部署优先使用 `config wizard` 或 `config show --effective`，旧的 preset 命令继续保留。
 
 ### 语法
 
@@ -1141,8 +1141,9 @@ clawsentry config <subcommand> [options]
 | 子命令 | 说明 |
 |--------|------|
 | `init` | 在当前目录创建 `.clawsentry.toml` |
-| `show` | 显示当前项目配置 |
-| `set <preset>` | 更新预设等级 |
+| `show` | 显示当前项目配置；加 `--effective` 展示来源和密钥脱敏 |
+| `wizard` | 交互式或非交互式生成项目/环境配置 |
+| `set <preset>` | 更新预设等级或单个配置字段 |
 | `disable` | 禁用 ClawSentry（设置 `enabled = false`） |
 | `enable` | 启用 ClawSentry（设置 `enabled = true`） |
 
@@ -1178,16 +1179,17 @@ clawsentry config init --preset high
 #### 查看当前配置
 
 ```bash
-clawsentry config show
+clawsentry config show --effective
 ```
 
 ??? example "终端输出"
     ```
-      enabled: true
-      preset:  high
-      threshold_critical: 1.8
-      threshold_high:     1.2
-      threshold_medium:   0.5
+      project.mode: normal (source: project)
+      llm.provider: openai (source: env)
+      llm.api_key: ******** (source: env)
+      budgets.llm_token_budget_enabled: true (source: project)
+      budgets.remaining_tokens: 198432
+      defer.timeout_s: 86400 (source: default)
     ```
 
 #### 更改预设等级
@@ -1208,12 +1210,43 @@ clawsentry config enable
 ```toml
 [project]
 enabled = true
+mode = "normal"
 preset = "high"
+
+[budgets]
+llm_token_budget_enabled = false
+l2_timeout_ms = 60000
+l3_timeout_ms = 300000
+hard_timeout_ms = 600000
+
+[defer]
+timeout_s = 86400
+timeout_action = "block"
 ```
 
 该文件应放置在项目根目录，Gateway 和 Harness 启动时会自动读取并应用预设配置。
 
 ---
+
+## clawsentry benchmark
+
+管理显式 benchmark/autonomous 模式。该模式面向 CI 和安全评测：不会等待人工 DEFER，不会修改真实 `~/.codex`，除非人工显式传入 `--force-user-home`。完整说明见 [Benchmark 模式](../operations/benchmark-mode.md)。
+
+### 语法
+
+```bash
+clawsentry benchmark env --framework codex --mode guarded > .env.clawsentry.benchmark
+clawsentry benchmark enable --dir . --framework codex --codex-home /tmp/cs-codex-home
+clawsentry benchmark run --framework codex --codex-home /tmp/cs-codex-home -- <command>
+clawsentry benchmark disable --dir . --framework codex --codex-home /tmp/cs-codex-home
+```
+
+### 安全规则
+
+- `run` 默认使用临时配置并清理，`--keep-artifacts` 才保留证据。
+- 自动化测试必须传入临时 `--codex-home`。
+- would-DEFER 默认转换为 `block`，并写入 `auto_resolved=true`、`original_verdict=defer` 等 metadata。
+
 
 ## clawsentry rules
 
@@ -1478,8 +1511,10 @@ clawsentry latch uninstall --keep-data
 | `CS_FRAMEWORK` | start, init | 框架类型标识（`a3s-code`/`claude-code`/`codex`/`openclaw`） |
 | `CS_CODEX_SESSION_DIR` | gateway | Codex 会话目录路径（用于 Session Watcher） |
 | `CS_DEFER_TIMEOUT_ACTION` | gateway, harness | DEFER 超时后的动作：`block`（默认）或 `allow` |
-| `CS_DEFER_TIMEOUT_S` | gateway, harness | DEFER 超时时间（秒），默认 `300` |
-| `CS_LLM_DAILY_BUDGET_USD` | gateway | LLM 每日预算（美元），超出后降级为纯规则引擎 |
+| `CS_DEFER_TIMEOUT_S` | gateway, harness | normal mode DEFER 软超时（秒），默认 `86400`；benchmark mode 不等待 |
+| `CS_LLM_TOKEN_BUDGET_ENABLED` | gateway | 是否启用基于真实 provider usage 的 token 预算 |
+| `CS_LLM_DAILY_TOKEN_BUDGET` | gateway | 每日 token 上限，启用时必须大于 `0` |
+| `CS_LLM_DAILY_BUDGET_USD` | gateway | 旧版兼容字段；仅迁移/估算提示，不推荐执法 |
 | `CS_METRICS_ENABLED` | gateway | 启用 Prometheus `/metrics` 端点 |
 | `CS_LATCH_HUB_URL` | gateway, doctor | Latch Hub 地址（如 `http://127.0.0.1:3006`） |
 | `CS_ENABLED_FRAMEWORKS` | init, docs | 多框架启用列表（如 `a3s-code,codex,openclaw`） |

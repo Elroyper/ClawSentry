@@ -300,6 +300,7 @@ class MetricsCollector:
     ) -> None:
         """Record an LLM API call with token counts."""
         cost = _estimate_cost(provider, input_tokens, output_tokens)
+        no_token_usage = input_tokens == 0 and output_tokens == 0
         self._record_llm_usage_breakdown(
             provider=provider,
             tier=tier,
@@ -308,8 +309,17 @@ class MetricsCollector:
             output_tokens=output_tokens,
             cost=cost,
         )
-        if self._budget_tracker is not None and cost > 0:
-            exhausted = self._budget_tracker.record_spend(cost)
+        if self._budget_tracker is not None:
+            if self._budget_tracker.enabled:
+                if no_token_usage:
+                    exhausted = self._budget_tracker.record_unknown_usage()
+                else:
+                    exhausted = self._budget_tracker.record_usage(
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+            else:
+                exhausted = self._budget_tracker.record_spend(cost)
             if exhausted:
                 budget_snapshot = self._budget_tracker.snapshot()
                 exhausted_event = {
@@ -318,7 +328,9 @@ class MetricsCollector:
                     "provider": provider,
                     "tier": tier,
                     "status": status,
-                    "cost_usd": cost,
+                    "estimated_cost_usd": cost,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
                     "budget": budget_snapshot,
                 }
                 if self._budget_exhausted_callback is not None:
@@ -327,8 +339,9 @@ class MetricsCollector:
                     except Exception:
                         logger.exception("budget exhaustion callback failed")
                 logger.warning(
-                    "LLM daily budget exhausted after %s spend from provider=%s tier=%s",
-                    cost,
+                    "LLM token budget exhausted after input=%s output=%s provider=%s tier=%s",
+                    input_tokens,
+                    output_tokens,
                     provider,
                     tier,
                 )
@@ -433,22 +446,31 @@ class MetricsCollector:
 
 
 class LLMBudgetTracker:
-    """Thread-safe daily LLM budget tracker (UTC).
+    """Thread-safe daily token budget tracker (UTC).
 
-    Tracks cumulative LLM spend per UTC day and reports when the daily budget
-    is exhausted.  A budget of ``0`` (the default) means *unlimited* — all
-    checks return ``True`` and :meth:`record_spend` is a no-op.
-
-    Parameters
-    ----------
-    daily_budget_usd:
-        Maximum spend (USD) per UTC day.  ``0`` disables budgeting.
+    Enforcement is based on provider-reported token usage only. Estimated USD
+    cost remains informational telemetry and never exhausts this tracker.
     """
 
-    def __init__(self, daily_budget_usd: float = 0.0) -> None:
-        self._budget = daily_budget_usd  # 0 = unlimited
+    def __init__(
+        self,
+        daily_budget_usd: float = 0.0,
+        *,
+        enabled: bool = False,
+        limit_tokens: int = 0,
+        scope: str = "total",
+        source: str = "default",
+    ) -> None:
+        self._budget = daily_budget_usd  # deprecated compatibility surface
+        self.enabled = bool(enabled and limit_tokens > 0)
+        self.limit_tokens = max(int(limit_tokens), 0)
+        self.scope = scope if scope in ("total", "input", "output") else "total"
+        self.source = source
         self._lock = threading.Lock()
-        self._daily_spend = 0.0
+        self._used_input_tokens = 0
+        self._used_output_tokens = 0
+        self._unknown_usage_calls = 0
+        self._daily_spend = 0.0  # deprecated compatibility metric only
         self._day_start = datetime.now(timezone.utc).date()
         self._exhausted_notified = False
 
@@ -457,22 +479,30 @@ class LLMBudgetTracker:
         today = datetime.now(timezone.utc).date()
         if today != self._day_start:
             self._daily_spend = 0.0
+            self._used_input_tokens = 0
+            self._used_output_tokens = 0
+            self._unknown_usage_calls = 0
             self._day_start = today
             self._exhausted_notified = False
 
     def can_spend(self) -> bool:
-        """Return ``True`` if the budget allows further LLM calls."""
-        if self._budget <= 0:
+        """Return ``True`` if token budget allows another LLM call."""
+        if not self.enabled and self._budget <= 0:
             return True  # unlimited
         with self._lock:
             self._maybe_reset()
+            if self.enabled:
+                return self._used_for_scope() < self.limit_tokens
             return self._daily_spend < self._budget
 
     def record_spend(self, cost_usd: float) -> bool:
-        """Record spend.  Returns ``True`` if budget NEWLY exhausted (first time only)."""
+        """Record estimated spend for explicit legacy USD-budget compatibility."""
         if cost_usd < 0:
             raise ValueError(f"cost_usd must be >= 0, got {cost_usd}")
-        if self._budget <= 0:
+        if self.enabled or self._budget <= 0:
+            with self._lock:
+                self._maybe_reset()
+                self._daily_spend += cost_usd
             return False
         with self._lock:
             self._maybe_reset()
@@ -484,22 +514,62 @@ class LLMBudgetTracker:
                 return True
             return False
 
-    def snapshot(self) -> dict[str, float | bool | None]:
-        """Return a point-in-time view of the current UTC-day budget state."""
+    def _used_for_scope(self) -> int:
+        if self.scope == "input":
+            return self._used_input_tokens
+        if self.scope == "output":
+            return self._used_output_tokens
+        return self._used_input_tokens + self._used_output_tokens
+
+    def record_usage(self, *, input_tokens: int = 0, output_tokens: int = 0) -> bool:
+        """Record actual tokens; return True on first exhaustion transition."""
+        if input_tokens < 0 or output_tokens < 0:
+            raise ValueError("token counts must be >= 0")
         with self._lock:
             self._maybe_reset()
-            if self._budget <= 0:
-                return {
-                    "daily_budget_usd": self._budget,
-                    "daily_spend_usd": self._daily_spend,
-                    "remaining_usd": None,
-                    "exhausted": False,
-                }
+            was_ok = (not self.enabled) or self._used_for_scope() < self.limit_tokens
+            self._used_input_tokens += input_tokens
+            self._used_output_tokens += output_tokens
+            is_exhausted = self.enabled and self._used_for_scope() >= self.limit_tokens
+            if was_ok and is_exhausted and not self._exhausted_notified:
+                self._exhausted_notified = True
+                return True
+            return False
 
-            remaining = max(self._budget - self._daily_spend, 0.0)
-            return {
-                "daily_budget_usd": self._budget,
-                "daily_spend_usd": self._daily_spend,
-                "remaining_usd": remaining,
-                "exhausted": self._daily_spend >= self._budget,
+    def record_unknown_usage(self) -> bool:
+        """Track a provider-reported usage miss; never consumes budget."""
+        with self._lock:
+            self._maybe_reset()
+            self._unknown_usage_calls += 1
+            return False
+
+    def snapshot(self) -> dict[str, float | int | str | bool | None]:
+        """Return a point-in-time view of the current UTC-day token budget state."""
+        with self._lock:
+            self._maybe_reset()
+            used_total = self._used_input_tokens + self._used_output_tokens
+            used_scope = self._used_for_scope()
+            remaining_tokens = None if not self.enabled else max(self.limit_tokens - used_scope, 0)
+            token_exhausted = bool(self.enabled and used_scope >= self.limit_tokens)
+            legacy_exhausted = bool((not self.enabled) and self._budget > 0 and self._daily_spend >= self._budget)
+            remaining_usd = max(self._budget - self._daily_spend, 0.0) if self._budget > 0 else None
+            exhausted = token_exhausted or legacy_exhausted
+            snapshot = {
+                "enabled": self.enabled,
+                "scope": self.scope,
+                "limit_tokens": self.limit_tokens,
+                "used_input_tokens": self._used_input_tokens,
+                "used_output_tokens": self._used_output_tokens,
+                "used_total_tokens": used_total,
+                "remaining_tokens": remaining_tokens,
+                "exhausted": exhausted,
+                "unknown_usage_calls": self._unknown_usage_calls,
+                "last_reset_utc": self._day_start.isoformat(),
+                "source": self.source,
             }
+            if not (self.enabled and self.limit_tokens > 0):
+                # Deprecated compatibility fields: informational only when not in token mode.
+                snapshot["daily_budget_usd"] = self._budget
+                snapshot["daily_spend_usd"] = self._daily_spend
+                snapshot["remaining_usd"] = remaining_usd
+            return snapshot
