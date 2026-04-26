@@ -10,7 +10,7 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 
 ## 5 分钟启动 Gateway、Web UI 与框架接入
 
-选择你使用的 AI 框架，先启动 ClawSentry Gateway，再打开 Web UI，并按框架能力决定是启用拦截还是监控。
+选择你使用的 AI 框架，先启动 ClawSentry Gateway，再打开 Web UI。首次体验可以不接 LLM；团队或安全敏感仓库建议直接按 L2/L3-ready 路径配置 provider、token budget 与审计存储。
 
 <div class="cs-actions" markdown>
 [选择框架](#framework-capabilities){ .md-button .md-button--primary }
@@ -20,9 +20,16 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 </section>
 
 
-## 先复制这组命令：最短可运行路径 {#copy-this-first}
+## 先选择一条路径：观察优先，还是 L2/L3 就绪 {#choose-first-path}
 
-如果你只是想先看到 Gateway、Web UI 和第一批审计事件，先走 L1-only 默认路径。它不需要外部 LLM，也不会修改 Codex hooks；之后再逐步开启 L2/L3、token budget 或 benchmark。
+ClawSentry 的推荐新手路径不再把 “永远不接 LLM” 当成默认终点。你可以先用观察模式确认 Gateway / Web UI / 框架接入正常；如果你的目标是团队值守、语义分析或 L3 审查，请直接走 L2/L3-ready 路径，并把 provider、token budget 与延迟预期一次讲清。
+
+<div class="cs-before-after" markdown>
+
+<div markdown>
+### 路径 A：观察优先 / 不接 LLM
+
+适合第一次验证安装、Web UI 登录、framework/session/workspace 分组。不会调用外部 provider，也不会改变 Codex 默认拦截语义。
 
 ```bash
 pip install clawsentry
@@ -30,24 +37,63 @@ clawsentry config wizard --non-interactive --mode normal --llm-provider none --w
 clawsentry start --framework codex --open-browser
 ```
 
-接着确认当前有效配置：
+你会看到 Gateway 地址、Web UI token、`watch` 事件流和 L1 风险分。
+</div>
+
+<div markdown>
+### 路径 B：推荐的 L2/L3-ready operator 路径
+
+适合团队仓库、安全敏感项目或希望 Dashboard 显示语义/审查结果的用户。密钥只放环境变量，预算显式打开。
+
+```bash
+export CS_LLM_API_KEY=sk-...
+clawsentry config wizard --non-interactive \
+  --mode strict \
+  --llm-provider openai \
+  --llm-model gpt-4o-mini \
+  --l2 --l3 \
+  --token-budget 200000 \
+  --write-project-config
+clawsentry test-llm --json
+clawsentry start --framework codex --open-browser
+```
+
+你会看到 L2/L3 可用性、token budget 来源、Dashboard 的 L3 advisory / risk summary 字段。
+</div>
+
+</div>
+
+!!! note "关于 `config wizard` 的真实行为"
+    当前 `clawsentry config wizard` 是确定性的配置生成器：在本终端没有交互式问答 UI 时，它使用传入参数或默认值写入 `.clawsentry.toml`。文档不会承诺尚未实现的 `clawsentry setup` 或多轮问卷式配置；如果未来新增 CLI setup UX，会作为单独功能发布。
+
+---
+
+## 运行后确认什么 {#verify-first-run}
 
 ```bash
 clawsentry config show --effective
+curl http://127.0.0.1:8080/health
 ```
 
-你应该能看到：`mode=normal`、LLM provider 未配置、token budget disabled、DEFER timeout 使用较宽松的 normal-mode 默认值。需要 LLM 时再参考[配置模板](../configuration/templates.md)，需要无人 benchmark 时直接看[Benchmark 模式](../operations/benchmark-mode.md)。
+| 你要确认 | 观察优先路径 | L2/L3-ready 路径 | 在哪里看 |
+|---|---|---|---|
+| Gateway 存活 | `status=healthy` | 同左 | `/health`、终端 banner |
+| Web UI 登录 | `?token=` 写入 sessionStorage | 同左 | `http://127.0.0.1:8080/ui?token=...` |
+| L2 是否会运行 | 只跑 rule-based / L1+规则语义 | provider 可用时运行 LLMAnalyzer + RuleBasedAnalyzer | `clawsentry test-llm --json`、Session Detail |
+| L3 是否会运行 | 默认关闭 | high/critical 或显式触发时运行同步 L3；full-review 为 advisory | L3 审查 Agent、L3 咨询审查页面 |
+| 成本边界 | 无 provider 成本 | 由 token budget 和 timeout 控制 | [配置模板](../configuration/templates.md)、[LLM 配置](../configuration/llm-config.md) |
 
 ---
 
 ## 选择运行模式 {#choose-mode}
 
-| 你要做什么 | 推荐模式 | 下一步 |
-|---|---|---|
-| 本地先看审计/Web UI | `normal` + L1-only | `clawsentry start --framework <name>` |
-| 团队仓库，想启用 L2 | `normal` + token budget | [团队模板](../configuration/templates.md#team-maintainer-l2-token-budget) |
-| 安全敏感变更 | `strict` | 配置 L2/L3 与持久化审计库 |
-| CI 或安全 benchmark | `benchmark` | [Benchmark 模式](../operations/benchmark-mode.md)，使用临时 `CODEX_HOME` |
+| 你要做什么 | 推荐配置 | 延迟/成本预期 | 下一步 |
+|---|---|---|---|
+| 本地先看审计/Web UI | `normal` + L1/规则语义 | 最低；无外部 provider | `clawsentry start --framework <name>` |
+| 团队仓库语义分析 | `normal` + L2 + token budget | L2 只在 medium+ / 关键域事件触发 | [L2 预算模板](../configuration/templates.md#template-l2-budgeted) |
+| 安全敏感变更审查 | `strict` + L2 + L3 | L3 可能带来 10s+ 审查延迟 | [严格 L3 模板](../configuration/templates.md#template-l3-strict) |
+| 只想手动复盘高风险 session | 同步 L3 可不开；启用 L3 advisory | 不改历史判决；按需生成报告 | [L3 咨询审查](../decision-layers/l3-advisory.md) |
+| CI 或安全 benchmark | `benchmark` + 临时 home | 无人值守；DEFER 确定性处理 | [Benchmark 模式](../operations/benchmark-mode.md) |
 
 ---
 
@@ -59,7 +105,7 @@ clawsentry config show --effective
 
 <div class="cs-card" markdown>
 ### 1. 跑起来
-复制上面的最短命令，打开 Web UI，确认 Gateway 可访问。
+从路径 A 或路径 B 复制命令，打开 Web UI，确认 Gateway 可访问。
 </div>
 
 <div class="cs-card" markdown>
@@ -69,12 +115,12 @@ clawsentry config show --effective
 
 <div class="cs-card" markdown>
 ### 3. 配置 LLM / 预算
-需要 L2/L3 时，再进入[配置模板](../configuration/templates.md)和[LLM 配置](../configuration/llm-config.md)。
+需要 L2/L3 时，进入[配置模板](../configuration/templates.md)和[LLM 配置](../configuration/llm-config.md)。
 </div>
 
 <div class="cs-card" markdown>
-### 4. 部署或评测
-团队常驻看[生产部署](../operations/deployment.md)；CI / benchmark 看[Benchmark 模式](../operations/benchmark-mode.md)。
+### 4. 部署、复盘或评测
+团队常驻看[生产部署](../operations/deployment.md)；高风险复盘看[L3 咨询审查](../decision-layers/l3-advisory.md)；CI / benchmark 看[Benchmark 模式](../operations/benchmark-mode.md)。
 </div>
 
 </div>

@@ -9,6 +9,9 @@ L3 审查 Agent 是 ClawSentry 三层决策模型的最深层。它通过多轮 
 
 本文介绍如何理解内置 Skills，以及如何编写和加载自定义 Skills 来扩展 L3 Agent 的审查能力。
 
+!!! note "作用范围"
+    自定义 Skill 只影响**同步 L3 审查 Agent** 的技能选择和审查提示词。它不会改变 L1/L2 评分、不会写文件，也不会让 [L3 咨询审查](../decision-layers/l3-advisory.md) 自动联网或自动执行 job。Advisory full-review 仍由 frozen snapshot/job/review 流程和独立 provider gates 控制。
+
 ---
 
 ## 什么是 Skill

@@ -3,51 +3,10 @@ title: L3 咨询审查
 description: 用一份只读、可追溯、不改写历史判决的 L3 安全复盘报告，帮助 operator 处理高风险 session
 ---
 
-<style>
-  .l3-hero {
-    border: 1px solid var(--md-default-fg-color--lightest);
-    border-radius: 18px;
-    padding: 1.6rem;
-    margin: 1rem 0 1.5rem;
-    background: linear-gradient(135deg, rgba(3,105,161,.14), rgba(34,197,94,.08));
-  }
-  .l3-hero h2 { margin-top: 0; }
-  .l3-hero p { max-width: 52rem; }
-  .l3-card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-    gap: .9rem;
-    margin: 1rem 0 1.4rem;
-  }
-  .l3-card {
-    border: 1px solid var(--md-default-fg-color--lightest);
-    border-radius: 14px;
-    padding: 1rem 1.05rem;
-    background: var(--md-default-bg-color);
-  }
-  .l3-card h3 { margin: 0 0 .45rem; font-size: 1rem; }
-  .l3-card p { margin: 0; font-size: .88rem; }
-  .l3-pill-row { display: flex; flex-wrap: wrap; gap: .45rem; margin: .8rem 0 0; }
-  .l3-pill {
-    display: inline-block;
-    border-radius: 999px;
-    padding: .16rem .55rem;
-    font-size: .78rem;
-    border: 1px solid var(--md-accent-fg-color--transparent);
-    background: var(--md-code-bg-color);
-  }
-  .l3-flow {
-    border-left: 4px solid var(--md-primary-fg-color);
-    padding: .8rem 1rem;
-    background: var(--md-code-bg-color);
-    border-radius: 8px;
-    margin: 1rem 0;
-  }
-</style>
 
 # L3 咨询审查
 
-<div class="l3-hero" markdown>
+<div class="cs-doc-hero" markdown>
 
 ## 高风险 session 的只读复盘报告
 
@@ -55,11 +14,11 @@ description: 用一份只读、可追溯、不改写历史判决的 L3 安全复
 
 它不是新的拦截器，也不会重判历史事件；它只是基于固定证据做一次可追溯复盘，辅助后续处置。
 
-<div class="l3-pill-row" markdown>
-<span class="l3-pill">只读复盘</span>
-<span class="l3-pill">不改写 allow/block/defer</span>
-<span class="l3-pill">可在 Web UI 点击触发</span>
-<span class="l3-pill">CLI / API 可自动化</span>
+<div class="cs-pill-row" markdown>
+<span class="cs-pill">只读复盘</span>
+<span class="cs-pill">不改写 allow/block/defer</span>
+<span class="cs-pill">可在 Web UI 点击触发</span>
+<span class="cs-pill">CLI / API 可自动化</span>
 </div>
 
 </div>
@@ -93,26 +52,38 @@ boundary: advisory only; canonical decision unchanged
 
 ---
 
+## Operator 合同：它会做什么、不会做什么 {#operator-contract}
+
+| 问题 | L3 咨询审查当前行为 |
+|------|----------------------|
+| 什么时候用 | 你已经有一个值得复盘的 session：Web UI 手动 full-review、CLI/API 显式请求，或在 feature gate 下自动冻结 high/critical evidence delta。 |
+| 输入是什么 | frozen trajectory record range。报告基于固定 records，不读取不断变化的 live workspace。 |
+| 输出是什么 | `snapshot_id`、`job_id`、`review_id`、`risk_level`、recommended `Action`、可选 `analysis_summary` / `analysis_points` / `operator_next_steps`。 |
+| 会不会重判 allow/block/defer | 不会。响应和 action payload 必须保持 `advisory_only=true`、`canonical_decision_mutated=false`。 |
+| 会不会自动联网 | 不会。默认 runner 是 `deterministic_local`；`llm_provider` 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置并显式关闭 dry-run。 |
+| 会不会后台扫所有 session | 不会。Phase 3 的 queued job drain 是有界 one-shot；heartbeat/idle aggregate 只自动冻结/排队，不启动 scheduler。 |
+| 在哪里查询 | Web UI Session Detail、`clawsentry l3 full-review` / `l3 jobs`、`/report/*/l3-advisory/*`、SSE/watch、[报表 API](../api/reporting.md#l3-advisory-endpoints)。 |
+
 ## 它解决什么问题？
 
-<div class="l3-card-grid" markdown>
+<div class="cs-card-grid" markdown>
 
-<div class="l3-card" markdown>
+<div class="cs-card" markdown>
 ### 1. 证据固定
 高风险 session 还在继续产生事件时，审查输入必须稳定。L3 咨询审查会冻结一段 record range，例如 `Records 4–8`。
 </div>
 
-<div class="l3-card" markdown>
+<div class="cs-card" markdown>
 ### 2. 结果可追溯
 每次复盘都有 `snapshot_id`、`job_id`、`review_id`。你可以在 UI、SSE、API、日志里追踪同一份报告。
 </div>
 
-<div class="l3-card" markdown>
+<div class="cs-card" markdown>
 ### 3. 不改历史判决
 报告始终是 `advisory_only=true`。full-review 响应会明确返回 `canonical_decision_mutated=false`。
 </div>
 
-<div class="l3-card" markdown>
+<div class="cs-card" markdown>
 ### 4. 可按需升级
 默认用本地确定性 runner；需要时才显式打开 provider runner。不会因为配置了同步 LLM 就自动联网。
 </div>
@@ -123,7 +94,7 @@ boundary: advisory only; canonical decision unchanged
 
 ## 工作流程
 
-<div class="l3-flow" markdown>
+<div class="cs-flow-strip" markdown>
 
 **高风险 session** → **冻结证据 Snapshot** → **排队 Job** → **运行 Runner** → **生成 Review** → **展示结果**
 
@@ -210,7 +181,7 @@ clawsentry l3 full-review \
 
 适合先冻结证据，再由另一个流程决定何时运行 worker。
 
-### Phase 3：查看并有界执行 queued jobs
+### Phase 3：查看并有界执行 queued jobs {#phase-3queued-jobs}
 
 Phase 3 增加的是 **bounded one-shot execution**，不是 daemon。你可以查看当前 queued jobs：
 
@@ -236,7 +207,7 @@ clawsentry l3 jobs drain \
 
 这些命令只 claim `job_state=queued` 的 job；`running` / `completed` / `failed` 不会被 rerun。`llm_provider` runner 仍需要显式 advisory provider gates，默认不会真实联网。
 
-### Phase 3：heartbeat / idle aggregate queueing
+### Phase 3：heartbeat / idle aggregate queueing {#phase-3heartbeat-idle-aggregate-queueing}
 
 当同时启用：
 
@@ -388,6 +359,12 @@ L3 ADVISORY REVIEW    l3adv-...   State=Completed Action=Inspect
 | 目标 | 帮助当前事件得出安全评估 | 对已记录 session 做复盘报告 |
 | 输入 | 当前事件 + bounded context | frozen trajectory record range |
 | 输出 | 决策路径中的 L3 结果 / trace | advisory review / recommended operator action |
+| 延迟模型 | 同步路径预算内返回，超时/失败降级 | job/review 生命周期，可排队、手动 run-next/drain |
+| LLM 配置 | 继承同步 L2/L3 provider：`CS_LLM_PROVIDER`、`CS_LLM_MODEL` 等 | 独立安全闸门：`CS_L3_ADVISORY_PROVIDER_*`，默认 dry-run |
 | 是否改历史判决 | 不适用 | 明确不改，`canonical_decision_mutated=false` |
+
+## 最近功能覆盖状态 {#recent-feature-coverage}
+
+本页覆盖 L3 advisory jobs/full-review、heartbeat/idle aggregate queueing、provider smoke gates、Web UI L3 surfaces 与 action summary。完整跨页面覆盖矩阵见 [最近功能文档覆盖矩阵](../operations/recent-feature-coverage.md)。
 
 如果你想了解同步决策链里的 L3 审查器，继续看 [L3 审查 Agent](l3-agent.md)。

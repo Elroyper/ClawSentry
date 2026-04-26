@@ -1128,7 +1128,7 @@ clawsentry service uninstall
 
 ## clawsentry config
 
-管理项目级 `.clawsentry.toml`、引导式 wizard 和最终生效配置。新部署优先使用 `config wizard` 或 `config show --effective`，旧的 preset 命令继续保留。
+管理项目级 `.clawsentry.toml`、确定性 `config wizard` 和最终生效配置。新部署优先使用 `config wizard --non-interactive` 生成可复现骨架，再用 `config show --effective` 检查来源；旧的 preset 命令继续保留。
 
 ### 语法
 
@@ -1142,10 +1142,13 @@ clawsentry config <subcommand> [options]
 |--------|------|
 | `init` | 在当前目录创建 `.clawsentry.toml` |
 | `show` | 显示当前项目配置；加 `--effective` 展示来源和密钥脱敏 |
-| `wizard` | 交互式或非交互式生成项目/环境配置 |
+| `wizard` | 按 supplied/default values 生成项目/环境配置；`--non-interactive` 适合 CI |
 | `set <preset>` | 更新预设等级或单个配置字段 |
 | `disable` | 禁用 ClawSentry（设置 `enabled = false`） |
 | `enable` | 启用 ClawSentry（设置 `enabled = true`） |
+
+!!! info "`config wizard` 的当前边界"
+    当前 wizard 不会承诺逐题追问式 setup。它会使用命令行传入值和默认值写出确定性配置；当终端不支持交互时，会打印 fallback 提示并继续使用 supplied/default values。需要产品级 `clawsentry setup` 引导体验时，应作为单独 CLI 功能实现并测试，而不是只在文档中承诺。
 
 ### `config init` 选项
 
@@ -1164,6 +1167,32 @@ clawsentry config <subcommand> [options]
 | `strict` | 最严格模式，几乎所有可疑操作均触发审查 | 安全敏感项目 |
 
 ### 示例
+
+#### 生成 L2/L3-ready 配置骨架
+
+```bash
+export CS_LLM_API_KEY=sk-...
+clawsentry config wizard --non-interactive \
+  --framework codex \
+  --mode strict \
+  --llm-provider openai \
+  --llm-model gpt-4o-mini \
+  --l2 --l3 \
+  --token-budget 200000 \
+  --write-project-config
+clawsentry config show --effective
+clawsentry test-llm --json
+```
+
+如果你只想先观察 Gateway / Web UI，不调用外部 provider：
+
+```bash
+clawsentry config wizard --non-interactive \
+  --framework codex \
+  --mode normal \
+  --llm-provider none \
+  --write-project-config
+```
 
 #### 初始化配置
 
