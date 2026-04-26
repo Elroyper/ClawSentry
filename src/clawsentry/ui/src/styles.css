@@ -1245,11 +1245,35 @@ h1,
 
 .priority-session-list,
 .session-card-stack,
-.decision-timeline,
 .framework-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.decision-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(620px, 68vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scroll-padding-top: 10px;
+}
+
+.decision-timeline::-webkit-scrollbar {
+  width: 8px;
+}
+
+.decision-timeline::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.08);
+  border-radius: 999px;
+}
+
+.decision-timeline::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(94, 234, 212, 0.45), rgba(94, 165, 255, 0.45));
+  border-radius: 999px;
 }
 
 .priority-session-row,
@@ -2151,6 +2175,11 @@ h1,
 
 .chart-card-radar {
   min-height: 280px;
+  padding-top: 4px;
+}
+
+.chart-card-radar .recharts-wrapper {
+  filter: drop-shadow(0 16px 32px rgba(14, 165, 233, 0.12));
 }
 
 .chart-card-area {

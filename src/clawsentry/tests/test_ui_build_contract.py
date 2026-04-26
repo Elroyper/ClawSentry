@@ -43,3 +43,14 @@ def test_dist_css_matches_light_theme_baseline() -> None:
     assert "Plus Jakarta Sans" in css
     assert "#06111c" not in css
     assert "Space Grotesk" not in css
+
+
+def test_dist_session_detail_replay_labels_match_source_contract() -> None:
+    dist_dir = UI_ROOT / "dist" / "assets"
+    js_bundle = "\n".join(
+        path.read_text(encoding="utf-8", errors="ignore")
+        for path in sorted(dist_dir.glob("*.js"))
+    )
+
+    assert "Tool request" in js_bundle
+    assert "Tool result" in js_bundle

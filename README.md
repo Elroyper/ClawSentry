@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3179 public regression tests** with release-time CI/build evidence
+- **3180 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.10
+## What's New in v0.5.11
 
-- **Token-first Web UI governance**: Dashboard, Session Detail, Runtime Feed, StatusBar, and LLM drilldown now lead with input/output/total token usage and token limits instead of estimated USD budget copy.
-- **Clearer workspace/session UX**: missing workspace roots group under stable “Unbound workspace” labels, the session timeline defaults newest-first, and risk composition uses readable dimension bars.
-- **L3 advisory narratives**: completed full reviews can surface bounded `analysis_summary`, `analysis_points`, and `operator_next_steps` while preserving advisory-only semantics.
+- **Shipped replay label polish**: rebuilt Web UI static assets include the Session Detail replay labels for prompt, response, tool request, and tool result rows, avoiding stale `unknown` labels in packaged/demo UI.
+- **Cleaner a3s_demo grouping**: demo conversation markers now bind to the same ClawSentry workspace root as the supervised a3s-code session, while the controlled files remain under the `workspace/` data directory.
+- **v0.5.10 governance retained**: token-first UI governance, stable Unbound workspace fallback, newest-first timelines, and L3 advisory narratives remain in place.
 
 ## Quick Start
 

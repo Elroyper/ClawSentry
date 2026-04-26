@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+## [0.5.11] — 2026-04-26
+
+### 修复
+
+- **WebUI replay label 产物同步** — 重新构建 `src/clawsentry/ui/dist`，确保已实现的 `Prompt` / `Response` / `Tool request` / `Tool result` 会话详情标签进入新版本静态产物，避免录屏时继续看到旧 bundle 的 `unknown`。
+- **a3s_demo workspace 绑定收敛** — 手动写入的 PrePrompt / PostResponse 对话 marker 现在与真实 a3s-code session 使用同一个 ClawSentry workspace root（demo root），测试数据仍保留在 `workspace/` 子目录，避免 WebUI 出现额外工作区分组。
+
+### 测试与验证
+
+- Python full regression：`conda run -n a3s_code python -m pytest src/clawsentry/tests/ -q --tb=short` → dev repo `3183 passed, 4 skipped`; public repo `3180 passed, 7 skipped`。
+- Focused regression：`python -m pytest demostation_projects/tests/test_a3s_demo_recording.py src/clawsentry/tests/test_ui_build_contract.py -q --tb=short` → `11 passed`。
+- Public docs/version contract：`python -m pytest src/clawsentry/tests/test_public_docs_contract.py -q --tb=short` → `10 passed`。
+- Web UI regression：`npm test -- --run` → `53 passed`。
+- Web UI build：`npm run build` → PASS。
+
 ## [0.5.10] — 2026-04-26
 
 ### 新增
@@ -1092,6 +1107,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.11]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.11
 [0.5.10]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.10
 [0.5.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.9
 [0.5.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.8

@@ -230,6 +230,39 @@ describe('RuntimeFeed', () => {
     expect(screen.queryByText(/L3 reason:/i)).not.toBeInTheDocument()
   })
 
+  it('suppresses always-on L3 availability metadata when no L3 review was requested', async () => {
+    vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
+      void types
+      callbacks.onStatusChange('connected')
+      callbacks.onEvent('decision', {
+        session_id: 'sess-004',
+        event_id: 'evt-004',
+        risk_level: 'low',
+        decision: 'allow',
+        tool_name: 'bash',
+        actual_tier: 'L1',
+        timestamp: '2026-04-14T07:10:00.000Z',
+        reason: 'Routine allow',
+        command: 'echo ok',
+        l3_requested: false,
+        l3_available: true,
+        l3_state: 'enabled',
+      })
+      return () => {}
+    })
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <RuntimeFeed />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/live activity feed/i)).toBeInTheDocument()
+    expect(screen.queryByText(/L3 requested:/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/L3 available:/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/L3 state:/i)).not.toBeInTheDocument()
+  })
+
   it('renders operator-readable labels for L3 advisory job lifecycle events', async () => {
     vi.mocked(createManagedSSE).mockImplementation((types, callbacks) => {
       void types

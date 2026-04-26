@@ -44,8 +44,12 @@ def test_workspace_readme_status_and_package_versions_stay_aligned() -> None:
     assert init_version == package_version
     if project_status:
         assert f"workspace baseline: v{package_version}" in readme
-        assert f"public PyPI/docs live for v{package_version}" in readme
-        assert f"**Released baseline**: `v{package_version}`" in project_status
+        if "local prep" in readme:
+            assert "latest public PyPI/docs live for v" in readme
+            assert f"**Next local version**: `v{package_version}`" in project_status
+        else:
+            assert f"public PyPI/docs live for v{package_version}" in readme
+            assert f"**Released baseline**: `v{package_version}`" in project_status
     else:
         assert f"What's New in v{package_version}" in readme
 

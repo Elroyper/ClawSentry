@@ -20,6 +20,7 @@ import {
   CartesianGrid,
   PolarAngleAxis,
   PolarGrid,
+  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -51,6 +52,15 @@ const DIMENSION_LABELS: Record<string, Record<'en' | 'zh', string>> = {
   d4: { en: 'Frequency', zh: '频率' },
   d5: { en: 'Context', zh: '上下文' },
   d6: { en: 'Injection', zh: '注入' },
+}
+
+const DIMENSION_MAX: Record<string, number> = {
+  d1: 1,
+  d2: 1,
+  d3: 1,
+  d4: 1,
+  d5: 1,
+  d6: 3,
 }
 
 const TOOLTIP_STYLE = {
@@ -139,6 +149,61 @@ function TierBadge({ tier }: { tier: string }) {
 function TimelineLatency({ ms }: { ms: number }) {
   const className = ms < 100 ? 'latency-fast' : ms < 3000 ? 'latency-medium' : 'latency-slow'
   return <span className={`latency-badge ${className}`}>{ms}ms</span>
+}
+
+function compactEventSubtypeLabel(value?: unknown): string {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (!normalized) return ''
+  if (normalized.includes('preprompt') || normalized === 'pre_prompt') return 'Prompt'
+  if (normalized.includes('postresponse') || normalized === 'post_response') return 'Response'
+  if (normalized.includes('pretooluse') || normalized === 'pre_action') return 'Tool request'
+  if (normalized.includes('posttooluse') || normalized === 'post_action') return 'Tool result'
+  return String(value)
+    .replace(/_/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, char => char.toUpperCase())
+}
+
+function replayEventLabel(record: TrajectoryRecord): string {
+  const directTool = String(record.event?.tool_name || '').trim()
+  if (directTool) return directTool
+  return compactEventSubtypeLabel(record.event?.event_subtype)
+    || compactEventSubtypeLabel(record.event?.event_type)
+    || 'Event'
+}
+
+function replayEventPreview(record: TrajectoryRecord): string {
+  if (typeof record.event?.input === 'string' && record.event.input.trim()) {
+    return record.event.input.trim()
+  }
+  const payload = record.event?.payload
+  if (!payload || typeof payload !== 'object') return ''
+  const payloadRecord = payload as Record<string, unknown>
+  const argumentsValue = payloadRecord.arguments
+  if (typeof payloadRecord.command === 'string' && payloadRecord.command.trim()) return payloadRecord.command.trim()
+  if (typeof payloadRecord.prompt === 'string' && payloadRecord.prompt.trim()) return payloadRecord.prompt.trim()
+  if (typeof payloadRecord.response_text === 'string' && payloadRecord.response_text.trim()) {
+    return payloadRecord.response_text.trim()
+  }
+  if (typeof payloadRecord.file_path === 'string' && payloadRecord.file_path.trim()) return payloadRecord.file_path.trim()
+  if (typeof payloadRecord.path === 'string' && payloadRecord.path.trim()) return payloadRecord.path.trim()
+  if (argumentsValue && typeof argumentsValue === 'object') {
+    const args = argumentsValue as Record<string, unknown>
+    for (const key of ['command', 'file_path', 'path']) {
+      if (typeof args[key] === 'string' && args[key].trim()) return args[key].trim()
+    }
+  }
+  return ''
+}
+
+function hasActionableL3Meta(meta: TrajectoryRecord['meta']): boolean {
+  const state = String(meta.l3_state || '').trim().toLowerCase()
+  return Boolean(
+    meta.l3_requested
+    || meta.l3_reason_code
+    || meta.l3_reason
+    || (state && state !== 'enabled' && state !== 'completed'),
+  )
 }
 
 function normalizeSessionRisk(result: SessionRisk | SessionRiskResponse): {
@@ -403,12 +468,18 @@ export default function SessionDetail() {
   }
 
   const radarData = risk
-    ? Object.entries(risk.dimensions_latest).map(([key, value]) => ({
+    ? Object.entries(risk.dimensions_latest).map(([key, value]) => {
+        const max = DIMENSION_MAX[key] ?? 1
+        const normalizedValue = Math.max(0, Math.min(value / max, 1))
+        return {
         dimension: DIMENSION_LABELS[key]?.[language] || key,
         key,
         value,
-        fullMark: 1,
-      }))
+          normalizedValue,
+          max,
+          fullMark: 1,
+        }
+      })
     : []
 
   const timelineData = risk?.risk_timeline.map(item => ({
@@ -424,7 +495,7 @@ export default function SessionDetail() {
   const latestAdvisoryAction = risk?.l3_advisory?.latest_action ?? null
   const displayTrajectory = [...trajectory].sort((a, b) => trajectorySortValue(b) - trajectorySortValue(a))
   const latestRecord = displayTrajectory[0] ?? null
-  const latestToolName = latestRecord ? String(latestRecord.event?.tool_name || 'unknown tool') : 'No tool observed'
+  const latestToolName = latestRecord ? replayEventLabel(latestRecord) : 'No tool observed'
   const latestDecisionLabel = latestRecord ? String(latestRecord.decision.decision).toUpperCase() : 'NO REPLAY'
   const workbenchWindowLabel = sessionWindowSeconds === null ? 'All recorded evidence' : 'Recent 1h replay scope'
   const operatorRecommendation = getOperatorRecommendation(risk, showBudgetWarning, latestAdvisoryReview)
@@ -764,9 +835,21 @@ export default function SessionDetail() {
                 <>
                   <ResponsiveContainer width="100%" height={260}>
                     <RadarChart data={radarData}>
-                      <PolarGrid stroke="rgba(120, 196, 255, 0.12)" />
-                      <PolarAngleAxis dataKey="dimension" tick={{ fill: '#89a4bd', fontSize: 10 }} />
-                      <Radar dataKey="value" stroke="#5ea5ff" fill="#5ea5ff" fillOpacity={0.2} strokeWidth={2} />
+                      <defs>
+                        <radialGradient id="riskRadarFill" cx="50%" cy="50%" r="62%">
+                          <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.42} />
+                          <stop offset="68%" stopColor="#5ea5ff" stopOpacity={0.24} />
+                          <stop offset="100%" stopColor="#a78bfa" stopOpacity={0.16} />
+                        </radialGradient>
+                      </defs>
+                      <PolarGrid stroke="rgba(120, 196, 255, 0.16)" radialLines={false} />
+                      <PolarAngleAxis dataKey="dimension" tick={{ fill: '#b8c7dd', fontSize: 11, fontWeight: 600 }} />
+                      <PolarRadiusAxis angle={90} domain={[0, 1]} tick={false} axisLine={false} />
+                      <Radar dataKey="normalizedValue" stroke="#67e8f9" fill="url(#riskRadarFill)" fillOpacity={0.88} strokeWidth={2.5} />
+                      <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(_, __, item) => {
+                        const payload = item?.payload as { value?: number; max?: number } | undefined
+                        return [payload ? `${formatMetricScore(payload.value)} / ${payload.max}` : '—', 'score']
+                      }} />
                     </RadarChart>
                   </ResponsiveContainer>
                   <div className="risk-dimension-bars">
@@ -777,7 +860,7 @@ export default function SessionDetail() {
                           <span className="mono">{formatMetricScore(item.value)}</span>
                         </div>
                         <div className="risk-dimension-track" aria-hidden="true">
-                          <span style={{ width: `${Math.max(0, Math.min(item.value, 1)) * 100}%` }} />
+                          <span style={{ width: `${item.normalizedValue * 100}%` }} />
                         </div>
                       </div>
                     ))}
@@ -857,10 +940,11 @@ export default function SessionDetail() {
               </div>
               <span className="section-meta">{trajectory.length} events</span>
             </div>
-            <div className="decision-timeline">
+            <div className="decision-timeline" aria-label="Scrollable replay window">
               {displayTrajectory.map((record, index) => {
-                const input = typeof record.event?.input === 'string' ? record.event.input : ''
+                const input = replayEventPreview(record)
                 const evidenceSummary = formatL3EvidenceSummary(record.l3_trace?.evidence_summary)
+                const actionableL3Meta = hasActionableL3Meta(record.meta)
                 return (
                   <div key={`${record.recorded_at}-${index}`} className="decision-timeline-row">
                     <span className="mono decision-timeline-time">
@@ -871,7 +955,7 @@ export default function SessionDetail() {
                         <DecisionBadge decision={record.decision.decision} />
                         <RiskBadge level={record.risk_snapshot.risk_level} />
                         <TierBadge tier={record.meta.actual_tier} />
-                        <span className="cmd-snippet">{String(record.event?.tool_name || 'unknown')}</span>
+                        <span className="cmd-snippet">{replayEventLabel(record)}</span>
                         <TimelineLatency ms={record.decision.decision_latency_ms} />
                       </div>
                       {input && (
@@ -887,12 +971,12 @@ export default function SessionDetail() {
                           Trigger detail: <span className="mono">{record.l3_trace?.trigger_detail}</span>
                         </p>
                       )}
-                      {record.meta.l3_requested !== undefined && (
+                      {actionableL3Meta && record.meta.l3_requested !== undefined && (
                         <p className="priority-session-meta">
                           L3 requested: <span className="mono">{record.meta.l3_requested ? 'yes' : 'no'}</span>
                         </p>
                       )}
-                      {record.meta.l3_available !== undefined && (
+                      {actionableL3Meta && record.meta.l3_available !== undefined && (
                         <p className="priority-session-meta">
                           L3 available: <span className="mono">{record.meta.l3_available ? 'yes' : 'no'}</span>
                         </p>
@@ -902,7 +986,7 @@ export default function SessionDetail() {
                           L3 reason code: <span className="mono">{appendReadableLabel('l3ReasonCode', record.meta.l3_reason_code, language)}</span>
                         </p>
                       )}
-                      {record.meta.l3_state && record.meta.l3_state !== 'completed' && (
+                      {actionableL3Meta && record.meta.l3_state && record.meta.l3_state !== 'completed' && record.meta.l3_state !== 'enabled' && (
                         <p className="priority-session-meta">
                           L3 state: <span className="mono">{appendReadableLabel('l3State', record.meta.l3_state, language)}</span>
                         </p>

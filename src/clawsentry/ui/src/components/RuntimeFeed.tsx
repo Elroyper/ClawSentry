@@ -106,6 +106,17 @@ function isActionEvent(event: SSERuntimeEvent) {
   return HIGH_PRIORITY_EVENT_TYPES.includes(event.type)
 }
 
+function hasActionableL3RuntimeMeta(event: SSERuntimeEvent): boolean {
+  if (event.type !== 'decision') return false
+  const state = String(event.l3_state || '').trim().toLowerCase()
+  return Boolean(
+    event.l3_requested
+    || event.l3_reason_code
+    || event.l3_reason
+    || (state && state !== 'enabled' && state !== 'completed'),
+  )
+}
+
 function TierBadge({ tier }: { tier: string }) {
   const t = tier.toUpperCase()
   const cls = t === 'L3' ? 'badge-tier-l3' : t === 'L2' ? 'badge-tier-l2' : 'badge-tier-l1'
@@ -187,6 +198,7 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
   switch (event.type) {
     case 'decision': {
       const evidenceSummary = formatL3EvidenceSummary(event.evidence_summary)
+      const actionableL3Meta = hasActionableL3RuntimeMeta(event)
       return (
         <>
           <div className="runtime-event-meta-row">
@@ -213,12 +225,12 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
               Trigger pattern: <span className="mono">{event.trigger_detail}</span>
             </div>
           )}
-          {event.l3_requested !== undefined && (
+          {actionableL3Meta && event.l3_requested !== undefined && (
             <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
               L3 requested: <span className="mono">{event.l3_requested ? 'yes' : 'no'}</span>
             </div>
           )}
-          {event.l3_available !== undefined && (
+          {actionableL3Meta && event.l3_available !== undefined && (
             <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
               L3 available: <span className="mono">{event.l3_available ? 'yes' : 'no'}</span>
             </div>
@@ -228,7 +240,7 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
               L3 reason code: <span className="mono">{appendReadableLabel('l3ReasonCode', event.l3_reason_code, language)}</span>
             </div>
           )}
-          {event.l3_state && event.l3_state !== 'completed' && (
+          {actionableL3Meta && event.l3_state && event.l3_state !== 'completed' && event.l3_state !== 'enabled' && (
             <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
               L3 state: <span className="mono">{appendReadableLabel('l3State', event.l3_state, language)}</span>
             </div>

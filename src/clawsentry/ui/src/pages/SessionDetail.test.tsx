@@ -256,6 +256,92 @@ describe('SessionDetail', () => {
     expect(screen.getByText('trajectory, file · 2 tool call(s) · toolkit 0/5 (exhausted)')).toBeInTheDocument()
   })
 
+  it('uses conversation event labels instead of unknown for prompt and response replay rows', async () => {
+    vi.mocked(api.sessionReplayPage).mockResolvedValueOnce(makeReplayPageResponse({
+      records: [
+        {
+          event: { event_type: 'pre_prompt', event_subtype: 'PrePrompt', payload: { prompt: '请删除临时目录' } },
+          decision: {
+            decision: 'allow',
+            reason: 'Conversation marker',
+            risk_level: 'low',
+            decision_latency_ms: 12,
+          },
+          risk_snapshot: {
+            risk_level: 'low',
+            composite_score: 0.05,
+            dimensions: { d1: 0.0, d2: 0.0, d3: 0.0, d4: 0.0, d5: 0.0, d6: 0.0 },
+          },
+          meta: { actual_tier: 'L1', caller_adapter: 'a3s-adapter.v1' },
+          l3_trace: null,
+          recorded_at: '2026-04-14T08:05:10Z',
+        },
+        {
+          event: { event_type: 'post_response', event_subtype: 'PostResponse', payload: { response_text: '已停止执行危险操作' } },
+          decision: {
+            decision: 'allow',
+            reason: 'Conversation marker',
+            risk_level: 'low',
+            decision_latency_ms: 14,
+          },
+          risk_snapshot: {
+            risk_level: 'low',
+            composite_score: 0.05,
+            dimensions: { d1: 0.0, d2: 0.0, d3: 0.0, d4: 0.0, d5: 0.0, d6: 0.0 },
+          },
+          meta: { actual_tier: 'L1', caller_adapter: 'a3s-adapter.v1' },
+          l3_trace: null,
+          recorded_at: '2026-04-14T08:05:20Z',
+        },
+      ],
+      next_cursor: null,
+    }) as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('Prompt')).toBeInTheDocument()
+    expect(screen.getAllByText('Response').length).toBeGreaterThan(0)
+    expect(screen.queryByText('unknown')).not.toBeInTheDocument()
+  })
+
+  it('hides non-actionable L3 enabled metadata on replay rows', async () => {
+    vi.mocked(api.sessionReplayPage).mockResolvedValueOnce(makeReplayPageResponse({
+      records: [
+        {
+          event: { tool_name: 'bash', input: 'echo ok' },
+          decision: {
+            decision: 'allow',
+            reason: 'Safe command',
+            risk_level: 'low',
+            decision_latency_ms: 20,
+          },
+          risk_snapshot: {
+            risk_level: 'low',
+            composite_score: 0.05,
+            dimensions: { d1: 0.0, d2: 0.0, d3: 0.0, d4: 0.0, d5: 0.0, d6: 0.0 },
+          },
+          meta: {
+            actual_tier: 'L1',
+            caller_adapter: 'a3s-adapter.v1',
+            l3_requested: false,
+            l3_available: true,
+            l3_state: 'enabled',
+          },
+          l3_trace: null,
+          recorded_at: '2026-04-14T08:05:10Z',
+        },
+      ],
+      next_cursor: null,
+    }) as never)
+
+    renderSessionDetail()
+
+    expect(await screen.findByText('echo ok')).toBeInTheDocument()
+    expect(screen.queryByText(/L3 requested:/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/L3 available:/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/L3 state:/i)).not.toBeInTheDocument()
+  })
+
   it('renders latest/window risk metrics and the D6 injection dimension', async () => {
     renderSessionDetail()
 
