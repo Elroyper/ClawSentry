@@ -193,7 +193,7 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 ### :satellite: 多端实时可见
 **CLI 终端** + **Web 仪表板** + **移动端（Latch）**
 
-决策/告警/会话三端同步，全链路可观测。
+决策/告警/会话三端同步，全链路可观测。v0.5.10 起 Web UI 优先显示 token usage / token limit、稳定的 Unbound workspace 分组、最新优先的 session timeline，以及 L3 advisory 自然语言分析。
 </div>
 
 <div class="card" markdown>
@@ -362,12 +362,13 @@ flowchart LR
 
 ## Web 安全仪表板
 
-内置 **React 18 + TypeScript + Vite** 单页应用，现已升级为浅色优先、面向值班人员扫描路径的 premium operator console。
+内置 **React 18 + TypeScript + Vite** 单页应用，现已升级为面向值班人员扫描路径的 operator console。当前 UI 重点回答：现在先看哪个 framework / workspace / session、token pressure 是否接近上限、L3 advisory 给出的解释和下一步是什么。
 
 | 页面 | 功能 |
 |:---|:---|
-| **Dashboard** | Operator Brief、实时决策 feed、指标卡、风险概览 |
-| **Sessions** | 会话列表、D1-D5 雷达图、风险曲线、决策时间线 |
+| **Dashboard** | Operator Brief、实时决策 feed、token-first LLM usage、风险概览 |
+| **Sessions** | Framework / workspace / session 分组；缺失 workspace 时使用稳定 Unbound workspace fallback |
+| **Session Detail** | 最新优先决策时间线、D1-D6 风险构成、L3 narrative analysis、advisory-only 边界 |
 | **Alerts** | 告警表格、过滤、确认、SSE 自动推送 |
 | **DEFER Panel** | 审批倒计时、Allow/Deny 操作、503 降级提示 |
 
@@ -381,7 +382,7 @@ Gateway 在 `/ui` 路径自动挂载静态文件，无需额外配置。
 
 | 指标 | 数据 |
 |:---:|:---:|
-| 测试用例 | **3174 passed / 7 skipped**（发布时以 CI/验证报告为准） |
+| 测试用例 | **3179 passed / 7 skipped**（发布时以 CI/验证报告为准） |
 | 测试耗时 | 随可选依赖与 smoke 范围变化 |
 | 协议版本 | `sync_decision.1.0` |
 | Python 版本 | >= 3.11 |

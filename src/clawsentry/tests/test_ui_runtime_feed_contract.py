@@ -37,9 +37,10 @@ def test_runtime_feed_subscribes_to_budget_exhausted_events() -> None:
     source = (ROOT / "components" / "RuntimeFeed.tsx").read_text()
 
     assert "'budget_exhausted'" in source
-    assert "Budget exhausted" in source
+    assert "Token exhausted" in source
     assert "provider" in source
-    assert "cost_usd" in source
+    assert "formatTokenBudgetSnapshot" in source
+    assert "event.budget" in source
 
 
 def test_runtime_feed_surfaces_l3_evidence_summary() -> None:

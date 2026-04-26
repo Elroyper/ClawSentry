@@ -27,9 +27,12 @@ def test_dashboard_feed_subscribes_to_runtime_activity_events() -> None:
 
 def test_dashboard_highlights_framework_workspace_monitoring() -> None:
     source = _read_ui_file("pages/Dashboard.tsx")
+    locales = _read_ui_file("lib/locales.ts")
 
-    assert "Framework Coverage" in source
-    assert "Workspace Risk Board" in source
+    assert "dashboard.frameworkCoverage" in source
+    assert "Framework coverage" in locales
+    assert "dashboard.workspaceRiskBoard" in source
+    assert "Workspace risk board" in locales
 
 
 def test_health_response_exposes_budget_snapshot_for_operator_surfaces() -> None:
@@ -37,19 +40,18 @@ def test_health_response_exposes_budget_snapshot_for_operator_surfaces() -> None
 
     assert "export interface HealthBudgetSnapshot" in source
     assert "budget: HealthBudgetSnapshot" in source
-    assert "daily_budget_usd" in source
-    assert "daily_spend_usd" in source
-    assert "remaining_usd" in source
+    assert "limit_tokens" in source
+    assert "used_input_tokens" in source
+    assert "used_output_tokens" in source
+    assert "used_total_tokens" in source
+    assert "remaining_tokens" in source
     assert "exhausted" in source
 
 
 def test_status_bar_surfaces_budget_snapshot_copy() -> None:
     source = _read_ui_file("components/StatusBar.tsx")
 
-    assert "Daily budget" in source
-    assert "health.budget.daily_budget_usd" in source
-    assert "health.budget.daily_spend_usd" in source
-    assert "health.budget.remaining_usd" in source
+    assert "formatTokenBudgetSnapshot" in source
     assert "health.budget.exhausted" in source
 
 
@@ -58,10 +60,9 @@ def test_dashboard_surfaces_budget_snapshot_in_current_posture() -> None:
     locales = _read_ui_file("lib/locales.ts")
 
     assert "dashboard.panel.dailyBudget" in source
-    assert "Daily budget" in locales
-    assert "Spend" in source
-    assert "Remaining" in source
-    assert "Exhausted" in source
+    assert "Token limit" in locales
+    assert "formatTokenBudgetSnapshot" in source
+    assert "limit_tokens" in source
 
 
 def test_ui_types_model_llm_usage_snapshot_for_operator_surfaces() -> None:
@@ -83,18 +84,16 @@ def test_status_bar_surfaces_llm_usage_snapshot_summary_for_operators() -> None:
     source = _read_ui_file("components/StatusBar.tsx")
 
     assert "health?.llm_usage_snapshot" in source
-    assert "LLM usage" in source
-    assert "total_calls" in source
-    assert "total_cost_usd" in source
+    assert "formatLlmUsageSummary" in source
+    assert "formatLlmUsageSummary" in source
 
 
 def test_dashboard_surfaces_llm_usage_snapshot_summary_for_operators() -> None:
     source = _read_ui_file("pages/Dashboard.tsx")
 
     assert "summary?.llm_usage_snapshot" in source
-    assert "LLM usage" in source
+    assert "formatLlmUsageSummary" in source
     assert "total_calls" in source
-    assert "total_cost_usd" in source
 
 
 def test_defer_panel_uses_explicit_defer_lifecycle_events() -> None:
@@ -143,9 +142,9 @@ def test_ui_types_expose_l3_advisory_surfaces() -> None:
     assert "'l3_advisory_review'" in source
     assert "'l3_advisory_job'" in source
     assert "l3_state: string" in source
-    assert "L3 Snapshot" in feed_source
-    assert "L3 Advisory" in feed_source
-    assert "L3 Job" in feed_source
+    assert "L3 snapshot" in feed_source
+    assert "L3 advisory" in feed_source
+    assert "L3 job" in feed_source
 
 
 def test_session_summary_types_expose_l3_metadata_and_evidence_for_lists() -> None:
@@ -243,17 +242,17 @@ def test_runtime_feed_surfaces_budget_exhausted_operator_copy() -> None:
     source = _read_ui_file("components/RuntimeFeed.tsx")
 
     assert "budget_exhausted" in source
-    assert "Budget exhausted" in source
+    assert "Token exhausted" in source
     assert "Provider" in source
     assert "Tier" in source
-    assert "Cost" in source
+    assert "formatTokenBudgetSnapshot" in source
 
 
 def test_status_bar_emphasizes_budget_exhaustion_for_operators() -> None:
     source = _read_ui_file("components/StatusBar.tsx")
 
     assert "budget_exhaustion_event" in source
-    assert "BUDGET EXHAUSTED" in source
+    assert "TOKEN EXHAUSTED" in source
     assert "Operator action required" in source
 
 
@@ -263,7 +262,7 @@ def test_dashboard_emphasizes_budget_exhaustion_for_operators() -> None:
 
     assert "budget_exhaustion_event" in source
     assert "dashboard.panel.budgetAlert" in source
-    assert "Budget alert" in locales
+    assert "Token alert" in locales
 
 
 def test_ui_types_model_reporting_envelope_for_session_detail_surfaces() -> None:
@@ -364,7 +363,7 @@ def test_dashboard_priority_sessions_surface_l3_reason_code_and_evidence_summary
 
     assert "formatSessionL3Annotation" in source
     assert "toolkit_budget_exhausted" in source
-    assert "Toolkit evidence budget hotspots" in source
+    assert "dashboard.evidenceHotspots" in source
     assert "session.l3_reason_code" in helper_source
     assert "session.evidence_summary" in helper_source
     assert "formatL3EvidenceSummary" in helper_source
@@ -375,9 +374,9 @@ def test_dashboard_surfaces_toolkit_evidence_budget_hotspot_metric() -> None:
     locales = _read_ui_file("lib/locales.ts")
 
     assert "dashboard.metric.evidenceBudget" in source
-    assert "Toolkit Evidence Budget" in locales
-    assert "Sessions hitting toolkit evidence budget" in source
-    assert "No sessions are currently hitting toolkit evidence budget." in source
+    assert "Toolkit Evidence Quota" in locales
+    assert "dashboard.noEvidenceHotspots" in source
+    assert "No sessions are currently hitting toolkit evidence quota." in locales
 
 
 def test_sessions_inventory_surface_l3_reason_code_and_evidence_summary() -> None:
@@ -391,7 +390,7 @@ def test_sessions_inventory_surface_l3_reason_code_and_evidence_summary() -> Non
     assert "formatL3EvidenceSummary" in helper_source
     assert "session.evidence_summary?.toolkit_budget_exhausted" in source
     assert "sessions.budgetOnly" in source
-    assert "Budget exhausted only" in locales
+    assert "Evidence quota exhausted only" in locales
     assert "aria-pressed" in source
 
 
@@ -399,10 +398,9 @@ def test_session_detail_surfaces_budget_snapshot_and_current_exhaustion_state() 
     source = _read_ui_file("pages/SessionDetail.tsx")
 
     assert "budget_exhaustion_event" in source
-    assert "Daily budget" in source
-    assert "Spend" in source
-    assert "Remaining" in source
-    assert "Exhausted" in source
+    assert "formatTokenBudgetSnapshot" in source
+    assert "session.tokenGovernance" in source
+    assert "session.tokenExhaustionEvent" in source
 
 
 def test_ui_types_model_session_replay_page_cursor_contract() -> None:
@@ -423,7 +421,7 @@ def test_session_detail_uses_paged_replay_with_load_more() -> None:
     assert "api.sessionReplayPage(sessionId, { windowSeconds: sessionWindowSeconds })" in source
     assert "cursor: replayNextCursor" in source
     assert "windowSeconds: sessionWindowSeconds" in source
-    assert "Load more" in source
+    assert "session.loadOlder" in source
     assert "nextCursor" in source
 
 

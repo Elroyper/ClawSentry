@@ -8,6 +8,8 @@ job. Nothing here starts a scheduler or changes canonical decisions.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import json
 import os
 import threading
@@ -156,7 +158,8 @@ class LLMProviderBridgeAdvisoryProvider(_ProviderShellBase):
                     user_message=_advisory_provider_user_message(request),
                     timeout_ms=float(request.get("deadline_ms") or 30_000),
                     max_tokens=int((request.get("budget") or {}).get("max_tokens") or 512),
-                )
+                ),
+                closeable=self.provider,
             )
         except TimeoutError:
             return self._degraded("provider_timeout", f"{self.provider_name} advisory provider timeout")
@@ -190,7 +193,8 @@ def _advisory_provider_system_prompt() -> str:
         "Do not assume access to live session state. "
         "Return only JSON matching schema cs.l3_advisory.worker_response.v1 "
         "with fields: schema_version, risk_level, findings, confidence, "
-        "recommended_operator_action, l3_state, l3_reason_code."
+        "recommended_operator_action, l3_state, l3_reason_code, "
+        "analysis_summary, analysis_points, operator_next_steps."
     )
 
 
@@ -241,7 +245,10 @@ def _advisory_provider_user_message(request: dict[str, Any]) -> str:
                 '{"schema_version":"cs.l3_advisory.worker_response.v1",'
                 '"risk_level":"high","findings":["advisory review completed"],'
                 '"confidence":0.5,"recommended_operator_action":"inspect",'
-                '"l3_state":"completed","l3_reason_code":null}'
+                '"l3_state":"completed","l3_reason_code":null,'
+                '"analysis_summary":"Frozen evidence indicates high risk; canonical decision unchanged.",'
+                '"analysis_points":["Highest risk is high","Review the frozen event range"],'
+                '"operator_next_steps":["Inspect the session before release"]}'
             ),
         ]
     )
@@ -324,7 +331,20 @@ def _extract_first_json_object(text: str) -> str | None:
     return None
 
 
-def _run_async_completion_sync(coro: Any) -> str:
+async def _close_async_resource(resource: Any) -> None:
+    """Best-effort close for loop-bound async provider/client resources."""
+
+    if resource is None:
+        return
+    close = getattr(resource, "aclose", None) or getattr(resource, "close", None)
+    if not callable(close):
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
+
+
+def _run_async_completion_sync(coro: Any, *, closeable: Any = None) -> str:
     """Run an async provider completion from the synchronous worker path.
 
     FastAPI calls this worker through an async endpoint, so ``asyncio.run`` may be
@@ -334,9 +354,16 @@ def _run_async_completion_sync(coro: Any) -> str:
 
     box: dict[str, Any] = {}
 
+    async def runner() -> Any:
+        try:
+            return await coro
+        finally:
+            with contextlib.suppress(Exception):
+                await _close_async_resource(closeable)
+
     def target() -> None:
         try:
-            box["result"] = asyncio.run(coro)
+            box["result"] = asyncio.run(runner())
         except BaseException as exc:  # noqa: BLE001 - propagate exactly below
             box["error"] = exc
 
@@ -616,6 +643,9 @@ def parse_l3_advisory_worker_response(payload: dict[str, Any]) -> dict[str, Any]
         "recommended_operator_action": action,
         "l3_state": l3_state,
         "l3_reason_code": payload.get("l3_reason_code"),
+        "analysis_summary": _bounded_text(payload.get("analysis_summary"), max_chars=360),
+        "analysis_points": _bounded_text_list(payload.get("analysis_points"), max_items=5, max_chars=180),
+        "operator_next_steps": _bounded_text_list(payload.get("operator_next_steps"), max_items=3, max_chars=180),
     }
 
 
@@ -640,6 +670,61 @@ def _recommended_action_for_risk(risk_level: str) -> str:
     return "none"
 
 
+def _bounded_text(value: Any, *, max_chars: int = 320) -> str:
+    text = " ".join(str(value or "").split())
+    return text[:max_chars]
+
+
+def _bounded_text_list(value: Any, *, max_items: int, max_chars: int = 180) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = [_bounded_text(item, max_chars=max_chars) for item in value]
+    return [item for item in items if item][:max_items]
+
+
+def _narrative_from_evidence(
+    *,
+    snapshot: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    risk_level: str,
+    action: str | None = None,
+) -> dict[str, Any]:
+    event_range = snapshot.get("event_range") or {}
+    trigger = str(snapshot.get("trigger_reason") or "unknown trigger")
+    decision_counts: dict[str, int] = {}
+    tool_counts: dict[str, int] = {}
+    for record in records:
+        if not isinstance(record, Mapping):
+            continue
+        decision_payload = record.get("decision") if isinstance(record.get("decision"), Mapping) else {}
+        event_payload = record.get("event") if isinstance(record.get("event"), Mapping) else record
+        decision = str(decision_payload.get("decision") or record.get("decision") or "unknown")
+        tool_name = str(event_payload.get("tool_name") or "unknown")
+        decision_counts[decision] = decision_counts.get(decision, 0) + 1
+        tool_counts[tool_name] = tool_counts.get(tool_name, 0) + 1
+    top_decision = max(decision_counts.items(), key=lambda item: item[1])[0] if decision_counts else "unknown"
+    top_tool = max(tool_counts.items(), key=lambda item: item[1])[0] if tool_counts else "unknown"
+    operator_action = action or _recommended_action_for_risk(risk_level)
+    return {
+        "analysis_summary": _bounded_text(
+            f"Frozen L3 evidence shows {risk_level} risk across {len(records)} record(s) "
+            f"from {event_range.get('from_record_id')} to {event_range.get('to_record_id')}; "
+            f"trigger={trigger}, dominant decision={top_decision}, dominant tool={top_tool}. "
+            "This is advisory-only and does not change the canonical decision.",
+            max_chars=360,
+        ),
+        "analysis_points": [
+            _bounded_text(f"Highest observed risk level: {risk_level}.", max_chars=180),
+            _bounded_text(f"Trigger reason: {trigger}.", max_chars=180),
+            _bounded_text(f"Dominant decision/tool: {top_decision} via {top_tool}.", max_chars=180),
+        ],
+        "operator_next_steps": [
+            _bounded_text(f"{operator_action}: inspect the frozen range before releasing or escalating the session.", max_chars=180),
+            "Confirm that canonical decision state remains unchanged.",
+        ],
+    }
+
+
 def _event_ids(records: list[dict[str, Any]]) -> list[str]:
     return [
         event_id
@@ -661,7 +746,9 @@ class FakeLLMAdvisoryWorker:
     ) -> dict[str, Any]:
         event_ids = _event_ids(records)
         risk_level = _highest_risk_level(records)
+        action = _recommended_action_for_risk(risk_level)
         event_range = snapshot.get("event_range") or {}
+        narrative = _narrative_from_evidence(snapshot=snapshot, records=records, risk_level=risk_level, action=action)
         return {
             "risk_level": risk_level,
             "findings": [
@@ -670,7 +757,7 @@ class FakeLLMAdvisoryWorker:
                 f"Trigger: {snapshot.get('trigger_reason') or 'unknown'}",
             ],
             "confidence": 0.5,
-            "recommended_operator_action": _recommended_action_for_risk(risk_level),
+            "recommended_operator_action": action,
             "l3_state": "completed",
             "extra_fields": {
                 "evidence_record_count": len(records),
@@ -681,6 +768,7 @@ class FakeLLMAdvisoryWorker:
                 },
                 "review_runner": self.runner_name,
                 "worker_backend": self.runner_name,
+                **narrative,
             },
         }
 
@@ -694,9 +782,13 @@ class FakeProviderAdvisoryWorker:
         events = request.get("events") if isinstance(request.get("events"), list) else []
         risk_level = "low"
         for event in events:
+            if not isinstance(event, Mapping):
+                continue
             current = str(event.get("risk_level") or "low").lower()
             if _RISK_LEVEL_RANK.get(current, 0) > _RISK_LEVEL_RANK.get(risk_level, 0):
                 risk_level = current
+        action = _recommended_action_for_risk(risk_level)
+        narrative = _narrative_from_evidence(snapshot=request, records=events, risk_level=risk_level, action=action)
         return {
             "schema_version": "cs.l3_advisory.worker_response.v1",
             "risk_level": risk_level,
@@ -705,9 +797,10 @@ class FakeProviderAdvisoryWorker:
                 f"Snapshot: {request.get('snapshot_id')}",
             ],
             "confidence": 0.5,
-            "recommended_operator_action": _recommended_action_for_risk(risk_level),
+            "recommended_operator_action": action,
             "l3_state": "completed",
             "l3_reason_code": None,
+            **narrative,
         }
 
 
@@ -747,6 +840,12 @@ class LLMProviderAdvisoryWorker:
             },
         )
         parsed = parse_l3_advisory_worker_response(self.provider.complete(request))
+        fallback_narrative = _narrative_from_evidence(
+            snapshot=snapshot,
+            records=records,
+            risk_level=str(parsed.get("risk_level") or "medium"),
+            action=str(parsed.get("recommended_operator_action") or "inspect"),
+        )
         parsed["extra_fields"] = {
             "review_runner": self.runner_name,
             "worker_backend": provider_name,
@@ -754,6 +853,9 @@ class LLMProviderAdvisoryWorker:
             "provider_enabled": bool(self.config.enabled),
             "provider_dry_run": bool(self.config.dry_run),
             "worker_request_schema": request["schema_version"],
+            "analysis_summary": parsed.get("analysis_summary") or fallback_narrative["analysis_summary"],
+            "analysis_points": parsed.get("analysis_points") or fallback_narrative["analysis_points"],
+            "operator_next_steps": parsed.get("operator_next_steps") or fallback_narrative["operator_next_steps"],
         }
         return parsed
 

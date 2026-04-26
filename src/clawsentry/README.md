@@ -1,10 +1,12 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **3174 public regression tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **3179 public regression tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, Gemini CLI, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
+
+**Current release highlight (v0.5.10)**: Web UI governance is token-first, missing workspace roots use stable Unbound workspace grouping, Session Detail shows newest-first decisions plus D1-D6 risk bars, and L3 advisory reviews can include bounded narrative summaries / next steps without mutating canonical decisions.
 
 ---
 
@@ -475,7 +477,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (3174 public regression tests)
++-- tests/                             # Test suite (3179 public regression tests)
 ```
 
 ---
@@ -621,7 +623,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 3174 passed, 7 skipped
+# Expected: 3179 passed, 7 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short

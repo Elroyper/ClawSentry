@@ -714,6 +714,7 @@ class TrajectoryStore:
         l3_state: str = "completed",
         l3_reason_code: str | None = None,
         completed_at: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if advisory_only is not True:
             raise ValueError("l3 advisory reviews must keep advisory_only=true")
@@ -760,6 +761,8 @@ class TrajectoryStore:
             "created_at": created_at,
             "completed_at": completed_at,
         }
+        if extra_fields:
+            review.update(extra_fields)
         self._conn.execute(
             """
             INSERT INTO l3_advisory_reviews (
@@ -923,7 +926,7 @@ class TrajectoryStore:
         snapshot_id = str(review.get("snapshot_id") or (snapshot or {}).get("snapshot_id") or "")
         review_id = str(review.get("review_id") or "")
         job_id = str((job or {}).get("job_id") or "")
-        return {
+        action = {
             "type": "l3_advisory_action",
             "action_id": f"l3action-{review_id}",
             "session_id": str(review.get("session_id") or (snapshot or {}).get("session_id") or ""),
@@ -940,6 +943,10 @@ class TrajectoryStore:
             "canonical_decision_mutated": False,
             "created_at": review.get("completed_at") or review.get("created_at"),
         }
+        for key in ("analysis_summary", "analysis_points", "operator_next_steps"):
+            if key in review:
+                action[key] = review[key]
+        return action
 
     def run_local_l3_advisory_review(self, snapshot_id: str) -> dict[str, Any]:
         """Run a deterministic local advisory review over a frozen snapshot.
@@ -974,6 +981,20 @@ class TrajectoryStore:
             f"Source events: {', '.join(event_ids) or '-'}",
             f"Decision distribution: {decision_summary}",
         ]
+        analysis_summary = (
+            f"Frozen L3 evidence shows {risk_level} risk across {len(records)} record(s) "
+            f"from {event_range.get('from_record_id')} to {event_range.get('to_record_id')}; "
+            f"decision distribution is {decision_summary}. This advisory does not change canonical decisions."
+        )
+        analysis_points = [
+            f"Trigger reason: {snapshot.get('trigger_reason') or 'unknown'}.",
+            f"Source events: {', '.join(event_ids) or '-'}.",
+            f"Recommended operator action: {action}.",
+        ]
+        operator_next_steps = [
+            "Inspect the frozen replay range before releasing or escalating the session.",
+            "Confirm the advisory-only output did not mutate canonical decision state.",
+        ]
 
         review = self.record_l3_advisory_review(
             snapshot_id=snapshot_id,
@@ -1002,6 +1023,9 @@ class TrajectoryStore:
                     "to_record_id": int(event_range.get("to_record_id") or 0),
                 },
                 "review_runner": "deterministic_local",
+                "analysis_summary": analysis_summary[:360],
+                "analysis_points": [item[:180] for item in analysis_points[:5]],
+                "operator_next_steps": [item[:180] for item in operator_next_steps[:3]],
             },
         )
 

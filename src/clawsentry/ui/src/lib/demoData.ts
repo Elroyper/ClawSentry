@@ -8,7 +8,8 @@ import type {
   TrajectoryRecord,
 } from '../api/types'
 
-export const DEMO_FALLBACK_ENABLED = import.meta.env.MODE !== 'test'
+export const DEMO_FALLBACK_ENABLED = import.meta.env.VITE_CLAWSENTRY_DEMO_FALLBACK === 'true'
+  && import.meta.env.MODE !== 'test'
   && !(typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom'))
 
 const now = Date.now()
@@ -91,6 +92,15 @@ export const DEMO_SESSIONS: SessionSummary[] = [
       source_record_range: { from_record_id: 18, to_record_id: 26 },
       review_runner: 'deterministic_local',
       worker_backend: 'demo_fixture',
+      analysis_summary: 'Frozen advisory evidence shows critical credential access followed by outbound network activity; canonical decisions remain unchanged.',
+      analysis_points: [
+        'Highest risk driver is credential access combined with exfiltration-like network flow.',
+        'The frozen range contains repeated high-risk shell and network tools.',
+      ],
+      operator_next_steps: [
+        'Escalate before releasing the session.',
+        'Inspect the frozen replay range and retained evidence boundary.',
+      ],
     },
   },
   {
@@ -221,6 +231,13 @@ export const DEMO_SUMMARY: SummaryResponse = {
     },
   },
   budget: {
+    enabled: true,
+    limit_tokens: 250_000,
+    scope: 'total',
+    used_input_tokens: 184_000,
+    used_output_tokens: 39_200,
+    used_total_tokens: 223_200,
+    remaining_tokens: 26_800,
     daily_budget_usd: 25,
     daily_spend_usd: 21.72,
     remaining_usd: 3.28,

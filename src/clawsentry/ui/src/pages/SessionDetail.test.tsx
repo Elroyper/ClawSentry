@@ -235,11 +235,10 @@ describe('SessionDetail', () => {
   it('renders the current budget snapshot without an exhaustion warning when budget is active', async () => {
     renderSessionDetail()
 
-    expect(await screen.findByText('Budget governance')).toBeInTheDocument()
-    expect(screen.getByText('Daily budget')).toBeInTheDocument()
-    expect(screen.getByText('$10.00')).toBeInTheDocument()
-    expect(screen.getByText(/Spend \$3\.25 · Remaining \$6\.75 · Exhausted No/i)).toBeInTheDocument()
-    expect(screen.queryByText('Budget exhaustion event')).not.toBeInTheDocument()
+    expect(await screen.findByText('Token governance')).toBeInTheDocument()
+    expect(screen.getByText('Token usage')).toBeInTheDocument()
+    expect(screen.getByText(/total tokens/i)).toBeInTheDocument()
+    expect(screen.queryByText('Token exhaustion event')).not.toBeInTheDocument()
   })
 
   it('hydrates the replay time window from URL-backed state', async () => {
@@ -439,15 +438,15 @@ describe('SessionDetail', () => {
     renderSessionDetail()
 
     expect(await screen.findByText('ls -la')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load older' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load older' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load older replay records. Try again.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Recent 1h' }))
 
     expect(await screen.findByText('recent ls -la')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load older' })).not.toBeInTheDocument()
     expect(screen.queryByText('Could not load older replay records. Try again.')).not.toBeInTheDocument()
 
     const riskWindowParams = vi.mocked(api.sessionRisk).mock.calls.map(call => call[1])
@@ -558,9 +557,9 @@ describe('SessionDetail', () => {
 
     expect(await screen.findByText('ls -la')).toBeInTheDocument()
     expect(screen.getByText('print("new")')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load older' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load older' }))
 
     expect(await screen.findByText('cat older.txt')).toBeInTheDocument()
     const rows = container.querySelectorAll('.decision-timeline-row')
@@ -600,10 +599,10 @@ describe('SessionDetail', () => {
     renderSessionDetail()
 
     expect(await screen.findByText('ls -la')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Load older' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load older replay records. Try again.')
-    expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load older' })).toBeInTheDocument()
   })
 
   it('renders an exhaustion warning when the current budget is exhausted', async () => {
@@ -632,9 +631,9 @@ describe('SessionDetail', () => {
 
     renderSessionDetail()
 
-    expect(await screen.findByText('Budget exhaustion event')).toBeInTheDocument()
+    expect(await screen.findByText('Token exhaustion event')).toBeInTheDocument()
     expect(screen.getByText(/Operator attention required/i)).toBeInTheDocument()
-    expect(screen.getByText(/openai · L2 · \$1\.25/i)).toBeInTheDocument()
+    expect(screen.getByText(/openai · L2/i)).toBeInTheDocument()
   })
 
   it('hides the load more button when no older replay pages remain', async () => {
@@ -667,7 +666,7 @@ describe('SessionDetail', () => {
     renderSessionDetail()
 
     expect(await screen.findByText('ls -la')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Load older' })).not.toBeInTheDocument()
   })
 
   it('does not render a stale exhaustion warning after reset when the current budget is no longer exhausted', async () => {
@@ -696,8 +695,8 @@ describe('SessionDetail', () => {
 
     renderSessionDetail()
 
-    expect(await screen.findByText('Budget governance')).toBeInTheDocument()
-    expect(screen.getByText(/Spend \$0\.00 · Remaining \$10\.00 · Exhausted No/i)).toBeInTheDocument()
-    expect(screen.queryByText('Budget exhaustion event')).not.toBeInTheDocument()
+    expect(await screen.findByText('Token governance')).toBeInTheDocument()
+    expect(screen.getByText(/token limit disabled \/ unlimited · active/i)).toBeInTheDocument()
+    expect(screen.queryByText('Token exhaustion event')).not.toBeInTheDocument()
   })
 })

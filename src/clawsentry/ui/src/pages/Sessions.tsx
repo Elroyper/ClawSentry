@@ -10,6 +10,7 @@ import {
   activityState,
   formatRelativeTime,
   groupSessions,
+  workspaceTechnicalDetail,
 } from '../lib/sessionGroups'
 import { formatSessionL3Annotation } from '../lib/sessionL3Annotations'
 import { DEMO_FALLBACK_ENABLED, DEMO_SESSIONS } from '../lib/demoData'
@@ -188,7 +189,7 @@ export default function Sessions() {
     return haystack.includes(deferredQuery)
   })
 
-  const groupedSessions = groupSessions(filteredSessions)
+  const groupedSessions = groupSessions(filteredSessions, language)
 
   return (
     <div className="sessions-shell">
@@ -284,7 +285,7 @@ export default function Sessions() {
             <p className="section-kicker">{t('sessions.overview')}</p>
             <h2 id="framework-overview-heading">{t('sessions.frameworkOverview')}</h2>
             <p className="toolbar-subtitle">
-              Grouped by framework and workspace so concurrent agent sessions stay distinguishable.
+              {t('sessions.groupedCopy')}
             </p>
           </div>
         </div>
@@ -295,21 +296,21 @@ export default function Sessions() {
               <div className="framework-panel-top">
                 <div>
                   <h3>{group.framework}</h3>
-                  <p>{group.workspaceCount} workspaces</p>
+                  <p>{group.workspaceCount} {t('common.workspaces')}</p>
                 </div>
                 <RiskBadge level={group.highestRisk} />
               </div>
               <div className="framework-panel-metrics">
                 <div>
-                  <span>Sessions</span>
+                  <span>{t('sessions.sessionCount')}</span>
                   <strong>{group.sessionCount}</strong>
                 </div>
                 <div>
-                  <span>High risk</span>
+                  <span>{t('sessions.highRiskCount')}</span>
                   <strong>{group.highRiskSessionCount}</strong>
                 </div>
                 <div>
-                  <span>Events</span>
+                  <span>{t('sessions.eventCount')}</span>
                   <strong>{group.totalEvents}</strong>
                 </div>
               </div>
@@ -324,7 +325,7 @@ export default function Sessions() {
             <p className="section-kicker">{t('sessions.inventory')}</p>
             <h2 id="session-inventory-heading">{t('sessions.sessionInventory')}</h2>
             <p className="toolbar-subtitle">
-              Frameworks stay stacked by workspace and session so the working set remains high-density without collapsing the detail.
+              {t('sessions.inventoryCopy')}
             </p>
           </div>
         </div>
@@ -334,12 +335,12 @@ export default function Sessions() {
             <section key={group.framework} className="card framework-section">
               <div className="section-card-header">
                 <div>
-                  <p className="section-kicker">Framework</p>
+                  <p className="section-kicker">{t('sessions.framework')}</p>
                   <h2>{group.framework}</h2>
                 </div>
                 <div className="framework-section-meta">
-                  <span>{group.sessionCount} sessions</span>
-                  <span>{group.workspaceCount} workspaces</span>
+                  <span>{group.sessionCount} {t('common.sessions')}</span>
+                  <span>{group.workspaceCount} {t('common.workspaces')}</span>
                   <span>{formatRelativeTime(group.latestActivityAt)}</span>
                 </div>
               </div>
@@ -354,21 +355,21 @@ export default function Sessions() {
                           <RiskBadge level={workspace.highestRisk} />
                         </div>
                         <p className="workspace-root mono">
-                          {workspace.workspaceRoot || 'workspace_root unavailable'}
+                          {workspaceTechnicalDetail(workspace.workspaceRoot, language)}
                         </p>
                       </div>
                       <div className="workspace-section-meta">
                         <span className={`activity-pill activity-pill-${activityState(workspace.latestActivityAt)}`}>
                           {formatRelativeTime(workspace.latestActivityAt)}
                         </span>
-                        <span>{workspace.sessionCount} sessions</span>
+                        <span>{workspace.sessionCount} {t('common.sessions')}</span>
                       </div>
                     </div>
 
                     <div className="workspace-summary-row">
-                      <span>{workspace.highRiskSessionCount} high-risk</span>
-                      <span>{workspace.totalEvents} events</span>
-                      <span>{workspace.callerAdapters.join(', ') || 'adapter n/a'}</span>
+                      <span>{workspace.highRiskSessionCount} {t('common.highRisk')}</span>
+                      <span>{workspace.totalEvents} {t('common.events')}</span>
+                      <span>{workspace.callerAdapters.join(', ') || t('sessions.adapterUnavailable')}</span>
                     </div>
 
                     <div className="session-card-stack">
@@ -388,7 +389,7 @@ export default function Sessions() {
                                 <RiskBadge level={session.current_risk_level} />
                               </div>
                               <p className="session-card-meta">
-                                {session.agent_id || 'unknown agent'} · {session.caller_adapter}
+                                {session.agent_id || t('sessions.unknownAgent')} · {session.caller_adapter}
                               </p>
                               {sessionL3Annotation && (
                                 <p className="session-card-meta session-card-annotation mono">
@@ -396,21 +397,21 @@ export default function Sessions() {
                                 </p>
                               )}
                               <p className="session-card-meta session-card-annotation mono">
-                                <span>Latest {formatMetricScore(latestScore)}</span>
+                                <span>{t('sessions.latestScore')} {formatMetricScore(latestScore)}</span>
                                 {' · '}
                                 <span>EWMA {formatMetricScore(session.session_risk_ewma)}</span>
                                 {' · '}
-                                <span>Velocity {formatRiskVelocityValue(session.risk_velocity ?? session.window_risk_summary?.risk_velocity)}</span>
+                                <span>{t('sessions.velocity')} {formatRiskVelocityValue(session.risk_velocity ?? session.window_risk_summary?.risk_velocity)}</span>
                                 {' · '}
-                                <span>Density {formatMetricScore(density)}</span>
+                                <span>{t('sessions.density')} {formatMetricScore(density)}</span>
                               </p>
                               <VerdictBar dist={session.decision_distribution} />
                             </div>
                             <div className="session-card-side">
                               <ScoreBar score={latestScore} />
                               <div className="session-card-statline">
-                                <span>{session.event_count} events</span>
-                                <span>{session.high_risk_event_count} high-risk</span>
+                                <span>{session.event_count} {t('common.events')}</span>
+                                <span>{session.high_risk_event_count} {t('common.highRisk')}</span>
                               </div>
                               <span className={`activity-pill activity-pill-${activityState(session.last_event_at)}`}>
                                 {formatRelativeTime(session.last_event_at)}

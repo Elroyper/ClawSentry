@@ -7,6 +7,7 @@ Design basis: 09-l2-pluggable-semantic-analysis.md section 4.4
 from __future__ import annotations
 
 import asyncio
+import inspect
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
@@ -68,6 +69,19 @@ class AnthropicProvider:
     def provider_id(self) -> str:
         return "anthropic"
 
+    async def aclose(self) -> None:
+        """Close any lazy async client before its owning event loop exits."""
+
+        client = self._client
+        self._client = None
+        if client is None:
+            return
+        close = getattr(client, "close", None) or getattr(client, "aclose", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
+
     async def complete(
         self,
         system_prompt: str,
@@ -121,6 +135,19 @@ class OpenAIProvider:
     @property
     def provider_id(self) -> str:
         return "openai"
+
+    async def aclose(self) -> None:
+        """Close any lazy async client before its owning event loop exits."""
+
+        client = self._client
+        self._client = None
+        if client is None:
+            return
+        close = getattr(client, "close", None) or getattr(client, "aclose", None)
+        if callable(close):
+            result = close()
+            if inspect.isawaitable(result):
+                await result
 
     async def complete(
         self,

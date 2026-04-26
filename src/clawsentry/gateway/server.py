@@ -333,6 +333,14 @@ def _copy_budget_event(budget_event: dict[str, Any] | None) -> dict[str, Any] | 
     return copied or None
 
 
+def _copy_l3_narrative_fields(review: dict[str, Any]) -> dict[str, Any]:
+    copied: dict[str, Any] = {}
+    for key in ("analysis_summary", "analysis_points", "operator_next_steps"):
+        if key in review:
+            copied[key] = review[key]
+    return copied
+
+
 def _new_io_metric_bucket() -> dict[str, float | int]:
     return {
         "calls": 0,
@@ -2528,6 +2536,7 @@ class SupervisionGateway:
         advisory_only: bool = True,
         l3_state: str = "completed",
         l3_reason_code: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         review = self.trajectory_store.record_l3_advisory_review(
             snapshot_id=snapshot_id,
@@ -2538,6 +2547,7 @@ class SupervisionGateway:
             advisory_only=advisory_only,
             l3_state=l3_state,
             l3_reason_code=l3_reason_code,
+            extra_fields=extra_fields,
         )
         self.event_bus.broadcast({
             "type": "l3_advisory_review",
@@ -2550,6 +2560,7 @@ class SupervisionGateway:
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review["created_at"],
+            **_copy_l3_narrative_fields(review),
         })
         self._broadcast_l3_advisory_action(review)
         return review
@@ -2564,6 +2575,7 @@ class SupervisionGateway:
         recommended_operator_action: str | None = None,
         l3_state: str | None = None,
         l3_reason_code: str | None = None,
+        extra_fields: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         review = self.trajectory_store.update_l3_advisory_review(
             review_id,
@@ -2573,6 +2585,7 @@ class SupervisionGateway:
             recommended_operator_action=recommended_operator_action,
             l3_state=l3_state,
             l3_reason_code=l3_reason_code,
+            extra_fields=extra_fields,
         )
         self.event_bus.broadcast({
             "type": "l3_advisory_review",
@@ -2585,6 +2598,7 @@ class SupervisionGateway:
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
+            **_copy_l3_narrative_fields(review),
         })
         self._broadcast_l3_advisory_action(review)
         return review
@@ -2602,6 +2616,7 @@ class SupervisionGateway:
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
+            **_copy_l3_narrative_fields(review),
         })
         self._broadcast_l3_advisory_action(review)
         return review
@@ -2656,6 +2671,7 @@ class SupervisionGateway:
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
+            **_copy_l3_narrative_fields(review),
         })
         action = self._l3_advisory_action_for_review(review, job=job)
         self._broadcast_l3_advisory_action(review, job=job)
@@ -2718,6 +2734,7 @@ class SupervisionGateway:
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
+            **_copy_l3_narrative_fields(review),
         })
         action = self._l3_advisory_action_for_review(review, job=job)
         self._broadcast_l3_advisory_action(review, job=job)
@@ -3883,6 +3900,11 @@ def create_http_app(
                     if body.get("l3_reason_code") is not None
                     else None
                 ),
+                extra_fields={
+                    key: body[key]
+                    for key in ("analysis_summary", "analysis_points", "operator_next_steps")
+                    if key in body
+                },
             )
         except (TypeError, ValueError) as exc:
             return Response(
@@ -3934,6 +3956,11 @@ def create_http_app(
                     if body.get("l3_reason_code") is not None
                     else None
                 ),
+                extra_fields={
+                    key: body[key]
+                    for key in ("analysis_summary", "analysis_points", "operator_next_steps")
+                    if key in body
+                },
             )
         except (TypeError, ValueError) as exc:
             status_code = 404 if "was not found" in str(exc) else 400

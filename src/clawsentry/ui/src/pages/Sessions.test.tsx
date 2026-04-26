@@ -81,8 +81,8 @@ describe('Sessions inventory', () => {
     expect(screen.getByText('sess-normal-codex')).toBeInTheDocument()
     expect(screen.getByText('sess-budget-openclaw')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Budget exhausted only' }))
-    expect(screen.getByRole('button', { name: 'Budget exhausted only' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence quota exhausted only' }))
+    expect(screen.getByRole('button', { name: 'Evidence quota exhausted only' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('sess-budget-codex')).toBeInTheDocument()
     expect(screen.getByText('sess-budget-openclaw')).toBeInTheDocument()
     expect(screen.queryByText('sess-normal-codex')).not.toBeInTheDocument()
@@ -122,7 +122,7 @@ describe('Sessions inventory', () => {
     expect(screen.getByRole('combobox', { name: 'Framework filter' })).toHaveValue('codex')
     expect(screen.getByRole('combobox', { name: 'Action filter' })).toHaveValue('budget')
     expect(screen.getByRole('textbox', { name: 'Search sessions' })).toHaveValue('agent-alpha')
-    expect(screen.getByRole('button', { name: 'Budget exhausted only' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Evidence quota exhausted only' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows latest score, EWMA, velocity, and density hints in session rows', async () => {

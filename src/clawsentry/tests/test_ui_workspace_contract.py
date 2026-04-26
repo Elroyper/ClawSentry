@@ -10,10 +10,14 @@ ROOT = Path(__file__).resolve().parents[1] / "ui" / "src"
 
 def test_dashboard_surfaces_framework_and_workspace_coverage_sections() -> None:
     source = (ROOT / "pages" / "Dashboard.tsx").read_text(encoding="utf-8")
+    locales = (ROOT / "lib" / "locales.ts").read_text(encoding="utf-8")
 
-    assert "Framework Coverage" in source
-    assert "Workspace Risk Board" in source
-    assert "Priority Sessions" in source
+    assert "dashboard.frameworkCoverage" in source
+    assert "dashboard.workspaceRiskBoard" in source
+    assert "dashboard.prioritySessions" in source
+    assert "Framework coverage" in locales
+    assert "Workspace risk board" in locales
+    assert "Priority sessions" in locales
 
 
 def test_sessions_page_groups_by_framework_and_workspace() -> None:

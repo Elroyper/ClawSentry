@@ -167,10 +167,16 @@ graph LR
 | `Action` | 建议动作：`Inspect` / `Escalate` / `Pause` / `None` |
 | `Runner` | 这次报告由哪个 runner 生成 |
 | `Records 4–8` | 本次复盘只看了这段固定证据 |
+| `Analysis summary` | 可选自然语言摘要，帮助 operator 快速理解“为什么值得看” |
+| `Analysis points` | 可选 2–5 条关键依据，来自 frozen evidence，不读取 live workspace |
+| `Next steps` | 可选 1–3 条操作建议，例如 inspect / pause / escalate |
 | `canonical decision unchanged` | 原始判决没有被修改 |
 
 !!! tip "建议的值守路径"
     先看 `Action`，再看 frozen record boundary，最后根据 `review_id` 去 API / replay 里查细节。不要把 advisory review 当成新的 block/allow 判决。
+
+!!! note "v0.5.10 自然语言字段"
+    `analysis_summary`、`analysis_points`、`operator_next_steps` 都是 review/action payload 的可选扩展字段。它们会经过长度和条数限制，用于解释和交接；它们不会改写 canonical decision，也不会触发新的 enforcement。
 
 ---
 

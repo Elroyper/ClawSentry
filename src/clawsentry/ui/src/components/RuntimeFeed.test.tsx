@@ -30,9 +30,13 @@ describe('RuntimeFeed', () => {
         status: 'exhausted',
         cost_usd: 12.34,
         budget: {
-          daily_budget_usd: 123.45,
-          daily_spend_usd: 123.45,
-          remaining_usd: 0,
+          enabled: true,
+          limit_tokens: 1000,
+          scope: 'total',
+          used_input_tokens: 800,
+          used_output_tokens: 200,
+          used_total_tokens: 1000,
+          remaining_tokens: 0,
           exhausted: true,
         },
       })
@@ -54,22 +58,20 @@ describe('RuntimeFeed', () => {
     expect(screen.getByText(/1\/1 events/i)).toBeInTheDocument()
     expect(screen.getByText('Operations stream · action-first event language')).toBeInTheDocument()
     expect(screen.getByText(/action-needed/)).toBeInTheDocument()
-    expect(screen.getByText('Budget Exhausted', { selector: 'span' })).toBeInTheDocument()
-    expect(screen.getByText('Budget exhausted')).toHaveClass('badge-block')
+    expect(screen.getAllByText('Token exhausted', { selector: 'span' }).length).toBeGreaterThan(0)
+    expect(container.querySelector('.runtime-event-badge-budget-exhausted')).toHaveTextContent('Token exhausted')
     expect(screen.getByText('Provider')).toBeInTheDocument()
     expect(screen.getByText('openai')).toBeInTheDocument()
     expect(screen.getByText('Tier')).toBeInTheDocument()
     expect(screen.getByText('L3')).toBeInTheDocument()
     expect(container.querySelector('.badge.badge-defer')?.textContent).toBe('L3')
-    expect(screen.getByText('Cost')).toBeInTheDocument()
-    expect(screen.getByText('$12.34')).toBeInTheDocument()
     expect(
       screen.getByText((_, element) =>
         element !== null
         && element.classList.contains('text-secondary')
-        && element.textContent?.includes('Budget exhausted: yes') === true
-        && element.textContent?.includes('Daily spend $123.45 / $123.45') === true
-        && element.textContent?.includes('Remaining $0.00') === true,
+        && element.textContent?.includes('1,000 total tokens') === true
+        && element.textContent?.includes('800 in / 200 out') === true
+        && element.textContent?.includes('exhausted') === true,
       ),
     ).toBeInTheDocument()
   })

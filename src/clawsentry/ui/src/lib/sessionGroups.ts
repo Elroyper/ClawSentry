@@ -1,5 +1,7 @@
 import type { RiskLevel, SessionSummary } from '../api/types'
 
+export type WorkspaceLanguage = 'en' | 'zh'
+
 const RISK_ORDER: RiskLevel[] = ['critical', 'high', 'medium', 'low']
 
 export type WorkspaceGroup = {
@@ -37,11 +39,39 @@ export function normalizeFramework(framework: string): string {
   return framework || 'unknown'
 }
 
-export function workspaceLabel(workspaceRoot: string): string {
-  if (!workspaceRoot) return 'Unknown Workspace'
+export function shortSessionId(sessionId?: string | null): string {
+  const normalized = String(sessionId || '').trim()
+  if (!normalized) return ''
+  return normalized.length > 12 ? `${normalized.slice(0, 12)}…` : normalized
+}
+
+export function workspaceLabel(workspaceRoot: string, language: WorkspaceLanguage = 'en'): string {
+  if (!workspaceRoot) return language === 'zh' ? '未绑定工作区' : 'Unbound workspace'
   const trimmed = workspaceRoot.replace(/\/+$/, '')
   const segments = trimmed.split('/').filter(Boolean)
   return segments[segments.length - 1] || workspaceRoot
+}
+
+export function workspaceGroupKey(session: SessionSummary): string {
+  const workspaceRoot = String(session.workspace_root || '').trim()
+  if (workspaceRoot) return workspaceRoot
+  const framework = normalizeFramework(session.source_framework)
+  const adapter = String(session.caller_adapter || 'adapter-unknown').trim() || 'adapter-unknown'
+  return `unbound:${framework}:${adapter}`
+}
+
+export function workspaceDisplayLabel(session: Pick<SessionSummary, 'workspace_root' | 'source_framework' | 'caller_adapter' | 'session_id'>, language: WorkspaceLanguage = 'en'): string {
+  if (session.workspace_root) return workspaceLabel(session.workspace_root, language)
+  const prefix = language === 'zh' ? '未绑定工作区' : 'Unbound workspace'
+  const framework = normalizeFramework(session.source_framework)
+  const adapter = String(session.caller_adapter || '').trim()
+  const context = [framework, adapter].filter(Boolean).join(' · ')
+  return context ? `${prefix} · ${context}` : prefix
+}
+
+export function workspaceTechnicalDetail(workspaceRoot: string | undefined | null, language: WorkspaceLanguage = 'en'): string {
+  if (workspaceRoot) return workspaceRoot
+  return language === 'zh' ? 'workspace_root 未上报' : 'workspace_root unavailable'
 }
 
 export function formatRelativeTime(timestamp: string): string {
@@ -66,7 +96,7 @@ export function activityState(timestamp: string): 'hot' | 'warm' | 'idle' {
   return 'idle'
 }
 
-export function groupSessions(sessions: SessionSummary[]): FrameworkGroup[] {
+export function groupSessions(sessions: SessionSummary[], language: WorkspaceLanguage = 'en'): FrameworkGroup[] {
   const frameworkMap = new Map<string, Map<string, SessionSummary[]>>()
 
   for (const session of sessions) {
@@ -76,7 +106,7 @@ export function groupSessions(sessions: SessionSummary[]): FrameworkGroup[] {
       frameworkMap.set(framework, new Map())
     }
     const workspaceMap = frameworkMap.get(framework)!
-    const key = workspaceRoot || `unknown:${session.session_id}`
+    const key = workspaceGroupKey(session)
     const existing = workspaceMap.get(key) || []
     existing.push(session)
     workspaceMap.set(key, existing)
@@ -98,10 +128,11 @@ export function groupSessions(sessions: SessionSummary[]): FrameworkGroup[] {
           const adapters = Array.from(
             new Set(sortedSessions.map(session => session.caller_adapter).filter(Boolean)),
           )
+          const representative = sortedSessions[0]!
           return {
             key,
-            workspaceRoot: sortedSessions[0]?.workspace_root || '',
-            workspaceLabel: workspaceLabel(sortedSessions[0]?.workspace_root || ''),
+            workspaceRoot: representative.workspace_root || '',
+            workspaceLabel: workspaceDisplayLabel(representative, language),
             framework,
             callerAdapters: adapters,
             sessionCount: sortedSessions.length,

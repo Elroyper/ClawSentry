@@ -27,10 +27,17 @@ export interface ReportingEnvelope {
 }
 
 export interface HealthBudgetSnapshot {
-  daily_budget_usd: number
-  daily_spend_usd: number
-  remaining_usd: number | null
+  enabled?: boolean
+  limit_tokens?: number
+  scope?: 'total' | 'input' | 'output' | string
+  used_input_tokens?: number
+  used_output_tokens?: number
+  used_total_tokens?: number
+  remaining_tokens?: number | null
   exhausted: boolean
+  daily_budget_usd?: number
+  daily_spend_usd?: number
+  remaining_usd?: number | null
 }
 
 export interface HealthResponse extends ReportingEnvelope {
@@ -249,6 +256,9 @@ export interface L3AdvisoryReview {
   }
   review_runner?: string
   worker_backend?: string
+  analysis_summary?: string
+  analysis_points?: string[]
+  operator_next_steps?: string[]
 }
 
 export interface L3AdvisoryPayload {
@@ -276,6 +286,9 @@ export interface L3AdvisoryAction {
     to_record_id: number
   } | null
   summary: string
+  analysis_summary?: string
+  analysis_points?: string[]
+  operator_next_steps?: string[]
   advisory_only: true
   canonical_decision_mutated: false
   created_at?: string | null
@@ -404,7 +417,7 @@ export interface SSEBudgetExhaustedEvent {
   provider: string
   tier: string
   status: string
-  cost_usd: number
+  cost_usd?: number
   budget: HealthBudgetSnapshot
 }
 
@@ -493,6 +506,9 @@ export type SSEL3AdvisoryReviewEvent = {
   risk_level: RiskLevel
   recommended_operator_action: string
   l3_state: string
+  analysis_summary?: string
+  analysis_points?: string[]
+  operator_next_steps?: string[]
   advisory_only: true
   canonical_decision_mutated?: false
   timestamp: string

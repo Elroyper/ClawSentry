@@ -78,7 +78,7 @@ curl http://127.0.0.1:8080/health
 | `clawsentry_decisions_total` | `verdict`, `risk_level`, `tier`, `source_framework` | 决策总数 |
 | `clawsentry_llm_calls_total` | `provider`, `tier`, `status` | LLM API 调用总数 |
 | `clawsentry_llm_tokens_total` | `provider`, `direction` | Token 消耗总量 |
-| `clawsentry_llm_cost_usd_total` | `provider` | 预估 LLM 成本（美元） |
+| `clawsentry_llm_cost_usd_total` | `provider` | Legacy 预估 LLM 成本（美元）；新 UI/治理口径优先使用 token 指标 |
 
 #### Histograms
 
@@ -119,8 +119,8 @@ sum(rate(clawsentry_decisions_total{risk_level=~"high|critical"}[5m]))
 # P99 决策延迟
 histogram_quantile(0.99, rate(clawsentry_decision_latency_seconds_bucket[5m]))
 
-# 每小时 LLM 成本
-increase(clawsentry_llm_cost_usd_total[1h])
+# 每小时 LLM token 消耗
+increase(clawsentry_llm_tokens_total[1h])
 ```
 
 ### curl 示例
@@ -322,6 +322,9 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `session_risk_sum` / `session_risk_ewma` | 与 `window_seconds` 对齐的窗口风险总量和 EWMA 展示分 |
 | `risk_points_sum` | 窗口内风险等级点数累计（low=0, medium=1, high=2, critical=3） |
 | `window_risk_summary` | 窗口聚合容器；字段合同见 [Metric Dictionary](metric-dictionary.md) |
+
+!!! note "Token-first LLM governance"
+    报表 payload 中的 LLM budget snapshot 以 `enabled`、`limit_tokens`、`used_input_tokens`、`used_output_tokens`、`used_total_tokens`、`remaining_tokens`、`scope`、`exhausted` 为主。`daily_budget_usd`、`daily_spend_usd`、`remaining_usd` 仍可作为旧客户端兼容字段存在，但 Web UI 不再把 USD 估算作为主治理信号。
 
 !!! info "为什么这里新增了 `workspace_root` 和 `transcript_path`？"
     从 `0.3.8` 开始，Web UI 的核心视图不再只按 session_id 平铺，而是按 `framework -> workspace -> session` 组织。因此 API 也同步暴露工作空间级元数据，方便前端和外部系统直接做分组与定位。
@@ -683,6 +686,16 @@ L3 advisory 是一条独立的咨询审查流程：它可以冻结 session 的 b
 ### POST /report/l3-advisory/reviews 与 PATCH /report/l3-advisory/review/{review_id}
 
 用于附加或更新 advisory review lifecycle。状态集合为 `pending` / `running` / `completed` / `failed` / `degraded`；terminal 状态会带 `completed_at`。
+
+Completed/degraded review 可以附带可选自然语言字段：
+
+| 字段 | 说明 |
+|------|------|
+| `analysis_summary` | bounded 一段式摘要，用于 operator 快速判断复盘结论 |
+| `analysis_points` | bounded 字符串列表，通常 2–5 条证据要点 |
+| `operator_next_steps` | bounded 字符串列表，通常 1–3 条下一步建议 |
+
+这些字段通过 review JSON extension / action payload 传播，不需要表结构迁移，也不会改变 `advisory_only=true` / `canonical_decision_mutated=false`。
 
 ### POST /report/l3-advisory/snapshot/{snapshot_id}/run-local-review
 

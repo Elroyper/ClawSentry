@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3174 public regression tests** with release-time CI/build evidence
+- **3179 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.9
+## What's New in v0.5.10
 
-- **Smoother zero-to-config docs**: the homepage, quickstart, configuration overview, templates, benchmark mode, dashboard, CLI, Codex, and Gemini pages now follow a user-facing learning path instead of internal progress notes.
-- **Project config that actually drives runtime**: `.clawsentry.toml` now feeds Gateway, stack startup, and `test-llm` through canonical `CS_*` settings without overriding explicit environment variables.
-- **Web UI risk charts fixed**: Session Detail risk composition and risk score trend charts now render reliably with explicit chart dimensions.
+- **Token-first Web UI governance**: Dashboard, Session Detail, Runtime Feed, StatusBar, and LLM drilldown now lead with input/output/total token usage and token limits instead of estimated USD budget copy.
+- **Clearer workspace/session UX**: missing workspace roots group under stable “Unbound workspace” labels, the session timeline defaults newest-first, and risk composition uses readable dimension bars.
+- **L3 advisory narratives**: completed full reviews can surface bounded `analysis_summary`, `analysis_points`, and `operator_next_steps` while preserving advisory-only semantics.
 
 ## Quick Start
 

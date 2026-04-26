@@ -154,19 +154,19 @@ describe('Dashboard', () => {
     expect(screen.getByText('1 · Start here')).toBeInTheDocument()
     expect(screen.getByText('2 · Evidence')).toBeInTheDocument()
     expect(screen.getByText('3 · Live stream')).toBeInTheDocument()
-    expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
-    expect(screen.getByText('Toolkit Evidence Budget')).toBeInTheDocument()
+    expect(await screen.findByText('Toolkit evidence quota hotspots')).toBeInTheDocument()
+    expect(screen.getByText('Toolkit Evidence Quota')).toBeInTheDocument()
 
     const metricCard = Array.from(container.querySelectorAll('.metric-card')).find(card =>
-      card.textContent?.includes('Toolkit Evidence Budget'),
+      card.textContent?.includes('Toolkit Evidence Quota'),
     )
     expect(metricCard).toBeTruthy()
     expect(within(metricCard as HTMLElement).getByText('1')).toBeInTheDocument()
 
-    const hotspotSection = screen.getByText('Toolkit evidence budget hotspots').closest('section')
+    const hotspotSection = screen.getByText('Toolkit evidence quota hotspots').closest('section')
     expect(hotspotSection).not.toBeNull()
     expect(within(hotspotSection as HTMLElement).getByText('sess-123')).toBeInTheDocument()
-    expect(screen.getByText('Toolkit evidence budget exhausted · codex · 12 events')).toBeInTheDocument()
+    expect(screen.getByText('Toolkit evidence quota exhausted · codex · 12 events')).toBeInTheDocument()
   })
 
   it('shows an empty hotspot state when no sessions hit toolkit evidence budget', async () => {
@@ -189,19 +189,19 @@ describe('Dashboard', () => {
     expect(await screen.findByRole('region', { name: /global posture/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /operational scan/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /deep inspection/i })).toBeInTheDocument()
-    expect(await screen.findByText('Toolkit evidence budget hotspots')).toBeInTheDocument()
+    expect(await screen.findByText('Toolkit evidence quota hotspots')).toBeInTheDocument()
     const metricCard = Array.from(container.querySelectorAll('.metric-card')).find(card =>
-      card.textContent?.includes('Toolkit Evidence Budget'),
+      card.textContent?.includes('Toolkit Evidence Quota'),
     )
     expect(metricCard).toBeTruthy()
     expect(within(metricCard as HTMLElement).getByText('0')).toBeInTheDocument()
-    expect(screen.getByText('No sessions are currently hitting toolkit evidence budget.')).toBeInTheDocument()
+    expect(screen.getByText('No sessions are currently hitting toolkit evidence quota.')).toBeInTheDocument()
   })
 
   it('surfaces system security posture, control health, and risk velocity metrics', async () => {
     renderDashboard()
 
-    expect((await screen.findAllByText('System Security Posture')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('System security posture')).length).toBeGreaterThan(0)
     expect(screen.getByText('Posture score 0.82')).toBeInTheDocument()
     expect(screen.getByText('Control health: 2 enforced · 4 released · 1 L3 required')).toBeInTheDocument()
     expect(screen.getByText('Risk velocity up · density 0.28')).toBeInTheDocument()

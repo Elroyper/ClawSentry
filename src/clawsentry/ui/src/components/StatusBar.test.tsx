@@ -20,9 +20,13 @@ describe('StatusBar', () => {
       policy_engine: 'default',
       auth_enabled: true,
       budget: {
-        daily_budget_usd: 123.45,
-        daily_spend_usd: 12.34,
-        remaining_usd: 111.11,
+        enabled: true,
+        limit_tokens: 20000,
+        scope: 'total',
+        used_input_tokens: 1200,
+        used_output_tokens: 300,
+        used_total_tokens: 1500,
+        remaining_tokens: 18500,
         exhausted: false,
       },
     })
@@ -33,9 +37,9 @@ describe('StatusBar', () => {
 
     expect(await screen.findByText(/1h 1m uptime/i)).toBeInTheDocument()
     expect(screen.getByText(/1,234 events/i)).toBeInTheDocument()
-    expect(screen.getByText(/Daily budget \$123\.45/i)).toBeInTheDocument()
-    expect(screen.getByText(/Spend \$12\.34/i)).toBeInTheDocument()
-    expect(screen.getByText(/Remaining \$111\.11/i)).toBeInTheDocument()
+    expect(screen.getByText(/1,500 total tokens/i)).toBeInTheDocument()
+    expect(screen.getByText(/1,200 in \/ 300 out/i)).toBeInTheDocument()
+    expect(screen.getByText(/limit 20,000 total/i)).toBeInTheDocument()
     expect(screen.getByText(/Active/i)).toBeInTheDocument()
     expect(screen.getByRole('status', { name: /gateway connection status/i })).toHaveTextContent('CONNECTED')
     expect(screen.getByRole('status', { name: /gateway connection status/i })).toHaveAttribute('aria-live', 'polite')
@@ -51,9 +55,13 @@ describe('StatusBar', () => {
       policy_engine: 'default',
       auth_enabled: true,
       budget: {
-        daily_budget_usd: 10,
-        daily_spend_usd: 10,
-        remaining_usd: 0,
+        enabled: true,
+        limit_tokens: 1000,
+        scope: 'total',
+        used_input_tokens: 800,
+        used_output_tokens: 200,
+        used_total_tokens: 1000,
+        remaining_tokens: 0,
         exhausted: true,
       },
       budget_exhaustion_event: {
@@ -64,9 +72,13 @@ describe('StatusBar', () => {
         status: 'degraded',
         cost_usd: 0.25,
         budget: {
-          daily_budget_usd: 10,
-          daily_spend_usd: 10,
-          remaining_usd: 0,
+          enabled: true,
+          limit_tokens: 1000,
+          scope: 'total',
+          used_input_tokens: 800,
+          used_output_tokens: 200,
+          used_total_tokens: 1000,
+          remaining_tokens: 0,
           exhausted: true,
         },
       },
@@ -74,8 +86,8 @@ describe('StatusBar', () => {
 
     render(<StatusBar />)
 
-    expect(await screen.findByText(/BUDGET EXHAUSTED/i)).toHaveClass('status-budget-exhausted')
+    expect(await screen.findByText(/TOKEN EXHAUSTED/i)).toHaveClass('status-budget-exhausted')
     expect(screen.getByText(/Operator action required/i)).toHaveClass('status-budget-note')
-    expect(screen.getByText(/openai \/ L3 \/ \$0\.25/i)).toHaveClass('status-budget-note')
+    expect(screen.getByText(/openai \/ L3/i)).toHaveClass('status-budget-note')
   })
 })

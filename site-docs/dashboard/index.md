@@ -62,6 +62,8 @@ Workspace 表示某个具体的项目目录或工作区，例如：
 - 哪个仓库有最多高风险 session？
 - 哪个工作区最近最活跃？
 
+如果上游框架没有提供 `workspace_root`，Web UI 不再显示一堆重复的 `Unknown Workspace`。这些 session 会进入稳定的 **Unbound workspace / 未绑定工作区** 分组，并把 framework / adapter 作为上下文；短 session id 只会作为次要技术细节出现。
+
 ### 3. Session
 
 Session 表示某个 workspace 中的一次具体 Agent 会话。
@@ -200,6 +202,7 @@ Session Detail 回答：
 - **风险是由哪些维度抬高的？**
 - **风险变化时间线是什么样的？**
 - **具体都做了哪些决策？**
+- **L3 advisory 给出的自然语言摘要和下一步是什么？**
 
 当你已经确定“要查某个 session”时，再进入这一页。
 
@@ -277,7 +280,8 @@ DEFER Panel 回答：
 - 高风险 session 数量
 - Block rate
 - Gateway uptime / live events
-- Operator brief 中的 coverage / posture / runtime pulse / budget pulse
+- Operator brief 中的 coverage / posture / runtime pulse / token pressure
+- LLM usage / Token limit：优先显示 input/output/total tokens 与 token limit；legacy USD 字段只作为兼容 telemetry，不再作为主治理文案。
 
 ### 2. Framework Coverage
 
@@ -311,7 +315,7 @@ DEFER Panel 回答：
 
 这块显示实时事件流，适合看“刚刚发生了什么”。
 
-从 `0.3.8` 开始，feed 会继续保留以下事件可见性：
+当前 feed 会继续保留以下事件可见性：
 
 - `decision`
 - `alert`
@@ -324,6 +328,8 @@ DEFER Panel 回答：
 - `session_enforcement_change`
 - `session_risk_change`（可携带 `latest_composite_score` / `session_risk_ewma` / `window_risk_summary`）
 - enterprise/watch posture refresh（可携带 `system_security_posture`）
+- `budget_exhausted` / token pressure：显示 token-first 摘要，例如 total/input/output tokens 与 remaining/limit。
+- `l3_advisory_action`：当 review 完成时，可显示 advisory-only action 与自然语言分析摘要。
 
 ---
 
@@ -348,7 +354,7 @@ Framework
 ### 你会在这里看到什么？
 
 - framework 概览
-- workspace 根目录
+- workspace 根目录；缺失时显示稳定的 **Unbound workspace / 未绑定工作区**
 - workspace 内 session 数量
 - 每个 session 的风险等级、事件数、判决分布、最后活动时间
 
@@ -371,9 +377,9 @@ Session Detail 页首先回答“这个 session 是谁”：
 
 然后才回答“它为什么危险”：
 
-- D1-D5 风险构成
-- 风险时间线
-- replay / decision timeline
+- D1-D6 风险构成；v0.5.10 起维度条会与图形一起展示，避免把雷达轴线误读成风险信号
+- 风险时间线（保持后端时间顺序，用于趋势图）
+- replay / decision timeline（默认最新优先；`Load older` 继续向下追加旧记录，不改变 cursor 语义）
 - tools used / risk hints / tier distribution
 
 如果这个 session 触发过 L3，这一页还会继续给出一组更适合 operator 读取的运行态字段：
@@ -385,12 +391,15 @@ Session Detail 页首先回答“这个 session 是谁”：
 - `budget_exhaustion_event`
 - `decision_path_io`
 - `latest_composite_score`、`session_risk_ewma`、`window_risk_summary`（存在时优先用于展示）
+- `analysis_summary`、`analysis_points`、`operator_next_steps`（completed advisory review 可选自然语言字段）
+- LLM token usage / token limit（优先 token，不再把 USD 预算作为主治理文案）
 
 对于需要人工复盘的 session，Session Detail 还提供 **Request L3 full review** 操作。它会调用 `POST /report/session/{id}/l3-advisory/full-review`，冻结 bounded evidence snapshot，排队并可执行一次 advisory job，然后在页面中展示：
 
 - latest `review_id` / `snapshot_id` / `job_id`
 - `l3_state`、`job_state`、`runner` 的 operator-readable 标签
 - frozen record boundary（例如 `Records 4–8`）
+- bounded analysis summary / points / next steps（如果 runner 返回）
 - `advisory_only=true` 与 `canonical decision unchanged` 边界
 
 这不是“重新判决历史事件”，而是让值守人员在不改变原始 allow/block/defer 的前提下，拿到一次可追溯的 L3 咨询结论。完整流程见 [L3 咨询审查](../decision-layers/l3-advisory.md)。

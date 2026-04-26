@@ -17,8 +17,6 @@ import { api } from '../api/client'
 import type {
   ControlHealthSnapshot,
   HealthResponse,
-  LLMUsageBucket,
-  LLMUsageSnapshot,
   RiskVelocity,
   SessionSummary,
   SummaryResponse,
@@ -35,25 +33,21 @@ import {
   formatRelativeTime,
   groupSessions,
   riskRank,
-  workspaceLabel,
+  workspaceDisplayLabel,
+  workspaceTechnicalDetail,
 } from '../lib/sessionGroups'
 import { formatSessionL3Annotation } from '../lib/sessionL3Annotations'
 import { DEMO_FALLBACK_ENABLED, DEMO_HEALTH, DEMO_SESSIONS, DEMO_SUMMARY } from '../lib/demoData'
 import { usePreferences } from '../lib/preferences'
+import { formatLlmUsageSummary, formatTokenBudgetSnapshot } from '../lib/tokenBudget'
+import type { TranslationKey } from '../lib/locales'
+
+type Translator = (key: TranslationKey) => string
 
 function formatUptime(seconds: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
   return `${Math.floor(seconds / 86400)}d`
-}
-
-function formatUsd(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
 }
 
 function formatMetricScore(value?: number | null): string {
@@ -90,8 +84,8 @@ function postureScore(posture?: SystemSecurityPosture | null): number | null {
   return null
 }
 
-function formatControlHealth(controlHealth?: ControlHealthSnapshot | null): string {
-  if (!controlHealth) return 'Control health unavailable'
+function formatControlHealth(controlHealth: ControlHealthSnapshot | null | undefined, t: Translator): string {
+  if (!controlHealth) return t('common.unavailable')
   return [
     `${controlHealth.enforced_sessions ?? 0} enforced`,
     `${controlHealth.released_sessions ?? 0} released`,
@@ -99,40 +93,10 @@ function formatControlHealth(controlHealth?: ControlHealthSnapshot | null): stri
   ].join(' · ')
 }
 
-function formatRiskVelocity(posture?: SystemSecurityPosture | null, windowSummary?: WindowRiskSummary | null): string {
+function formatRiskVelocity(posture: SystemSecurityPosture | null | undefined, windowSummary: WindowRiskSummary | null | undefined, t: Translator): string {
   const velocity = posture?.risk_velocity ?? windowSummary?.risk_velocity
   const density = windowRiskDensity(windowSummary)
-  return `Risk velocity ${formatRiskVelocityValue(velocity)} · density ${formatMetricScore(density)}`
-}
-
-function selectTopUsageLabel(buckets: Record<string, LLMUsageBucket>): string | null {
-  const topEntry = Object.entries(buckets).sort(([leftLabel, leftBucket], [rightLabel, rightBucket]) => {
-    return (
-      rightBucket.cost_usd - leftBucket.cost_usd ||
-      rightBucket.calls - leftBucket.calls ||
-      leftLabel.localeCompare(rightLabel)
-    )
-  })[0]
-
-  return topEntry?.[0] ?? null
-}
-
-function formatLlmUsageSummary(snapshot: LLMUsageSnapshot): string {
-  const usageScope = [
-    selectTopUsageLabel(snapshot.by_provider),
-    selectTopUsageLabel(snapshot.by_tier),
-    selectTopUsageLabel(snapshot.by_status),
-  ]
-    .filter(Boolean)
-    .join('/')
-
-  return [
-    `LLM usage ${snapshot.total_calls.toLocaleString()} calls`,
-    formatUsd(snapshot.total_cost_usd),
-    usageScope,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  return `${t('dashboard.posture.velocity')} ${formatRiskVelocityValue(velocity)} · ${t('dashboard.posture.density')} ${formatMetricScore(density)}`
 }
 
 function FrameworkChip({ framework, count }: { framework: string; count: number }) {
@@ -244,7 +208,7 @@ export default function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
-  const groupedSessions = groupSessions(sessions)
+  const groupedSessions = groupSessions(sessions, language)
   const totalWorkspaces = groupedSessions.reduce((sum, item) => sum + item.workspaceCount, 0)
   const criticalSessions = sessions.filter(session => session.current_risk_level === 'critical').length
   const highRiskSessions = sessions.filter(session => riskRank(session.current_risk_level) <= 1).length
@@ -362,7 +326,7 @@ export default function Dashboard() {
               </div>
               <span className="command-map-node command-map-node-risk">risk</span>
               <span className="command-map-node command-map-node-l3">L3 review</span>
-              <span className="command-map-node command-map-node-budget">budget</span>
+              <span className="command-map-node command-map-node-budget">token</span>
               <span className="command-map-node command-map-node-evidence">evidence</span>
               <span className="command-map-trace command-map-trace-a" />
               <span className="command-map-trace command-map-trace-b" />
@@ -383,24 +347,24 @@ export default function Dashboard() {
               <CommandBriefCard
                 icon={Radio}
                 label={t('dashboard.brief.coverage')}
-                value={`${sessions.length.toLocaleString()} sessions`}
-                body={`${totalWorkspaces} workspaces across ${groupedSessions.length} frameworks.`}
+                value={`${sessions.length.toLocaleString()} ${t('dashboard.brief.sessions')}`}
+                body={`${totalWorkspaces} ${t('dashboard.brief.workspaces')} · ${groupedSessions.length} ${t('dashboard.brief.frameworks')}.`}
                 tone="blue"
               />
               <CommandBriefCard
                 icon={Crosshair}
                 label={t('dashboard.brief.posture')}
-                value={`${highRiskSessions.toLocaleString()} high-risk`}
-                body={`${criticalSessions} critical sessions and ${priorityWorkspaceCount} priority workspaces.`}
+                value={`${highRiskSessions.toLocaleString()} ${t('dashboard.brief.highRisk')}`}
+                body={`${criticalSessions} ${t('dashboard.brief.critical')} · ${priorityWorkspaceCount} ${t('dashboard.brief.workspaces')}.`}
                 to={sessionsHref({ minRisk: 'high', action: 'high-risk' })}
                 tone={criticalSessions > 0 ? 'red' : 'cyan'}
               />
               {systemSecurityPosture && (
                 <CommandBriefCard
                   icon={ShieldCheck}
-                  label="System Security Posture"
-                  value={`Posture score ${formatMetricScore(postureScore(systemSecurityPosture))}`}
-                  body={`Control health: ${formatControlHealth(systemSecurityPosture.control_health)}`}
+                  label={t('dashboard.posture.title')}
+                  value={`${t('dashboard.posture.score')} ${formatMetricScore(postureScore(systemSecurityPosture))}`}
+                  body={`${t('dashboard.posture.control')}: ${formatControlHealth(systemSecurityPosture.control_health, t)}`}
                   tone={systemSecurityPosture.risk_level === 'critical' || systemSecurityPosture.risk_level === 'high' ? 'red' : 'cyan'}
                 />
               )}
@@ -432,55 +396,46 @@ export default function Dashboard() {
               </div>
               <div>
                 <span className="hero-panel-label"><BrainCircuit size={13} aria-hidden="true" /> {t('dashboard.panel.llmUsage')}</span>
-                <strong>{llmUsageSnapshot ? `${llmUsageSnapshot.total_calls.toLocaleString()} calls` : '—'}</strong>
+                <strong>{llmUsageSnapshot ? `${llmUsageSnapshot.total_calls.toLocaleString()} ${t('llm.calls')}` : '—'}</strong>
                 <div className="mono hero-panel-detail">
-                  {llmUsageSnapshot ? formatLlmUsageSummary(llmUsageSnapshot) : 'Usage snapshot unavailable'}
+                  {llmUsageSnapshot ? formatLlmUsageSummary(llmUsageSnapshot, language) : t('dashboard.tokenUsageUnavailable')}
                 </div>
               </div>
               {systemSecurityPosture && (
                 <div>
-                  <span className="hero-panel-label"><ShieldCheck size={13} aria-hidden="true" /> System Security Posture</span>
+                  <span className="hero-panel-label"><ShieldCheck size={13} aria-hidden="true" /> {t('dashboard.posture.title')}</span>
                   <strong>{formatMetricScore(systemSecurityPosture.latest_composite_score ?? postureScore(systemSecurityPosture))}</strong>
                   <div className="mono hero-panel-detail">
-                    {formatRiskVelocity(systemSecurityPosture, postureWindowSummary)}
+                    {formatRiskVelocity(systemSecurityPosture, postureWindowSummary, t)}
                   </div>
                 </div>
               )}
               <div className="hero-panel-wide">
                 <span className="hero-panel-label"><WalletCards size={13} aria-hidden="true" /> {t('dashboard.panel.dailyBudget')}</span>
-                <strong>{health ? formatUsd(health.budget.daily_budget_usd) : '—'}</strong>
+                <strong>{health ? (health.budget.enabled ? `${(health.budget.limit_tokens ?? 0).toLocaleString()} tokens` : (language === 'zh' ? '不限' : 'Unlimited')) : '—'}</strong>
                 <div className="mono hero-panel-detail">
-                  {health ? (
-                    <>
-                      Spend {formatUsd(health.budget.daily_spend_usd)} · Remaining{' '}
-                      {health.budget.remaining_usd === null ? 'Unlimited' : formatUsd(health.budget.remaining_usd)} ·{' '}
-                      Exhausted {health.budget.exhausted ? 'Yes' : 'No'}
-                    </>
-                  ) : (
-                    'Budget snapshot unavailable'
-                  )}
+                  {health ? formatTokenBudgetSnapshot(health.budget, language) : t('dashboard.tokenUsageUnavailable')}
                 </div>
                 {health && (health.budget.exhausted || budgetExhaustionEvent) && (
                   <div className="mono hero-panel-budget-warning">
                     {budgetExhaustionEvent ? (
                       <>
                         <strong className="hero-panel-warning-title">{t('dashboard.panel.budgetAlert')}</strong>
-                        <span> · Operator attention required</span>
+                        <span> · {t('dashboard.operatorAttention')}</span>
                         <div className="hero-panel-warning-detail">
-                          {budgetExhaustionEvent.provider} · {budgetExhaustionEvent.tier} ·{' '}
-                          {formatUsd(budgetExhaustionEvent.cost_usd)}
+                          {budgetExhaustionEvent.provider} · {budgetExhaustionEvent.tier}
                         </div>
                         <Link className="hero-panel-link" to={sessionsHref({ action: 'budget', budget: 'exhausted' })}>
-                          Open budget evidence queue
+                          {t('dashboard.openEvidenceQueue')}
                         </Link>
                       </>
                     ) : (
                       <>
                         <strong className="hero-panel-warning-title">{t('dashboard.panel.budgetAlert')}</strong>
-                        <span> · Operator attention required</span>
+                        <span> · {t('dashboard.operatorAttention')}</span>
                         <div>
                           <Link className="hero-panel-link" to={sessionsHref({ action: 'budget', budget: 'exhausted' })}>
-                            Open budget evidence queue
+                            {t('dashboard.openEvidenceQueue')}
                           </Link>
                         </div>
                       </>
@@ -517,35 +472,35 @@ export default function Dashboard() {
             value={sessions.length.toLocaleString()}
             accent="purple"
             icon={<Layers3 size={20} />}
-            subtext={`${totalWorkspaces} workspaces across ${groupedSessions.length} frameworks`}
+            subtext={`${totalWorkspaces} ${t('dashboard.brief.workspaces')} · ${groupedSessions.length} ${t('dashboard.brief.frameworks')}`}
           />
           <MetricCard
             label={t('dashboard.metric.highRisk')}
             value={highRiskSessions.toLocaleString()}
             accent="red"
             icon={<AlertTriangle size={20} />}
-            subtext={`${criticalSessions} critical right now`}
+            subtext={`${criticalSessions} ${t('dashboard.brief.critical')}`}
           />
           <MetricCard
             label={t('dashboard.metric.evidenceBudget')}
             value={toolkitEvidenceBudgetHotspotCount.toLocaleString()}
             accent="amber"
             icon={<Siren size={20} />}
-            subtext="Sessions hitting toolkit evidence budget"
+            subtext={t('dashboard.evidenceHotspotMetric')}
           />
           <MetricCard
             label={t('dashboard.metric.blockRate')}
             value={`${blockRate}%`}
             accent="amber"
             icon={<ShieldCheck size={20} />}
-            subtext={`${summary?.by_decision?.block ?? 0} blocks in current window`}
+            subtext={`${summary?.by_decision?.block ?? 0} blocks`}
           />
           <MetricCard
             label={t('dashboard.metric.liveEvents')}
             value={(health?.trajectory_count ?? 0).toLocaleString()}
             accent="blue"
             icon={<Activity size={20} />}
-            subtext={health ? `Cumulative records · ${formatUptime(health.uptime_seconds)} uptime` : undefined}
+            subtext={health ? `${formatUptime(health.uptime_seconds)} uptime` : undefined}
           />
         </div>
 
@@ -557,10 +512,10 @@ export default function Dashboard() {
           <section className="card section-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Coverage</p>
-                <h2>Framework Coverage</h2>
+                <p className="section-kicker">{t('dashboard.brief.coverage')}</p>
+                <h2>{t('dashboard.frameworkCoverage')}</h2>
               </div>
-              <Link to="/sessions" className="section-link">Open session inventory</Link>
+              <Link to="/sessions" className="section-link">{t('dashboard.openSessionInventory')}</Link>
             </div>
             <div className="framework-coverage-grid">
               {groupedSessions.map(group => (
@@ -568,21 +523,21 @@ export default function Dashboard() {
                   <div className="framework-panel-top">
                     <div>
                       <h3>{group.framework}</h3>
-                      <p>{group.workspaceCount} workspaces</p>
+                      <p>{group.workspaceCount} {t('common.workspaces')}</p>
                     </div>
                     <RiskBadge level={group.highestRisk} />
                   </div>
                   <div className="framework-panel-metrics">
                     <div>
-                      <span>Sessions</span>
+                      <span>{t('sessions.sessionCount')}</span>
                       <strong>{group.sessionCount}</strong>
                     </div>
                     <div>
-                      <span>High risk</span>
+                      <span>{t('sessions.highRiskCount')}</span>
                       <strong>{group.highRiskSessionCount}</strong>
                     </div>
                     <div>
-                      <span>Events</span>
+                      <span>{t('sessions.eventCount')}</span>
                       <strong>{group.totalEvents}</strong>
                     </div>
                   </div>
@@ -604,7 +559,7 @@ export default function Dashboard() {
                 </article>
               ))}
               {groupedSessions.length === 0 && (
-                <div className="empty-inline">No framework activity yet.</div>
+                <div className="empty-inline">{t('dashboard.noFrameworkActivity')}</div>
               )}
             </div>
           </section>
@@ -618,10 +573,10 @@ export default function Dashboard() {
           <section className="card section-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Workspaces</p>
-                <h2>Workspace Risk Board</h2>
+                <p className="section-kicker">{t('common.workspaces')}</p>
+                <h2>{t('dashboard.workspaceRiskBoard')}</h2>
               </div>
-              <span className="section-meta">{priorityWorkspaces.length} prioritized</span>
+              <span className="section-meta">{priorityWorkspaces.length}</span>
             </div>
             <div className="workspace-board">
               {priorityWorkspaces.map(workspace => (
@@ -633,22 +588,22 @@ export default function Dashboard() {
                     </div>
                     <RiskBadge level={workspace.highestRisk} />
                   </div>
-                  <p className="workspace-root mono">{workspace.workspaceRoot || 'workspace_root unavailable'}</p>
+                  <p className="workspace-root mono">{workspaceTechnicalDetail(workspace.workspaceRoot, language)}</p>
                   <div className="workspace-stats">
-                    <span>{workspace.sessionCount} sessions</span>
-                    <span>{workspace.highRiskSessionCount} high risk</span>
-                    <span>{workspace.totalEvents} events</span>
+                    <span>{workspace.sessionCount} {t('common.sessions')}</span>
+                    <span>{workspace.highRiskSessionCount} {t('common.highRisk')}</span>
+                    <span>{workspace.totalEvents} {t('common.events')}</span>
                   </div>
                   <div className="workspace-footer">
                     <span className={`activity-pill activity-pill-${activityState(workspace.latestActivityAt)}`}>
                       {formatRelativeTime(workspace.latestActivityAt)}
                     </span>
-                    <span className="mono">{workspace.callerAdapters.join(', ') || 'adapter n/a'}</span>
+                    <span className="mono">{workspace.callerAdapters.join(', ') || t('sessions.adapterUnavailable')}</span>
                   </div>
                 </article>
               ))}
               {priorityWorkspaces.length === 0 && (
-                <div className="empty-inline">No workspace telemetry yet.</div>
+                <div className="empty-inline">{t('dashboard.noWorkspaceTelemetry')}</div>
               )}
             </div>
           </section>
@@ -656,10 +611,10 @@ export default function Dashboard() {
           <section className="card section-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Escalation queue</p>
-                <h2>Priority Sessions</h2>
+                <p className="section-kicker">L3 / risk</p>
+                <h2>{t('dashboard.prioritySessions')}</h2>
               </div>
-              <Link to={sessionsHref({ minRisk: 'high', action: 'high-risk' })} className="section-link">Review high-risk queue</Link>
+              <Link to={sessionsHref({ minRisk: 'high', action: 'high-risk' })} className="section-link">{t('dashboard.reviewHighRiskQueue')}</Link>
             </div>
             <div className="priority-session-list">
               {prioritySessions.map(session => {
@@ -672,11 +627,11 @@ export default function Dashboard() {
                   >
                     <div>
                       <div className="priority-session-top">
-                        <strong>{workspaceLabel(session.workspace_root)}</strong>
+                        <strong>{workspaceDisplayLabel(session, language)}</strong>
                         <RiskBadge level={session.current_risk_level} />
                       </div>
                       <p className="priority-session-meta">
-                        {session.source_framework} · {session.event_count} events · {session.high_risk_event_count} high-risk
+                        {session.source_framework} · {session.event_count} {t('common.events')} · {session.high_risk_event_count} {t('common.highRisk')}
                       </p>
                       {sessionL3Annotation && (
                         <p className="priority-session-meta priority-session-annotation mono">
@@ -694,7 +649,7 @@ export default function Dashboard() {
                 )
               })}
               {prioritySessions.length === 0 && (
-                <div className="empty-inline">No active sessions to prioritize.</div>
+                <div className="empty-inline">{t('dashboard.noPrioritySessions')}</div>
               )}
             </div>
           </section>
@@ -703,10 +658,10 @@ export default function Dashboard() {
             <div className="section-card-header">
               <div>
                 <p className="section-kicker">Evidence</p>
-                <h2>Toolkit evidence budget hotspots</h2>
+                <h2>{t('dashboard.evidenceHotspots')}</h2>
               </div>
               <Link to={sessionsHref({ action: 'budget', budget: 'exhausted' })} className="section-link">
-                Open evidence queue
+                {t('dashboard.openEvidenceQueue')}
               </Link>
             </div>
             <div className="priority-session-list">
@@ -720,11 +675,11 @@ export default function Dashboard() {
                   >
                     <div>
                       <div className="priority-session-top">
-                        <strong>{workspaceLabel(session.workspace_root)}</strong>
+                        <strong>{workspaceDisplayLabel(session, language)}</strong>
                         <RiskBadge level={session.current_risk_level} />
                       </div>
                       <p className="priority-session-meta">
-                        Toolkit evidence budget exhausted · {session.source_framework} · {session.event_count} events
+                        {t('dashboard.toolkitExhausted')} · {session.source_framework} · {session.event_count} {t('common.events')}
                       </p>
                       {sessionL3Annotation && (
                         <p className="priority-session-meta priority-session-annotation mono">
@@ -742,7 +697,7 @@ export default function Dashboard() {
                 )
               })}
               {toolkitEvidenceBudgetHotspots.length === 0 && (
-                <div className="empty-inline">No sessions are currently hitting toolkit evidence budget.</div>
+                <div className="empty-inline">{t('dashboard.noEvidenceHotspots')}</div>
               )}
             </div>
           </section>

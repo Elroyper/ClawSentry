@@ -1,28 +1,16 @@
 import type { LLMUsageBucket, LLMUsageSnapshot } from '../api/types'
 import { usePreferences } from '../lib/preferences'
+import { formatTokenCount, formatTokenPair, tokenTotal } from '../lib/tokenBudget'
 
 type LLMUsageDrilldownProps = {
   snapshot: LLMUsageSnapshot | null | undefined
-}
-
-function formatUsd(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
-
-function formatTokens(inputTokens: number, outputTokens: number, inputLabel: string, outputLabel: string): string {
-  return `${inputTokens.toLocaleString()} ${inputLabel} / ${outputTokens.toLocaleString()} ${outputLabel}`
 }
 
 function selectTopBuckets(buckets: Record<string, LLMUsageBucket>): Array<[string, LLMUsageBucket]> {
   return Object.entries(buckets)
     .sort(([leftLabel, leftBucket], [rightLabel, rightBucket]) => {
       return (
-        rightBucket.cost_usd - leftBucket.cost_usd ||
+        tokenTotal(rightBucket) - tokenTotal(leftBucket) ||
         rightBucket.calls - leftBucket.calls ||
         leftLabel.localeCompare(rightLabel)
       )
@@ -37,7 +25,6 @@ function hasUsageData(snapshot: LLMUsageSnapshot | null | undefined): snapshot i
     snapshot.total_calls > 0 ||
     snapshot.total_input_tokens > 0 ||
     snapshot.total_output_tokens > 0 ||
-    snapshot.total_cost_usd > 0 ||
     Object.keys(snapshot.by_provider).length > 0 ||
     Object.keys(snapshot.by_tier).length > 0 ||
     Object.keys(snapshot.by_status).length > 0
@@ -48,6 +35,7 @@ function renderBucketPanel(
   title: string,
   buckets: Record<string, LLMUsageBucket>,
   labels: { highlighted: string; noEntries: string; calls: string; input: string; output: string },
+  language: 'en' | 'zh',
 ) {
   const rows = selectTopBuckets(buckets)
 
@@ -66,8 +54,8 @@ function renderBucketPanel(
             <div className="llm-bucket-copy">
               <strong>{label}</strong>
               <span>
-                {bucket.calls.toLocaleString()} {labels.calls} · {formatTokens(bucket.input_tokens, bucket.output_tokens, labels.input, labels.output)} ·{' '}
-                {formatUsd(bucket.cost_usd)}
+                {bucket.calls.toLocaleString()} {labels.calls} · {formatTokenPair(bucket.input_tokens, bucket.output_tokens, language)} ·{' '}
+                {formatTokenCount(tokenTotal(bucket), language)} {language === 'zh' ? '总 token' : 'total tokens'}
               </span>
             </div>
             <span className="mono llm-bucket-rank">
@@ -81,7 +69,7 @@ function renderBucketPanel(
 }
 
 export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) {
-  const { t } = usePreferences()
+  const { t, language } = usePreferences()
 
   if (!hasUsageData(snapshot)) {
     return (
@@ -115,7 +103,7 @@ export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) 
           <h2>{t('llm.title')}</h2>
         </div>
         <span className="section-meta">
-          {snapshot.total_calls.toLocaleString()} {t('llm.calls')} · {formatUsd(snapshot.total_cost_usd)}
+          {snapshot.total_calls.toLocaleString()} {t('llm.calls')} · {formatTokenCount(totalTokens, language)} {t('llm.totalTokens')}
         </span>
       </div>
 
@@ -129,15 +117,15 @@ export default function LLMUsageDrilldown({ snapshot }: LLMUsageDrilldownProps) 
           <strong>{totalTokens.toLocaleString()}</strong>
         </div>
         <div>
-          <span>{t('llm.totalCost')}</span>
-          <strong>{formatUsd(snapshot.total_cost_usd)}</strong>
+          <span>{t('llm.tokenMix')}</span>
+          <strong>{formatTokenPair(snapshot.total_input_tokens, snapshot.total_output_tokens, language)}</strong>
         </div>
       </div>
 
       <div className="llm-bucket-grid">
-        {renderBucketPanel(t('llm.topProviders'), snapshot.by_provider, bucketLabels)}
-        {renderBucketPanel(t('llm.topTiers'), snapshot.by_tier, bucketLabels)}
-        {renderBucketPanel(t('llm.topStatuses'), snapshot.by_status, bucketLabels)}
+        {renderBucketPanel(t('llm.topProviders'), snapshot.by_provider, bucketLabels, language)}
+        {renderBucketPanel(t('llm.topTiers'), snapshot.by_tier, bucketLabels, language)}
+        {renderBucketPanel(t('llm.topStatuses'), snapshot.by_status, bucketLabels, language)}
       </div>
     </section>
   )

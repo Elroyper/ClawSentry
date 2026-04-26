@@ -20,7 +20,6 @@ import {
   CartesianGrid,
   PolarAngleAxis,
   PolarGrid,
-  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -28,7 +27,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { formatRelativeTime, workspaceLabel } from '../lib/sessionGroups'
+import { formatRelativeTime, workspaceDisplayLabel, workspaceTechnicalDetail } from '../lib/sessionGroups'
 import { formatL3EvidenceSummary } from '../lib/l3EvidenceSummary'
 import { DEMO_FALLBACK_ENABLED, DEMO_REPLAY_PAGE, DEMO_SESSION_RISK } from '../lib/demoData'
 import { usePreferences } from '../lib/preferences'
@@ -38,19 +37,20 @@ import {
   formatOperatorLabel,
   formatRunnerLabel,
 } from '../lib/operatorLabels'
+import { formatTokenBudgetSnapshot } from '../lib/tokenBudget'
 
 type ReportingEnvelope = {
   budget?: HealthBudgetSnapshot | null
   budget_exhaustion_event?: SSEBudgetExhaustedEvent | null
 }
 
-const DIMENSION_LABELS: Record<string, string> = {
-  d1: 'Tool risk',
-  d2: 'Target sensitivity',
-  d3: 'Data flow',
-  d4: 'Frequency',
-  d5: 'Context',
-  d6: 'Injection',
+const DIMENSION_LABELS: Record<string, Record<'en' | 'zh', string>> = {
+  d1: { en: 'Tool risk', zh: '工具风险' },
+  d2: { en: 'Target sensitivity', zh: '目标敏感度' },
+  d3: { en: 'Data flow', zh: '数据流' },
+  d4: { en: 'Frequency', zh: '频率' },
+  d5: { en: 'Context', zh: '上下文' },
+  d6: { en: 'Injection', zh: '注入' },
 }
 
 const TOOLTIP_STYLE = {
@@ -88,15 +88,6 @@ function classifyHint(hint: string): string {
 
 function HintTag({ hint }: { hint: string }) {
   return <span className={`hint-tag hint-tag-${classifyHint(hint)}`}>{hint}</span>
-}
-
-function formatUsd(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
 }
 
 function formatMetricScore(value?: number | null): string {
@@ -227,6 +218,13 @@ function getOperatorRecommendation(
 
 function shouldUseSessionDetailDemoFallback(sessionId?: string): boolean {
   return DEMO_FALLBACK_ENABLED && Boolean(sessionId?.startsWith('demo-'))
+}
+
+function trajectorySortValue(record: TrajectoryRecord): number {
+  const recordId = (record as TrajectoryRecord & { record_id?: number }).record_id
+  if (typeof recordId === 'number' && Number.isFinite(recordId)) return recordId
+  const ts = new Date(record.recorded_at).getTime()
+  return Number.isFinite(ts) ? ts : 0
 }
 
 export default function SessionDetail() {
@@ -406,7 +404,8 @@ export default function SessionDetail() {
 
   const radarData = risk
     ? Object.entries(risk.dimensions_latest).map(([key, value]) => ({
-        dimension: DIMENSION_LABELS[key] || key,
+        dimension: DIMENSION_LABELS[key]?.[language] || key,
+        key,
         value,
         fullMark: 1,
       }))
@@ -417,11 +416,14 @@ export default function SessionDetail() {
     score: Number(item.composite_score.toFixed(3)),
   })) ?? []
   const showBudgetWarning = Boolean(budget?.exhausted || budgetExhaustionEvent)
-  const workspaceName = workspaceLabel(risk?.workspace_root || '')
+  const workspaceName = risk
+    ? workspaceDisplayLabel(risk, language)
+    : (language === 'zh' ? '未绑定工作区' : 'Unbound workspace')
   const latestAdvisoryReview = risk?.l3_advisory?.latest_review ?? null
   const latestAdvisoryJob = risk?.l3_advisory?.latest_job ?? null
   const latestAdvisoryAction = risk?.l3_advisory?.latest_action ?? null
-  const latestRecord = trajectory[0] ?? null
+  const displayTrajectory = [...trajectory].sort((a, b) => trajectorySortValue(b) - trajectorySortValue(a))
+  const latestRecord = displayTrajectory[0] ?? null
   const latestToolName = latestRecord ? String(latestRecord.event?.tool_name || 'unknown tool') : 'No tool observed'
   const latestDecisionLabel = latestRecord ? String(latestRecord.decision.decision).toUpperCase() : 'NO REPLAY'
   const workbenchWindowLabel = sessionWindowSeconds === null ? 'All recorded evidence' : 'Recent 1h replay scope'
@@ -604,55 +606,55 @@ export default function SessionDetail() {
           <section className="card section-card session-analysis-card-wide session-analysis-summary-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Priority view</p>
+                <p className="section-kicker">{t('session.priorityView')}</p>
                 <h3>{t('session.currentPosture')}</h3>
               </div>
               <div className="hero-panel-header">
                 <ShieldAlert size={14} />
-                Analysis summary
+                {t('session.analysisSummary')}
               </div>
             </div>
             <div className="session-analysis-summary-grid">
               <div className="session-analysis-stat">
-                <span>Current risk</span>
+                <span>{t('session.currentRisk')}</span>
                 <div className="session-analysis-stat-value">
-                  {risk ? <RiskBadge level={risk.current_risk_level} /> : 'Unavailable'}
+                  {risk ? <RiskBadge level={risk.current_risk_level} /> : t('common.unavailable')}
                 </div>
               </div>
               <div className="session-analysis-stat">
-                <span>Latest composite score</span>
+                <span>{t('session.latestComposite')}</span>
                 <strong className="mono">{formatMetricScore(latestCompositeScore)}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Cumulative score</span>
+                <span>{t('session.cumulativeScore')}</span>
                 <strong className="mono">{formatMetricScore(risk?.cumulative_score)}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Session risk EWMA</span>
+                <span>{t('session.sessionRiskEwma')}</span>
                 <strong className="mono">{formatMetricScore(risk?.session_risk_ewma)}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Risk velocity</span>
+                <span>{t('session.riskVelocity')}</span>
                 <strong className="mono">{formatRiskVelocityValue(risk?.risk_velocity ?? risk?.window_risk_summary?.risk_velocity)}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Window risk summary</span>
+                <span>{t('session.windowRiskSummary')}</span>
                 <strong className="mono">{formatWindowRiskSummary(risk)}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>High-risk events</span>
+                <span>{t('session.highRiskEvents')}</span>
                 <strong className="mono">{risk?.high_risk_event_count ?? 0}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Tracked events</span>
+                <span>{t('session.trackedEvents')}</span>
                 <strong className="mono">{risk?.event_count ?? 0}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>First event</span>
+                <span>{t('session.firstEvent')}</span>
                 <strong className="mono">{risk ? formatRelativeTime(risk.first_event_at) : '—'}</strong>
               </div>
               <div className="session-analysis-stat">
-                <span>Last event</span>
+                <span>{t('session.lastEvent')}</span>
                 <strong className="mono">{risk ? formatRelativeTime(risk.last_event_at) : '—'}</strong>
               </div>
             </div>
@@ -661,42 +663,42 @@ export default function SessionDetail() {
           <section className="card section-card session-analysis-card-wide advisory-review-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Advisory-only</p>
-                <h3>L3 advisory review</h3>
+                <p className="section-kicker">{t('session.advisoryOnly')}</p>
+                <h3>{t('session.l3Review')}</h3>
               </div>
-              <span className="section-meta">Frozen evidence review, never a canonical decision rewrite</span>
+              <span className="section-meta">{t('session.l3ReviewMeta')}</span>
             </div>
             {latestAdvisoryReview ? (
               <>
                 <div className="advisory-review-grid">
                   <div className="session-analysis-stat">
-                    <span>Review state</span>
+                    <span>{t('session.reviewState')}</span>
                     <strong className="mono">{formatOperatorLabel('l3State', latestAdvisoryReview.l3_state, language)}</strong>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Review ID</span>
+                    <span>{t('session.reviewId')}</span>
                     <strong className="mono">{latestAdvisoryReview.review_id}</strong>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Snapshot ID</span>
+                    <span>{t('session.snapshotId')}</span>
                     <strong className="mono">{latestAdvisoryReview.snapshot_id}</strong>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Job ID</span>
-                    <strong className="mono">{latestAdvisoryJob?.job_id || 'Unavailable'}</strong>
+                    <span>{t('session.jobId')}</span>
+                    <strong className="mono">{latestAdvisoryJob?.job_id || t('common.unavailable')}</strong>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Advisory risk</span>
+                    <span>{t('session.advisoryRisk')}</span>
                     <div className="session-analysis-stat-value">
                       <RiskBadge level={latestAdvisoryReview.risk_level} />
                     </div>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Operator action</span>
+                    <span>{t('session.operatorAction')}</span>
                     <strong className="mono">{formatOperatorAction(latestAdvisoryReview.recommended_operator_action || 'inspect', language)}</strong>
                   </div>
                   <div className="session-analysis-stat">
-                    <span>Review runner</span>
+                    <span>{t('session.reviewRunner')}</span>
                     <strong className="mono">{formatRunnerLabel(latestAdvisoryRunner, language)}</strong>
                   </div>
                 </div>
@@ -708,8 +710,30 @@ export default function SessionDetail() {
                     Finding: <span className="mono">{latestAdvisoryReview.findings[0]}</span>
                   </p>
                 )}
+                {latestAdvisoryReview.analysis_summary && (
+                  <div className="advisory-narrative-panel">
+                    <strong>{t('session.narrativeAnalysis')}</strong>
+                    <p>{latestAdvisoryReview.analysis_summary}</p>
+                  </div>
+                )}
+                {latestAdvisoryReview.analysis_points?.length ? (
+                  <div className="advisory-narrative-panel">
+                    <strong>{t('session.analysisPoints')}</strong>
+                    <ul>
+                      {latestAdvisoryReview.analysis_points.map(point => <li key={point}>{point}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                {latestAdvisoryReview.operator_next_steps?.length ? (
+                  <div className="advisory-narrative-panel">
+                    <strong>{t('session.nextSteps')}</strong>
+                    <ol>
+                      {latestAdvisoryReview.operator_next_steps.map(step => <li key={step}>{step}</li>)}
+                    </ol>
+                  </div>
+                ) : null}
                 <p className="priority-session-meta">
-                  Canonical decision unchanged. Advisory-only review output is attached to the frozen snapshot.
+                  {t('session.canonicalUnchanged')}
                 </p>
                 {latestAdvisoryAction && (
                   <p className="priority-session-meta">
@@ -723,7 +747,7 @@ export default function SessionDetail() {
               </>
             ) : (
               <p className="empty-inline">
-                No L3 advisory review has been attached to this session yet. Use the full-review action to freeze evidence and run a deterministic advisory pass.
+                {t('session.noL3Review')}
               </p>
             )}
           </section>
@@ -731,7 +755,7 @@ export default function SessionDetail() {
           <section className="card section-card chart-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Dimensions</p>
+                <p className="section-kicker">{t('session.dimensions')}</p>
                 <h3>{t('session.riskComposition')}</h3>
               </div>
             </div>
@@ -742,20 +766,25 @@ export default function SessionDetail() {
                     <RadarChart data={radarData}>
                       <PolarGrid stroke="rgba(120, 196, 255, 0.12)" />
                       <PolarAngleAxis dataKey="dimension" tick={{ fill: '#89a4bd', fontSize: 10 }} />
-                      <PolarRadiusAxis tick={{ fill: '#55708a', fontSize: 9 }} domain={[0, 1]} />
                       <Radar dataKey="value" stroke="#5ea5ff" fill="#5ea5ff" fillOpacity={0.2} strokeWidth={2} />
                     </RadarChart>
                   </ResponsiveContainer>
-                  <div className="detail-pill-row">
-                    {radarData.map(item => (
-                      <span key={item.dimension}>
-                        {item.dimension} <span className="mono">{formatMetricScore(item.value)}</span>
-                      </span>
+                  <div className="risk-dimension-bars">
+                    {[...radarData].sort((a, b) => b.value - a.value).map(item => (
+                      <div key={item.dimension} className="risk-dimension-row">
+                        <div>
+                          <strong>{item.dimension}</strong>
+                          <span className="mono">{formatMetricScore(item.value)}</span>
+                        </div>
+                        <div className="risk-dimension-track" aria-hidden="true">
+                          <span style={{ width: `${Math.max(0, Math.min(item.value, 1)) * 100}%` }} />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p className="empty-inline">No dimension data yet.</p>
+                <p className="empty-inline">{t('session.noDimensionData')}</p>
               )}
             </div>
           </section>
@@ -763,7 +792,7 @@ export default function SessionDetail() {
           <section className="card section-card chart-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Timeline</p>
+                <p className="section-kicker">{t('session.timeline')}</p>
                 <h3>{t('session.riskTimeline')}</h3>
               </div>
             </div>
@@ -793,7 +822,7 @@ export default function SessionDetail() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="empty-inline">No timeline data yet.</p>
+                <p className="empty-inline">{t('session.noTimelineData')}</p>
               )}
             </div>
           </section>
@@ -801,8 +830,9 @@ export default function SessionDetail() {
           <section className="card section-card session-analysis-card-wide">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Replay</p>
+                <p className="section-kicker">{t('session.replay')}</p>
                 <h3>{t('session.decisionTimeline')}</h3>
+                <p className="toolbar-subtitle">{t('session.newestFirst')}</p>
               </div>
               <div
                 role="group"
@@ -828,7 +858,7 @@ export default function SessionDetail() {
               <span className="section-meta">{trajectory.length} events</span>
             </div>
             <div className="decision-timeline">
-              {trajectory.map((record, index) => {
+              {displayTrajectory.map((record, index) => {
                 const input = typeof record.event?.input === 'string' ? record.event.input : ''
                 const evidenceSummary = formatL3EvidenceSummary(record.l3_trace?.evidence_summary)
                 return (
@@ -892,7 +922,7 @@ export default function SessionDetail() {
                 )
               })}
               {trajectory.length === 0 && (
-                <div className="empty-inline">No trajectory records yet.</div>
+                <div className="empty-inline">{t('session.noTrajectory')}</div>
               )}
             </div>
             {replayLoadMoreError && (
@@ -912,7 +942,7 @@ export default function SessionDetail() {
                   onClick={loadMoreReplayRecords}
                   disabled={replayLoadingMore}
                 >
-                  {replayLoadingMore ? 'Loading more…' : 'Load more'}
+                  {replayLoadingMore ? t('session.loadingOlder') : t('session.loadOlder')}
                 </button>
               </div>
             )}
@@ -954,32 +984,32 @@ export default function SessionDetail() {
             <section className="card section-card">
               <div className="section-card-header">
                 <div>
-                  <p className="section-kicker">Budget</p>
-                  <h3>Budget governance</h3>
+                  <p className="section-kicker">LLM</p>
+                  <h3>{t('session.tokenGovernance')}</h3>
                 </div>
               </div>
               <div className="detail-meta-list">
                 <div className="detail-meta-item">
                   <div>
-                    <span>Daily budget</span>
-                    <strong className="mono">{formatUsd(budget.daily_budget_usd)}</strong>
+                    <span>{t('session.tokenUsage')}</span>
+                    <strong className="mono">{formatTokenBudgetSnapshot(budget, language)}</strong>
                   </div>
                 </div>
                 <div className="detail-meta-item">
                   <div>
-                    <span>Current state</span>
+                    <span>{t('session.currentPosture')}</span>
                     <strong className="mono">
-                      Spend {formatUsd(budget.daily_spend_usd)} · Remaining {budget.remaining_usd === null ? 'Unlimited' : formatUsd(budget.remaining_usd)} · Exhausted {budget.exhausted ? 'Yes' : 'No'}
+                      {budget.exhausted ? (language === 'zh' ? '已耗尽' : 'exhausted') : (language === 'zh' ? '可用' : 'active')}
                     </strong>
                   </div>
                 </div>
                 {showBudgetWarning && (
                   <div className="mono budget-warning-panel">
-                    <strong className="budget-warning-title">Budget exhaustion event</strong>
-                    <span> · Operator attention required</span>
+                    <strong className="budget-warning-title">{t('session.tokenExhaustionEvent')}</strong>
+                    <span> · {language === 'zh' ? '需要操作员关注' : 'Operator attention required'}</span>
                     {budgetExhaustionEvent && (
                       <div className="budget-warning-detail">
-                        {budgetExhaustionEvent.provider || 'unknown'} · {budgetExhaustionEvent.tier || 'unknown'} · {formatUsd(budgetExhaustionEvent.cost_usd ?? 0)}
+                        {budgetExhaustionEvent.provider || 'unknown'} · {budgetExhaustionEvent.tier || 'unknown'}
                       </div>
                     )}
                   </div>
@@ -996,29 +1026,29 @@ export default function SessionDetail() {
             <p className="section-kicker">{t('session.context')}</p>
             <h2 id="session-context-heading">{t('session.contextTitle')}</h2>
           </div>
-          <span className="section-meta">Workspace identity and recording metadata</span>
+          <span className="section-meta">{t('session.identityMeta')}</span>
         </div>
         <div className="session-context-grid">
           <section className="card section-card session-context-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Identity</p>
-                <h3>Workspace context</h3>
+                <p className="section-kicker">{t('session.identity')}</p>
+                <h3>{t('session.workspaceContext')}</h3>
               </div>
             </div>
             <div className="detail-meta-list">
               <div className="detail-meta-item">
                 <FolderTree size={15} />
                 <div>
-                  <span>Workspace root</span>
-                  <strong className="mono">{risk?.workspace_root || 'Unavailable'}</strong>
+                  <span>{t('session.workspaceRoot')}</span>
+                  <strong className="mono">{workspaceTechnicalDetail(risk?.workspace_root, language)}</strong>
                 </div>
               </div>
               <div className="detail-meta-item">
                 <ScrollText size={15} />
                 <div>
-                  <span>Transcript path</span>
-                  <strong className="mono">{risk?.transcript_path || 'Unavailable'}</strong>
+                  <span>{t('session.transcriptPath')}</span>
+                  <strong className="mono">{risk?.transcript_path || t('common.unavailable')}</strong>
                 </div>
               </div>
             </div>
@@ -1027,8 +1057,8 @@ export default function SessionDetail() {
           <section className="card section-card session-context-card">
             <div className="section-card-header">
               <div>
-                <p className="section-kicker">Metadata</p>
-                <h3>Session provenance</h3>
+                <p className="section-kicker">{t('session.metadata')}</p>
+                <h3>{t('session.provenance')}</h3>
               </div>
             </div>
             <div className="detail-meta-list">
@@ -1039,13 +1069,13 @@ export default function SessionDetail() {
               <div className="detail-meta-item">
                 <div>
                   <span>Session ID</span>
-                  <strong className="mono">{risk?.session_id || sessionId || 'Unavailable'}</strong>
+                  <strong className="mono">{risk?.session_id || sessionId || t('common.unavailable')}</strong>
                 </div>
               </div>
               <div className="detail-meta-item">
                 <div>
                   <span>Agent ID</span>
-                  <strong className="mono">{risk?.agent_id || 'Unavailable'}</strong>
+                  <strong className="mono">{risk?.agent_id || t('common.unavailable')}</strong>
                 </div>
               </div>
             </div>

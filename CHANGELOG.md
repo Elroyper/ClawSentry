@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+## [0.5.10] — 2026-04-26
+
+### 新增
+
+- **L3 advisory 自然语言分析** — `llm_provider`、fake/local advisory worker 与 full-review action payload 现在可携带 bounded `analysis_summary`、`analysis_points`、`operator_next_steps`，Web UI Session Detail 会展示“分析摘要 / 关键依据 / 操作员下一步”，同时保持 `advisory_only=true` 与 `canonical_decision_mutated=false`。
+- **a3s_demo 录屏输出同步** — demo runner 的 L3 full-review 摘要会打印自然语言 analysis、next steps 与 token 用量，并在 README 中明确 v0.5.10 不需要重装 a3s-code 或修改 `agent.hcl`。
+
+### 改进
+
+- **Web UI token-first governance** — LLM 使用、状态栏、Runtime Feed、Dashboard 与 Session Detail 统一优先展示 input/output/total tokens、token limit / evidence quota；legacy USD 字段保留为兼容数据但不再作为主治理文案。
+- **Workspace fallback 与分组稳定性** — 缺少 workspace root 的 session 现在按 framework / adapter 进入稳定 “Unbound workspace / 未绑定工作区” 分组，避免用 session id 形成重复 `Unknown Workspace`。
+- **Dashboard 与 Session Detail 操作员阅读路径** — 首页第一屏突出当前处置优先级、风险队列、L3 evidence 与 token pressure；Session Detail 决策时间线默认最新优先，风险构成移除误导性灰色 radar 轴并补充维度 mini bars。
+- **中英文 UI 文案补齐** — Dashboard、Sessions、Session Detail、Runtime Feed、StatusBar 与 LLM drilldown 的本轮触达标签转入 locale key，减少中文模式下的非必要英文 chrome。
+- **在线文档同步** — Dashboard、L3 advisory、Reporting API 与配置文档补充 token-first、unbound workspace、L3 narrative payload 与 demo 环境口径。
+
+### 测试与验证
+
+- Web UI 回归：`50 passed`。
+- Focused Python regression：`263 passed`。
+- TypeScript diagnostics：PASS。
+- Web UI build：PASS。
+- `git diff --check`：PASS。
+- Architect verification：APPROVED。
+- 浏览器截图：Dashboard / Sessions / Session Detail desktop + mobile captured under `output/playwright/clawsentry-l3-ux/`。
+
 ## [0.5.9] — 2026-04-26
 
 ### 修复
@@ -1067,6 +1092,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.10]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.10
 [0.5.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.9
 [0.5.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.8
 [0.5.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.7

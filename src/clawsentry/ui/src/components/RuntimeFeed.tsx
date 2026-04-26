@@ -19,6 +19,7 @@ import {
   l3AdvisoryJobHint,
   type OperatorLanguage,
 } from '../lib/operatorLabels'
+import { formatTokenBudgetSnapshot } from '../lib/tokenBudget'
 
 const RUNTIME_EVENT_TYPES: RuntimeEventType[] = [
   'decision',
@@ -52,21 +53,25 @@ const HIGH_PRIORITY_EVENT_TYPES: RuntimeEventType[] = [
 
 const FEED_MAX_EVENTS = 80
 
-const EVENT_LABELS: Record<RuntimeEventType, string> = {
-  decision: 'Decision',
-  alert: 'Alert',
-  trajectory_alert: 'Trajectory',
-  post_action_finding: 'Finding',
-  pattern_candidate: 'Pattern Candidate',
-  pattern_evolved: 'Pattern Evolved',
-  defer_pending: 'Defer Pending',
-  defer_resolved: 'Defer Resolved',
-  budget_exhausted: 'Budget Exhausted',
-  session_enforcement_change: 'Enforcement',
-  l3_advisory_snapshot: 'L3 Snapshot',
-  l3_advisory_review: 'L3 Advisory',
-  l3_advisory_job: 'L3 Job',
-  l3_advisory_action: 'L3 Action',
+const EVENT_LABELS: Record<RuntimeEventType, Record<OperatorLanguage, string>> = {
+  decision: { en: 'Decision', zh: '决策' },
+  alert: { en: 'Alert', zh: '告警' },
+  trajectory_alert: { en: 'Trajectory', zh: '轨迹' },
+  post_action_finding: { en: 'Finding', zh: '发现' },
+  pattern_candidate: { en: 'Pattern candidate', zh: '候选模式' },
+  pattern_evolved: { en: 'Pattern evolved', zh: '模式演进' },
+  defer_pending: { en: 'Defer pending', zh: 'DEFER 待处理' },
+  defer_resolved: { en: 'Defer resolved', zh: 'DEFER 已处理' },
+  budget_exhausted: { en: 'Token exhausted', zh: 'Token 已耗尽' },
+  session_enforcement_change: { en: 'Enforcement', zh: '执行状态' },
+  l3_advisory_snapshot: { en: 'L3 snapshot', zh: 'L3 快照' },
+  l3_advisory_review: { en: 'L3 advisory', zh: 'L3 咨询' },
+  l3_advisory_job: { en: 'L3 job', zh: 'L3 任务' },
+  l3_advisory_action: { en: 'L3 action', zh: 'L3 动作' },
+}
+
+function eventLabel(type: RuntimeEventType, language: OperatorLanguage): string {
+  return EVENT_LABELS[type]?.[language] ?? type
 }
 
 function prependWithCap<T>(items: T[], nextItem: T) {
@@ -107,10 +112,10 @@ function TierBadge({ tier }: { tier: string }) {
   return <span className={`badge ${cls}`}>{t}</span>
 }
 
-function EventBadge({ type }: { type: RuntimeEventType }) {
+function EventBadge({ type, language }: { type: RuntimeEventType; language: OperatorLanguage }) {
   return (
     <span className={`badge runtime-event-badge runtime-event-badge-${type.replace(/_/g, '-')}`}>
-      {EVENT_LABELS[type]}
+      {eventLabel(type, language)}
     </span>
   )
 }
@@ -377,8 +382,18 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
             <SessionLink sessionId={event.session_id} />
           </div>
           <div className="text-secondary runtime-event-detail">
-            Advisory only from snapshot <span className="mono">{event.snapshot_id}</span>
+            {language === 'zh' ? '仅咨询，来自快照' : 'Advisory only from snapshot'} <span className="mono">{event.snapshot_id}</span>
           </div>
+          {event.analysis_summary && (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {event.analysis_summary}
+            </div>
+          )}
+          {event.operator_next_steps?.length ? (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {language === 'zh' ? '下一步' : 'Next'}: <span className="mono">{event.operator_next_steps[0]}</span>
+            </div>
+          ) : null}
         </>
       )
     case 'l3_advisory_job': {
@@ -418,7 +433,7 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
             <SessionLink sessionId={event.session_id} />
           </div>
           <div className="text-secondary runtime-event-detail">
-            Advisory only / canonical unchanged · snapshot <span className="mono">{event.snapshot_id}</span>
+            {language === 'zh' ? '仅咨询 / canonical 未改变' : 'Advisory only / canonical unchanged'} · snapshot <span className="mono">{event.snapshot_id}</span>
             {event.job_id ? <> · job <span className="mono">{event.job_id}</span></> : null}
           </div>
           {event.source_record_range && (
@@ -431,13 +446,23 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
               {event.summary}
             </div>
           )}
+          {event.analysis_summary && (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {event.analysis_summary}
+            </div>
+          )}
+          {event.operator_next_steps?.length ? (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {language === 'zh' ? '下一步' : 'Next'}: <span className="mono">{event.operator_next_steps[0]}</span>
+            </div>
+          ) : null}
         </>
       )
     case 'budget_exhausted':
       return (
         <>
           <div className="runtime-event-meta-row">
-            <span className="badge badge-block">Budget exhausted</span>
+            <span className="badge badge-block">{language === 'zh' ? 'Token 已耗尽' : 'Token exhausted'}</span>
             <span className="mono runtime-tool-name">
               Provider
             </span>
@@ -448,25 +473,9 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
               Tier
             </span>
             <span className="badge badge-defer">{event.tier}</span>
-            <span className="mono runtime-tool-name">
-              Cost
-            </span>
-            <span className="mono text-muted runtime-mono-small">
-              ${event.cost_usd.toFixed(2)}
-            </span>
           </div>
           <div className="text-secondary runtime-event-detail">
-            Budget exhausted: <span className="mono">{event.budget.exhausted ? 'yes' : 'no'}</span>
-            {' · '}
-            Daily spend <span className="mono">${event.budget.daily_spend_usd.toFixed(2)}</span>
-            {' / '}
-            <span className="mono">${event.budget.daily_budget_usd.toFixed(2)}</span>
-            {event.budget.remaining_usd !== null && (
-              <>
-                {' · '}
-                Remaining <span className="mono">${event.budget.remaining_usd.toFixed(2)}</span>
-              </>
-            )}
+            <span className="mono">{formatTokenBudgetSnapshot(event.budget, language)}</span>
           </div>
         </>
       )
@@ -620,7 +629,7 @@ export default function RuntimeFeed() {
           >
             <option value="all">{t('runtime.allEvents')}</option>
             {RUNTIME_EVENT_TYPES.map(type => (
-              <option key={type} value={type}>{EVENT_LABELS[type]}</option>
+              <option key={type} value={type}>{eventLabel(type, language)}</option>
             ))}
           </select>
         </label>
@@ -674,7 +683,7 @@ export default function RuntimeFeed() {
                 <span className="mono text-muted operations-stream-time">
                   {new Date(event.timestamp).toLocaleTimeString()}
                 </span>
-                <EventBadge type={event.type} />
+                <EventBadge type={event.type} language={language} />
               </div>
               <RuntimeSummary event={event} language={language} />
               <EnterpriseRuntimeLine event={event} />
