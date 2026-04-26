@@ -13,7 +13,6 @@ Transports:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
@@ -23,7 +22,7 @@ import os
 import struct
 import sys
 import time
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from pathlib import Path
 import uuid
@@ -89,7 +88,6 @@ from .session_enforcement import (
 from .enterprise import (
     build_enterprise_event_async,
     build_enterprise_live_snapshot_cached_async,
-    build_enterprise_live_snapshot_async,
     enterprise_mode_enabled,
     enrich_alerts_payload_async,
     enrich_health_payload_async,
@@ -1386,6 +1384,48 @@ class SupervisionGateway:
         except Exception:
             logger.exception("trajectory analysis failed for event %s", req.event.event_id)
 
+        # --- Benchmark mode: no human DEFER waits ---
+        # Apply before persistence/SSE so audit records and live events carry
+        # the deterministic auto-resolution metadata promised by benchmark mode.
+        effective_config = project_config or self._detection_config
+        effective_mode = effective_config.mode
+        if (
+            effective_mode == "benchmark"
+            and effective_config.benchmark_auto_resolve_defer
+            and decision.decision == DecisionVerdict.DEFER
+            and req.event.event_type == EventType.PRE_ACTION
+        ):
+            benchmark_action = effective_config.benchmark_defer_action
+            resolved_verdict = DecisionVerdict.BLOCK
+            if benchmark_action == "allow":
+                resolved_verdict = DecisionVerdict.ALLOW
+            elif benchmark_action == "allow_low_block_high":
+                original_risk = getattr(decision.risk_level, "value", str(decision.risk_level))
+                resolved_verdict = (
+                    DecisionVerdict.ALLOW
+                    if _risk_rank(original_risk) <= _risk_rank("low")
+                    else DecisionVerdict.BLOCK
+                )
+            original_reason = decision.reason
+            decision = CanonicalDecision(
+                decision=resolved_verdict,
+                reason=(
+                    "Benchmark mode auto-resolved DEFER to "
+                    f"{resolved_verdict.value}: {original_reason}"
+                ),
+                policy_id=decision.policy_id or "benchmark-auto-resolve",
+                risk_level=decision.risk_level,
+                decision_source=DecisionSource.POLICY,
+                final=True,
+            )
+            decision_dict = decision.model_dump(mode="json")
+            meta_dict.update({
+                "auto_resolved": True,
+                "auto_resolve_mode": "benchmark",
+                "original_verdict": "defer",
+                "benchmark_defer_action": benchmark_action,
+            })
+
         record_id = self._record_decision_path(
             event=event_dict,
             decision=decision_dict,
@@ -1494,6 +1534,10 @@ class SupervisionGateway:
             "approval_reason",
             "approval_reason_code",
             "approval_timeout_s",
+            "auto_resolved",
+            "auto_resolve_mode",
+            "original_verdict",
+            "benchmark_defer_action",
         ):
             if meta_dict.get(key) is not None:
                 decision_event[key] = meta_dict.get(key)
@@ -1858,30 +1902,6 @@ class SupervisionGateway:
                     "resolved_reason": decision_dict["reason"],
                     "timestamp": resolution_recorded_at,
                 })
-
-        # --- Benchmark mode: no human DEFER waits ---
-        effective_mode = (project_config or self._detection_config).mode
-        if (
-            effective_mode == "benchmark"
-            and decision.decision == DecisionVerdict.DEFER
-            and req.event.event_type == EventType.PRE_ACTION
-        ):
-            original_reason = decision.reason
-            decision = CanonicalDecision(
-                decision=DecisionVerdict.BLOCK,
-                reason=f"Benchmark mode auto-resolved DEFER to block: {original_reason}",
-                policy_id=decision.policy_id or "benchmark-auto-resolve",
-                risk_level=decision.risk_level,
-                decision_source=DecisionSource.POLICY,
-                final=True,
-            )
-            decision_dict = decision.model_dump(mode="json")
-            meta_dict.update({
-                "auto_resolved": True,
-                "auto_resolve_mode": "benchmark",
-                "original_verdict": "defer",
-                "benchmark_defer_action": "block",
-            })
 
         # --- P1: DEFER bridge — wait for operator approval ---
         if (
@@ -2302,7 +2322,6 @@ class SupervisionGateway:
             since_seconds=since_seconds,
         )
         generated_at = utc_now_iso()
-        raw_sessions = getattr(self.session_registry, "_sessions", {})
         for session in result.get("sessions", []):
             if not isinstance(session, dict):
                 continue
@@ -4538,7 +4557,12 @@ async def run_gateway(
     ssl_keyfile: str | None = None,
 ) -> None:
     """Run the Supervision Gateway with both UDS and HTTP transports."""
-    # Build detection config from CS_ environment variables
+    # Make .clawsentry.toml runtime-effective while preserving env precedence.
+    from .project_config import apply_project_config_to_environ
+
+    apply_project_config_to_environ(Path.cwd())
+
+    # Build detection config from project-backed canonical CS_ environment variables.
     detection_config = build_detection_config_from_env()
     logger.info("DetectionConfig: %s", detection_config)
 

@@ -20,9 +20,9 @@ description: 5 分钟内启动 ClawSentry 并对接 AI Agent 框架
 </section>
 
 
-## Copy this first：最短可运行路径 {#copy-this-first}
+## 先复制这组命令：最短可运行路径 {#copy-this-first}
 
-如果你只是想先看到 Gateway 和 Web UI，可先走 L1-only 默认路径；之后再用 `config wizard` 打开 L2/L3、token budget 或 benchmark。
+如果你只是想先看到 Gateway、Web UI 和第一批审计事件，先走 L1-only 默认路径。它不需要外部 LLM，也不会修改 Codex hooks；之后再逐步开启 L2/L3、token budget 或 benchmark。
 
 ```bash
 pip install clawsentry
@@ -50,6 +50,36 @@ clawsentry config show --effective
 | CI 或安全 benchmark | `benchmark` | [Benchmark 模式](../operations/benchmark-mode.md)，使用临时 `CODEX_HOME` |
 
 ---
+
+## 推荐阅读路线 {#reading-route}
+
+第一次体验时，不建议从 API Reference 或环境变量表开始。按下面顺序阅读会更顺：
+
+<div class="cs-card-grid" markdown>
+
+<div class="cs-card" markdown>
+### 1. 跑起来
+复制上面的最短命令，打开 Web UI，确认 Gateway 可访问。
+</div>
+
+<div class="cs-card" markdown>
+### 2. 选框架
+在本页的能力表里确认你的框架是“可阻断”还是“监控 + 可选增强”。
+</div>
+
+<div class="cs-card" markdown>
+### 3. 配置 LLM / 预算
+需要 L2/L3 时，再进入[配置模板](../configuration/templates.md)和[LLM 配置](../configuration/llm-config.md)。
+</div>
+
+<div class="cs-card" markdown>
+### 4. 部署或评测
+团队常驻看[生产部署](../operations/deployment.md)；CI / benchmark 看[Benchmark 模式](../operations/benchmark-mode.md)。
+</div>
+
+</div>
+
+---
 ## 框架能力对比 {#framework-capabilities}
 
 | 能力 | Claude Code | a3s-code | OpenClaw | Codex |
@@ -63,7 +93,7 @@ clawsentry config show --effective
 | 集成方式 | Hook 注入 | 显式 AHP Transport | WebSocket | Session 日志监控 + 可选 managed native hooks |
 
 !!! info "为什么 Codex 默认仍按监控模式使用？"
-    ClawSentry 默认通过监控 Codex session 日志实现实时评估和推荐。当前版本可用 `clawsentry init codex --setup` 非破坏式安装 managed native hooks，并已验证 `PreToolUse(Bash)` 可经 Gateway 返回 host deny；其他 native events 仍是异步观察，生产上建议继续配合 `--approval-policy untrusted` 使用。
+    ClawSentry 默认通过监控 Codex session 日志实现实时评估和推荐。你可以用 `clawsentry init codex --setup` 非破坏式安装 managed native hooks。同步防护主要覆盖 Bash preflight / approval gate；其他 native events 仍按异步观察处理，生产上建议继续配合 `--approval-policy untrusted` 使用。
 
 ## 第一次打开 Web UI，先看什么？
 
@@ -225,7 +255,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
     session = agent.session(".", opts, permissive=True)
     ```
 
-    如需 HTTP 方式，可改用已验证的 `HttpTransport` 直连 Gateway：
+    如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway：
 
     ```python
     import os
@@ -279,7 +309,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
         session = agent.session(".", opts, permissive=True)
         ```
 
-        如需 HTTP 方式，可改用已验证的 `HttpTransport` 直连 Gateway：
+        如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway：
 
         ```python
         import os
@@ -381,7 +411,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
 === "Codex"
 
     !!! warning "默认监控模式"
-        ClawSentry 默认通过监控 Codex session 日志实现**实时风险评估和推荐**。可选的 `clawsentry init codex --setup` 会安装 managed native hooks；当前已测试并做过真实 Gateway daemon smoke 的同步防护范围仅限 `PreToolUse(Bash)`，其他 Codex native events 仍为异步观察/建议。建议配合 `--approval-policy untrusted` 使用。
+        ClawSentry 默认通过监控 Codex session 日志实现**实时风险评估和推荐**。可选的 `clawsentry init codex --setup` 会安装 managed native hooks；同步防护主要覆盖 `PreToolUse(Bash)` / `PermissionRequest(Bash)`；其他 Codex native events 仍为异步观察/建议。建议配合 `--approval-policy untrusted` 使用。
 
     **前置条件**
 

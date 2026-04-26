@@ -38,7 +38,7 @@ from ..adapters.openclaw_bootstrap import (
     build_openclaw_runtime,
     create_openclaw_webhook_app,
 )
-from .detection_config import DetectionConfig, build_detection_config_from_env
+from .detection_config import build_detection_config_from_env
 from .idempotency import periodic_cleanup
 from .llm_factory import build_analyzer_from_env
 from .policy_engine import L1PolicyEngine
@@ -47,7 +47,6 @@ from .server import (
     DEFAULT_HTTP_PORT,
     DEFAULT_TRAJECTORY_DB_PATH,
     DEFAULT_TRAJECTORY_RETENTION_SECONDS,
-    DEFAULT_UDS_PATH,
     SupervisionGateway,
     create_http_app,
     start_uds_server,
@@ -388,7 +387,12 @@ async def run_stack(args: argparse.Namespace) -> None:
         cooldown_seconds=_enf_cooldown,
     )
 
-    # Build detection config from CS_ environment variables
+    # Make .clawsentry.toml runtime-effective while preserving env precedence.
+    from .project_config import apply_project_config_to_environ
+
+    apply_project_config_to_environ(Path.cwd())
+
+    # Build detection config from project-backed canonical CS_ environment variables.
     detection_config = build_detection_config_from_env()
 
     # Build gateway first, then configure LLM analyzer with trajectory store

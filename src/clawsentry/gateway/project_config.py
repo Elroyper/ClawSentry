@@ -7,7 +7,7 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, MutableMapping
 
 from .detection_config import DetectionConfig, from_preset
 
@@ -323,3 +323,53 @@ def resolve_effective_config(project_dir: Path, *, environ: Mapping[str, str] | 
     if _as_bool(values.get("budgets.llm_token_budget_enabled")) and int(values.get("budgets.llm_daily_token_budget") or 0) <= 0:
         warnings.append("Token budget enabled with non-positive limit; runtime disables enforcement")
     return EffectiveConfig(values=values, sources=sources, warnings=warnings)
+
+
+def apply_project_config_to_environ(
+    project_dir: Path,
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> None:
+    """Export project config into missing canonical env vars for runtime startup.
+
+    Runtime components historically read canonical ``CS_*`` variables.  This
+    bridge makes ``.clawsentry.toml`` effective without overwriting explicit
+    environment values, preserving the documented precedence: env > project >
+    defaults.  It intentionally writes only canonical names.
+    """
+    target = os.environ if environ is None else environ
+    cfg = load_project_config(project_dir)
+    if not (project_dir / CONFIG_FILENAME).is_file():
+        return
+
+    def put(env_key: str, value: Any) -> None:
+        if value is None or str(value).strip() == "":
+            return
+        target.setdefault(env_key, str(value).lower() if isinstance(value, bool) else str(value))
+
+    put("CS_MODE", cfg.mode)
+    put("CS_LLM_PROVIDER", cfg.llm.get("provider", ""))
+    put("CS_LLM_MODEL", cfg.llm.get("model", ""))
+    put("CS_LLM_BASE_URL", cfg.llm.get("base_url", ""))
+    api_key_env = str(cfg.llm.get("api_key_env", "CS_LLM_API_KEY") or "CS_LLM_API_KEY")
+    if api_key_env != "CS_LLM_API_KEY" and api_key_env in target:
+        target.setdefault("CS_LLM_API_KEY", str(target[api_key_env]))
+
+    put("CS_L3_ENABLED", cfg.features.get("l3", None))
+    put("CS_ENTERPRISE_ENABLED", cfg.features.get("enterprise", None))
+
+    put("CS_LLM_TOKEN_BUDGET_ENABLED", cfg.budgets.get("llm_token_budget_enabled", None))
+    put("CS_LLM_DAILY_TOKEN_BUDGET", cfg.budgets.get("llm_daily_token_budget", None))
+    put("CS_LLM_TOKEN_BUDGET_SCOPE", cfg.budgets.get("llm_token_budget_scope", None))
+    put("CS_L2_TIMEOUT_MS", cfg.budgets.get("l2_timeout_ms", None))
+    put("CS_L3_TIMEOUT_MS", cfg.budgets.get("l3_timeout_ms", None))
+    put("CS_HARD_TIMEOUT_MS", cfg.budgets.get("hard_timeout_ms", None))
+
+    put("CS_DEFER_BRIDGE_ENABLED", cfg.defer.get("bridge_enabled", None))
+    put("CS_DEFER_TIMEOUT_S", cfg.defer.get("timeout_s", None))
+    put("CS_DEFER_TIMEOUT_ACTION", cfg.defer.get("timeout_action", None))
+    put("CS_DEFER_MAX_PENDING", cfg.defer.get("max_pending", None))
+
+    put("CS_BENCHMARK_AUTO_RESOLVE_DEFER", cfg.benchmark.get("auto_resolve_defer", None))
+    put("CS_BENCHMARK_DEFER_ACTION", cfg.benchmark.get("defer_action", None))
+    put("CS_BENCHMARK_PERSIST_SCOPE", cfg.benchmark.get("persist_scope", None))

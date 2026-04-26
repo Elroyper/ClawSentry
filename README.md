@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3170 public regression tests** with release-time CI/build evidence
+- **3174 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.8
+## What's New in v0.5.9
 
-- **Config UX overhaul**: `clawsentry config show --effective` now reports canonical/project/env/default sources with secret redaction, and the setup path documents project config, LLM, token budgets, defer, and benchmark mode together.
-- **Token-budget enforcement**: LLM budget governance uses provider-reported input/output/total tokens instead of hardcoded USD estimates; unknown provider usage is tracked without fabricating token counts.
-- **Benchmark/deployment workflow**: new `clawsentry benchmark env|enable|disable|run` helpers support isolated Codex benchmark homes, while service/Docker/systemd templates use canonical token-budget and timeout variables.
+- **Smoother zero-to-config docs**: the homepage, quickstart, configuration overview, templates, benchmark mode, dashboard, CLI, Codex, and Gemini pages now follow a user-facing learning path instead of internal progress notes.
+- **Project config that actually drives runtime**: `.clawsentry.toml` now feeds Gateway, stack startup, and `test-llm` through canonical `CS_*` settings without overriding explicit environment variables.
+- **Web UI risk charts fixed**: Session Detail risk composition and risk score trend charts now render reliably with explicit chart dimensions.
 
 ## Quick Start
 

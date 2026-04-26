@@ -421,12 +421,18 @@ def _build_parser() -> argparse.ArgumentParser:
     config_wizard.add_argument("--non-interactive", action="store_true", default=False)
     config_wizard.add_argument("--framework", default="codex")
     config_wizard.add_argument("--mode", default="normal", choices=["normal", "strict", "permissive", "benchmark"])
-    config_wizard.add_argument("--llm-provider", default="", choices=["", "openai", "anthropic"])
+    config_wizard.add_argument("--llm-provider", default="", choices=["", "none", "openai", "anthropic"])
     config_wizard.add_argument("--llm-model", default="")
     config_wizard.add_argument("--llm-base-url", default="")
     config_wizard.add_argument("--l2", action=argparse.BooleanOptionalAction, default=None)
     config_wizard.add_argument("--l3", action=argparse.BooleanOptionalAction, default=False)
     config_wizard.add_argument("--token-budget", type=int, default=0)
+    config_wizard.add_argument(
+        "--write-project-config",
+        action="store_true",
+        default=True,
+        help="Write .clawsentry.toml in the target directory (default behavior; accepted for copy/paste clarity).",
+    )
     config_wizard.add_argument("--force", action="store_true", default=False)
 
     config_sub.add_parser("disable", help="Disable ClawSentry for this project.")

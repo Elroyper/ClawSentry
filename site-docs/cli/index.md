@@ -152,7 +152,7 @@ clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
 ```
 
 此命令会按列表增量合并 `.env.clawsentry`，启动 banner 会显示 `Enabled: a3s-code, codex, openclaw`。默认不会修改 `~/.openclaw/`；如需在启动时一并配置 OpenClaw 侧审批文件，显式添加 `--setup-openclaw`。
-从这版开始，banner 还会打印 `Readiness` 摘要，把每个框架当前是 `ready`、`needs attention` 还是 `manual verification required` 直接讲明白，并给出 `Next actions`。
+启动 banner 会打印 `Readiness` 摘要，把每个框架是 `ready`、`needs attention` 还是 `manual verification required` 直接讲明白，并给出 `Next actions`。
 
 如果加上 `--with-latch`，`start` 会在 Gateway 之外编排 Latch Hub，并把 Web UI / watch / Latch 的启动信息放进同一份 banner；如果 Latch 二进制或 token 尚未就绪，readiness 会给出具体 next step，而不是把多框架启动误报为完全可用。
 
@@ -1188,7 +1188,8 @@ clawsentry config show --effective
       llm.provider: openai (source: env)
       llm.api_key: ******** (source: env)
       budgets.llm_token_budget_enabled: true (source: project)
-      budgets.remaining_tokens: 198432
+      budgets.llm_daily_token_budget: 200000 (source: project)
+      budgets.llm_token_budget_scope: total (source: project)
       defer.timeout_s: 86400 (source: default)
     ```
 

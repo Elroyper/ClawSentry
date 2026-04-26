@@ -327,13 +327,14 @@ def build_detection_config_from_env() -> DetectionConfig:
     _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
     _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
 
-    # When token budgets are enabled, the legacy USD field is informational only
-    # and must not mutate enforcement behavior in token mode.
-    if (
-        bool(overrides.get("llm_token_budget_enabled"))
-        and int(overrides.get("llm_daily_token_budget") or 0) > 0
-        and "llm_daily_budget_usd" in overrides
-    ):
+    # Deprecated USD budgets are migration telemetry only on the env/runtime
+    # path.  Enforcement uses provider-reported token usage, so the legacy
+    # estimate must not exhaust budget by itself.
+    if "llm_daily_budget_usd" in overrides:
+        logger.warning(
+            "CS_LLM_DAILY_BUDGET_USD is deprecated and informational; "
+            "use CS_LLM_TOKEN_BUDGET_ENABLED/CS_LLM_DAILY_TOKEN_BUDGET"
+        )
         overrides["llm_daily_budget_usd"] = 0.0
 
     try:
@@ -478,12 +479,12 @@ def build_detection_config_with_preset(
     _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
     _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
 
-    # Keep legacy USD budgets informational when token budgeting is active.
-    if (
-        bool(params.get("llm_token_budget_enabled"))
-        and int(params.get("llm_daily_token_budget") or 0) > 0
-        and "llm_daily_budget_usd" in params
-    ):
+    # Keep legacy USD budgets informational on the env/runtime path.
+    if "llm_daily_budget_usd" in params:
+        logger.warning(
+            "CS_LLM_DAILY_BUDGET_USD is deprecated and informational; "
+            "use CS_LLM_TOKEN_BUDGET_ENABLED/CS_LLM_DAILY_TOKEN_BUDGET"
+        )
         params["llm_daily_budget_usd"] = 0.0
 
     try:

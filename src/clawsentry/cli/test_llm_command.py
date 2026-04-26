@@ -12,9 +12,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import sys
 import time
-from typing import Optional
+from pathlib import Path
 
 from ..gateway.l3_runtime import infer_l3_reason_code
 
@@ -47,7 +46,10 @@ def _dim(text: str, color: bool) -> str:
 
 def _build_provider():
     """Build LLM provider from environment variables. Returns (provider, info_dict) or (None, error_str)."""
+    from ..gateway.project_config import apply_project_config_to_environ
     from ..gateway.llm_provider import LLMProviderConfig, AnthropicProvider, OpenAIProvider
+
+    apply_project_config_to_environ(Path.cwd())
 
     provider_name = os.getenv("CS_LLM_PROVIDER", "").strip().lower()
     if not provider_name:
@@ -295,7 +297,7 @@ async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool 
         return 1
 
     if not json_mode:
-        print(f"\n  ClawSentry LLM Test")
+        print("\n  ClawSentry LLM Test")
         print(f"  {'=' * 56}")
         print(f"  Provider : {_cyan(info['provider'], color)}")
         print(f"  Model    : {_cyan(info['model'], color)}")
@@ -353,7 +355,7 @@ async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool 
                 print(f"         {_dim('Set CS_L3_ENABLED=true to test L3', color)}")
         else:
             if not json_mode:
-                print(f"  [4/4] Testing L3 agent review ...", end="", flush=True)
+                print("  [4/4] Testing L3 agent review ...", end="", flush=True)
             ok4, latency4, detail4 = await _test_l3(provider)
             results.append({"test": "l3_review", "ok": ok4, "latency_ms": round(latency4, 1), "detail": detail4})
             if not json_mode:

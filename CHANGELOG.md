@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+## [0.5.9] — 2026-04-26
+
+### 修复
+
+- **Web UI 风险图表显示** — Session Detail 的“风险构成”和“风险分数趋势”图表现在为 Recharts `ResponsiveContainer` 提供明确宽高，避免真实布局中高度测量为 0 导致图表不渲染。
+- **项目配置运行时生效** — Gateway、stack 与 `test-llm` 在构建检测/LLM 配置前会读取项目级 `.clawsentry.toml` 并导出 canonical `CS_*` 环境变量，同时保留显式环境变量优先级。
+- **Benchmark 模式配置语义** — `clawsentry benchmark env` 输出 canonical `CS_MODE=benchmark`，Gateway benchmark 自动解析会在持久化/SSE 前应用，并尊重 `benchmark_defer_action`。
+- **CLI 配置写入一致性** — `config wizard --llm-provider none` 与 `--write-project-config` 可直接使用文档中的复制命令；`config set/enable/disable` 保留无关 section 并正确写入 bool/int/float。
+
+### 改进
+
+- **在线文档从 0 到可用的阅读路径** — 首页、快速开始、配置概览、配置模板、benchmark-mode、Codex/Gemini 集成、Dashboard 与 CLI 文档改为用户/二次开发者口径，减少开发进度式表述。
+- **配置模板可复制性** — 增补个人、团队 L2 token budget、严格 L3、CI/benchmark 与生产环境模板，并明确 env > project config > defaults 的优先级。
+- **公开口径对齐** — README、包内 README、安装页、首页指标与 changelog 更新到 v0.5.9 发布口径。
+
+### 测试与验证
+
+- Python full regression：dev repo `3177 passed, 4 skipped`。
+- Web UI 回归：`50 passed`。
+- Web UI build：PASS。
+- Focused UI static/build contract：`10 passed`。
+- `python -m ruff check <changed Python files>`：PASS。
+- `python -m compileall`：PASS。
+- `python scripts/docs_api_inventory.py validate`：PASS。
+- `mkdocs build --strict`：PASS。
+- `python -m build`：PASS（setuptools license deprecation warnings only）。
+
 ## [0.5.8] — 2026-04-26
 
 ### 新增
@@ -1040,6 +1067,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.9
 [0.5.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.8
 [0.5.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.7
 [0.5.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.6

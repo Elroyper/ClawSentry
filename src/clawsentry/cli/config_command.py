@@ -22,6 +22,14 @@ def _toml_value(value: Any) -> str:
     return '"' + str(value).replace('"', '\\"') + '"'
 
 
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _write_toml(
     path: Path,
     *,
@@ -29,6 +37,7 @@ def _write_toml(
     preset: str = "medium",
     mode: str = "normal",
     llm_provider: str = "",
+    llm_api_key_env: str = "CS_LLM_API_KEY",
     llm_model: str = "",
     llm_base_url: str = "",
     l2: bool = False,
@@ -36,9 +45,17 @@ def _write_toml(
     enterprise: bool = False,
     token_budget: int = 0,
     token_budget_enabled: bool | None = None,
+    token_budget_scope: str = "total",
+    l2_timeout_ms: float = 60_000.0,
+    l3_timeout_ms: float = 300_000.0,
+    hard_timeout_ms: float = 600_000.0,
+    defer_bridge_enabled: bool = True,
     defer_timeout_s: float = 86_400.0,
+    defer_timeout_action: str = "block",
+    defer_max_pending: int = 0,
     benchmark_auto_resolve: bool = True,
     benchmark_defer_action: str = "block",
+    benchmark_persist_scope: str = "project",
     framework: str = "",
 ) -> None:
     """Write a canonical .clawsentry.toml file."""
@@ -55,7 +72,7 @@ def _write_toml(
         "",
         "[llm]",
         f"provider = {_toml_value(llm_provider)}",
-        'api_key_env = "CS_LLM_API_KEY"',
+        f"api_key_env = {_toml_value(llm_api_key_env)}",
         f"model = {_toml_value(llm_model)}",
         f"base_url = {_toml_value(llm_base_url)}",
         "",
@@ -67,21 +84,21 @@ def _write_toml(
         "[budgets]",
         f"llm_token_budget_enabled = {_toml_value(token_budget_enabled)}",
         f"llm_daily_token_budget = {int(token_budget)}",
-        'llm_token_budget_scope = "total"',
-        "l2_timeout_ms = 60000",
-        "l3_timeout_ms = 300000",
-        "hard_timeout_ms = 600000",
+        f"llm_token_budget_scope = {_toml_value(token_budget_scope)}",
+        f"l2_timeout_ms = {_toml_value(l2_timeout_ms)}",
+        f"l3_timeout_ms = {_toml_value(l3_timeout_ms)}",
+        f"hard_timeout_ms = {_toml_value(hard_timeout_ms)}",
         "",
         "[defer]",
-        "bridge_enabled = true",
+        f"bridge_enabled = {_toml_value(defer_bridge_enabled)}",
         f"timeout_s = {_toml_value(defer_timeout_s)}",
-        'timeout_action = "block"',
-        "max_pending = 0",
+        f"timeout_action = {_toml_value(defer_timeout_action)}",
+        f"max_pending = {int(defer_max_pending)}",
         "",
         "[benchmark]",
         f"auto_resolve_defer = {_toml_value(benchmark_auto_resolve)}",
         f"defer_action = {_toml_value(benchmark_defer_action)}",
-        'persist_scope = "project"',
+        f"persist_scope = {_toml_value(benchmark_persist_scope)}",
         "",
         "# [overrides]",
         "# threshold_critical = 2.2",
@@ -133,11 +150,123 @@ def run_config_show(*, target_dir: Path, effective: bool = False) -> None:
     print(f"  token_budget:       {dc.llm_daily_token_budget if dc.llm_token_budget_enabled else 'disabled'}")
 
 
+def _as_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _config_write_kwargs(cfg: Any) -> dict[str, Any]:
+    """Return full ``_write_toml`` kwargs so small edits preserve other sections."""
+    return {
+        "enabled": bool(cfg.enabled),
+        "preset": str(cfg.preset),
+        "mode": str(cfg.mode),
+        "llm_provider": str(cfg.llm.get("provider", "")),
+        "llm_api_key_env": str(cfg.llm.get("api_key_env", "CS_LLM_API_KEY")),
+        "llm_model": str(cfg.llm.get("model", "")),
+        "llm_base_url": str(cfg.llm.get("base_url", "")),
+        "l2": _as_bool(cfg.features.get("l2", False)),
+        "l3": _as_bool(cfg.features.get("l3", False)),
+        "enterprise": _as_bool(cfg.features.get("enterprise", False)),
+        "token_budget": _as_int(cfg.budgets.get("llm_daily_token_budget", 0), 0),
+        "token_budget_enabled": _as_bool(cfg.budgets.get("llm_token_budget_enabled", False)),
+        "token_budget_scope": str(cfg.budgets.get("llm_token_budget_scope", "total")),
+        "l2_timeout_ms": _as_float(cfg.budgets.get("l2_timeout_ms", 60_000.0), 60_000.0),
+        "l3_timeout_ms": _as_float(cfg.budgets.get("l3_timeout_ms", 300_000.0), 300_000.0),
+        "hard_timeout_ms": _as_float(cfg.budgets.get("hard_timeout_ms", 600_000.0), 600_000.0),
+        "defer_bridge_enabled": _as_bool(cfg.defer.get("bridge_enabled", True), True),
+        "defer_timeout_s": _as_float(cfg.defer.get("timeout_s", 86_400.0), 86_400.0),
+        "defer_timeout_action": str(cfg.defer.get("timeout_action", "block")),
+        "defer_max_pending": _as_int(cfg.defer.get("max_pending", 0), 0),
+        "benchmark_auto_resolve": _as_bool(cfg.benchmark.get("auto_resolve_defer", True), True),
+        "benchmark_defer_action": str(cfg.benchmark.get("defer_action", "block")),
+        "benchmark_persist_scope": str(cfg.benchmark.get("persist_scope", "project")),
+    }
+
+
+_FIELD_TYPES: dict[str, type] = {
+    "project.enabled": bool,
+    "project.mode": str,
+    "project.preset": str,
+    "llm.provider": str,
+    "llm.api_key_env": str,
+    "llm.model": str,
+    "llm.base_url": str,
+    "features.l2": bool,
+    "features.l3": bool,
+    "features.enterprise": bool,
+    "budgets.llm_token_budget_enabled": bool,
+    "budgets.llm_daily_token_budget": int,
+    "budgets.llm_token_budget_scope": str,
+    "budgets.l2_timeout_ms": float,
+    "budgets.l3_timeout_ms": float,
+    "budgets.hard_timeout_ms": float,
+    "defer.bridge_enabled": bool,
+    "defer.timeout_s": float,
+    "defer.timeout_action": str,
+    "defer.max_pending": int,
+    "benchmark.auto_resolve_defer": bool,
+    "benchmark.defer_action": str,
+    "benchmark.persist_scope": str,
+}
+
+_WRITE_KEY_MAP: dict[str, str] = {
+    "project.enabled": "enabled",
+    "project.mode": "mode",
+    "project.preset": "preset",
+    "llm.provider": "llm_provider",
+    "llm.api_key_env": "llm_api_key_env",
+    "llm.model": "llm_model",
+    "llm.base_url": "llm_base_url",
+    "features.l2": "l2",
+    "features.l3": "l3",
+    "features.enterprise": "enterprise",
+    "budgets.llm_token_budget_enabled": "token_budget_enabled",
+    "budgets.llm_daily_token_budget": "token_budget",
+    "budgets.llm_token_budget_scope": "token_budget_scope",
+    "budgets.l2_timeout_ms": "l2_timeout_ms",
+    "budgets.l3_timeout_ms": "l3_timeout_ms",
+    "budgets.hard_timeout_ms": "hard_timeout_ms",
+    "defer.bridge_enabled": "defer_bridge_enabled",
+    "defer.timeout_s": "defer_timeout_s",
+    "defer.timeout_action": "defer_timeout_action",
+    "defer.max_pending": "defer_max_pending",
+    "benchmark.auto_resolve_defer": "benchmark_auto_resolve",
+    "benchmark.defer_action": "benchmark_defer_action",
+    "benchmark.persist_scope": "benchmark_persist_scope",
+}
+
+
+def _coerce_config_value(key: str, value: str) -> Any:
+    target_type = _FIELD_TYPES.get(key, str)
+    if target_type is bool:
+        normalized = value.strip().lower()
+        if normalized not in {"1", "0", "true", "false", "yes", "no", "on", "off"}:
+            raise ValueError(f"{key} must be a boolean")
+        return _as_bool(normalized)
+    if target_type is int:
+        return int(value)
+    if target_type is float:
+        return float(value)
+    return value
+
+
 def _set_nested(config: dict[str, Any], dotted_key: str, value: str) -> None:
     section, _, name = dotted_key.partition(".")
     if not section or not name:
         raise ValueError("Config key must be section.field, e.g. project.mode")
-    config.setdefault(section, {})[name] = value
+    if dotted_key not in _FIELD_TYPES:
+        raise ValueError(f"Unknown config key: {dotted_key}")
+    config.setdefault(section, {})[name] = _coerce_config_value(dotted_key, value)
 
 
 def run_config_set(
@@ -152,20 +281,9 @@ def run_config_set(
     if key is None:
         if preset not in PRESETS:
             raise ValueError(f"Unknown preset: {preset!r}. Available: {sorted(PRESETS.keys())}")
-        _write_toml(
-            target_dir / CONFIG_FILENAME,
-            enabled=cfg.enabled,
-            preset=str(preset),
-            mode=cfg.mode,
-            llm_provider=str(cfg.llm.get("provider", "")),
-            llm_model=str(cfg.llm.get("model", "")),
-            llm_base_url=str(cfg.llm.get("base_url", "")),
-            l2=bool(cfg.features.get("l2", False)),
-            l3=bool(cfg.features.get("l3", False)),
-            enterprise=bool(cfg.features.get("enterprise", False)),
-            token_budget=int(cfg.budgets.get("llm_daily_token_budget", 0) or 0),
-            token_budget_enabled=bool(cfg.budgets.get("llm_token_budget_enabled", False)),
-        )
+        kwargs = _config_write_kwargs(cfg)
+        kwargs["preset"] = str(preset)
+        _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
         print(f"Updated preset to: {preset}")
         return
 
@@ -175,27 +293,17 @@ def run_config_set(
         raise ValueError("project.mode must be normal, strict, permissive, or benchmark")
     current = {
         "project": {"enabled": cfg.enabled, "mode": cfg.mode, "preset": cfg.preset},
-        "llm": cfg.llm,
-        "features": cfg.features,
-        "budgets": cfg.budgets,
-        "defer": cfg.defer,
-        "benchmark": cfg.benchmark,
+        "llm": dict(cfg.llm),
+        "features": dict(cfg.features),
+        "budgets": dict(cfg.budgets),
+        "defer": dict(cfg.defer),
+        "benchmark": dict(cfg.benchmark),
     }
     _set_nested(current, key, value)
-    _write_toml(
-        target_dir / CONFIG_FILENAME,
-        enabled=bool(current["project"].get("enabled", True)),
-        preset=str(current["project"].get("preset", "medium")),
-        mode=str(current["project"].get("mode", "normal")),
-        llm_provider=str(current["llm"].get("provider", "")),
-        llm_model=str(current["llm"].get("model", "")),
-        llm_base_url=str(current["llm"].get("base_url", "")),
-        l2=bool(current["features"].get("l2", False)),
-        l3=bool(current["features"].get("l3", False)),
-        enterprise=bool(current["features"].get("enterprise", False)),
-        token_budget=int(current["budgets"].get("llm_daily_token_budget", 0) or 0),
-        token_budget_enabled=bool(current["budgets"].get("llm_token_budget_enabled", False)),
-    )
+    section_name, _, field_name = key.partition(".")
+    kwargs = _config_write_kwargs(cfg)
+    kwargs[_WRITE_KEY_MAP[key]] = current[section_name][field_name]
+    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
     print(f"Updated {key} to: {value}")
 
 
@@ -218,8 +326,10 @@ def run_config_wizard(
         print("Interactive wizard is not available in this terminal; using supplied/default values.")
     if mode not in {"normal", "strict", "permissive", "benchmark"}:
         raise ValueError("mode must be normal, strict, permissive, or benchmark")
+    if llm_provider == "none":
+        llm_provider = ""
     if llm_provider and llm_provider not in {"openai", "anthropic"}:
-        raise ValueError("llm_provider must be openai, anthropic, or empty")
+        raise ValueError("llm_provider must be openai, anthropic, none, or empty")
     l2_enabled = bool(llm_provider) if l2 is None else bool(l2)
     toml_path = target_dir / CONFIG_FILENAME
     if toml_path.exists() and not force:
@@ -242,11 +352,15 @@ def run_config_wizard(
 
 def run_config_disable(*, target_dir: Path) -> None:
     cfg = load_project_config(target_dir)
-    _write_toml(target_dir / CONFIG_FILENAME, enabled=False, preset=cfg.preset, mode=cfg.mode)
+    kwargs = _config_write_kwargs(cfg)
+    kwargs["enabled"] = False
+    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
     print("ClawSentry monitoring disabled for this project.")
 
 
 def run_config_enable(*, target_dir: Path) -> None:
     cfg = load_project_config(target_dir)
-    _write_toml(target_dir / CONFIG_FILENAME, enabled=True, preset=cfg.preset, mode=cfg.mode)
+    kwargs = _config_write_kwargs(cfg)
+    kwargs["enabled"] = True
+    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
     print("ClawSentry monitoring enabled for this project.")

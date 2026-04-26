@@ -3,8 +3,8 @@
 !!! tip "本页怎么读"
     这页面向 Codex CLI 用户。先区分默认监控、同步 Bash preflight/approval gate 和异步 containment，再按验证步骤确认 watcher、native hook 与 Gateway 的实际状态。
 
-!!! warning "默认仍是监控模式"
-    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。当前版本额外提供可选的 Codex native hooks 安装入口（`clawsentry init codex --setup`）：已测试/单元覆盖的同步防护范围包括 `PreToolUse(Bash)` 与 `PermissionRequest(Bash)`；`PreToolUse(Bash)` 已有真实 Codex CLI -> ClawSentry Gateway daemon 端到端验证。`PostToolUse` 只能做结果 containment，不能撤销已发生副作用；`UserPromptSubmit` / `Stop` 可返回 Codex 支持的 block/continuation 形态，但仍需按项目策略谨慎启用。
+!!! warning "默认是监控模式"
+    ClawSentry 的 Codex 集成默认通过 session 日志文件实现实时风险评估、审计记录和告警推送。需要前置阻断时，可显式运行 `clawsentry init codex --setup` 安装 managed native hooks；同步防护范围主要面向 `PreToolUse(Bash)` 与 `PermissionRequest(Bash)`。`PostToolUse` 只能做结果审查/containment，不能撤销已发生副作用；`UserPromptSubmit` / `Stop` 等入口默认按异步观察使用。
 
 将 OpenAI Codex CLI 接入 ClawSentry，通过 Session 日志监控、可选 `PreToolUse(Bash)` native hook preflight、`PermissionRequest(Bash)` approval gate 和后置 containment 实现 Codex 的 bounded native defense。
 
@@ -139,10 +139,10 @@ Gateway 可达时，`PreToolUse(Bash)` 和 `PermissionRequest(Bash)` 都会经 `
 ### 能力边界与 hook 所有权
 
 !!! important "不要把 Codex 可选防护误读为全量 host 沙箱"
-    当前 Codex 防护是“默认 watcher + 可选最小同步 preflight”的组合：
+    Codex 防护是“默认 watcher + 可选最小同步 preflight”的组合：
 
     - **默认路径**：Session JSONL watcher 负责实时评估、审计、SSE/watch/UI 告警，不阻断已提交给 Codex 的操作。
-    - **同步防护路径**：只有显式运行 `clawsentry init codex --setup` 后，ClawSentry 才会注册 managed native hooks；当前同步防护范围仍限定在 Codex 暴露的 Bash hook 面：`PreToolUse(Bash)` 和 `PermissionRequest(Bash)`。
+    - **同步防护路径**：只有显式运行 `clawsentry init codex --setup` 后，ClawSentry 才会注册 managed native hooks；同步防护范围限定在 Codex 暴露的 Bash hook 面：`PreToolUse(Bash)` 和 `PermissionRequest(Bash)`。
     - **异步观察路径**：`PostToolUse(Bash)`、`UserPromptSubmit`、`Stop`、`SessionStart(startup|resume)` 默认使用 `--async`，只写入观察/审计/建议；代码层已具备 Codex 支持的 containment / prompt block / stop continuation 响应翻译，但生产启用前应单独计划和隔离验证。
     - **Gateway 不可达**：native hook preflight 默认 fail-open 并写 stderr 诊断，避免把所有 Codex 开发操作一起卡死。若需要更严格的生产策略，应先在隔离环境验证再调整 fallback。
     - **未知 native events**：Codex adapter 只归一化已声明的事件形态；未知事件不会被当作可阻断 surface 扩大解释。
@@ -621,7 +621,7 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
 | 审计记录 | :white_check_mark: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 | DEFER 审批 | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
 
-> 当前 ClawSentry 已能非破坏式注册 Codex native hooks，并已验证 `PreToolUse(Bash)` 可经真实 Gateway daemon 返回 host deny；生产上仍应把 Codex 默认视为 observation-first，并保留 session watcher 与人工审批策略。不要把这一点外推为所有 Codex native events 都可同步阻断。
+> ClawSentry 可以非破坏式注册 Codex native hooks；生产上仍应把 Codex 默认视为 observation-first，并保留 session watcher 与人工审批策略。不要把 Bash preflight 能力外推为所有 Codex native events 都可同步阻断。
 
 ---
 

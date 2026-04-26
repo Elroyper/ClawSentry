@@ -52,7 +52,7 @@ def render_benchmark_env(
     return "\n".join(
         [
             "# ClawSentry benchmark environment",
-            "CS_CLAWSENTRY_MODE=benchmark",
+            "CS_MODE=benchmark",
             f"CS_BENCHMARK_PROFILE={mode}",
             "CS_BENCHMARK_AUTO_RESOLVE_DEFER=true",
             "CS_DEFER_BRIDGE_ENABLED=false",

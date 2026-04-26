@@ -1479,6 +1479,73 @@ class TestGatewayCore:
             gw.event_bus.unsubscribe(sub_id)
 
     @pytest.mark.asyncio
+    async def test_benchmark_auto_resolve_honors_config_before_record_and_broadcast(self):
+        cfg = DetectionConfig(
+            mode="benchmark",
+            llm_token_budget_enabled=True,
+            llm_daily_token_budget=1,
+            benchmark_auto_resolve_defer=True,
+            benchmark_defer_action="allow",
+        )
+        gw = SupervisionGateway(
+            detection_config=cfg,
+            session_enforcement=SessionEnforcementPolicy(
+                enabled=True,
+                threshold=1,
+                action=EnforcementAction.L3_REQUIRE,
+            ),
+        )
+        gw.session_enforcement.force("sess-benchmark", action=EnforcementAction.L3_REQUIRE)
+        sub_id, queue = gw.event_bus.subscribe(event_types={"decision"})
+        try:
+            gw.metrics.record_llm_call(
+                provider="openai",
+                tier="L2",
+                status="ok",
+                input_tokens=1,
+                output_tokens=0,
+            )
+
+            params = _sync_decision_params(
+                request_id="req-benchmark-auto-resolve",
+                decision_tier="L3",
+                deadline_ms=1500,
+                event={
+                    "event_id": "evt-benchmark-auto-resolve",
+                    "trace_id": "trace-benchmark-auto-resolve",
+                    "event_type": "pre_action",
+                    "session_id": "sess-benchmark",
+                    "agent_id": "agent-001",
+                    "source_framework": "test",
+                    "occurred_at": "2026-03-19T12:00:00+00:00",
+                    "payload": {"command": "cat /tmp/readme.txt"},
+                    "tool_name": "bash",
+                },
+            )
+            result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+            payload = result["result"]
+            assert payload["decision"]["decision"] == "allow"
+            assert "auto-resolved DEFER to allow" in payload["decision"]["reason"]
+
+            record = gw.trajectory_store.records[-1]
+            assert record["decision"]["decision"] == "allow"
+            assert record["meta"]["auto_resolved"] is True
+            assert record["meta"]["auto_resolve_mode"] == "benchmark"
+            assert record["meta"]["original_verdict"] == "defer"
+            assert record["meta"]["benchmark_defer_action"] == "allow"
+
+            decision_events = []
+            while not queue.empty():
+                decision_events.append(queue.get_nowait())
+            event = next(evt for evt in decision_events if evt.get("type") == "decision")
+            assert event["decision"] == "allow"
+            assert event["auto_resolved"] is True
+            assert event["original_verdict"] == "defer"
+            assert event["benchmark_defer_action"] == "allow"
+        finally:
+            gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
     async def test_requested_l3_keeps_actual_tier_l2_when_non_agent_result_wins(self):
         class L2WinningAnalyzer:
             analyzer_id = "test-l2-winner"

@@ -738,7 +738,7 @@ export default function SessionDetail() {
             <div className="chart-card-body chart-card-radar">
               {radarData.length > 0 ? (
                 <>
-                  <ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={260}>
                     <RadarChart data={radarData}>
                       <PolarGrid stroke="rgba(120, 196, 255, 0.12)" />
                       <PolarAngleAxis dataKey="dimension" tick={{ fill: '#89a4bd', fontSize: 10 }} />
@@ -769,7 +769,7 @@ export default function SessionDetail() {
             </div>
             <div className="chart-card-body chart-card-area">
               {timelineData.length > 0 ? (
-                <ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={timelineData} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
                     <defs>
                       <linearGradient id="riskGradient" x1="0" y1="0" x2="0" y2="1">

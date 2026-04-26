@@ -16,8 +16,28 @@ vi.mock('../api/client', () => ({
 
 vi.mock('recharts', () => {
   const Stub = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>
+  const ResponsiveContainerStub = ({
+    children,
+    width,
+    height,
+    className,
+  }: {
+    children?: React.ReactNode
+    width?: string | number
+    height?: string | number
+    className?: string
+  }) => (
+    <div
+      data-testid="responsive-container"
+      data-width={String(width ?? '')}
+      data-height={String(height ?? '')}
+      className={className}
+    >
+      {children}
+    </div>
+  )
   return {
-    ResponsiveContainer: Stub,
+    ResponsiveContainer: ResponsiveContainerStub,
     AreaChart: () => null,
     CartesianGrid: () => null,
     PolarAngleAxis: () => null,
@@ -249,6 +269,24 @@ describe('SessionDetail', () => {
     expect(screen.getByText('Window risk summary')).toBeInTheDocument()
     expect(screen.getByText('9 events · 2 high-risk · density 0.22')).toBeInTheDocument()
     expect(screen.getByText('Injection')).toBeInTheDocument()
+  })
+
+  it('gives risk charts explicit dimensions so Recharts can measure them', async () => {
+    renderSessionDetail()
+
+    const compositionCard = (await screen.findByRole('heading', { level: 3, name: 'Risk composition' })).closest('section')
+    const timelineCard = screen.getByRole('heading', { level: 3, name: 'Risk score over time' }).closest('section')
+
+    expect(compositionCard).not.toBeNull()
+    expect(timelineCard).not.toBeNull()
+
+    const compositionContainer = within(compositionCard as HTMLElement).getByTestId('responsive-container')
+    const timelineContainer = within(timelineCard as HTMLElement).getByTestId('responsive-container')
+
+    expect(compositionContainer).toHaveAttribute('data-width', '100%')
+    expect(compositionContainer).toHaveAttribute('data-height', '260')
+    expect(timelineContainer).toHaveAttribute('data-width', '100%')
+    expect(timelineContainer).toHaveAttribute('data-height', '220')
   })
 
   it('lets operators request a deterministic L3 full review from session detail', async () => {

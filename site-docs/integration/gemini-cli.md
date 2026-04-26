@@ -1,9 +1,7 @@
 # Gemini CLI 集成
 
-!!! success "当前成熟度：real-cli-hook-supported / real-beforetool-block-supported"
-    2026-04-25 的真实 Gemini CLI 0.25.0 smoke 已证明：在临时 `HOME`、临时 `GEMINI_CLI_HOME`、临时 workdir 和临时 `.gemini/settings.json` 中，真实 `gemini` 进程会执行 ClawSentry managed hooks，已观测到 `SessionStart`、`BeforeAgent`、`BeforeModel`、`BeforeTool`、`AfterTool`。
-
-    使用用户授权的 Gemini relay（`GOOGLE_GEMINI_BASE_URL` 指向 server root，模型 `gemini-2.5-flash`）已验证真实 `BeforeTool` deny：Gemini 的 `run_shell_command` 会在适配层保留 raw tool 名，同时规范化为 ClawSentry policy tool `bash`，从而触发 `rm -rf` 阻断。不要把 Kimi / OpenAI-compatible endpoint 直接宣传为 Gemini CLI 可用；如需 Kimi，后续应单独做 Google-GenAI-compatible proxy/adapter spike。
+!!! tip "支持范围"
+    Gemini CLI 通过 native command hooks 接入 ClawSentry。默认 setup 写入项目级 `.gemini/settings.json`，覆盖 session、prompt/model、tool preflight 和 tool result review 等阶段。自定义 provider 或代理前，请先确认它兼容 Gemini CLI 所需接口。
 
 ## 安装与初始化
 
@@ -26,14 +24,14 @@ clawsentry init gemini-cli --setup --gemini-home /tmp/safe-gemini-home
 
 ## Hook 覆盖范围
 
-| Gemini hook | ClawSentry 命令 | 支持语义 | 当前证据 |
+| Gemini hook | ClawSentry 命令 | 支持语义 | 适合用途 |
 |---|---|---|---|
-| `SessionStart` / `SessionEnd` | `clawsentry harness --framework gemini-cli --async` | 生命周期观察 / advisory | `SessionStart` 真实 CLI smoke 已通过 |
-| `BeforeAgent` | `clawsentry harness --framework gemini-cli` | prompt 前置 gate / context 修改 | 真实 CLI smoke 已通过 |
-| `BeforeModel` | `clawsentry harness --framework gemini-cli` | model request gate / 修改 | 真实 CLI smoke 已通过 |
+| `SessionStart` / `SessionEnd` | `clawsentry harness --framework gemini-cli --async` | 生命周期观察 / advisory | 审计会话边界 |
+| `BeforeAgent` | `clawsentry harness --framework gemini-cli` | prompt 前置 gate / context 修改 | prompt 进入模型前的策略检查 |
+| `BeforeModel` | `clawsentry harness --framework gemini-cli` | model request gate / 修改 | 模型请求前的策略检查 |
 | `AfterAgent` / `AfterModel` | `clawsentry harness --framework gemini-cli` | response review / containment | fixture + harness supported |
-| `BeforeTool` | `clawsentry harness --framework gemini-cli` | tool preflight deny / rewrite | fixture + harness supported；真实 provider deny smoke 已通过 |
-| `AfterTool` | `clawsentry harness --framework gemini-cli` | result review；不能撤销副作用 | 真实 provider tool-path smoke 已观测；fixture + harness supported |
+| `BeforeTool` | `clawsentry harness --framework gemini-cli` | tool preflight deny / rewrite | 工具执行前阻断或改写 |
+| `AfterTool` | `clawsentry harness --framework gemini-cli` | result review；不能撤销副作用 | 工具结果审查与 containment |
 | `BeforeToolSelection` | `clawsentry harness --framework gemini-cli --async` | partial / degraded tool-selection advisory | fixture supported |
 | `PreCompress` / `Notification` | `clawsentry harness --framework gemini-cli --async` | advisory observation | fixture supported |
 

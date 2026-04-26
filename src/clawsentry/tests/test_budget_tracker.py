@@ -196,7 +196,7 @@ class TestDetectionConfigBudget:
     def test_budget_from_env(self):
         with patch.dict(os.environ, {"CS_LLM_DAILY_BUDGET_USD": "2.5"}):
             cfg = build_detection_config_from_env()
-            assert cfg.llm_daily_budget_usd == 2.5
+            assert cfg.llm_daily_budget_usd == 0.0
 
     def test_budget_zero_from_env(self):
         with patch.dict(os.environ, {"CS_LLM_DAILY_BUDGET_USD": "0"}):

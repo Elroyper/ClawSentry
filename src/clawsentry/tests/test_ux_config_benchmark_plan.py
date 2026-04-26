@@ -11,7 +11,11 @@ from clawsentry.cli.config_command import run_config_init, run_config_show, run_
 from clawsentry.cli.service_command import run_service_validate
 from clawsentry.gateway.detection_config import DetectionConfig, build_detection_config_from_env
 from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
-from clawsentry.gateway.project_config import load_project_config, resolve_effective_config
+from clawsentry.gateway.project_config import (
+    apply_project_config_to_environ,
+    load_project_config,
+    resolve_effective_config,
+)
 
 
 def test_default_detection_config_uses_bounded_large_timeouts_and_no_token_budget():
@@ -137,6 +141,40 @@ def test_config_init_show_set_and_noninteractive_wizard(tmp_path, capsys):
     assert "CS_LLM_API_KEY" in out
 
 
+def test_config_wizard_accepts_docs_copy_paste_none_provider(tmp_path):
+    """Quickstart command should be executable as documented."""
+    run_config_wizard(
+        target_dir=tmp_path,
+        non_interactive=True,
+        framework="codex",
+        mode="normal",
+        llm_provider="none",
+    )
+    text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
+    assert 'provider = ""' in text
+    assert 'mode = "normal"' in text
+
+
+def test_config_set_preserves_unrelated_sections(tmp_path):
+    run_config_wizard(
+        target_dir=tmp_path,
+        non_interactive=True,
+        framework="codex",
+        mode="benchmark",
+        llm_provider="openai",
+        llm_model="gpt-4o-mini",
+        l3=True,
+        token_budget=500,
+    )
+    run_config_set(target_dir=tmp_path, key="budgets.l2_timeout_ms", value="61000")
+    text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
+    assert 'provider = "openai"' in text
+    assert 'model = "gpt-4o-mini"' in text
+    assert "l3 = true" in text
+    assert "llm_daily_token_budget = 500" in text
+    assert "l2_timeout_ms = 61000.0" in text
+
+
 def test_benchmark_env_enable_disable_are_idempotent_and_temp_home_safe(tmp_path):
     active_home = Path.home() / ".codex"
     with pytest.raises(ValueError):
@@ -149,6 +187,34 @@ def test_benchmark_env_enable_disable_are_idempotent_and_temp_home_safe(tmp_path
     assert (codex_home / "hooks.json").read_text() == first
     run_benchmark_disable(target_dir=tmp_path, framework="codex", codex_home=codex_home)
     assert not (codex_home / "hooks.json").exists()
+
+
+def test_project_toml_exports_runtime_env_without_overriding_explicit_env(tmp_path):
+    (tmp_path / ".clawsentry.toml").write_text('''\
+[project]
+mode = "benchmark"
+
+[llm]
+provider = "openai"
+model = "gpt-4o-mini"
+
+[features]
+l3 = true
+
+[budgets]
+l2_timeout_ms = 61000
+llm_token_budget_enabled = true
+llm_daily_token_budget = 1234
+''')
+    env = {"CS_MODE": "normal"}
+    apply_project_config_to_environ(tmp_path, environ=env)
+    assert env["CS_MODE"] == "normal"
+    assert env["CS_LLM_PROVIDER"] == "openai"
+    assert env["CS_LLM_MODEL"] == "gpt-4o-mini"
+    assert env["CS_L3_ENABLED"] == "true"
+    assert env["CS_L2_TIMEOUT_MS"] == "61000"
+    assert env["CS_LLM_TOKEN_BUDGET_ENABLED"] == "true"
+    assert env["CS_LLM_DAILY_TOKEN_BUDGET"] == "1234"
 
 
 def test_service_validate_reports_canonical_env_and_redacts_secrets(tmp_path, capsys):

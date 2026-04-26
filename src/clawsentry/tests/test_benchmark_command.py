@@ -14,6 +14,7 @@ from clawsentry.cli.benchmark_command import (
     run_benchmark_enable,
     run_benchmark_run,
 )
+from clawsentry.gateway.detection_config import build_detection_config_from_env
 
 
 def _count_clawsentry_hook_entries(hooks_path: Path) -> int:
@@ -29,13 +30,18 @@ def _count_clawsentry_hook_entries(hooks_path: Path) -> int:
 def test_benchmark_env_declares_explicit_no_human_mode() -> None:
     text = render_benchmark_env(framework="codex", mode="guarded")
 
-    assert "CS_CLAWSENTRY_MODE=benchmark" in text
+    assert "CS_MODE=benchmark" in text
     assert "CS_BENCHMARK_PROFILE=guarded" in text
     assert "CS_BENCHMARK_AUTO_RESOLVE_DEFER=true" in text
     assert "CS_DEFER_BRIDGE_ENABLED=false" in text
     assert "CS_DEFER_TIMEOUT_ACTION=block" in text
     assert "CS_DEFER_TIMEOUT_S=1" in text
     assert "CS_FRAMEWORK=codex" in text
+    env = dict(line.split("=", 1) for line in text.splitlines() if line and not line.startswith("#"))
+    with pytest.MonkeyPatch.context() as mp:
+        for key, value in env.items():
+            mp.setenv(key, value)
+        assert build_detection_config_from_env().mode == "benchmark"
 
 
 def test_benchmark_enable_is_idempotent_for_codex_temp_home(tmp_path: Path) -> None:
@@ -54,7 +60,7 @@ def test_benchmark_enable_is_idempotent_for_codex_temp_home(tmp_path: Path) -> N
 
     env_path = tmp_path / BENCHMARK_ENV_FILE_NAME
     assert env_path.exists()
-    assert "CS_CLAWSENTRY_MODE=benchmark" in env_path.read_text(encoding="utf-8")
+    assert "CS_MODE=benchmark" in env_path.read_text(encoding="utf-8")
     assert _count_clawsentry_hook_entries(codex_home / "hooks.json") == 6
 
 
@@ -100,7 +106,7 @@ def test_benchmark_run_uses_temp_codex_home_and_passes_env(tmp_path: Path) -> No
             "-c",
             (
                 "import os, pathlib; "
-                f"pathlib.Path({str(marker)!r}).write_text(os.environ['CS_CLAWSENTRY_MODE'] + '|' + os.environ['CODEX_HOME'])"
+                f"pathlib.Path({str(marker)!r}).write_text(os.environ['CS_MODE'] + '|' + os.environ['CODEX_HOME'])"
             ),
         ],
     ) == 0
@@ -125,7 +131,7 @@ def test_benchmark_run_cleans_temp_env_by_default(tmp_path: Path) -> None:
 
 def test_benchmark_run_restores_existing_benchmark_env(tmp_path: Path) -> None:
     env_path = tmp_path / BENCHMARK_ENV_FILE_NAME
-    original = "CS_CLAWSENTRY_MODE=normal\n"
+    original = "CS_MODE=normal\n"
     env_path.write_text(original, encoding="utf-8")
 
     assert run_benchmark_run(
