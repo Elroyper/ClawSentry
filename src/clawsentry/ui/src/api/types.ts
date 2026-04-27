@@ -73,6 +73,13 @@ export interface RiskDimensions {
 
 export type RiskVelocity = 'up' | 'down' | 'flat' | 'unknown' | number
 
+export interface ScoreSemantics {
+  range?: [number, number]
+  zero_with_no_events?: string
+  decision_affecting?: boolean
+  aggregation?: string
+}
+
 export interface WindowRiskSummary {
   window_seconds?: number | null
   event_count?: number
@@ -87,7 +94,33 @@ export interface WindowRiskSummary {
   risk_points_sum?: number
   risk_density?: number
   risk_velocity?: RiskVelocity
+  score_range?: [number, number]
+  score_semantics?: ScoreSemantics
   decision_affecting?: boolean
+}
+
+export interface PostActionScoreSummary {
+  window_seconds?: number | null
+  generated_at?: string
+  event_count?: number
+  latest_post_action_score?: number
+  post_action_score_sum?: number
+  post_action_score_avg?: number
+  post_action_score_ewma?: number
+  score_range?: [number, number]
+  score_semantics?: ScoreSemantics
+  decision_affecting?: boolean
+}
+
+export interface PostActionScorePoint {
+  event_id: string
+  occurred_at: string
+  tool_name?: string | null
+  source_framework?: string | null
+  tier?: string | null
+  patterns_matched?: string[]
+  score: number
+  handling?: string | null
 }
 
 export interface ControlHealthSnapshot {
@@ -152,9 +185,17 @@ export interface SessionSummary {
   latest_composite_score?: number
   session_risk_sum?: number
   session_risk_ewma?: number
+  latest_post_action_score?: number
+  post_action_score_sum?: number
+  post_action_score_avg?: number
+  post_action_score_ewma?: number
+  post_action_event_count?: number
+  post_action_score_summary?: PostActionScoreSummary | null
   risk_points_sum?: number
   risk_velocity?: RiskVelocity
   window_risk_summary?: WindowRiskSummary | null
+  score_range?: [number, number]
+  score_semantics?: ScoreSemantics
 }
 
 export interface SessionRisk {
@@ -169,9 +210,17 @@ export interface SessionRisk {
   latest_composite_score?: number
   session_risk_sum?: number
   session_risk_ewma?: number
+  latest_post_action_score?: number
+  post_action_score_sum?: number
+  post_action_score_avg?: number
+  post_action_score_ewma?: number
+  post_action_event_count?: number
+  post_action_score_summary?: PostActionScoreSummary | null
   risk_points_sum?: number
   risk_velocity?: RiskVelocity
   window_risk_summary?: WindowRiskSummary | null
+  score_range?: [number, number]
+  score_semantics?: ScoreSemantics
   dimensions_latest: RiskDimensions
   event_count: number
   high_risk_event_count: number
@@ -194,10 +243,27 @@ export interface SessionRisk {
     l3_reason_code?: string
     evidence_summary?: L3EvidenceSummary | null
   }>
+  post_action_scores?: PostActionScorePoint[]
   risk_hints_seen: string[]
   tools_used: string[]
   actual_tier_distribution: Partial<Record<DecisionTier, number>>
   l3_advisory?: L3AdvisoryPayload
+}
+
+export interface SessionPostActionScores {
+  session_id: string
+  latest_post_action_score: number
+  post_action_score_sum: number
+  post_action_score_avg: number
+  post_action_score_ewma: number
+  post_action_event_count: number
+  post_action_score_summary: PostActionScoreSummary
+  post_action_scores: PostActionScorePoint[]
+  score_range: [number, number]
+  score_semantics?: ScoreSemantics
+  generated_at: string
+  window_seconds: number | null
+  decision_affecting: boolean
 }
 
 export interface L3EvidenceSummary {

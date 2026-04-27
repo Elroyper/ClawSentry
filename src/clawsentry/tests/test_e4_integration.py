@@ -155,7 +155,8 @@ class TestPostActionInGateway:
             "bash",
             "evt-1",
         )
-        assert finding.tier == PostActionResponseTier.MONITOR
+        assert finding.tier == PostActionResponseTier.ESCALATE
+        assert finding.details["severity_floor"] == PostActionResponseTier.ESCALATE.value
         assert "exfiltration" in finding.patterns_matched
 
     def test_analyzer_clean_output(self):

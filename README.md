@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.12
+## What's New in v0.5.13
 
-- **Canonical metric dictionary**: reporting docs now use one field vocabulary for `session_risk_sum`, EWMA, risk points, velocity, D1-D6, and Enterprise posture.
-- **Interactive setup wizard**: `clawsentry config wizard --interactive` provides a real terminal-guided flow while `--non-interactive` remains stable for CI/templates.
-- **AgentDoG replay foundation**: benchmark notes and runner infrastructure can convert AgentDoG/ATBench trajectories into ClawSentry replay artifacts for the next labeled evaluation pass.
+- **Post-action severity floors**: additive `0.0..3.0` scores remain stable while obvious exfiltration, exposed secrets, and obfuscated secret/exfil combinations get safer response tiers.
+- **Enterprise score semantics**: reporting endpoints now expose `score_range` and `score_semantics` so OS/dashboard consumers can distinguish no-data `0.0` from confirmed low risk.
+- **Benchmark continuation**: AgentDoG labeled manifest replay and a five-framework ingress smoke provide reproducible handoff artifacts for the next raw-vs-protected benchmark lane.
 
 ## Quick Start
 

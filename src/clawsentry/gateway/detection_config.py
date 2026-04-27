@@ -140,6 +140,20 @@ class DetectionConfig:
                 self.l3_trigger_profile,
             )
             object.__setattr__(self, "l3_trigger_profile", "default")
+        for field_name in (
+            "post_action_monitor",
+            "post_action_escalate",
+            "post_action_emergency",
+        ):
+            value = getattr(self, field_name)
+            if value < 0:
+                raise ValueError(f"{field_name} must be >= 0, got {value}")
+            if value > 3.0:
+                logger.warning(
+                    "%s=%s is unreachable for post-action score range 0.0..3.0",
+                    field_name,
+                    value,
+                )
         if not (self.post_action_monitor <= self.post_action_escalate <= self.post_action_emergency):
             raise ValueError(
                 f"post_action tier ordering violated: monitor={self.post_action_monitor} "

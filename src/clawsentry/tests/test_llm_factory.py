@@ -5,8 +5,6 @@ from __future__ import annotations
 import os
 from unittest import mock
 
-import pytest
-
 from clawsentry.gateway.llm_factory import build_analyzer_from_env
 from clawsentry.gateway.llm_provider import OpenAIProvider, AnthropicProvider
 from clawsentry.gateway.semantic_analyzer import (
@@ -158,6 +156,21 @@ class TestBuildAnalyzerFromEnv:
         assert isinstance(result, CompositeAnalyzer)
         provider = result._analyzers[1]._provider
         assert isinstance(provider, OpenAIProvider)
+        assert provider._config.base_url == "http://35.220.164.252:3888/v1/"
+
+    def test_anthropic_custom_base_url(self):
+        """CS_LLM_BASE_URL also sets AnthropicProvider.base_url for native Claude endpoints."""
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "anthropic",
+            "ANTHROPIC_API_KEY": "sk-ant-test-key-123",
+            "CS_LLM_BASE_URL": "http://35.220.164.252:3888/v1/",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env()
+        assert isinstance(result, CompositeAnalyzer)
+        provider = result._analyzers[1]._provider
+        assert isinstance(provider, AnthropicProvider)
         assert provider._config.base_url == "http://35.220.164.252:3888/v1/"
 
     def test_custom_model(self):

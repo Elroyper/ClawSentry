@@ -1,7 +1,7 @@
 """Tests for LLM Provider — AnthropicProvider and OpenAIProvider."""
 
 import asyncio
-import json
+import sys
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -56,6 +56,32 @@ class TestAnthropicProvider:
     def test_custom_model(self):
         p = AnthropicProvider(LLMProviderConfig(api_key="test", model="claude-sonnet-4-6"))
         assert p._model == "claude-sonnet-4-6"
+
+    def test_custom_base_url_is_passed_to_lazy_client(self):
+        cfg = LLMProviderConfig(api_key="test", base_url="http://example.test")
+        p = AnthropicProvider(cfg)
+        fake_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            p._get_client()
+
+        fake_anthropic.AsyncAnthropic.assert_called_once_with(
+            api_key="test",
+            base_url="http://example.test",
+        )
+
+    def test_custom_base_url_strips_v1_for_anthropic_sdk(self):
+        cfg = LLMProviderConfig(api_key="test", base_url="http://example.test/v1/")
+        p = AnthropicProvider(cfg)
+        fake_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": fake_anthropic}):
+            p._get_client()
+
+        fake_anthropic.AsyncAnthropic.assert_called_once_with(
+            api_key="test",
+            base_url="http://example.test",
+        )
 
     def test_satisfies_protocol(self):
         p = self._make_provider()

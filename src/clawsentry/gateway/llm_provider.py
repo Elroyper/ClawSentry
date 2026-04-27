@@ -58,11 +58,21 @@ class AnthropicProvider:
         self._client: Optional[object] = None
         self._last_usage: LLMUsage = LLMUsage()
 
+    @staticmethod
+    def _client_base_url(base_url: str) -> str:
+        normalized = base_url.rstrip("/")
+        if normalized.endswith("/v1"):
+            return normalized[:-3]
+        return normalized
+
     def _get_client(self) -> object:
         """Lazy-init the Anthropic async client (deferred to avoid proxy issues at import)."""
         if self._client is None:
             import anthropic
-            self._client = anthropic.AsyncAnthropic(api_key=self._config.api_key)
+            kwargs: dict = {"api_key": self._config.api_key}
+            if self._config.base_url:
+                kwargs["base_url"] = self._client_base_url(self._config.base_url)
+            self._client = anthropic.AsyncAnthropic(**kwargs)
         return self._client
 
     @property

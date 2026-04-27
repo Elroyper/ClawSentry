@@ -34,7 +34,7 @@ graph TB
         D4["🔀 混淆代码检测\nObfuscationDetector\nBase64/eval/Shannon 熵值"]
     end
 
-    RESP{{"响应等级\n(combined_score)"}}
+    RESP{{"响应等级\n(score: 0.0–3.0)"}}
     LO["📝 LOG_ONLY\n仅写入日志"]
     MON["📡 MONITOR\nSSE 广播 post_action_finding"]
     ESC["⚠️ ESCALATE\n告警 + 提升后续事件警戒"]
@@ -42,10 +42,10 @@ graph TB
 
     TA --> D1 & D2 & D3 & D4
     D1 & D2 & D3 & D4 --> RESP
-    RESP -->|"score < 0.1"| LO
-    RESP -->|"0.1 – 0.5"| MON
-    RESP -->|"0.5 – 1.0"| ESC
-    RESP -->|">= 1.0"| EME
+    RESP -->|"score < 0.3"| LO
+    RESP -->|"0.3 – <0.6"| MON
+    RESP -->|"0.6 – <0.9"| ESC
+    RESP -->|">= 0.9"| EME
 ```
 
 ---
@@ -87,7 +87,7 @@ Agent 请求工具调用
 
 ## 四层响应等级 {#tiers}
 
-分析完成后，综合评分（`combined_score`）决定响应等级：
+分析完成后，综合评分（公开字段名为 `score`）和严重性 floor 共同决定响应等级。`score` 的合同范围是 **0.0–3.0**，并且实现中可实际取到 0、1、2、3 等边界/整数值：
 
 | 等级 | 分数范围 | CS_ 配置变量 | 含义 | 系统响应 |
 |------|----------|-------------|------|---------|
@@ -97,13 +97,13 @@ Agent 请求工具调用
 | `EMERGENCY` | ≥ 0.9 | — | 紧急威胁，置信度极高 | 最高优先级响应 |
 
 !!! warning "阈值含义"
-    上表中的默认分数范围基于默认配置。实际阈值由 `DetectionConfig` 中的对应字段控制，可通过 `CS_POST_ACTION_*` 环境变量覆盖（参见[配置参考](#config)）。
+    上表中的默认分数范围基于默认配置。实际阈值由 `DetectionConfig` 中的对应字段控制，可通过 `CS_POST_ACTION_*` 环境变量覆盖（参见[配置参考](#config)）。此外，明显外传会至少进入 `ESCALATE`；私钥、云 token、Bearer、DB URL、GitHub/OpenAI/Slack token 等高价值秘密会至少进入 `EMERGENCY`；普通 password/API key 至少进入 `ESCALATE`；单独混淆默认至少 `MONITOR`，与外传或秘密组合时至少 `EMERGENCY`。
 
 ---
 
 ## 检测器详解 {#detectors}
 
-`PostActionAnalyzer` 内置四个独立检测器，各自输出 0.0–1.0 的信号分数，最终经[合成评分公式](#scoring)汇总。
+`PostActionAnalyzer` 内置四个独立检测器，各自输出 0.0–1.0 的信号分数，最终经[合成评分公式](#scoring)汇总为 0.0–3.0 的公开 `score`。
 
 === "间接提示词注入"
 
@@ -224,36 +224,25 @@ Agent 请求工具调用
 
 ## 合成评分公式 {#scoring}
 
-四个检测器各自独立输出信号分数后，通过以下公式合成最终 `combined_score`：
-
-**单一信号命中：**
+四个检测器各自独立输出信号分数后，通过以下公式合成最终公开 `score`。该公式在 2026-04-27 核查后统一为“信号求和 + 3.0 封顶”，以保证文档声明的 0.0–3.0 范围不仅被类型校验允许，而且在真实检测路径中可达。
 
 \[
-\text{combined} = \text{score}_0
+\text{score} = \min\left(\sum_i \text{signal}_i,\; 3.0\right)
 \]
 
-**多个信号命中（N ≥ 2）：**
-
-\[
-\text{combined} = \max(\text{scores}) + 0.15 \times (N - 1)
-\]
-
-**上限约束：**
-
-\[
-\text{final} = \min(\text{combined},\; 3.0)
-\]
+其中每个 `signal_i` 是已触发检测器的 0.0–1.0 分数；未触发检测器不参与求和。
 
 !!! note "公式设计意图"
-    多信号同时出现（如"数据外传 + 凭据暴露"）意味着更高的威胁置信度，因此通过 `+0.15 × (N-1)` 对多信号组合给予额外加权，而非简单求和，避免单个低分信号被过度放大。
+    多信号同时出现（如"数据外传 + 凭据暴露"）意味着更高的威胁置信度，因此当前公式采用直接求和。单个检测器最高贡献 1.0；多个独立检测器同时强命中时可达到 2.0、3.0，并在 3.0 封顶，避免超过与 L1/L2 风险分一致的公开上界。
 
 **示例：**
 
 | 场景 | instructional | exfiltration | secret_exposure | obfuscation | combined |
 |------|:---:|:---:|:---:|:---:|:---:|
-| 仅数据外传 | 0.0 | 0.5 | 0.0 | 0.0 | **0.50** → MONITOR |
-| 凭据 + 外传 | 0.0 | 0.5 | 0.5 | 0.0 | **0.50 + 0.15 = 0.65** → ESCALATE |
-| 三类同时命中 | 0.75 | 0.5 | 1.0 | 0.0 | **1.00 + 0.30 = 1.30** → EMERGENCY |
+| 仅数据外传 | 0.0 | 0.5 | 0.0 | 0.0 | **0.50** → ESCALATE（exfiltration floor） |
+| 凭据 + 外传 | 0.0 | 0.5 | 0.5 | 0.0 | **1.00** → emergency |
+| 三类同时命中 | 0.75 | 0.5 | 1.0 | 0.0 | **2.25** → EMERGENCY |
+| 三类强命中 | 1.0 | 1.0 | 1.0 | 0.0 | **3.00** → EMERGENCY |
 | 低熵混淆 | 0.0 | 0.0 | 0.0 | 0.09 | **0.09**（未超 0.1 触发阈值）→ LOG_ONLY |
 
 ---
@@ -268,19 +257,15 @@ Agent 请求工具调用
 
 ```json
 {
-  "event_type": "post_action_finding",
+  "type": "post_action_finding",
   "session_id": "sess-abc123",
   "event_id": "evt-xyz789",
-  "tier": "ESCALATE",
-  "score": 0.75,
+  "source_framework": "a3s-code",
+  "tier": "emergency",
+  "score": 1.0,
   "patterns_matched": ["secret_exposure", "exfiltration"],
-  "details": {
-    "tool_name": "bash",
-    "instructional": 0.0,
-    "exfiltration": 0.5,
-    "secret_exposure": 0.5,
-    "obfuscation": 0.0
-  }
+  "handling": "broadcast",
+  "timestamp": "2026-03-23T10:05:00+00:00"
 }
 ```
 
@@ -288,17 +273,15 @@ Agent 请求工具调用
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `event_type` | `string` | 固定为 `"post_action_finding"` |
+| `type` | `string` | 固定为 `"post_action_finding"` |
 | `session_id` | `string` | 触发工具调用的会话 ID |
 | `event_id` | `string` | 原始工具调用事件 ID |
-| `tier` | `string` | 响应等级：`LOG_ONLY` / `MONITOR` / `ESCALATE` / `EMERGENCY` |
+| `tier` | `string` | 响应等级：`log_only` / `monitor` / `escalate` / `emergency` |
 | `score` | `number` | 合成评分（0.0–3.0） |
 | `patterns_matched` | `array<string>` | 命中的检测器名称列表 |
-| `details.tool_name` | `string` | 触发此次分析的工具名称 |
-| `details.instructional` | `number` | 间接提示词注入检测器原始得分 |
-| `details.exfiltration` | `number` | 数据外传检测器原始得分 |
-| `details.secret_exposure` | `number` | 凭据暴露检测器原始得分 |
-| `details.obfuscation` | `number` | 混淆代码检测器原始得分 |
+| `source_framework` | `string` | 触发此次分析的框架来源 |
+| `handling` | `string` | `broadcast` / `defer` / `block`；后两者表示后续同 session containment |
+| `timestamp` | `string` | 原始 post-action 事件时间 |
 
 使用 `clawsentry watch` 实时查看 post-action 事件：
 

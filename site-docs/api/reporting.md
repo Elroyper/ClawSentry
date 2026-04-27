@@ -8,7 +8,7 @@ description: ClawSentry 报表、会话管理、告警和 SSE 实时推送端点
 ClawSentry Gateway 提供一整套 HTTP API 用于健康检查、聚合统计、会话追踪、告警管理和实时事件流推送。所有 `/report/*` 端点均需 Bearer Token 认证（除非 `CS_AUTH_TOKEN` 为空）。
 
 !!! abstract "本页快速导航"
-    [GET /health](#get-health) · [GET /metrics](#get-metrics) · [GET /report/summary](#get-report-summary) · [GET /report/sessions](#get-report-sessions) · [GET /report/session/{id}](#get-report-session) · [GET /report/session/{id}/risk](#get-report-session-risk) · [L3 advisory endpoints](#l3-advisory-endpoints) · [GET /report/stream (SSE)](#get-report-stream) · [GET /report/alerts](#get-report-alerts) · [POST /report/alerts/{id}/ack](#post-report-alerts-acknowledge) · [GET /ahp/patterns](#get-ahp-patterns) · [POST /ahp/patterns/confirm](#post-ahp-patterns-confirm)
+    [GET /health](#get-health) · [GET /metrics](#get-metrics) · [GET /report/summary](#get-report-summary) · [GET /report/sessions](#get-report-sessions) · [GET /report/session/{id}](#get-report-session) · [GET /report/session/{id}/risk](#get-report-session-risk) · [GET /report/session/{id}/post-action](#get-report-session-post-action) · [L3 advisory endpoints](#l3-advisory-endpoints) · [GET /report/stream (SSE)](#get-report-stream) · [GET /report/alerts](#get-report-alerts) · [POST /report/alerts/{id}/ack](#post-report-alerts-acknowledge) · [GET /ahp/patterns](#get-ahp-patterns) · [POST /ahp/patterns/confirm](#post-ahp-patterns-confirm)
 
 ---
 
@@ -265,6 +265,8 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
       "latest_composite_score": 2.4,
       "session_risk_sum": 6.7,
       "session_risk_ewma": 1.9,
+      "latest_post_action_score": 1.0,
+      "post_action_score_ewma": 0.72,
       "risk_points_sum": 5,
       "window_risk_summary": {
         "window_seconds": null,
@@ -277,6 +279,25 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
         "session_risk_ewma": 1.9,
         "risk_points_sum": 5,
         "risk_velocity": "up",
+        "score_range": [0.0, 3.0],
+        "score_semantics": {
+          "zero_with_no_events": "no_data_not_confirmed_low_risk",
+          "decision_affecting": false
+        },
+        "decision_affecting": false
+      },
+      "post_action_score_summary": {
+        "window_seconds": null,
+        "event_count": 3,
+        "latest_post_action_score": 1.0,
+        "post_action_score_sum": 2.4,
+        "post_action_score_avg": 0.8,
+        "post_action_score_ewma": 0.72,
+        "score_range": [0.0, 3.0],
+        "score_semantics": {
+          "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+          "decision_affecting": false
+        },
         "decision_affecting": false
       },
       "event_count": 25,
@@ -327,6 +348,9 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `cumulative_score` | Legacy 兼容字段；不要当作窗口累计 composite score |
 | `latest_composite_score` | 最新事件的原始 composite score，供展示和观测使用 |
 | `session_risk_sum` / `session_risk_ewma` | 与 `window_seconds` 对齐的窗口风险总量和 EWMA 展示分 |
+| `latest_post_action_score` / `post_action_score_ewma` | post-action 安全围栏分与 session 级 EWMA；范围 `0.0..3.0` |
+| `post_action_score_summary` | post-action score 窗口聚合容器；字段合同见 [Metric Dictionary](metric-dictionary.md) |
+| `score_range` / `score_semantics` | 明确 `0.0..3.0` 范围及空数据语义；`event_count/post_action_event_count == 0` 时 `0.0` 表示“无数据”，不是“确认低风险” |
 | `risk_points_sum` | 窗口内风险等级点数累计（low=0, medium=1, high=2, critical=3） |
 | `window_risk_summary` | 窗口聚合容器；字段合同见 [Metric Dictionary](metric-dictionary.md) |
 
@@ -473,6 +497,8 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
   "latest_composite_score": 2.4,
   "session_risk_sum": 6.7,
   "session_risk_ewma": 1.9,
+  "latest_post_action_score": 1.0,
+  "post_action_score_ewma": 0.72,
   "risk_points_sum": 5,
   "window_risk_summary": {
     "window_seconds": 3600,
@@ -487,6 +513,17 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
     "risk_velocity": "up",
     "decision_affecting": false,
     "latest_event_at": "2026-03-23T10:30:00+00:00"
+  },
+  "post_action_score_summary": {
+    "window_seconds": 3600,
+    "generated_at": "2026-03-23T10:31:00+00:00",
+    "event_count": 3,
+    "latest_post_action_score": 1.0,
+    "post_action_score_sum": 2.4,
+    "post_action_score_avg": 0.8,
+    "post_action_score_ewma": 0.72,
+    "score_range": [0.0, 3.0],
+    "decision_affecting": false
   },
   "event_count": 25,
   "high_or_critical_count": 3,
@@ -568,6 +605,9 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `event_count` / `high_or_critical_count` | 窗口事件数与 high/critical 事件数 |
 | `first_event_at` / `last_event_at` | 该会话的首个/最新事件时间 |
 | `risk_timeline` | 风险变化时间线（按事件发生时间排序） |
+| `post_action_scores` | post-action 安全围栏评分时间线；由 `/report/session/{id}/post-action` 提供更聚焦版本 |
+| `latest_post_action_score` / `post_action_score_ewma` | 最新 post-action score 与 session 级滑动平均分，范围 `0.0..3.0` |
+| `post_action_score_summary` | 与 `window_seconds` 对齐的 post-action score 聚合容器 |
 | `risk_hints_seen` | 该会话曾触发的所有风险提示集合 |
 | `tools_used` | 该会话使用过的工具集合 |
 | `actual_tier_distribution` | 各决策层级的使用次数分布 |
@@ -580,6 +620,91 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 ```bash
 curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
   "http://127.0.0.1:8080/report/session/session-001/risk"
+```
+
+---
+
+## GET /report/session/{id}/post-action — Post-action 安全围栏分 {#get-report-session-post-action}
+
+返回指定会话的 post-action 安全围栏评分时间线、最新分、算术平均和 session 级滑动平均分（EWMA）。该接口用于 Enterprise OS / Dashboard 将“调用前风险态势”与“工具输出事后安全风险”分开建模。
+
+### 路径参数
+
+| 参数 | 说明 |
+|------|------|
+| `id` | 会话 ID |
+
+### 查询参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `limit` | int | `100` | 时间线最大条目数（1-1000） |
+| `window_seconds` | int | `null` | 时间窗口限制（1-604800 秒） |
+
+### 响应
+
+```json
+{
+  "session_id": "session-001",
+  "latest_post_action_score": 1.0,
+  "post_action_score_sum": 2.4,
+  "post_action_score_avg": 0.8,
+  "post_action_score_ewma": 0.72,
+  "post_action_event_count": 3,
+  "score_range": [0.0, 3.0],
+  "score_semantics": {
+    "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+    "decision_affecting": false,
+    "aggregation": "latest, sum, avg, and EWMA are separate from session_risk_ewma; do not add raw channels"
+  },
+  "decision_affecting": false,
+  "post_action_score_summary": {
+    "window_seconds": 3600,
+    "generated_at": "2026-03-23T10:31:00+00:00",
+    "event_count": 3,
+    "latest_post_action_score": 1.0,
+    "post_action_score_sum": 2.4,
+    "post_action_score_avg": 0.8,
+    "post_action_score_ewma": 0.72,
+    "score_range": [0.0, 3.0],
+    "score_semantics": {
+      "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+      "decision_affecting": false
+    },
+    "decision_affecting": false
+  },
+  "post_action_scores": [
+    {
+      "event_id": "evt-post-001",
+      "occurred_at": "2026-03-23T10:05:00+00:00",
+      "tool_name": "read_file",
+      "source_framework": "a3s-code",
+      "tier": "escalate",
+      "patterns_matched": ["indirect_injection"],
+      "score": 1.0,
+      "handling": "broadcast"
+    }
+  ],
+  "generated_at": "2026-03-23T10:31:00+00:00",
+  "window_seconds": 3600
+}
+```
+
+**字段说明：**
+
+| 字段 | 说明 |
+|------|------|
+| `latest_post_action_score` | 窗口内最新 post-action 安全围栏分；范围 `0.0..3.0` |
+| `post_action_score_ewma` | session 级 post-action score EWMA（`alpha=0.3`）；Enterprise OS 可与 `session_risk_ewma` 组合派生指标 |
+| `post_action_score_avg` / `post_action_score_sum` | 窗口内 post-action score 算术均值 / 总量 |
+| `post_action_score_summary` | 与 `window_seconds` 对齐的聚合容器；默认不影响 Gateway 判决 |
+| `post_action_scores` | 单次 post-action 分析结果时间线；包含 `tier`、命中模式和 handling |
+
+### curl 示例
+
+```bash
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/report/session/session-001/post-action?window_seconds=3600"
 ```
 
 ---

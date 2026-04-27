@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+## [0.5.13] — 2026-04-27
+
+### 新增
+
+- **Post-action Enterprise OS contract** — `/report/sessions`、`/report/session/{id}/risk` 与 `/report/session/{id}/post-action` 暴露 `score_range` / `score_semantics`，明确 `0.0..3.0` 分数范围、空数据 `0.0` 语义，以及 `session_risk_ewma` 与 `post_action_score_ewma` 不应裸值相加。
+- **AgentDoG / ATBench labeled replay adapter** — runner 支持 labeled manifest batch replay、safe/unsafe 聚合、per-record artifacts、unsafe recall、safe false-positive、coverage 与 tier 分布指标。
+- **Five-framework ingress smoke** — 新增单 case smoke，覆盖 a3s-code、Claude Code、Codex、Gemini CLI 与 OpenClaw 的本地 adapter/harness/Gateway ingress path。
+
+### 改进
+
+- **Post-action scoring severity floors** — 保留 additive `0.0..3.0` numeric score，同时对明显外传、秘密泄露和混淆组合设置严重性 floor，避免低分低估高危工具输出。
+- **Gateway whitelist propagation** — post-action 分析优先从 `_clawsentry_meta.file_path`，再从 payload `file_path/path/target_path` 传入 whitelist 匹配。
+- **Dashboard Sessions score semantics** — Sessions 主分优先 `session_risk_ewma`，ScoreBar 按 `0..3` 归一化，并显示 post-action EWMA 辅助分。
+- **Anthropic provider base URL** — AgentDoG runner、LLM factory、`clawsentry test-llm` 与 enterprise fallback 保留 Anthropic base URL，支持 native Claude-compatible endpoint smoke。
+
+### 修复
+
+- **Session EWMA zero seed** — reporting helper 现在用首个分数初始化 EWMA，修复 `[0.0, 3.0]` 被错误计算为 `3.0` 的问题；正确值为 `0.9`。
+- **Post-action threshold validation** — 负阈值抛出 `ValueError`，`>3.0` 阈值记录 unreachable warning。
+- **Post-action docs drift** — 修正 SSE 示例字段名、tier 小写、默认阈值与 `0.5+0.5=1.0 -> emergency` 口径。
+
+### 测试与验证
+
+- Focused post-action / config / gateway / docs contract regression：`366 passed`。
+- Web UI Sessions regression：`3 passed`。
+- Web UI build：PASS。
+- Docs API inventory：PASS。
+- Full release verification：`3225 passed, 4 skipped` Python regression、`53 passed` Web UI regression、docs strict build 与 package build PASS；详见 `docs/validation/v0.5.13-post-action-enterprise-release-2026-04-27.md`。
+
 ## [0.5.12] — 2026-04-27
 
 ### 新增
@@ -1142,6 +1171,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.13]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.13
 [0.5.12]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.12
 [0.5.11]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.11
 [0.5.10]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.10

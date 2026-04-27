@@ -35,7 +35,13 @@ from pydantic import ValidationError
 from .alert_registry import AlertRegistry
 from .event_bus import EventBus
 from .idempotency import IdempotencyCache, periodic_cleanup
-from .session_registry import SessionRegistry, build_compatibility_evidence_summary
+from .session_registry import (
+    DISPLAY_SCORE_RANGE,
+    DISPLAY_SCORE_SEMANTICS,
+    POST_ACTION_SCORE_SEMANTICS,
+    SessionRegistry,
+    build_compatibility_evidence_summary,
+)
 from .trajectory_store import (
     TrajectoryStore,
     _parse_iso_timestamp,
@@ -152,10 +158,13 @@ def _build_window_risk_summary(
     high_or_critical = sum(1 for item in timeline if _risk_rank(item.get("risk_level")) >= _risk_rank("high"))
     latest_score = scores[-1] if scores else 0.0
 
-    ewma = 0.0
-    alpha = 0.3
-    for score in scores:
-        ewma = score if ewma == 0.0 else (alpha * score) + ((1.0 - alpha) * ewma)
+    if scores:
+        alpha = 0.3
+        ewma = scores[0]
+        for score in scores[1:]:
+            ewma = (alpha * score) + ((1.0 - alpha) * ewma)
+    else:
+        ewma = 0.0
 
     return {
         "window_seconds": window_seconds,
@@ -167,6 +176,8 @@ def _build_window_risk_summary(
         "risk_points_sum": int(sum(risk_points)),
         "risk_velocity": _risk_velocity_from_scores(scores),
         "high_or_critical_count": high_or_critical,
+        "score_range": list(DISPLAY_SCORE_RANGE),
+        "score_semantics": dict(DISPLAY_SCORE_SEMANTICS),
         "decision_affecting": False,
     }
 
@@ -781,6 +792,7 @@ class SupervisionGateway:
                 "report_summary": _new_io_metric_bucket(),
                 "report_sessions": _new_io_metric_bucket(),
                 "report_session_risk": _new_io_metric_bucket(),
+                "report_session_post_action": _new_io_metric_bucket(),
                 "replay_session": _new_io_metric_bucket(),
                 "replay_session_page": _new_io_metric_bucket(),
                 "report_alerts": _new_io_metric_bucket(),
@@ -860,6 +872,10 @@ class SupervisionGateway:
                 },
                 "report_session_risk": {
                     **_snapshot_io_metric(reporting_bucket["report_session_risk"]),
+                    "session_registry": session_registry_io["get_session_risk"],
+                },
+                "report_session_post_action": {
+                    **_snapshot_io_metric(reporting_bucket["report_session_post_action"]),
                     "session_registry": session_registry_io["get_session_risk"],
                 },
                 "replay_session": {
@@ -996,6 +1012,7 @@ class SupervisionGateway:
         external_multiplier: float,
         finding_action: str,
         occurred_at: str,
+        file_path: str | None = None,
     ) -> None:
         """Run post-action analysis in background, broadcast finding if needed."""
         try:
@@ -1006,9 +1023,21 @@ class SupervisionGateway:
                     tool_output=output_text,
                     tool_name=tool_name,
                     event_id=event_id,
+                    file_path=file_path,
                     content_origin=content_origin,
                     external_multiplier=external_multiplier,
                 ),
+            )
+            self.session_registry.record_post_action_score(
+                session_id=session_id,
+                event_id=event_id,
+                occurred_at=occurred_at,
+                score=finding.score,
+                tier=finding.tier.value,
+                patterns_matched=finding.patterns_matched,
+                tool_name=tool_name,
+                source_framework=source_framework,
+                handling=finding_action,
             )
             if finding.tier.value != "log_only":
                 handling = finding_action
@@ -1625,6 +1654,15 @@ class SupervisionGateway:
             if output_text:
                 _pa_meta = (req.event.payload or {}).get("_clawsentry_meta") or {}
                 _pa_origin = _pa_meta.get("content_origin") if isinstance(_pa_meta, dict) else None
+                _pa_file_path = None
+                if isinstance(_pa_meta, dict):
+                    _pa_file_path = _pa_meta.get("file_path")
+                if not _pa_file_path:
+                    _pa_file_path = (
+                        req.event.payload.get("file_path")
+                        or req.event.payload.get("path")
+                        or req.event.payload.get("target_path")
+                    )
                 asyncio.create_task(self._run_post_action_async(
                     output_text=output_text,
                     tool_name=req.event.tool_name or "unknown",
@@ -1635,6 +1673,7 @@ class SupervisionGateway:
                     external_multiplier=(project_config or self._detection_config).external_content_post_action_multiplier,
                     finding_action=(project_config or self._detection_config).post_action_finding_action,
                     occurred_at=occurred_at,
+                    file_path=str(_pa_file_path) if _pa_file_path else None,
                 ))
 
         # --- E-5: Extract candidate pattern from confirmed high-risk events ---
@@ -2345,6 +2384,8 @@ class SupervisionGateway:
                     "risk_points_sum": int(session.get("risk_points_sum") or 0),
                     "risk_velocity": str(session.get("risk_velocity") or "unknown"),
                     "high_or_critical_count": int(session.get("high_risk_event_count") or 0),
+                    "score_range": list(DISPLAY_SCORE_RANGE),
+                    "score_semantics": dict(DISPLAY_SCORE_SEMANTICS),
                     "decision_affecting": False,
                 }
                 session["window_risk_summary"] = window_summary
@@ -2367,6 +2408,8 @@ class SupervisionGateway:
                 session["risk_points_sum"] = window_summary["risk_points_sum"]
                 session["risk_velocity"] = window_summary["risk_velocity"]
                 session["window_risk_summary"] = window_summary
+            session["score_range"] = list(DISPLAY_SCORE_RANGE)
+            session["score_semantics"] = dict(DISPLAY_SCORE_SEMANTICS)
             latest_review = self.trajectory_store.latest_l3_advisory_review(
                 session_id=session_id
             )
@@ -2481,6 +2524,8 @@ class SupervisionGateway:
         result["risk_points_sum"] = window_summary["risk_points_sum"]
         result["risk_velocity"] = window_summary["risk_velocity"]
         result["window_risk_summary"] = window_summary
+        result["score_range"] = list(DISPLAY_SCORE_RANGE)
+        result["score_semantics"] = dict(DISPLAY_SCORE_SEMANTICS)
         result["l3_advisory"] = self._l3_advisory_payload(session_id)
         result["generated_at"] = utc_now_iso()
         result["window_seconds"] = since_seconds
@@ -2488,6 +2533,42 @@ class SupervisionGateway:
         self._observe_reporting_io("report_session_risk", time.perf_counter() - start)
         result.update(self._reporting_io_state())
         return result
+
+    def report_session_post_action_scores(
+        self,
+        session_id: str,
+        *,
+        limit: int = 100,
+        window_seconds: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Return post-action guard scores and session-level EWMA for a session."""
+        start = time.perf_counter()
+        since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
+        effective_limit = min(max(limit, 1), 1000)
+        risk_payload = self.session_registry.get_session_risk(
+            session_id,
+            limit=effective_limit,
+            since_seconds=since_seconds,
+        )
+        payload = {
+            "session_id": session_id,
+            "latest_post_action_score": risk_payload.get("latest_post_action_score", 0.0),
+            "post_action_score_sum": risk_payload.get("post_action_score_sum", 0.0),
+            "post_action_score_avg": risk_payload.get("post_action_score_avg", 0.0),
+            "post_action_score_ewma": risk_payload.get("post_action_score_ewma", 0.0),
+            "post_action_event_count": risk_payload.get("post_action_event_count", 0),
+            "post_action_score_summary": risk_payload.get("post_action_score_summary", {}),
+            "post_action_scores": risk_payload.get("post_action_scores", []),
+            "score_range": [0.0, 3.0],
+            "score_semantics": dict(POST_ACTION_SCORE_SEMANTICS),
+            "generated_at": utc_now_iso(),
+            "window_seconds": since_seconds,
+            "decision_affecting": False,
+        }
+        self._observe_reporting_io("report_session_post_action", time.perf_counter() - start)
+        payload.update(self._reporting_state())
+        payload.update(self._reporting_io_state())
+        return payload
 
     def create_l3_evidence_snapshot(
         self,
@@ -3686,6 +3767,29 @@ def create_http_app(
             )
         effective_limit = min(max(limit, 1), 1000)
         return gateway.report_session_risk(
+            session_id=session_id,
+            limit=effective_limit,
+            window_seconds=window_seconds,
+        )
+
+    @app.get("/report/session/{session_id}/post-action")
+    async def report_session_post_action_scores_endpoint(
+        request: Request,
+        session_id: str,
+        limit: int = 100,
+        window_seconds: Optional[int] = None,
+    ):
+        auth_result = await verify_auth(request)
+        if isinstance(auth_result, Response):
+            return auth_result
+        if window_seconds is not None and (window_seconds < 1 or window_seconds > MAX_WINDOW_SECONDS):
+            return Response(
+                content=json.dumps({"error": f"window_seconds must be between 1 and {MAX_WINDOW_SECONDS}"}),
+                status_code=400,
+                media_type="application/json",
+            )
+        effective_limit = min(max(limit, 1), 1000)
+        return gateway.report_session_post_action_scores(
             session_id=session_id,
             limit=effective_limit,
             window_seconds=window_seconds,

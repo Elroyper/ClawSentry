@@ -28,6 +28,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     cumulative_score: 0.9,
     latest_composite_score: 0.94,
     session_risk_ewma: 0.82,
+    post_action_score_ewma: 0.72,
     risk_velocity: 'up',
     window_risk_summary: {
       window_seconds: 3600,
@@ -129,9 +130,11 @@ describe('Sessions inventory', () => {
     renderSessions()
 
     expect(await screen.findByText('sess-budget-codex')).toBeInTheDocument()
-    expect(screen.getAllByText('Latest 0.94').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Latest 0.82').length).toBeGreaterThan(0)
     expect(screen.getAllByText('EWMA 0.82').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Post-action 0.72').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Velocity up').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Density 0.25').length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('img', { name: /Risk score 0.82 of 3.00/i }).length).toBeGreaterThan(0)
   })
 })

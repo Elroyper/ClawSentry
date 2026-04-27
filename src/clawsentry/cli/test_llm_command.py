@@ -70,7 +70,7 @@ def _build_provider():
         if not api_key:
             return None, "CS_LLM_PROVIDER=anthropic but no API key found (ANTHROPIC_API_KEY or CS_LLM_API_KEY)."
         effective_model = model or AnthropicProvider.DEFAULT_MODEL
-        config = LLMProviderConfig(api_key=api_key, model=model)
+        config = LLMProviderConfig(api_key=api_key, model=model, base_url=base_url)
         provider = AnthropicProvider(config)
 
     elif provider_name == "openai":

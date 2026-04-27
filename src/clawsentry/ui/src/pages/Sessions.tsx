@@ -21,9 +21,10 @@ function verdictTone(decision: string): string {
 }
 
 function scoreTone(score: number): 'critical' | 'high' | 'medium' | 'low' {
-  if (score >= 0.75) return 'critical'
-  if (score >= 0.5) return 'high'
-  if (score >= 0.25) return 'medium'
+  const normalized = Math.max(0, Math.min(score / 3, 1))
+  if (normalized >= 0.75) return 'critical'
+  if (normalized >= 0.5) return 'high'
+  if (normalized >= 0.25) return 'medium'
   return 'low'
 }
 
@@ -85,10 +86,10 @@ function VerdictBar({ dist }: { dist: Record<string, number> }) {
 
 function ScoreBar({ score }: { score: number }) {
   const tone = scoreTone(score)
-  const width = Math.max(0, Math.min(score, 1)) * 100
+  const width = Math.max(0, Math.min(score / 3, 1)) * 100
   return (
     <div className="score-bar-wrap">
-      <svg className="score-bar score-bar-wide" viewBox="0 0 100 6" role="img" aria-label={`Risk score ${score.toFixed(2)}`}>
+      <svg className="score-bar score-bar-wide" viewBox="0 0 100 6" role="img" aria-label={`Risk score ${score.toFixed(2)} of 3.00`}>
         <rect className="score-bar-track" x={0} y={0} width={100} height={6} rx={3} />
         <rect className={`score-bar-fill score-bar-fill-${tone}`} x={0} y={0} width={width} height={6} rx={3} />
       </svg>
@@ -375,7 +376,8 @@ export default function Sessions() {
                     <div className="session-card-stack">
                       {workspace.sessions.map(session => {
                         const sessionL3Annotation = formatSessionL3Annotation(session, language)
-                        const latestScore = session.latest_composite_score ?? session.cumulative_score
+                        const primaryScore = session.session_risk_ewma ?? session.latest_composite_score ?? session.cumulative_score
+                        const postActionScore = session.post_action_score_ewma ?? session.latest_post_action_score
                         const density = windowRiskDensity(session.window_risk_summary)
                         return (
                           <Link
@@ -397,9 +399,15 @@ export default function Sessions() {
                                 </p>
                               )}
                               <p className="session-card-meta session-card-annotation mono">
-                                <span>{t('sessions.latestScore')} {formatMetricScore(latestScore)}</span>
+                                <span>{t('sessions.latestScore')} {formatMetricScore(primaryScore)}</span>
                                 {' · '}
                                 <span>EWMA {formatMetricScore(session.session_risk_ewma)}</span>
+                                {postActionScore !== undefined && (
+                                  <>
+                                    {' · '}
+                                    <span>{t('sessions.postActionScore')} {formatMetricScore(postActionScore)}</span>
+                                  </>
+                                )}
                                 {' · '}
                                 <span>{t('sessions.velocity')} {formatRiskVelocityValue(session.risk_velocity ?? session.window_risk_summary?.risk_velocity)}</span>
                                 {' · '}
@@ -408,7 +416,7 @@ export default function Sessions() {
                               <VerdictBar dist={session.decision_distribution} />
                             </div>
                             <div className="session-card-side">
-                              <ScoreBar score={latestScore} />
+                              <ScoreBar score={primaryScore} />
                               <div className="session-card-statline">
                                 <span>{session.event_count} {t('common.events')}</span>
                                 <span>{session.high_risk_event_count} {t('common.highRisk')}</span>

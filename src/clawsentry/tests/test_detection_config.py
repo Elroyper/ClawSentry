@@ -80,6 +80,21 @@ class TestDetectionConfigDefaults:
         assert c.post_action_monitor == 0.3
         assert c.post_action_whitelist is None
 
+    def test_post_action_thresholds_reject_negative_values(self):
+        with pytest.raises(ValueError, match="post_action_monitor must be >= 0"):
+            DetectionConfig(post_action_monitor=-0.1)
+
+    def test_post_action_thresholds_above_score_range_warn_unreachable(self, caplog):
+        with caplog.at_level("WARNING"):
+            c = DetectionConfig(
+                post_action_monitor=3.1,
+                post_action_escalate=3.2,
+                post_action_emergency=3.3,
+            )
+
+        assert c.post_action_monitor == 3.1
+        assert "unreachable for post-action score range 0.0..3.0" in caplog.text
+
     def test_frozen(self):
         c = DetectionConfig()
         with pytest.raises(FrozenInstanceError):
@@ -503,8 +518,9 @@ class TestPostActionAnalyzerPenetration:
             tool_name="bash",
             event_id="e1",
         )
-        # exfiltration score = 0.5 (one pattern match), which is < 0.97
-        assert finding.tier in (PostActionResponseTier.LOG_ONLY, PostActionResponseTier.MONITOR)
+        # exfiltration score = 0.5 (one pattern match), but the severity floor
+        # keeps obvious exfiltration at ESCALATE even with unreachable thresholds.
+        assert finding.tier == PostActionResponseTier.ESCALATE
 
     def test_whitelist_penetration(self):
         pa = PostActionAnalyzer(whitelist_patterns=[r"/var/log/.*"])

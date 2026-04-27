@@ -96,7 +96,11 @@ def _build_enterprise_llm_provider():
 
     if settings.normalized_provider == "anthropic":
         return AnthropicProvider(
-            LLMProviderConfig(api_key=settings.api_key, model=settings.model)
+            LLMProviderConfig(
+                api_key=settings.api_key,
+                model=settings.model,
+                base_url=settings.base_url,
+            )
         )
     if settings.normalized_provider == "openai":
         return OpenAIProvider(

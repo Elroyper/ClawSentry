@@ -211,6 +211,39 @@ _TIER_EMERGENCY = 0.9
 _TIER_ESCALATE = 0.6
 _TIER_MONITOR = 0.3
 
+_TIER_RANK: dict[PostActionResponseTier, int] = {
+    PostActionResponseTier.LOG_ONLY: 0,
+    PostActionResponseTier.MONITOR: 1,
+    PostActionResponseTier.ESCALATE: 2,
+    PostActionResponseTier.EMERGENCY: 3,
+}
+
+_HIGH_SEVERITY_SECRET_PATTERNS: list[re.Pattern] = [
+    re.compile(p, re.IGNORECASE) for p in [
+        r"(?:AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)\s*=\s*[A-Za-z0-9/+=]{16,}",
+        r"(?:ghp|ghs|ghu|github_pat)_[A-Za-z0-9]{36,}",
+        r"-----BEGIN\s+(?:RSA|EC|OPENSSH|DSA|PGP)\s+PRIVATE\s+KEY-----",
+        r"(?:^|[\s,;\"'])Bearer\s+[a-zA-Z0-9._\-]{20,}",
+        r"DATABASE_URL\s*=\s*\S+://\S+:\S+@",
+        r"OPENAI_API_KEY\s*=\s*sk-[A-Za-z0-9]{20,}",
+        r"AKIA[A-Z0-9]{16}",
+        r"xox[bprs]-[a-zA-Z0-9\-]{10,}",
+        r"(?:tenant_access_token|user_access_token|app_access_token)\s*[:=]\s*t-[a-zA-Z0-9]{20,}",
+        r"(?:private[_\s-]?key|priv[_\s-]?key|wallet[_\s-]?key)\s*[:=]\s*['\"]?0x[a-fA-F0-9]{64}",
+    ]
+]
+
+
+def _max_post_action_tier(
+    *tiers: PostActionResponseTier,
+) -> PostActionResponseTier:
+    return max(tiers, key=lambda tier: _TIER_RANK[tier])
+
+
+def _has_high_severity_secret(text: str) -> bool:
+    normalized = normalize_text(text)
+    return any(pattern.search(normalized) for pattern in _HIGH_SEVERITY_SECRET_PATTERNS)
+
 
 class PostActionAnalyzer:
     """Combined post-action security analyzer."""
@@ -284,26 +317,47 @@ class PostActionAnalyzer:
             patterns_matched.append("obfuscation")
             scores.append(obfusc_score)
 
-        if not scores:
-            combined = 0.0
-        elif len(scores) == 1:
-            combined = scores[0]
-        else:
-            combined = max(scores) + 0.15 * (len(scores) - 1)
-        combined = min(combined, 3.0)
+        combined = min(sum(scores), 3.0)
 
         # E-8: External content multiplier
         if content_origin == "external" and external_multiplier > 1.0:
             combined = min(combined * external_multiplier, 3.0)
 
         if combined >= self._tier_emergency:
-            tier = PostActionResponseTier.EMERGENCY
+            score_tier = PostActionResponseTier.EMERGENCY
         elif combined >= self._tier_escalate:
-            tier = PostActionResponseTier.ESCALATE
+            score_tier = PostActionResponseTier.ESCALATE
         elif combined >= self._tier_monitor:
-            tier = PostActionResponseTier.MONITOR
+            score_tier = PostActionResponseTier.MONITOR
         else:
-            tier = PostActionResponseTier.LOG_ONLY
+            score_tier = PostActionResponseTier.LOG_ONLY
+
+        severity_floor = PostActionResponseTier.LOG_ONLY
+        if exfil_score > 0.0:
+            severity_floor = _max_post_action_tier(
+                severity_floor,
+                PostActionResponseTier.ESCALATE,
+            )
+        if secret_score > 0.0:
+            severity_floor = _max_post_action_tier(
+                severity_floor,
+                (
+                    PostActionResponseTier.EMERGENCY
+                    if _has_high_severity_secret(tool_output)
+                    else PostActionResponseTier.ESCALATE
+                ),
+            )
+        if obfusc_score > 0.1:
+            severity_floor = _max_post_action_tier(
+                severity_floor,
+                (
+                    PostActionResponseTier.EMERGENCY
+                    if exfil_score > 0.0 or secret_score > 0.0
+                    else PostActionResponseTier.MONITOR
+                ),
+            )
+
+        tier = _max_post_action_tier(score_tier, severity_floor)
 
         return PostActionFinding(
             tier=tier,
@@ -316,6 +370,7 @@ class PostActionAnalyzer:
                 "exfiltration": round(exfil_score, 3),
                 "secret_exposure": round(secret_score, 3),
                 "obfuscation": round(obfusc_score, 3),
+                "severity_floor": severity_floor.value,
             },
         )
 

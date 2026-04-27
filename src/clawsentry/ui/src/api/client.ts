@@ -3,6 +3,7 @@ import type {
   SummaryResponse,
   SessionSummary,
   SessionRiskResponse,
+  SessionPostActionScores,
   SessionReplayPageResponse,
   SessionReplayResponse,
   Alert,
@@ -82,6 +83,19 @@ export const api = {
     }
     return apiFetch<SessionRiskResponse>(
       `/report/session/${id}/risk${qs.toString() ? `?${qs.toString()}` : ''}`,
+    )
+  },
+  sessionPostActionScores: (
+    id: string,
+    params?: { limit?: number; windowSeconds?: number | null },
+  ) => {
+    const qs = new URLSearchParams()
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.windowSeconds !== undefined && params?.windowSeconds !== null) {
+      qs.set('window_seconds', String(params.windowSeconds))
+    }
+    return apiFetch<SessionPostActionScores>(
+      `/report/session/${id}/post-action${qs.toString() ? `?${qs.toString()}` : ''}`,
     )
   },
   sessionReplay: (id: string, limit?: number): Promise<SessionReplayResponse> =>

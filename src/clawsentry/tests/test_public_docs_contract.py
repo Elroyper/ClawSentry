@@ -297,9 +297,18 @@ def test_metric_dictionary_has_single_clear_canonical_section() -> None:
         "latest_composite_score",
         "session_risk_sum",
         "session_risk_ewma",
+        "post_action_score_ewma",
+        "latest_post_action_score",
         "risk_points_sum",
         "risk_velocity",
         "window_risk_summary",
+        "post_action_score_summary",
+        "score_semantics",
         "system_security_posture",
     ]:
         assert field in source
+
+    reporting_source = (REPO_ROOT / "site-docs" / "api" / "reporting.md").read_text(encoding="utf-8")
+    assert "GET /report/session/{id}/post-action" in reporting_source
+    assert "post_action_score_ewma" in reporting_source
+    assert "no_data_not_confirmed_low_risk" in reporting_source

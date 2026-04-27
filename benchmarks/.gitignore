@@ -1,0 +1,6 @@
+.omx/
+/skills-safety-bench/
+/AgentDoG/
+results/**
+!results/
+!results/README.md

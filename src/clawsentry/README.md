@@ -6,7 +6,7 @@
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
 
-**Current release highlight (v0.5.12)**: Metric Dictionary and Reporting API docs now use one canonical metric vocabulary; `clawsentry config wizard --interactive` provides a real terminal-guided setup flow; AgentDoG/ATBench replay infrastructure is ready for labeled benchmark evaluation.
+**Current release highlight (v0.5.13)**: Post-action scoring now keeps additive 0.0–3.0 scores while applying severity floors for exfiltration/secrets; Reporting API exposes score semantics for Enterprise OS consumers; AgentDoG labeled replay and five-framework ingress smoke are available for benchmark continuation.
 
 ---
 
@@ -510,8 +510,8 @@ src/clawsentry/
 | `CS_EVOLVING_ENABLED` | `false` | Enable self-evolving pattern repository |
 | `CS_EVOLVED_PATTERNS_PATH` | (none) | Path for evolved patterns YAML |
 | `CS_POST_ACTION_EMERGENCY` | `0.9` | Post-action EMERGENCY tier threshold |
-| `CS_POST_ACTION_ESCALATE` | `0.7` | Post-action ESCALATE tier threshold |
-| `CS_POST_ACTION_MONITOR` | `0.4` | Post-action MONITOR tier threshold |
+| `CS_POST_ACTION_ESCALATE` | `0.6` | Post-action ESCALATE tier threshold |
+| `CS_POST_ACTION_MONITOR` | `0.3` | Post-action MONITOR tier threshold |
 
 ### LLM
 

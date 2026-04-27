@@ -42,6 +42,7 @@ ROUTES: list[dict[str, Any]] = [
     {"service":"gateway","method":"GET","path":"/report/stream","source":"src/clawsentry/gateway/server.py:2580","group":"报表与监控","audience":"developer","public_status":"public","auth":"query-token","auth_note":"Accepts Bearer token and browser-friendly ?token= query auth; CS_AUTH_TOKEN empty disables auth.","markdown_ref":"api/reporting.md#get-report-stream","summary":"SSE 实时事件流"},
     {"service":"gateway","method":"GET","path":"/report/sessions","source":"src/clawsentry/gateway/server.py:2694","group":"报表与监控","audience":"operator","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-sessions","summary":"会话列表"},
     {"service":"gateway","method":"GET","path":"/report/session/{session_id}/risk","source":"src/clawsentry/gateway/server.py:2787","group":"报表与监控","audience":"operator","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-session-risk","summary":"会话风险时间线"},
+    {"service":"gateway","method":"GET","path":"/report/session/{session_id}/post-action","source":"src/clawsentry/gateway/server.py:3775","group":"报表与监控","audience":"operator|developer","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-session-post-action","summary":"Post-action 安全围栏分与 session EWMA"},
     {"service":"gateway","method":"GET","path":"/report/session/{session_id}","source":"src/clawsentry/gateway/server.py:3132","group":"报表与监控","audience":"operator","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-session","summary":"会话事件回放"},
     {"service":"gateway","method":"GET","path":"/report/session/{session_id}/page","source":"src/clawsentry/gateway/server.py:3180","group":"报表与监控","audience":"developer","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-session-page","summary":"分页会话事件回放"},
     {"service":"gateway","method":"GET","path":"/report/alerts","source":"src/clawsentry/gateway/server.py:3244","group":"告警与处置","audience":"operator","public_status":"public","auth":"bearer-disabled-when-empty-token","auth_note":"CS_AUTH_TOKEN empty disables Gateway bearer auth.","markdown_ref":"api/reporting.md#get-report-alerts","summary":"告警列表"},
@@ -227,6 +228,26 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
         entry["response_example"] = {
             "session_id": "sess-001",
             "risk_timeline": [{"timestamp": "2026-04-22T08:00:00Z", "risk_level": "high", "reason": "credential access"}],
+        }
+    elif method == "GET" and path == "/report/session/{session_id}/post-action":
+        entry["response_example"] = {
+            "session_id": "sess-001",
+            "latest_post_action_score": 1.0,
+            "post_action_score_ewma": 0.72,
+            "score_range": [0.0, 3.0],
+            "score_semantics": {
+                "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+                "decision_affecting": False,
+                "aggregation": "latest, sum, avg, and EWMA are separate from session_risk_ewma; do not add raw channels",
+            },
+            "post_action_scores": [
+                {
+                    "event_id": "evt-post-001",
+                    "tier": "escalate",
+                    "patterns_matched": ["indirect_injection"],
+                    "score": 1.0,
+                }
+            ],
         }
     elif path.startswith("/report/l3-advisory/") or "/l3-advisory/" in path:
         if method != "GET":
@@ -698,7 +719,7 @@ def render_validity_markdown(report: dict[str, Any]) -> str:
         "",
         "# API 有效性报告",
         "",
-        f"生成时间：`{report['generated_at']}`  ",
+        f"生成时间：`{report['generated_at']}`",
         f"核验状态：**{status}**",
         "",
         "本报告从同一份 docs-owned inventory 生成，核对源码 route decorator/registration、Markdown anchor、OpenAPI operation 和端点提及规则。它不修改后端 API 行为，也不会对写入型 API 做盲目 live 调用。",

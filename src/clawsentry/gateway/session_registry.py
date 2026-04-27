@@ -12,7 +12,20 @@ from .trajectory_store import _parse_iso_timestamp
 
 _RISK_LEVEL_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 SESSION_RISK_EWMA_ALPHA = 0.3
+POST_ACTION_SCORE_EWMA_ALPHA = 0.3
 RISK_VELOCITY_DELTA_THRESHOLD = 0.25
+DISPLAY_SCORE_RANGE = [0.0, 3.0]
+DISPLAY_SCORE_SEMANTICS = {
+    "range": DISPLAY_SCORE_RANGE,
+    "zero_with_no_events": "no_data_not_confirmed_low_risk",
+    "decision_affecting": False,
+}
+POST_ACTION_SCORE_SEMANTICS = {
+    "range": DISPLAY_SCORE_RANGE,
+    "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+    "decision_affecting": False,
+    "aggregation": "latest, sum, avg, and EWMA are separate from session_risk_ewma; do not add raw channels",
+}
 
 
 def _risk_rank(risk_level: Optional[str]) -> int:
@@ -522,6 +535,8 @@ class SessionRegistry:
             "session_risk_ewma": metrics["session_risk_ewma"],
             "risk_points_sum": metrics["risk_points_sum"],
             "risk_velocity": metrics["risk_velocity"],
+            "score_range": list(DISPLAY_SCORE_RANGE),
+            "score_semantics": dict(DISPLAY_SCORE_SEMANTICS),
             "decision_affecting": False,
         }
 
@@ -543,6 +558,55 @@ class SessionRegistry:
             window_seconds=window_seconds,
         )
         return metrics
+
+    @staticmethod
+    def _post_action_score_metrics(
+        timeline: list[dict[str, Any]],
+        *,
+        alpha: float = POST_ACTION_SCORE_EWMA_ALPHA,
+    ) -> dict[str, Any]:
+        scores = [_safe_float(item.get("score")) for item in timeline]
+        if not scores:
+            return {
+                "latest_post_action_score": 0.0,
+                "post_action_score_sum": 0.0,
+                "post_action_score_avg": 0.0,
+                "post_action_score_ewma": 0.0,
+                "post_action_event_count": 0,
+            }
+
+        ewma = scores[0]
+        for score in scores[1:]:
+            ewma = (alpha * score) + ((1.0 - alpha) * ewma)
+        score_sum = sum(scores)
+        return {
+            "latest_post_action_score": scores[-1],
+            "post_action_score_sum": score_sum,
+            "post_action_score_avg": score_sum / len(scores),
+            "post_action_score_ewma": ewma,
+            "post_action_event_count": len(scores),
+        }
+
+    @classmethod
+    def _post_action_score_summary(
+        cls,
+        timeline: list[dict[str, Any]],
+        *,
+        window_seconds: Optional[int],
+    ) -> dict[str, Any]:
+        metrics = cls._post_action_score_metrics(timeline)
+        return {
+            "window_seconds": window_seconds,
+            "generated_at": utc_now_iso(),
+            "event_count": metrics["post_action_event_count"],
+            "latest_post_action_score": round(metrics["latest_post_action_score"], 4),
+            "post_action_score_sum": round(metrics["post_action_score_sum"], 4),
+            "post_action_score_avg": round(metrics["post_action_score_avg"], 4),
+            "post_action_score_ewma": round(metrics["post_action_score_ewma"], 4),
+            "score_range": list(DISPLAY_SCORE_RANGE),
+            "score_semantics": dict(POST_ACTION_SCORE_SEMANTICS),
+            "decision_affecting": False,
+        }
 
     @staticmethod
     def _latest_session_annotations(session: dict[str, Any]) -> dict[str, Any]:
@@ -692,6 +756,7 @@ class SessionRegistry:
                 "latest_adapter_effect_result_summary": None,
                 "quarantine": None,
                 "risk_timeline": deque(maxlen=self.max_timeline_per_session),
+                "post_action_score_timeline": deque(maxlen=self.max_timeline_per_session),
                 "workspace_root": "",
                 "transcript_path": "",
             }
@@ -871,12 +936,97 @@ class SessionRegistry:
                 "latest_adapter_effect_result_summary": None,
                 "quarantine": None,
                 "risk_timeline": deque(maxlen=self.max_timeline_per_session),
+                "post_action_score_timeline": deque(maxlen=self.max_timeline_per_session),
                 "workspace_root": "",
                 "transcript_path": "",
             }
         session["latest_adapter_effect_result_summary"] = summary
         session["last_event_at"] = utc_now_iso()
         session["last_event_ts"] = time.time()
+        self._sessions[session_id] = session
+        self._evict_if_needed()
+
+    def record_post_action_score(
+        self,
+        *,
+        session_id: str,
+        event_id: str,
+        occurred_at: str,
+        score: float,
+        tier: str,
+        patterns_matched: list[str],
+        tool_name: Optional[str] = None,
+        source_framework: Optional[str] = None,
+        handling: Optional[str] = None,
+    ) -> None:
+        """Record a post-action guard score for session-level reporting."""
+
+        if not session_id:
+            return
+
+        occurred_at_ts = _parse_iso_timestamp(occurred_at)
+        session = self._sessions.get(session_id)
+        if session is None:
+            session = {
+                "session_id": session_id,
+                "agent_id": "unknown",
+                "source_framework": str(source_framework or "unknown"),
+                "caller_adapter": "unknown",
+                "current_risk_level": "low",
+                "cumulative_score": 0,
+                "event_count": 0,
+                "high_risk_event_count": 0,
+                "decision_distribution": defaultdict(int),
+                "actual_tier_distribution": defaultdict(int),
+                "first_event_at": occurred_at,
+                "last_event_at": occurred_at,
+                "last_event_ts": occurred_at_ts,
+                "d4_accumulation": 0,
+                "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
+                "risk_hints_seen": set(),
+                "tools_used": set(),
+                "latest_evidence_summary": None,
+                "latest_l3_state": None,
+                "latest_l3_reason": None,
+                "latest_l3_reason_code": None,
+                "latest_approval_id": None,
+                "latest_approval_kind": None,
+                "latest_approval_state": None,
+                "latest_approval_reason": None,
+                "latest_approval_reason_code": None,
+                "latest_approval_timeout_s": None,
+                "latest_decision_effect_summary": None,
+                "latest_adapter_effect_result_summary": None,
+                "quarantine": None,
+                "risk_timeline": deque(maxlen=self.max_timeline_per_session),
+                "post_action_score_timeline": deque(maxlen=self.max_timeline_per_session),
+                "workspace_root": "",
+                "transcript_path": "",
+            }
+        if "post_action_score_timeline" not in session:
+            session["post_action_score_timeline"] = deque(maxlen=self.max_timeline_per_session)
+
+        session["post_action_score_timeline"].append({
+            "event_id": str(event_id or "unknown"),
+            "occurred_at": occurred_at,
+            "occurred_at_ts": occurred_at_ts,
+            "score": max(0.0, min(_safe_float(score), 3.0)),
+            "tier": str(tier or "log_only"),
+            "patterns_matched": [str(item) for item in patterns_matched],
+            "tool_name": str(tool_name) if tool_name else None,
+            "source_framework": str(source_framework or session.get("source_framework") or "unknown"),
+            "handling": str(handling) if handling else None,
+        })
+        if tool_name:
+            session["tools_used"].add(str(tool_name))
+        if source_framework:
+            session["source_framework"] = str(source_framework)
+        if occurred_at_ts >= float(session.get("last_event_ts", 0.0)):
+            session["last_event_at"] = occurred_at
+            session["last_event_ts"] = occurred_at_ts
+        if occurred_at_ts and occurred_at_ts < _parse_iso_timestamp(session["first_event_at"]):
+            session["first_event_at"] = occurred_at
+
         self._sessions[session_id] = session
         self._evict_if_needed()
 
@@ -981,6 +1131,21 @@ class SessionRegistry:
                         window_seconds=since_seconds,
                     )
                 )
+                post_action_timeline = [
+                    item for item in list(session.get("post_action_score_timeline") or [])
+                    if isinstance(item, dict)
+                ]
+                if since_seconds is not None and since_seconds > 0:
+                    cutoff = time.time() - since_seconds
+                    post_action_timeline = [
+                        item for item in post_action_timeline
+                        if float(item.get("occurred_at_ts", 0.0)) >= cutoff
+                    ]
+                serialized_session.update(self._post_action_score_metrics(post_action_timeline))
+                serialized_session["post_action_score_summary"] = self._post_action_score_summary(
+                    post_action_timeline,
+                    window_seconds=since_seconds,
+                )
                 serialized_session.update(self._latest_session_annotations(session))
                 serialized_sessions.append(serialized_session)
 
@@ -1015,8 +1180,18 @@ class SessionRegistry:
                         [],
                         window_seconds=since_seconds,
                     ),
+                    "latest_post_action_score": 0.0,
+                    "post_action_score_sum": 0.0,
+                    "post_action_score_avg": 0.0,
+                    "post_action_score_ewma": 0.0,
+                    "post_action_event_count": 0,
+                    "post_action_score_summary": self._post_action_score_summary(
+                        [],
+                        window_seconds=since_seconds,
+                    ),
                     "dimensions_latest": {"d1": 0, "d2": 0, "d3": 0, "d4": 0, "d5": 0},
                     "risk_timeline": [],
+                    "post_action_scores": [],
                     "evidence_summary": None,
                     "risk_hints_seen": [],
                     "tools_used": [],
@@ -1027,11 +1202,20 @@ class SessionRegistry:
                 }
 
             timeline = list(session["risk_timeline"])
+            post_action_timeline = [
+                item for item in list(session.get("post_action_score_timeline") or [])
+                if isinstance(item, dict)
+            ]
             if since_seconds is not None and since_seconds > 0:
                 cutoff = time.time() - since_seconds
                 timeline = [item for item in timeline if float(item.get("occurred_at_ts", 0.0)) >= cutoff]
+                post_action_timeline = [
+                    item for item in post_action_timeline
+                    if float(item.get("occurred_at_ts", 0.0)) >= cutoff
+                ]
             effective_limit = min(max(limit, 1), 1000)
             timeline = timeline[-effective_limit:]
+            post_action_timeline = post_action_timeline[-effective_limit:]
 
             return {
                 "session_id": session_id,
@@ -1103,6 +1287,19 @@ class SessionRegistry:
                     }
                     for item in timeline
                 ],
+                "post_action_scores": [
+                    {
+                        "event_id": item["event_id"],
+                        "occurred_at": item["occurred_at"],
+                        "tool_name": item.get("tool_name"),
+                        "source_framework": item.get("source_framework"),
+                        "tier": item.get("tier"),
+                        "patterns_matched": list(item.get("patterns_matched") or []),
+                        "score": item["score"],
+                        "handling": item.get("handling"),
+                    }
+                    for item in post_action_timeline
+                ],
                 "evidence_summary": (
                     dict(session["latest_evidence_summary"])
                     if session.get("latest_evidence_summary") is not None
@@ -1121,6 +1318,11 @@ class SessionRegistry:
                 **self._session_display_metrics(
                     session,
                     window_timeline=timeline,
+                    window_seconds=since_seconds,
+                ),
+                **self._post_action_score_metrics(post_action_timeline),
+                "post_action_score_summary": self._post_action_score_summary(
+                    post_action_timeline,
                     window_seconds=since_seconds,
                 ),
                 **self._latest_session_annotations(session),

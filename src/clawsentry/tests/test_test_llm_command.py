@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -111,6 +110,15 @@ class TestBuildProvider:
         monkeypatch.setenv("CS_LLM_API_KEY", "sk-ant-test-key-1234567890abcdef")
         provider, info = _build_provider()
         assert provider is not None
+
+    def test_anthropic_custom_base_url(self, monkeypatch):
+        monkeypatch.setenv("CS_LLM_PROVIDER", "anthropic")
+        monkeypatch.setenv("CS_LLM_API_KEY", "sk-ant-test-key-1234567890abcdef")
+        monkeypatch.setenv("CS_LLM_BASE_URL", "http://35.220.164.252:3888/v1/")
+        provider, info = _build_provider()
+        assert provider is not None
+        assert provider._config.base_url == "http://35.220.164.252:3888/v1/"
+        assert info["base_url"] == "http://35.220.164.252:3888/v1/"
 
     def test_key_preview_masking(self, monkeypatch):
         monkeypatch.setenv("CS_LLM_PROVIDER", "anthropic")

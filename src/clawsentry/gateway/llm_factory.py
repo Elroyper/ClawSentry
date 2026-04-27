@@ -45,7 +45,7 @@ def _build_provider(settings: LLMSettings) -> AnthropicProvider | OpenAIProvider
         "temperature": settings.temperature,
     }
     if settings.provider == "anthropic":
-        return AnthropicProvider(LLMProviderConfig(**config_kwargs))
+        return AnthropicProvider(LLMProviderConfig(base_url=settings.base_url, **config_kwargs))
     if settings.provider == "openai":
         return OpenAIProvider(LLMProviderConfig(base_url=settings.base_url, **config_kwargs))
     raise ValueError(f"Unsupported LLM provider: {settings.provider!r}")
