@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **Anti-Bypass Follow-up Guard（默认关闭）** — 新增 `PRE_ACTION` follow-up guard，在显式启用 `CS_ANTI_BYPASS_GUARD_ENABLED=true` 后，可基于 prior final risky decision 的 compact fingerprints 检测 exact raw repeat、normalized destructive repeat 与 cross-tool/script similarity。
+- **`CS_ANTI_BYPASS_*` 配置合同** — `DetectionConfig` 新增 TTL、per-session cap、eligible prior risk/verdict、exact/normalized/cross-tool action、similarity threshold 与 allow-decision recording 开关；未引入新的 anti-bypass `AHP_*` 环境变量。
+
+### 改进
+
+- **Gateway precedence 明确化** — anti-bypass guard 位于 quarantine/session enforcement 之后、normal policy 之前；memory update 仅在 trajectory / benchmark auto-resolution 与 `_record_decision_path` 完成后记录最终 verdict/record id。
+- **Redacted observability** — anti-bypass metadata、decision SSE 与 defer-pending SSE 使用 hashes / fingerprints / ids / labels / tool name，不暴露 raw payload、raw command、secret 或 L3 trace。
+- **在线配置文档** — DetectionConfig、env vars、recent feature coverage 与 a3s-code 集成文档补充 observe / review / enforce rollout 示例。
+
+### 修复
+
+- **Cross-tool hard-block boundary** — `anti_bypass_cross_tool_similarity_action=block` 会被拒绝/回退到 `force_l3`，确保 cross-tool/script similarity 不能本地 hard-block。
+- **Final-only memory** — non-final approval-pending `DEFER` 不再写入 anti-bypass memory，避免用未最终确认的 pending decision 作为后续阻断依据。
+
+### 测试与验证
+
+- Anti-bypass focused regression：`14 passed`。
+- Focused guard/config/gateway regression：`256 passed`。
+- Full Python regression + docs inventory：`3239 passed, 4 skipped`; docs API inventory valid。
+- Architect review：APPROVED；Security review：APPROVED。
+
 ## [0.5.13] — 2026-04-27
 
 ### 新增
@@ -366,7 +389,7 @@
 - Python 回归：完整测试 `2883 passed, 3 skipped`
 - Web UI 回归：`29 passed`
 - Web UI 生产构建：PASS
-- `mkdocs build --strict`：待本次 release workflow 执行
+- `mkdocs build --strict`：未在该条目中记录最终结果
 
 ## [0.4.5] — 2026-04-15
 

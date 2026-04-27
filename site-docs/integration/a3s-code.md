@@ -147,6 +147,29 @@ clawsentry init a3s-code --uninstall
 
 ## 手动配置详解
 
+### Anti-bypass Follow-up Guard（可选，默认关闭）
+
+a3s-code 的 `PreToolUse` 会被归一化为 Gateway `PRE_ACTION`。如果你希望 ClawSentry 在一次高风险 final decision 之后识别“重复尝试 / 包装器重试 / cross-tool script 相似尝试”，可以显式启用 Anti-bypass Follow-up Guard：
+
+```bash
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
+```
+
+默认值保持关闭，不会改变现有 a3s-code 集成行为。启用后：
+
+- exact raw repeat：同会话、同工具、同 canonical payload fingerprint，可按配置本地 `block` / `defer` / force tier / observe。
+- normalized destructive repeat：复用 shell/Python wrapper unwrapping 后的 destructive intent，可按配置处理。
+- cross-tool/script similarity：永不本地 hard-block；只能 `observe`、`force_l2`、`force_l3` 或 `defer`，非法 `block` 会回退到 `force_l3`。
+- observability：decision / defer-pending SSE 只暴露 compact `anti_bypass` metadata 与 tool name，不暴露 raw command、raw payload、secret 或 L3 trace。
+
+完整字段与 rollout 示例见 [DetectionConfig：Anti-bypass Follow-up Guard](../configuration/detection-config.md#anti-bypass-guard) 和 [环境变量：Anti-bypass Guard](../configuration/env-vars.md#anti-bypass-guard-env)。
+
+!!! warning "与 Session Enforcement 的区别"
+    `AHP_SESSION_ENFORCEMENT_*` 是会话阈值执法；Anti-bypass 只使用 `CS_ANTI_BYPASS_*`，并且只在 `PRE_ACTION` 上运行。
+
 ### Transport 1: stdio 管道模式
 
 **事件流向：**

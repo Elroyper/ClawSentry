@@ -150,6 +150,29 @@ CS_L3_ENABLED=true       →  L1 + L2 + L3 审查 Agent（完整三层）
 | `CS_TRAJECTORY_MAX_EVENTS` | `50` | 每会话保留的最大事件数（滑动窗口容量上限） |
 | `CS_TRAJECTORY_MAX_SESSIONS` | `10000` | 全局最大会话追踪数（超限按 LRU 淘汰最旧会话） |
 
+### Anti-bypass Follow-up Guard（默认关闭） {#anti-bypass-guard-env}
+
+Anti-bypass guard 用于检测 `PRE_ACTION` 中对 prior final risky decision 的重复/近似绕过尝试。默认完全关闭；启用后只保存 compact hashes/fingerprints/ids/labels，不保存 raw command、raw payload、secret 或 L3 trace。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CS_ANTI_BYPASS_GUARD_ENABLED` | `false` | 启用 anti-bypass follow-up guard |
+| `CS_ANTI_BYPASS_MEMORY_TTL_S` | `86400` | compact memory 保留时间（秒） |
+| `CS_ANTI_BYPASS_MEMORY_MAX_RECORDS_PER_SESSION` | `256` | 单会话 compact memory 上限 |
+| `CS_ANTI_BYPASS_MIN_PRIOR_RISK` | `high` | 参与匹配的 prior final risk 下限：`low` / `medium` / `high` / `critical` |
+| `CS_ANTI_BYPASS_PRIOR_VERDICTS` | `block,defer` | 参与匹配的 prior final verdict，逗号分隔 |
+| `CS_ANTI_BYPASS_EXACT_REPEAT_ACTION` | `block` | same session + same tool + same raw payload fingerprint 的动作 |
+| `CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION` | `defer` | same normalized destructive intent 的动作 |
+| `CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION` | `force_l3` | cross-tool/script similarity 的动作；`block` 无效并回退到 `force_l3` |
+| `CS_ANTI_BYPASS_SIMILARITY_THRESHOLD` | `0.92` | cross-tool/script similarity 阈值，范围 `0.0..1.0` |
+| `CS_ANTI_BYPASS_RECORD_ALLOW_DECISIONS` | `false` | 是否记录 compact allow-decision fingerprints |
+
+!!! warning "Cross-tool/script 不本地 hard-block"
+    `cross_tool_script_similarity` 可 `observe` / `force_l2` / `force_l3` / `defer`，但不能本地 `block`。若配置为 `block`，会被校验逻辑回退到 `force_l3`。
+
+!!! note "与 AHP_SESSION_ENFORCEMENT_* 的关系"
+    `AHP_SESSION_ENFORCEMENT_*` 仍只控制会话阈值执法；anti-bypass guard 只使用 `CS_ANTI_BYPASS_*`。
+
 ### 自进化模式库（E-5）
 
 | 变量 | 默认值 | 说明 |

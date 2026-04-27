@@ -33,6 +33,7 @@ from starlette.responses import FileResponse, HTMLResponse
 from pydantic import ValidationError
 
 from .alert_registry import AlertRegistry
+from .anti_bypass_guard import AntiBypassGuard, AntiBypassMatch
 from .event_bus import EventBus
 from .idempotency import IdempotencyCache, periodic_cleanup
 from .session_registry import (
@@ -741,6 +742,7 @@ class SupervisionGateway:
         self.event_bus = EventBus()
         self.alert_registry = AlertRegistry()
         self.session_enforcement = session_enforcement or SessionEnforcementPolicy()
+        self.anti_bypass_guard = AntiBypassGuard()
         self.post_action_analyzer = PostActionAnalyzer(
             whitelist_patterns=self._detection_config.post_action_whitelist,
             tier_emergency=self._detection_config.post_action_emergency,
@@ -1183,6 +1185,8 @@ class SupervisionGateway:
         effective_requested_tier = req.decision_tier
         l3_runtime_reason_override: str | None = None
         l3_runtime_reason_code_override: str | None = None
+        effective_config = project_config or self._detection_config
+        anti_bypass_match: AntiBypassMatch | None = None
         if quarantine_applied:
             pass
         elif (
@@ -1261,6 +1265,11 @@ class SupervisionGateway:
                 actual_tier = DecisionTier.L1
                 enforcement_applied = True
         else:
+            anti_bypass_match = self.anti_bypass_guard.match_pre_action(
+                req.event,
+                req.context,
+                effective_config,
+            )
             # --- P3: LLM budget check — force L1 if exhausted ---
             requested_tier = req.decision_tier
             if budget_exhausted:
@@ -1268,26 +1277,72 @@ class SupervisionGateway:
                 if req.decision_tier != DecisionTier.L1:
                     l3_runtime_reason_override = "LLM budget exhausted; L3 skipped"
                     l3_runtime_reason_code_override = "budget_exhausted"
+            if anti_bypass_match is not None:
+                if anti_bypass_match.action == "force_l2":
+                    requested_tier = DecisionTier.L2
+                elif anti_bypass_match.action == "force_l3":
+                    requested_tier = DecisionTier.L3 if not budget_exhausted else DecisionTier.L1
+                    if budget_exhausted:
+                        l3_runtime_reason_override = "LLM budget exhausted; anti-bypass L3 skipped"
+                        l3_runtime_reason_code_override = "budget_exhausted"
             effective_requested_tier = requested_tier
 
-            # Evaluate normally
-            try:
-                remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
-                decision, snapshot, actual_tier = self.policy_engine.evaluate(
-                    req.event, req.context, requested_tier,
-                    deadline_budget_ms=remaining_ms,
-                    config=project_config,
+            if anti_bypass_match is not None and anti_bypass_match.action in ("block", "defer"):
+                verdict = (
+                    DecisionVerdict.BLOCK
+                    if anti_bypass_match.action == "block"
+                    else DecisionVerdict.DEFER
                 )
-            except Exception:
-                logger.exception("Policy engine error")
-                error_resp = SyncDecisionErrorResponse(
-                    request_id=req.request_id,
-                    rpc_error_code=RPCErrorCode.ENGINE_INTERNAL_ERROR,
-                    rpc_error_message="Internal engine error. Check server logs for details.",
-                    retry_eligible=True,
-                    retry_after_ms=50,
+                policy_id = {
+                    "exact_raw_repeat": "anti-bypass-exact-repeat",
+                    "normalized_destructive_repeat": "anti-bypass-normalized-repeat",
+                    "cross_tool_script_similarity": "anti-bypass-cross-tool-review",
+                }.get(anti_bypass_match.match_type, "anti-bypass-follow-up-guard")
+                decision = CanonicalDecision(
+                    decision=verdict,
+                    reason=(
+                        "Anti-bypass follow-up guard matched "
+                        f"{anti_bypass_match.match_type} after prior "
+                        f"{anti_bypass_match.prior_risk_level} "
+                        f"{anti_bypass_match.prior_policy_id}"
+                    ),
+                    policy_id=policy_id,
+                    risk_level=_risk_level_from_string(anti_bypass_match.prior_risk_level),
+                    decision_source=DecisionSource.POLICY,
+                    failure_class=FailureClass.NONE,
+                    final=True,
                 )
-                return self._jsonrpc_error_with_data(rpc_id, -32603, error_resp)
+                try:
+                    remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                    _, snapshot, _ = self.policy_engine.evaluate(
+                        req.event, req.context, DecisionTier.L1,
+                        deadline_budget_ms=remaining_ms,
+                        config=project_config,
+                    )
+                except Exception:
+                    logger.exception("Policy engine error during anti-bypass snapshot")
+                    from .policy_engine import RiskSnapshot
+                    snapshot = RiskSnapshot()
+                actual_tier = DecisionTier.L1
+            else:
+                # Evaluate normally
+                try:
+                    remaining_ms = max(0, (deadline_at - time.monotonic()) * 1000)
+                    decision, snapshot, actual_tier = self.policy_engine.evaluate(
+                        req.event, req.context, requested_tier,
+                        deadline_budget_ms=remaining_ms,
+                        config=project_config,
+                    )
+                except Exception:
+                    logger.exception("Policy engine error")
+                    error_resp = SyncDecisionErrorResponse(
+                        request_id=req.request_id,
+                        rpc_error_code=RPCErrorCode.ENGINE_INTERNAL_ERROR,
+                        rpc_error_message="Internal engine error. Check server logs for details.",
+                        retry_eligible=True,
+                        retry_after_ms=50,
+                    )
+                    return self._jsonrpc_error_with_data(rpc_id, -32603, error_resp)
 
             # Annotate decision when budget forced L1-only downgrade
             if budget_exhausted and req.decision_tier != DecisionTier.L1:
@@ -1327,6 +1382,9 @@ class SupervisionGateway:
                 else "unknown"
             ),
         }
+        if anti_bypass_match is not None:
+            meta_dict["anti_bypass"] = anti_bypass_match.to_metadata()
+            meta_dict["anti_bypass_memory_evictions"] = self.anti_bypass_guard.memory_evictions
         compat_evidence_summary = build_compatibility_evidence_summary(event_dict)
         if compat_evidence_summary is not None:
             # Operator-facing replay/session summaries only; not a canonical
@@ -1408,6 +1466,8 @@ class SupervisionGateway:
                         if handling == "block"
                         else DecisionVerdict.DEFER
                     )
+                    if decision.decision == DecisionVerdict.BLOCK and verdict != DecisionVerdict.BLOCK:
+                        continue
                     decision = CanonicalDecision(
                         decision=verdict,
                         reason=f"Trajectory alert {tm.sequence_id}: {tm.reason}",
@@ -1469,6 +1529,14 @@ class SupervisionGateway:
             snapshot=snapshot_dict,
             meta=meta_dict,
             l3_trace=l3_trace,
+        )
+        self.anti_bypass_guard.record_final_decision(
+            event=req.event,
+            decision=decision,
+            snapshot=snapshot,
+            meta=meta_dict,
+            record_id=record_id,
+            config=effective_config,
         )
 
         current_risk_level = str(snapshot_dict.get("risk_level") or decision_dict.get("risk_level") or "low")
@@ -1550,8 +1618,12 @@ class SupervisionGateway:
             "timestamp": occurred_at,
             "reason": str(decision_dict.get("reason") or ""),
             "command": str(
-                event_dict.get("payload", {}).get("command", "")
-                or event_dict.get("tool_name", "")
+                event_dict.get("tool_name", "")
+                if meta_dict.get("anti_bypass") is not None
+                else (
+                    event_dict.get("payload", {}).get("command", "")
+                    or event_dict.get("tool_name", "")
+                )
             ),
             "trigger_detail": (l3_trace or {}).get("trigger_detail"),
             "approval_id": event_dict.get("approval_id"),
@@ -1561,6 +1633,9 @@ class SupervisionGateway:
             decision_event["compat_event_type"] = compat_event_type
         if compat_observation is not None:
             decision_event["compat_observation"] = compat_observation
+        if meta_dict.get("anti_bypass") is not None:
+            decision_event["anti_bypass"] = meta_dict["anti_bypass"]
+            decision_event["anti_bypass_memory_evictions"] = self.anti_bypass_guard.memory_evictions
         effect_summary = decision_effect_summary(decision_dict.get("decision_effects"))
         if effect_summary is not None:
             decision_event["effect_summary"] = effect_summary
@@ -1811,7 +1886,11 @@ class SupervisionGateway:
                     "session_id": session_id,
                     **pending_approval,
                     "tool_name": req.event.tool_name or "",
-                    "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
+                    "command": str(
+                        req.event.tool_name or ""
+                        if meta_dict.get("anti_bypass") is not None
+                        else (req.event.payload.get("command", "") if req.event.payload else "")
+                    ),
                     "reason": str(decision_dict.get("reason") or ""),
                     "timeout_s": approval_timeout_s,
                     "timestamp": occurred_at,
@@ -2021,7 +2100,11 @@ class SupervisionGateway:
                     "session_id": session_id,
                     **pending_approval,
                     "tool_name": req.event.tool_name or "",
-                    "command": str(req.event.payload.get("command", "") if req.event.payload else ""),
+                    "command": str(
+                        req.event.tool_name or ""
+                        if meta_dict.get("anti_bypass") is not None
+                        else (req.event.payload.get("command", "") if req.event.payload else "")
+                    ),
                     "reason": str(decision_dict.get("reason") or ""),
                     "timeout_s": _defer_timeout,
                     "timestamp": occurred_at,

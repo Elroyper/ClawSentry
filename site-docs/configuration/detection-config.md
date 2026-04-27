@@ -1,6 +1,6 @@
 ---
 title: 检测管线配置参考（DetectionConfig）
-description: 统一调优所有检测参数的 DetectionConfig dataclass — 合成评分权重、风险阈值、D4 会话累积、L2 预算、攻击模式路径、Post-action 分层、轨迹分析、自进化模式库
+description: 统一调优所有检测参数的 DetectionConfig dataclass — 合成评分权重、风险阈值、D4 会话累积、L2 预算、攻击模式路径、Post-action 分层、轨迹分析、Anti-bypass guard、自进化模式库
 ---
 
 # 检测管线配置参考（DetectionConfig）
@@ -65,6 +65,12 @@ DetectionConfig（frozen dataclass）
 # ── 自进化模式库（E-5，默认关闭）──────────────────────────────────────────
 # CS_EVOLVING_ENABLED=false
 # CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
+
+# ── Anti-bypass follow-up guard（默认关闭，显式 opt-in）────────────────────
+# CS_ANTI_BYPASS_GUARD_ENABLED=false
+# CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
+# CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+# CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
 ```
 
 !!! tip "dotenv 文件位置"
@@ -260,6 +266,64 @@ CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
     - `CS_ATTACK_PATTERNS_PATH`：指定**核心**攻击模式库（替代内置 YAML），影响 L2 分析。
     - `CS_EVOLVED_PATTERNS_PATH`：指定**自进化**模式的持久化文件，在核心模式库基础上**追加**检测规则。
     - 两者可同时使用，最终有效模式集 = 核心模式 + 状态为 `experimental` 或 `stable` 的自进化模式。
+
+---
+
+### Anti-bypass Follow-up Guard {#anti-bypass-guard}
+
+Anti-bypass follow-up guard 是默认关闭的 `PRE_ACTION` 重试/绕过检测层。启用后，Gateway 会在 quarantine 与 session enforcement 之后、normal policy 之前检查当前操作是否复用了 prior final risky decision 的紧凑指纹。
+
+它只保存 compact evidence：hashes / fingerprints / tool / policy id / risk / record ids / timestamps / labels；不会保存 raw payload、raw command、secret、完整路径内容或 L3 trace。
+
+| 字段名 | 类型 | 默认值 | CS_ 变量 | 说明 |
+|--------|------|--------|----------|------|
+| `anti_bypass_guard_enabled` | `bool` | `False` | `CS_ANTI_BYPASS_GUARD_ENABLED` | 总开关；默认保持现有行为不变 |
+| `anti_bypass_memory_ttl_s` | `float` | `86400.0` | `CS_ANTI_BYPASS_MEMORY_TTL_S` | compact memory 保留时间（秒） |
+| `anti_bypass_memory_max_records_per_session` | `int` | `256` | `CS_ANTI_BYPASS_MEMORY_MAX_RECORDS_PER_SESSION` | 单会话记录上限，超出时淘汰最旧记录 |
+| `anti_bypass_min_prior_risk` | `str` | `"high"` | `CS_ANTI_BYPASS_MIN_PRIOR_RISK` | 参与匹配的 prior final risk 下限：`low` / `medium` / `high` / `critical` |
+| `anti_bypass_prior_verdicts` | `tuple[str, ...]` | `("block", "defer")` | `CS_ANTI_BYPASS_PRIOR_VERDICTS` | 参与匹配的 prior final verdict，逗号分隔：`allow` / `defer` / `block` |
+| `anti_bypass_exact_repeat_action` | `str` | `"block"` | `CS_ANTI_BYPASS_EXACT_REPEAT_ACTION` | same session + same tool + same raw canonical payload fingerprint 的动作 |
+| `anti_bypass_normalized_destructive_repeat_action` | `str` | `"defer"` | `CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION` | same normalized destructive intent 的动作 |
+| `anti_bypass_cross_tool_similarity_action` | `str` | `"force_l3"` | `CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION` | cross-tool/script similarity 的动作；`block` 无效并回退到 `force_l3` |
+| `anti_bypass_similarity_threshold` | `float` | `0.92` | `CS_ANTI_BYPASS_SIMILARITY_THRESHOLD` | 非精确 cross-tool/script similarity 阈值，范围 `0.0..1.0` |
+| `anti_bypass_record_allow_decisions` | `bool` | `False` | `CS_ANTI_BYPASS_RECORD_ALLOW_DECISIONS` | 是否也记录 compact allow-decision fingerprints |
+
+**动作权限边界：**
+
+| Match type | 可选动作 | 本地 BLOCK 权限 |
+|------------|----------|----------------|
+| `exact_raw_repeat` | `observe` / `force_l2` / `force_l3` / `defer` / `block` | 可按配置本地 BLOCK |
+| `normalized_destructive_repeat` | `observe` / `force_l2` / `force_l3` / `defer` / `block` | 仅在显式配置 `block` 时可本地 BLOCK |
+| `cross_tool_script_similarity` | `observe` / `force_l2` / `force_l3` / `defer` | 永不本地 hard-block；`block` 配置会被拒绝/回退 |
+
+**Rollout 示例：**
+
+```bash title="Observe only：只记录 metadata/counter，不改变 verdict"
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=observe
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=observe
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=observe
+```
+
+```bash title="Review：exact/normalized 进入人工确认，cross-tool 请求 L3"
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
+```
+
+```bash title="Enforce：只对 exact repeat 本地阻断"
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
+```
+
+!!! warning "与 Session Enforcement 的边界"
+    `AHP_SESSION_ENFORCEMENT_*` 仍只表示旧的 session-threshold enforcement。Anti-bypass guard 只使用 `DetectionConfig` / `CS_ANTI_BYPASS_*` 配置，不新增 `AHP_*` anti-bypass 环境变量。
+
+!!! note "Final-decision-only memory"
+    Guard memory 只在 trajectory override、benchmark auto-resolution 和 `_record_decision_path` 完成后记录 final decision；non-final approval-pending `DEFER` 不会成为后续匹配依据。
 
 ---
 

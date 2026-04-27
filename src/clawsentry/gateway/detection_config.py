@@ -93,6 +93,18 @@ class DetectionConfig:
     benchmark_defer_action: str = "block"
     benchmark_persist_scope: str = "project"
 
+    # --- Anti-bypass follow-up guard (default-off) ---
+    anti_bypass_guard_enabled: bool = False
+    anti_bypass_memory_ttl_s: float = 86_400.0
+    anti_bypass_memory_max_records_per_session: int = 256
+    anti_bypass_min_prior_risk: str = "high"
+    anti_bypass_prior_verdicts: tuple[str, ...] = ("block", "defer")
+    anti_bypass_exact_repeat_action: str = "block"
+    anti_bypass_normalized_destructive_repeat_action: str = "defer"
+    anti_bypass_cross_tool_similarity_action: str = "force_l3"
+    anti_bypass_similarity_threshold: float = 0.92
+    anti_bypass_record_allow_decisions: bool = False
+
     # --- E-5: Self-evolving pattern repository ---
     evolving_enabled: bool = False
     evolved_patterns_path: Optional[str] = None
@@ -101,6 +113,12 @@ class DetectionConfig:
         # Convert list to tuple if passed (convenience for callers)
         if isinstance(self.post_action_whitelist, list):
             object.__setattr__(self, "post_action_whitelist", tuple(self.post_action_whitelist))
+        if isinstance(self.anti_bypass_prior_verdicts, list):
+            object.__setattr__(
+                self,
+                "anti_bypass_prior_verdicts",
+                tuple(self.anti_bypass_prior_verdicts),
+            )
         # Validate threshold ordering
         if not (self.threshold_medium <= self.threshold_high <= self.threshold_critical):
             raise ValueError(
@@ -204,6 +222,56 @@ class DetectionConfig:
                 self.benchmark_persist_scope,
             )
             object.__setattr__(self, "benchmark_persist_scope", "project")
+        if self.anti_bypass_memory_ttl_s <= 0:
+            raise ValueError(
+                f"anti_bypass_memory_ttl_s must be > 0, got {self.anti_bypass_memory_ttl_s}"
+            )
+        if self.anti_bypass_memory_max_records_per_session < 1:
+            raise ValueError(
+                "anti_bypass_memory_max_records_per_session must be >= 1, "
+                f"got {self.anti_bypass_memory_max_records_per_session}"
+            )
+        if self.anti_bypass_min_prior_risk not in ("low", "medium", "high", "critical"):
+            logger.warning(
+                "Invalid anti_bypass_min_prior_risk=%r, falling back to 'high'",
+                self.anti_bypass_min_prior_risk,
+            )
+            object.__setattr__(self, "anti_bypass_min_prior_risk", "high")
+        valid_verdicts = {"allow", "defer", "block"}
+        prior_verdicts = tuple(str(v).strip().lower() for v in self.anti_bypass_prior_verdicts)
+        if not prior_verdicts or any(v not in valid_verdicts for v in prior_verdicts):
+            logger.warning(
+                "Invalid anti_bypass_prior_verdicts=%r, falling back to ('block', 'defer')",
+                self.anti_bypass_prior_verdicts,
+            )
+            object.__setattr__(self, "anti_bypass_prior_verdicts", ("block", "defer"))
+        else:
+            object.__setattr__(self, "anti_bypass_prior_verdicts", prior_verdicts)
+        repeat_actions = {"observe", "force_l2", "force_l3", "defer", "block"}
+        for field_name, fallback in (
+            ("anti_bypass_exact_repeat_action", "block"),
+            ("anti_bypass_normalized_destructive_repeat_action", "defer"),
+        ):
+            if getattr(self, field_name) not in repeat_actions:
+                logger.warning(
+                    "Invalid %s=%r, falling back to %r",
+                    field_name,
+                    getattr(self, field_name),
+                    fallback,
+                )
+                object.__setattr__(self, field_name, fallback)
+        cross_tool_actions = {"observe", "force_l2", "force_l3", "defer"}
+        if self.anti_bypass_cross_tool_similarity_action not in cross_tool_actions:
+            logger.warning(
+                "Invalid anti_bypass_cross_tool_similarity_action=%r, falling back to 'force_l3'",
+                self.anti_bypass_cross_tool_similarity_action,
+            )
+            object.__setattr__(self, "anti_bypass_cross_tool_similarity_action", "force_l3")
+        if not (0.0 <= self.anti_bypass_similarity_threshold <= 1.0):
+            raise ValueError(
+                "anti_bypass_similarity_threshold must be between 0.0 and 1.0, "
+                f"got {self.anti_bypass_similarity_threshold}"
+            )
         if self.threshold_critical > 3.0:
             logger.warning(
                 "threshold_critical=%.2f exceeds max achievable score (3.0) with default weights; "
@@ -266,6 +334,13 @@ _ENV_MAP: list[tuple[str, str, type]] = [
     ("CS_LLM_DAILY_BUDGET_USD", "llm_daily_budget_usd", float),
     ("CS_BENCHMARK_DEFER_ACTION", "benchmark_defer_action", str),
     ("CS_BENCHMARK_PERSIST_SCOPE", "benchmark_persist_scope", str),
+    ("CS_ANTI_BYPASS_MEMORY_TTL_S", "anti_bypass_memory_ttl_s", float),
+    ("CS_ANTI_BYPASS_MEMORY_MAX_RECORDS_PER_SESSION", "anti_bypass_memory_max_records_per_session", int),
+    ("CS_ANTI_BYPASS_MIN_PRIOR_RISK", "anti_bypass_min_prior_risk", str),
+    ("CS_ANTI_BYPASS_EXACT_REPEAT_ACTION", "anti_bypass_exact_repeat_action", str),
+    ("CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION", "anti_bypass_normalized_destructive_repeat_action", str),
+    ("CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION", "anti_bypass_cross_tool_similarity_action", str),
+    ("CS_ANTI_BYPASS_SIMILARITY_THRESHOLD", "anti_bypass_similarity_threshold", float),
 ]
 
 _ENV_ALIAS_MAP: list[tuple[str, str, type, str]] = [
@@ -276,6 +351,7 @@ _ENV_ALIAS_MAP: list[tuple[str, str, type, str]] = [
 # Comma-separated list vars handled separately
 _ENV_LIST_MAP: list[tuple[str, str]] = [
     ("CS_POST_ACTION_WHITELIST", "post_action_whitelist"),
+    ("CS_ANTI_BYPASS_PRIOR_VERDICTS", "anti_bypass_prior_verdicts"),
 ]
 
 
@@ -340,6 +416,8 @@ def build_detection_config_from_env() -> DetectionConfig:
     _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
     _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
     _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
+    _parse_bool_env("CS_ANTI_BYPASS_GUARD_ENABLED", "anti_bypass_guard_enabled")
+    _parse_bool_env("CS_ANTI_BYPASS_RECORD_ALLOW_DECISIONS", "anti_bypass_record_allow_decisions")
 
     # Deprecated USD budgets are migration telemetry only on the env/runtime
     # path.  Enforcement uses provider-reported token usage, so the legacy
@@ -492,6 +570,8 @@ def build_detection_config_with_preset(
     _parse_bool_env("CS_L3_HEARTBEAT_REVIEW_ENABLED", "l3_heartbeat_review_enabled")
     _parse_bool_env("CS_LLM_TOKEN_BUDGET_ENABLED", "llm_token_budget_enabled")
     _parse_bool_env("CS_BENCHMARK_AUTO_RESOLVE_DEFER", "benchmark_auto_resolve_defer")
+    _parse_bool_env("CS_ANTI_BYPASS_GUARD_ENABLED", "anti_bypass_guard_enabled")
+    _parse_bool_env("CS_ANTI_BYPASS_RECORD_ALLOW_DECISIONS", "anti_bypass_record_allow_decisions")
 
     # Keep legacy USD budgets informational on the env/runtime path.
     if "llm_daily_budget_usd" in params:
