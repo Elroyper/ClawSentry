@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3180 public regression tests** with release-time CI/build evidence
+- **3189 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.11
+## What's New in v0.5.12
 
-- **Shipped replay label polish**: rebuilt Web UI static assets include the Session Detail replay labels for prompt, response, tool request, and tool result rows, avoiding stale `unknown` labels in packaged/demo UI.
-- **Cleaner a3s_demo grouping**: demo conversation markers now bind to the same ClawSentry workspace root as the supervised a3s-code session, while the controlled files remain under the `workspace/` data directory.
-- **v0.5.10 governance retained**: token-first UI governance, stable Unbound workspace fallback, newest-first timelines, and L3 advisory narratives remain in place.
+- **Canonical metric dictionary**: reporting docs now use one field vocabulary for `session_risk_sum`, EWMA, risk points, velocity, D1-D6, and Enterprise posture.
+- **Interactive setup wizard**: `clawsentry config wizard --interactive` provides a real terminal-guided flow while `--non-interactive` remains stable for CI/templates.
+- **AgentDoG replay foundation**: benchmark notes and runner infrastructure can convert AgentDoG/ATBench trajectories into ClawSentry replay artifacts for the next labeled evaluation pass.
 
 ## Quick Start
 

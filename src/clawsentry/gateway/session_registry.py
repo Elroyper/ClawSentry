@@ -12,6 +12,7 @@ from .trajectory_store import _parse_iso_timestamp
 
 _RISK_LEVEL_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 SESSION_RISK_EWMA_ALPHA = 0.3
+RISK_VELOCITY_DELTA_THRESHOLD = 0.25
 
 
 def _risk_rank(risk_level: Optional[str]) -> int:
@@ -25,6 +26,17 @@ def _safe_float(value: Any) -> float:
         return float(value or 0.0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _risk_velocity_from_scores(scores: list[float]) -> str:
+    if len(scores) < 2:
+        return "unknown"
+    delta = scores[-1] - scores[0]
+    if delta > RISK_VELOCITY_DELTA_THRESHOLD:
+        return "up"
+    if delta < -RISK_VELOCITY_DELTA_THRESHOLD:
+        return "down"
+    return "flat"
 
 
 def _new_io_metric_bucket() -> dict[str, float | int]:
@@ -478,14 +490,7 @@ class SessionRegistry:
             ewma = scores[0]
             for score in scores[1:]:
                 ewma = (alpha * score) + ((1.0 - alpha) * ewma)
-            if len(scores) < 2:
-                velocity = "unknown"
-            elif scores[-1] > scores[-2]:
-                velocity = "up"
-            elif scores[-1] < scores[-2]:
-                velocity = "down"
-            else:
-                velocity = "flat"
+            velocity = _risk_velocity_from_scores(scores)
 
         return {
             "latest_composite_score": latest_score,
@@ -509,13 +514,15 @@ class SessionRegistry:
         )
         return {
             "window_seconds": window_seconds,
+            "generated_at": utc_now_iso(),
             "event_count": len(timeline),
             "high_or_critical_count": high_or_critical_count,
             "latest_composite_score": metrics["latest_composite_score"],
-            "composite_score_sum": metrics["session_risk_sum"],
+            "session_risk_sum": metrics["session_risk_sum"],
             "session_risk_ewma": metrics["session_risk_ewma"],
             "risk_points_sum": metrics["risk_points_sum"],
             "risk_velocity": metrics["risk_velocity"],
+            "decision_affecting": False,
         }
 
     @classmethod

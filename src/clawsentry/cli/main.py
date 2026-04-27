@@ -419,6 +419,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     config_wizard = config_sub.add_parser("wizard", help="Guided ClawSentry configuration.")
     config_wizard.add_argument("--non-interactive", action="store_true", default=False)
+    config_wizard.add_argument(
+        "--interactive",
+        action="store_true",
+        default=None,
+        help="Force the terminal question flow when stdin is a TTY.",
+    )
     config_wizard.add_argument("--framework", default="codex")
     config_wizard.add_argument("--mode", default="normal", choices=["normal", "strict", "permissive", "benchmark"])
     config_wizard.add_argument("--llm-provider", default="", choices=["", "none", "openai", "anthropic"])
@@ -887,6 +893,7 @@ def main(argv: list[str] | None = None) -> None:
             run_config_wizard(
                 target_dir=target,
                 non_interactive=args.non_interactive,
+                interactive=args.interactive,
                 framework=args.framework,
                 mode=args.mode,
                 llm_provider=args.llm_provider,

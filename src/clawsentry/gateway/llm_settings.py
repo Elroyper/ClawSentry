@@ -23,6 +23,8 @@ class LLMSettings:
     api_key: str
     model: str = ""
     base_url: Optional[str] = None
+    temperature: float = 0.0
+    provider_timeout_ms: float = 3000.0
     l3_enabled: bool = False
     enterprise_enabled: bool = False
 
@@ -51,6 +53,21 @@ def _env_bool(
     if not raw:
         return default
     return raw.lower() in _TRUTHY_VALUES
+
+
+def _env_float(
+    name: str,
+    *,
+    environ: Optional[Mapping[str, str]] = None,
+    default: float,
+) -> float:
+    raw = _env(name, environ=environ).strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
 
 
 def _resolve_api_key(provider: str, *, environ: Optional[Mapping[str, str]] = None) -> str:
@@ -86,6 +103,8 @@ def resolve_llm_settings(
 
     model = _env("CS_LLM_MODEL", environ=environ).strip()
     base_url = _env("CS_LLM_BASE_URL", environ=environ).strip() or None
+    temperature = _env_float("CS_LLM_TEMPERATURE", environ=environ, default=0.0)
+    provider_timeout_ms = _env_float("CS_LLM_PROVIDER_TIMEOUT_MS", environ=environ, default=3000.0)
     l3_enabled = _env_bool("CS_L3_ENABLED", environ=environ) or _env_bool("CS_LLM_L3_ENABLED", environ=environ)
     enterprise_enabled = (
         _env_bool("CS_ENTERPRISE_ENABLED", environ=environ)
@@ -98,6 +117,8 @@ def resolve_llm_settings(
         api_key=api_key,
         model=model,
         base_url=base_url,
+        temperature=temperature,
+        provider_timeout_ms=provider_timeout_ms,
         l3_enabled=l3_enabled,
         enterprise_enabled=enterprise_enabled,
     )

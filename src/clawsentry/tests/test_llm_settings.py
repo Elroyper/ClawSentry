@@ -14,6 +14,8 @@ def _clean_env() -> dict[str, str]:
         "CS_LLM_API_KEY": "",
         "CS_LLM_MODEL": "",
         "CS_LLM_BASE_URL": "",
+        "CS_LLM_TEMPERATURE": "",
+        "CS_LLM_PROVIDER_TIMEOUT_MS": "",
         "CS_L3_ENABLED": "",
         "CS_LLM_L3_ENABLED": "",
         "CS_ENTERPRISE_ENABLED": "",
@@ -36,6 +38,8 @@ class TestResolveLlmSettings:
             "CS_LLM_API_KEY": "sk-shared-key",
             "CS_LLM_MODEL": "gpt-4o-mini",
             "CS_LLM_BASE_URL": "http://localhost:11434/v1",
+            "CS_LLM_TEMPERATURE": "1",
+            "CS_LLM_PROVIDER_TIMEOUT_MS": "20000",
             "CS_LLM_L3_ENABLED": "true",
             "CS_LLM_ENTERPRISE_ENABLED": "1",
         }
@@ -47,9 +51,26 @@ class TestResolveLlmSettings:
             api_key="sk-shared-key",
             model="gpt-4o-mini",
             base_url="http://localhost:11434/v1",
+            temperature=1.0,
+            provider_timeout_ms=20000.0,
             l3_enabled=True,
             enterprise_enabled=True,
         )
+
+    def test_invalid_optional_numeric_values_fall_back_to_defaults(self):
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-shared-key",
+            "CS_LLM_TEMPERATURE": "not-a-number",
+            "CS_LLM_PROVIDER_TIMEOUT_MS": "also-bad",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            settings = resolve_llm_settings()
+
+        assert settings is not None
+        assert settings.temperature == 0.0
+        assert settings.provider_timeout_ms == 3000.0
 
     def test_legacy_openai_key_is_still_supported(self):
         env = {

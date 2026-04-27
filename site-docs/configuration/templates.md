@@ -7,8 +7,13 @@ description: 按 L3 延迟容忍度、启用方式、部署周期、严格度与
 
 本页按 operator 的真实选择顺序组织模板：先决定是否只观察，还是启用 L2/L3；再决定 L3 延迟、部署周期、严格度、provider 与 token budget。所有模板都可以复制到 `.clawsentry.toml`，再用 `clawsentry config show --effective` 验证最终生效值。
 
-!!! note "`config wizard` 是确定性生成器"
-    当前 `clawsentry config wizard` 在没有交互式问答 UI 的终端里，会使用传入参数或默认值写入配置。它适合作为模板骨架生成器；不要把它理解为已经存在的 `clawsentry setup` 多轮配置向导。
+!!! note "`config wizard` 支持交互式和确定性两种路径"
+    在本地 TTY 中运行 `clawsentry config wizard --interactive` 会进入 5 步终端向导。模板页仍使用 `--non-interactive`，因为复制命令和 CI 需要稳定、可复现的输出。
+
+```bash
+clawsentry config wizard --interactive
+clawsentry config show --effective
+```
 
 ```bash
 clawsentry config wizard --non-interactive --framework codex --mode normal --llm-provider none --write-project-config

@@ -268,12 +268,19 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
       "risk_points_sum": 5,
       "window_risk_summary": {
         "window_seconds": null,
+        "generated_at": "2026-03-23T10:31:00+00:00",
         "event_count": 25,
-        "high_risk_event_count": 3,
-        "critical_event_count": 1
+        "high_or_critical_count": 3,
+        "critical_event_count": 1,
+        "latest_composite_score": 2.4,
+        "session_risk_sum": 6.7,
+        "session_risk_ewma": 1.9,
+        "risk_points_sum": 5,
+        "risk_velocity": "up",
+        "decision_affecting": false
       },
       "event_count": 25,
-      "high_risk_event_count": 3,
+      "high_or_critical_count": 3,
       "decision_distribution": {
         "allow": 20,
         "block": 3,
@@ -436,7 +443,7 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 
 ## GET /report/session/{id}/risk — 会话风险详情 {#get-report-session-risk}
 
-返回指定会话的实时风险状态，包括 D1-D5 维度得分、风险时间线和使用的工具列表。
+返回指定会话的实时风险状态，包括 D1-D6 维度得分、风险时间线和使用的工具列表。
 
 ### 路径参数
 
@@ -469,13 +476,20 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
   "risk_points_sum": 5,
   "window_risk_summary": {
     "window_seconds": 3600,
+    "generated_at": "2026-03-23T10:31:00+00:00",
     "event_count": 12,
-    "high_risk_event_count": 3,
+    "high_or_critical_count": 3,
     "critical_event_count": 1,
+    "latest_composite_score": 2.4,
+    "session_risk_sum": 6.7,
+    "session_risk_ewma": 1.9,
+    "risk_points_sum": 5,
+    "risk_velocity": "up",
+    "decision_affecting": false,
     "latest_event_at": "2026-03-23T10:30:00+00:00"
   },
   "event_count": 25,
-  "high_risk_event_count": 3,
+  "high_or_critical_count": 3,
   "first_event_at": "2026-03-23T10:00:00+00:00",
   "last_event_at": "2026-03-23T10:30:00+00:00",
   "dimensions_latest": {
@@ -483,7 +497,8 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
     "d2": 2,
     "d3": 1,
     "d4": 1,
-    "d5": 0
+    "d5": 0,
+    "d6": 2
   },
   "risk_timeline": [
     {
@@ -549,8 +564,8 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 |------|------|
 | `agent_id` / `source_framework` / `caller_adapter` | 会话身份元数据 |
 | `workspace_root` / `transcript_path` | 工作空间与 transcript 定位信息，供 Web UI 和人工排障使用 |
-| `dimensions_latest` | 该会话最新一次评估的 D1-D5 维度得分 |
-| `event_count` / `high_risk_event_count` | 当前会话累计事件数与高风险事件数 |
+| `dimensions_latest` | 该会话最新一次评估的 D1-D6 维度得分 |
+| `event_count` / `high_or_critical_count` | 窗口事件数与 high/critical 事件数 |
 | `first_event_at` / `last_event_at` | 该会话的首个/最新事件时间 |
 | `risk_timeline` | 风险变化时间线（按事件发生时间排序） |
 | `risk_hints_seen` | 该会话曾触发的所有风险提示集合 |
@@ -840,7 +855,7 @@ event: session_start
 data: {"session_id":"session-002","agent_id":"agent-002","source_framework":"openclaw","timestamp":"2026-03-23T10:31:00+00:00"}
 
 event: session_risk_change
-data: {"session_id":"session-001","previous_risk":"medium","current_risk":"high","trigger_event":"evt-002","latest_composite_score":2.4,"session_risk_ewma":1.9,"risk_points_sum":5,"window_risk_summary":{"window_seconds":3600,"event_count":12,"high_risk_event_count":3},"timestamp":"2026-03-23T10:32:00+00:00"}
+data: {"session_id":"session-001","previous_risk":"medium","current_risk":"high","trigger_event":"evt-002","latest_composite_score":2.4,"session_risk_ewma":1.9,"risk_points_sum":5,"window_risk_summary":{"window_seconds":3600,"event_count":12,"high_or_critical_count":3},"timestamp":"2026-03-23T10:32:00+00:00"}
 
 event: alert
 data: {"alert_id":"alert-abc123","severity":"high","metric":"session_risk_escalation","session_id":"session-001","current_risk":"high","latest_composite_score":2.4,"risk_points_sum":5,"message":"Session risk escalated to HIGH: 3 high-risk event(s) detected","timestamp":"2026-03-23T10:32:00+00:00"}
@@ -1107,7 +1122,7 @@ es.addEventListener("alert", (e) => {
         "cumulative_score": 5,
         "latest_composite_score": 2.4,
         "risk_points_sum": 5,
-        "window_risk_summary": {"window_seconds": 3600, "high_risk_event_count": 3},
+        "window_risk_summary": {"window_seconds": 3600, "high_or_critical_count": 3},
         "trigger_event_id": "evt-003",
         "tool_name": "bash"
       },
@@ -1317,7 +1332,7 @@ curl -X POST http://127.0.0.1:8080/ahp/patterns/confirm \
 仪表板前端使用 React 18 + TypeScript + Vite 构建，包含以下页面：
 
 - **Dashboard** —— 实时决策 Feed + 指标卡 + 图表
-- **Sessions** —— 会话列表 + D1-D5 雷达图 + 风险曲线
+- **Sessions** —— 会话列表 + D1-D6 雷达图 + 风险曲线
 - **Alerts** —— 告警管理 + 过滤 + 确认
 - **DEFER Panel** —— 倒计时 + Allow/Deny 按钮
 
@@ -1419,33 +1434,31 @@ Enterprise 端点只在企业模式启用时注册。它们与基础 `/report/*`
 ```json
 {
   "system_security_posture": {
-    "posture": "elevated",
-    "score": 72.5,
+    "level": "elevated",
+    "score_0_100": 72.5,
     "window_seconds": 3600,
     "generated_at": "2026-04-25T12:00:05Z",
-    "cache": {
-      "state": "fresh",
-      "ttl_seconds": 10,
-      "age_seconds": 2.1,
-      "stale": false,
-      "degraded": false
-    },
-    "summary": {
-      "tracked_sessions": 18,
-      "high_risk_sessions": 3,
-      "session_risk_sum": 24.8,
-      "risk_points_sum": 17
-    }
-  }
+    "decision_affecting": false,
+    "drivers": [
+      {"key": "critical_sessions", "label": "Critical sessions", "value": 1},
+      {"key": "high_sessions", "label": "High-risk sessions", "value": 3}
+    ]
+  },
+  "cache_ttl_ms": 10000,
+  "stale": false,
+  "degraded": false,
+  "degraded_reason": null,
+  "active_sessions": 18,
+  "high_risk_sessions": 3
 }
 ```
 
 约束：
 
-- `cache.stale=true` 表示可展示但需要降级标识；不要当成空数据。
-- `cache.degraded=true` 或 `posture="degraded"` 表示数据源不可用、节流命中或 payload cap 触发；UI 应显示降级原因并保留最后可用快照。
-- `GET /enterprise/report/live` 可做短 TTL 缓存和 throttle；payload 超过上限时应裁剪明细列表，保留 `system_security_posture.summary`。
-- `cumulative_score` 若被透传，只能作为 legacy 字段，Enterprise OS 首选 `session_risk_ewma` 与 `system_security_posture.score`。
+- 顶层 `stale=true` 表示可展示但需要降级标识；不要当成空数据。
+- 顶层 `degraded=true` 表示数据源不可用、节流命中或 payload cap 触发；UI 应显示 `degraded_reason` 并保留最后可用快照。
+- `GET /enterprise/report/live` 可做短 TTL 缓存和 throttle；payload 超过上限时应裁剪明细列表，保留 `system_security_posture.drivers`。
+- `cumulative_score` 若被透传，只能作为 legacy 字段，Enterprise OS 首选 `session_risk_ewma` 与 `system_security_posture.score_0_100`。
 
 
 ## GET /report/session/{id}/quarantine — session quarantine 状态 {#get-report-session-quarantine}

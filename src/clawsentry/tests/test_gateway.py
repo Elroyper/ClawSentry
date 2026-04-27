@@ -19,6 +19,7 @@ from httpx import AsyncClient, ASGITransport
 
 from clawsentry.gateway.server import SupervisionGateway, create_http_app, start_uds_server
 from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.session_registry import SessionRegistry
 from clawsentry.gateway.session_enforcement import EnforcementAction, SessionEnforcementPolicy
 from clawsentry.gateway.models import (
     ClassifiedBy,
@@ -833,7 +834,8 @@ class TestGatewayCore:
         assert session["session_risk_ewma"] == pytest.approx(2.165)
         assert session["risk_points_sum"] == 4
         assert session["risk_velocity"] == "up"
-        assert session["window_risk_summary"]["composite_score_sum"] == pytest.approx(6.8)
+        assert session["window_risk_summary"]["session_risk_sum"] == pytest.approx(6.8)
+        assert "composite_score_sum" not in session["window_risk_summary"]
 
         assert risk["latest_composite_score"] == pytest.approx(2.9)
         assert risk["risk_timeline"][-1]["composite_score"] == pytest.approx(2.9)
@@ -889,10 +891,32 @@ class TestGatewayCore:
         assert window_summary["event_count"] == 1
         assert window_summary["high_or_critical_count"] == 0
         assert window_summary["latest_composite_score"] == pytest.approx(1.25)
-        assert window_summary["composite_score_sum"] == pytest.approx(1.25)
+        assert window_summary["session_risk_sum"] == pytest.approx(1.25)
+        assert "composite_score_sum" not in window_summary
         assert window_summary["session_risk_ewma"] == pytest.approx(1.25)
         assert window_summary["risk_points_sum"] == 0
         assert window_summary["risk_velocity"] == "unknown"
+        assert window_summary["generated_at"]
+        assert window_summary["decision_affecting"] is False
+
+    def test_session_risk_velocity_uses_window_first_last_threshold(self):
+        assert SessionRegistry._timeline_display_metrics([
+            {"composite_score": 1.0},
+        ])["risk_velocity"] == "unknown"
+        assert SessionRegistry._timeline_display_metrics([
+            {"composite_score": 1.0},
+            {"composite_score": 1.2},
+        ])["risk_velocity"] == "flat"
+        assert SessionRegistry._timeline_display_metrics([
+            {"composite_score": 1.0},
+            {"composite_score": 1.8},
+            {"composite_score": 1.3},
+        ])["risk_velocity"] == "up"
+        assert SessionRegistry._timeline_display_metrics([
+            {"composite_score": 1.6},
+            {"composite_score": 0.9},
+            {"composite_score": 1.3},
+        ])["risk_velocity"] == "down"
 
     def test_report_session_risk_surfaces_latest_l3_metadata(self, gw):
         session_id = "sess-risk-contract-001"

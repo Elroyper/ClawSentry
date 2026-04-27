@@ -33,7 +33,7 @@ ClawSentry 的推荐新手路径不再把 “永远不接 LLM” 当成默认终
 
 ```bash
 pip install clawsentry
-clawsentry config wizard --non-interactive --mode normal --llm-provider none --write-project-config
+clawsentry config wizard --interactive
 clawsentry start --framework codex --open-browser
 ```
 
@@ -63,8 +63,8 @@ clawsentry start --framework codex --open-browser
 
 </div>
 
-!!! note "关于 `config wizard` 的真实行为"
-    当前 `clawsentry config wizard` 是确定性的配置生成器：在本终端没有交互式问答 UI 时，它使用传入参数或默认值写入 `.clawsentry.toml`。文档不会承诺尚未实现的 `clawsentry setup` 或多轮问卷式配置；如果未来新增 CLI setup UX，会作为单独功能发布。
+!!! note "`config wizard` 的两种运行方式"
+    本地终端推荐 `clawsentry config wizard --interactive`，它会用 5 步画面询问 framework、mode、LLM、L2/L3 与 token budget。CI、脚本和文档复制命令继续使用 `--non-interactive`，以保证输出可复现。
 
 ---
 

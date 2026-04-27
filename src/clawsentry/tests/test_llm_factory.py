@@ -23,6 +23,8 @@ def _clean_env():
         "CS_LLM_API_KEY",
         "CS_LLM_MODEL",
         "CS_LLM_BASE_URL",
+        "CS_LLM_TEMPERATURE",
+        "CS_LLM_PROVIDER_TIMEOUT_MS",
         "CS_L3_ENABLED",
         "CS_L3_MULTI_TURN",
         "CS_LLM_L3_ENABLED",
@@ -97,6 +99,23 @@ class TestBuildAnalyzerFromEnv:
         assert isinstance(result, CompositeAnalyzer)
         assert isinstance(result._analyzers[1], LLMAnalyzer)
         assert isinstance(result._analyzers[1]._provider, OpenAIProvider)
+
+    def test_openai_provider_uses_temperature_and_provider_timeout_env(self):
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-shared-key-123",
+            "CS_LLM_TEMPERATURE": "1",
+            "CS_LLM_PROVIDER_TIMEOUT_MS": "20000",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env()
+
+        assert isinstance(result, CompositeAnalyzer)
+        l2 = result._analyzers[1]
+        assert isinstance(l2, LLMAnalyzer)
+        assert l2._provider._config.temperature == 1.0
+        assert l2._config.provider_timeout_ms == 20000.0
 
     def test_anthropic_provider_from_env(self):
         """CS_LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY → CompositeAnalyzer with AnthropicProvider."""

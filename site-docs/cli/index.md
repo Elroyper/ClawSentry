@@ -1128,7 +1128,7 @@ clawsentry service uninstall
 
 ## clawsentry config
 
-管理项目级 `.clawsentry.toml`、确定性 `config wizard` 和最终生效配置。新部署优先使用 `config wizard --non-interactive` 生成可复现骨架，再用 `config show --effective` 检查来源；旧的 preset 命令继续保留。
+管理项目级 `.clawsentry.toml`、交互式 `config wizard` 和最终生效配置。新部署可以直接运行 `clawsentry config wizard --interactive` 进入终端向导；CI、文档复制命令和批量初始化继续使用 `--non-interactive` 生成可复现骨架。写入后用 `config show --effective` 检查来源；旧的 preset 命令继续保留。
 
 ### 语法
 
@@ -1142,13 +1142,13 @@ clawsentry config <subcommand> [options]
 |--------|------|
 | `init` | 在当前目录创建 `.clawsentry.toml` |
 | `show` | 显示当前项目配置；加 `--effective` 展示来源和密钥脱敏 |
-| `wizard` | 按 supplied/default values 生成项目/环境配置；`--non-interactive` 适合 CI |
+| `wizard` | 在 TTY 中提供分步配置向导；`--non-interactive` 使用 supplied/default values，适合 CI |
 | `set <preset>` | 更新预设等级或单个配置字段 |
 | `disable` | 禁用 ClawSentry（设置 `enabled = false`） |
 | `enable` | 启用 ClawSentry（设置 `enabled = true`） |
 
-!!! info "`config wizard` 的当前边界"
-    当前 wizard 不会承诺逐题追问式 setup。它会使用命令行传入值和默认值写出确定性配置；当终端不支持交互时，会打印 fallback 提示并继续使用 supplied/default values。需要产品级 `clawsentry setup` 引导体验时，应作为单独 CLI 功能实现并测试，而不是只在文档中承诺。
+!!! info "`config wizard` 的两种模式"
+    在支持 TTY 的终端中，`--interactive` 会显示分步画面并逐项询问 framework、mode、LLM provider、L2/L3 与 token budget。当 stdin 不是 TTY 或传入 `--non-interactive` 时，wizard 保持确定性行为：使用命令行传入值和默认值写出 `.clawsentry.toml`，便于 CI 复现。
 
 ### `config init` 选项
 
@@ -1167,6 +1167,21 @@ clawsentry config <subcommand> [options]
 | `strict` | 最严格模式，几乎所有可疑操作均触发审查 | 安全敏感项目 |
 
 ### 示例
+
+#### 交互式终端向导
+
+```bash
+clawsentry config wizard --interactive
+clawsentry config show --effective
+```
+
+向导会按 5 步展示：
+
+1. 选择 agent framework。
+2. 选择安全模式。
+3. 配置可选 LLM provider / model。
+4. 选择 L2 semantic analysis 和 L3 advisory review。
+5. 设置每日 LLM token budget。
 
 #### 生成 L2/L3-ready 配置骨架
 

@@ -8,6 +8,8 @@ Environment variables:
   OPENAI_API_KEY      = legacy API key for OpenAI-compatible provider
   CS_LLM_MODEL        = override default model name
   CS_LLM_BASE_URL     = OpenAI-compatible base URL (e.g. kimi-k2.5 endpoint)
+  CS_LLM_TEMPERATURE  = optional model temperature override
+  CS_LLM_PROVIDER_TIMEOUT_MS = optional per-call provider timeout override
   CS_L3_ENABLED       = "true" to enable AgentAnalyzer (L3 review agent)
   CS_LLM_L3_ENABLED   = alias for CS_L3_ENABLED
   CS_L3_MULTI_TURN    = "false" to force MVP single-turn mode when L3 is enabled
@@ -23,7 +25,7 @@ from typing import Any, Optional
 
 from .llm_provider import AnthropicProvider, InstrumentedProvider, LLMProviderConfig, OpenAIProvider
 from .llm_settings import LLMSettings, resolve_llm_settings
-from .semantic_analyzer import CompositeAnalyzer, LLMAnalyzer, RuleBasedAnalyzer
+from .semantic_analyzer import CompositeAnalyzer, LLMAnalyzer, LLMAnalyzerConfig, RuleBasedAnalyzer
 
 logger = logging.getLogger("ahp.llm-factory")
 
@@ -40,6 +42,7 @@ def _build_provider(settings: LLMSettings) -> AnthropicProvider | OpenAIProvider
     config_kwargs = {
         "api_key": settings.api_key,
         "model": settings.model,
+        "temperature": settings.temperature,
     }
     if settings.provider == "anthropic":
         return AnthropicProvider(LLMProviderConfig(**config_kwargs))
@@ -89,7 +92,10 @@ def build_analyzer_from_env(
 
     l2_analyzers: list = [
         RuleBasedAnalyzer(patterns_path=patterns_path, evolved_patterns_path=evolved_patterns_path),
-        LLMAnalyzer(l2_provider),
+        LLMAnalyzer(
+            l2_provider,
+            LLMAnalyzerConfig(provider_timeout_ms=settings.provider_timeout_ms),
+        ),
     ]
     l2_composite = CompositeAnalyzer(l2_analyzers)
 

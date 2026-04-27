@@ -4,6 +4,41 @@
 
 ## [Unreleased]
 
+## [0.5.12] — 2026-04-27
+
+### 新增
+
+- **交互式配置向导升级** — `clawsentry config wizard --interactive` 现在提供明确的 5 步 TTY 配置流程，覆盖 framework、mode、LLM provider、L2/L3 与 token budget；非 TTY 的显式交互请求会失败并给出可执行提示，`--non-interactive` 保持 CI/模板可复现路径。
+- **AgentDoG / ATBench replay 基建** — 新增 `benchmarks/scripts/agentdog_atbench_clawsentry.py`，支持 AgentDoG trajectory 转 ClawSentry canonical events、读取 `agent.hcl` 的 OpenAI-compatible API 配置、执行 L1/L2/L3 replay，并输出 `events.jsonl`、`decisions.jsonl`、`risk_report.json`、`summary.json` 与 `summary.md`。
+- **OpenAI-compatible LLM 参数覆盖** — `CS_LLM_TEMPERATURE` 与 `CS_LLM_PROVIDER_TIMEOUT_MS` 可用于兼容只接受特定 temperature 或需要更长 provider timeout 的模型；AgentDoG runner 暴露 `--llm-temperature` 与 `--llm-provider-timeout-ms`。
+
+### 改进
+
+- **Metric Dictionary canonical 化** — 在线指标字典收敛为单一 canonical 字段集，移除旧同义/legacy 指标混排，补齐 `session_risk_sum`、`session_risk_ewma`、`risk_points_sum`、`risk_velocity`、`window_risk_summary`、`system_security_posture` 与 D1-D6 的公式、窗口语义和消费边界。
+- **Reporting API 示例对齐后端合同** — `/report/sessions`、`/report/session/{id}/risk` 与 Enterprise posture 示例补齐 `generated_at`、`decision_affecting`、D1-D6、`score_0_100` / `level` / `drivers` 等实际字段，避免 consumer 继续依赖旧 `posture` / `score` / D1-D5 口径。
+- **配置向导 UX 语义收敛** — framework 选择现在明确是下一步启动命令提示，不再暗示 wizard 已安装 framework hooks；provider 为 `none` 时 L2/L3 强制关闭，避免写出不可用配置。
+
+### 修复
+
+- **会话风险趋势算法统一** — `session_registry` 的 `risk_velocity` 与 reporting helper 统一为窗口首尾 composite score 差值，阈值 `0.25`；单样本返回 `unknown`。
+- **窗口风险摘要字段统一** — `window_risk_summary` 不再输出旧 alias `composite_score_sum`，统一使用 `session_risk_sum`，并补齐 `generated_at` 与 `decision_affecting=false`。
+
+### Benchmark / 交接
+
+- AgentDoG 上游已 clone 到 `benchmarks/AgentDoG`（commit `09adfb8`，目录已 gitignore）。
+- 使用 `agent.hcl` 的 provider/base_url/API key 与 `openai/kimi-k2.5` 跑通 sample 端到端 smoke：3 events / 3 L2 decisions / max risk `medium`；结果目录为 `benchmarks/results/agentdog-atbench/2026-04-27_kimi-k2.5_agenthcl_temp1_clawsentry_sample_09adfb8`。
+- 该 sample 没有 ground-truth label，因此只作为基建 smoke；下一窗口继续推进 labeled ATBench 最小样本集、raw vs ClawSentry 对照、a3s-code / Codex / Claude Code / Gemini CLI / OpenClaw runner 设计。
+
+### 测试与验证
+
+- Python full regression：dev repo `python -m pytest src/clawsentry/tests/ -q --tb=short` → `3196 passed, 4 skipped`；public repo expected `3189 passed, 11 skipped` after benchmark-only tests skip.
+- Focused release regression：`python -m pytest src/clawsentry/tests/test_llm_factory.py src/clawsentry/tests/test_config_command.py src/clawsentry/tests/test_benchmark_wrapper_contract.py src/clawsentry/tests/test_public_docs_contract.py -q` → `51 passed`。
+- Gateway core regression：`python -m pytest src/clawsentry/tests/test_gateway.py::TestGatewayCore -q` → `55 passed`。
+- Focused docs/config/benchmark/LLM checks：`31 passed`；Gateway metric contract checks：`4 passed`。
+- `python scripts/docs_api_inventory.py validate` → PASS。
+- `mkdocs build --strict` → PASS。
+- `git diff --check` → PASS。
+
 ## [0.5.11] — 2026-04-26
 
 ### 修复
@@ -1107,6 +1142,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.12]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.12
 [0.5.11]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.11
 [0.5.10]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.10
 [0.5.9]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.9

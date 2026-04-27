@@ -18,6 +18,7 @@ RELEASE_CHECKLIST = REPO_ROOT / "docs" / "management" / "RELEASE_CHECKLIST.md"
 RULES_CI_EXAMPLE = REPO_ROOT / "examples" / "ci" / "rules-governance.yml"
 PACKAGE_README = REPO_ROOT / "src" / "clawsentry" / "README.md"
 PUBLIC_README = REPO_ROOT / "README_PUBLIC.md"
+METRIC_DICTIONARY = REPO_ROOT / "site-docs" / "api" / "metric-dictionary.md"
 
 
 def _extract(pattern: str, source: str) -> str:
@@ -280,3 +281,25 @@ def test_recent_user_facing_features_have_online_docs_journey_anchors() -> None:
     ]
     for term in api_validity_terms:
         assert term in docs["api_overview"]
+
+
+def test_metric_dictionary_has_single_clear_canonical_section() -> None:
+    source = METRIC_DICTIONARY.read_text(encoding="utf-8")
+
+    assert source.count("## 核心字段解释") == 1
+    assert source.count("## D1-D6 风险维度") == 1
+    assert source.count("## `window_risk_summary` 最低字段集") == 1
+    assert "## 核心指标解释" not in source
+    assert "composite_score_sum" not in source
+    assert "high_risk_event_count" not in source
+
+    for field in [
+        "latest_composite_score",
+        "session_risk_sum",
+        "session_risk_ewma",
+        "risk_points_sum",
+        "risk_velocity",
+        "window_risk_summary",
+        "system_security_posture",
+    ]:
+        assert field in source

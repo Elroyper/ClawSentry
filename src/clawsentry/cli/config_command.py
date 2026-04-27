@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
+from .initializers import FRAMEWORK_INITIALIZERS
 from clawsentry.gateway.detection_config import PRESETS
 from clawsentry.gateway.project_config import (
     CONFIG_FILENAME,
@@ -164,6 +166,158 @@ def _as_float(value: Any, default: float) -> float:
         return default
 
 
+def _print_wizard_header(target_dir: Path) -> None:
+    print("+--------------------------------------------+")
+    print("| ClawSentry Setup                           |")
+    print("| Interactive project configuration guide    |")
+    print("+--------------------------------------------+")
+    print(f"Target: {target_dir / CONFIG_FILENAME}")
+    print()
+
+
+def _prompt_choice(
+    *,
+    step: str,
+    label: str,
+    choices: list[str],
+    default: str,
+) -> str:
+    choice_text = "/".join(choices)
+    while True:
+        raw = input(f"{step} {label} [{choice_text}] (default: {default}): ").strip()
+        value = raw or default
+        if value in choices:
+            return value
+        print(f"  Choose one of: {', '.join(choices)}")
+
+
+def _prompt_text(*, step: str, label: str, default: str = "") -> str:
+    suffix = f" (default: {default})" if default else ""
+    raw = input(f"{step} {label}{suffix}: ").strip()
+    return raw or default
+
+
+def _prompt_bool(*, step: str, label: str, default: bool = False) -> bool:
+    default_text = "y" if default else "n"
+    while True:
+        raw = input(f"{step} {label} [y/n] (default: {default_text}): ").strip().lower()
+        if not raw:
+            return default
+        if raw in {"y", "yes", "1", "true", "on"}:
+            return True
+        if raw in {"n", "no", "0", "false", "off"}:
+            return False
+        print("  Enter y or n.")
+
+
+def _prompt_int(*, step: str, label: str, default: int = 0) -> int:
+    while True:
+        raw = input(f"{step} {label} (default: {default}): ").strip()
+        if not raw:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            print("  Enter a whole number.")
+            continue
+        if value < 0:
+            print("  Enter 0 or a positive number.")
+            continue
+        return value
+
+
+def _interactive_wizard_values(
+    *,
+    target_dir: Path,
+    framework: str,
+    mode: str,
+    llm_provider: str,
+    llm_model: str,
+    llm_base_url: str,
+    l2: bool | None,
+    l3: bool,
+    token_budget: int,
+) -> dict[str, Any]:
+    _print_wizard_header(target_dir)
+    print("Step 1/5 - Select the agent framework.")
+    framework_choices = sorted(FRAMEWORK_INITIALIZERS.keys())
+    provider_default = "" if llm_provider == "none" else llm_provider
+    provider_choices = ["none", "openai", "anthropic"]
+    if provider_default in {"", "none"}:
+        provider_prompt_default = "none"
+    else:
+        provider_prompt_default = provider_default
+
+    selected_framework = _prompt_choice(
+        step="Step 1/5",
+        label="Agent framework",
+        choices=framework_choices,
+        default=framework if framework in framework_choices else "codex",
+    )
+    print("Step 2/5 - Choose the security mode.")
+    selected_mode = _prompt_choice(
+        step="Step 2/5",
+        label="Security mode",
+        choices=["normal", "strict", "permissive", "benchmark"],
+        default=mode,
+    )
+    print("Step 3/5 - Configure optional LLM analysis.")
+    selected_provider = _prompt_choice(
+        step="Step 3/5",
+        label="LLM provider for L2/L3",
+        choices=provider_choices,
+        default=provider_prompt_default,
+    )
+    if selected_provider == "none":
+        selected_provider = ""
+        selected_model = ""
+        selected_base_url = ""
+        selected_l2 = False
+        selected_l3 = False
+        print("Step 4/5 - Choose deeper review features.")
+        print("  No LLM provider selected; L2 and L3 review are disabled.")
+    else:
+        selected_model = _prompt_text(
+            step="Step 3/5",
+            label="LLM model",
+            default=llm_model,
+        )
+        selected_base_url = _prompt_text(
+            step="Step 3/5",
+            label="OpenAI-compatible base URL",
+            default=llm_base_url,
+        )
+        print("Step 4/5 - Choose deeper review features.")
+        print("  L2/L3 can improve semantic detection, but they add model cost and latency.")
+        selected_l2 = _prompt_bool(
+            step="Step 4/5",
+            label="Enable L2 semantic analysis",
+            default=True if l2 is None else bool(l2),
+        )
+        selected_l3 = _prompt_bool(
+            step="Step 4/5",
+            label="Enable L3 advisory review",
+            default=bool(l3),
+        )
+    print("Step 5/5 - Set budget guardrails.")
+    selected_token_budget = _prompt_int(
+        step="Step 5/5",
+        label="Daily LLM token budget, 0 disables budget enforcement",
+        default=int(token_budget),
+    )
+    print()
+    return {
+        "framework": selected_framework,
+        "mode": selected_mode,
+        "llm_provider": selected_provider,
+        "llm_model": selected_model,
+        "llm_base_url": selected_base_url,
+        "l2": selected_l2,
+        "l3": selected_l3,
+        "token_budget": selected_token_budget,
+    }
+
+
 def _config_write_kwargs(cfg: Any) -> dict[str, Any]:
     """Return full ``_write_toml`` kwargs so small edits preserve other sections."""
     return {
@@ -311,6 +465,7 @@ def run_config_wizard(
     *,
     target_dir: Path,
     non_interactive: bool = False,
+    interactive: bool | None = None,
     framework: str = "codex",
     mode: str = "normal",
     llm_provider: str = "",
@@ -322,14 +477,49 @@ def run_config_wizard(
     force: bool = False,
 ) -> None:
     """Guided setup. Non-interactive mode is deterministic for CI/wrappers."""
+    stdin_is_tty = bool(getattr(sys.stdin, "isatty", lambda: False)())
+    use_interactive = False
     if not non_interactive:
+        use_interactive = bool(interactive) or (interactive is None and stdin_is_tty)
+    if use_interactive and not stdin_is_tty:
+        raise RuntimeError(
+            "Interactive wizard requires a TTY. Re-run in a terminal, or use "
+            "`clawsentry config wizard --non-interactive` with explicit flags."
+        )
+    elif not non_interactive and not use_interactive:
         print("Interactive wizard is not available in this terminal; using supplied/default values.")
+
     if mode not in {"normal", "strict", "permissive", "benchmark"}:
         raise ValueError("mode must be normal, strict, permissive, or benchmark")
     if llm_provider == "none":
         llm_provider = ""
     if llm_provider and llm_provider not in {"openai", "anthropic"}:
         raise ValueError("llm_provider must be openai, anthropic, none, or empty")
+
+    if use_interactive:
+        values = _interactive_wizard_values(
+            target_dir=target_dir,
+            framework=framework,
+            mode=mode,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+            llm_base_url=llm_base_url,
+            l2=l2,
+            l3=l3,
+            token_budget=token_budget,
+        )
+        framework = values["framework"]
+        mode = values["mode"]
+        llm_provider = values["llm_provider"]
+        llm_model = values["llm_model"]
+        llm_base_url = values["llm_base_url"]
+        l2 = values["l2"]
+        l3 = values["l3"]
+        token_budget = values["token_budget"]
+
+    if not llm_provider:
+        l2 = False
+        l3 = False
     l2_enabled = bool(llm_provider) if l2 is None else bool(l2)
     toml_path = target_dir / CONFIG_FILENAME
     if toml_path.exists() and not force:
@@ -345,9 +535,12 @@ def run_config_wizard(
         token_budget=token_budget,
         framework=framework,
     )
-    print(f"Configured ClawSentry for {framework} ({mode} mode).")
+    print(f"Wrote ClawSentry project config ({mode} mode).")
     if llm_provider:
         print("LLM API key is read from CS_LLM_API_KEY; secrets were not written to config.")
+    print("Framework integration is selected for the next command; this wizard does not install hooks.")
+    print(f"Next: run `clawsentry start --framework {framework}`.")
+    print("Next: run `clawsentry config show --effective` to verify resolved values.")
 
 
 def run_config_disable(*, target_dir: Path) -> None:
