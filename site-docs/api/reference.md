@@ -64,6 +64,7 @@ description: 使用 Scalar 风格界面浏览 ClawSentry OpenAPI 端点、schema
 | --- | --- |
 | 生成类型或 client | 使用 [`openapi.json`](openapi.json)，只把 `public` 和明确启用的 `enterprise` 端点纳入目标环境。 |
 | 构建 Dashboard 首屏 | 先接 `GET /report/summary`、`GET /report/sessions`、`GET /report/session/{session_id}/page`。 |
+| 构建 Enterprise OS 20 类风险统计 | 企业模式下先接 `GET /enterprise/report/live?cached=true`；需要审计窗口时再接 `GET /enterprise/report/summary?window_seconds=3600`，读取 `by_trinityguard_subtype` / `by_trinityguard_tier` 或 `trinityguard.by_subtype` / `trinityguard.by_tier`。 |
 | 构建实时流 | 使用 `GET /report/stream`；浏览器侧可用 query token，服务端集成优先 Bearer token。 |
 | 构建处置动作 | acknowledge / enforcement / quarantine / L3 advisory 写入端点都按 contract 验证，不在报告生成时盲目 live 调用。 |
 | 核对 API 是否真实存在 | 打开 [API 有效性报告](validity-report.md)，查看 source file:line、Markdown anchor 和 OpenAPI operation。 |

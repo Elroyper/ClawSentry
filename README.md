@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3238 public regression tests** with release-time CI/build evidence
+- **3250 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.14
+## What's New in v0.6.0
 
-- **Anti-bypass follow-up guard**: default-off `PRE_ACTION` memory detects repeated risky follow-up attempts from compact final-decision fingerprints.
-- **Safe rollout controls**: `CS_ANTI_BYPASS_*` knobs support observe/review/enforce modes while keeping cross-tool/script similarity out of local hard-block decisions.
-- **Redacted observability**: anti-bypass decisions and defer streams expose hashes, fingerprints, labels, tool names, and record IDs instead of raw payloads or commands.
+- **Polished setup path**: `clawsentry config wizard --interactive` now uses numbered choices, TTY-safe progress, and honest labels for runtime-effective vs env-only settings.
+- **Clear config precedence**: `.clawsentry.toml` is shareable non-secret project policy, `.env.clawsentry` is local startup convenience, and process environment remains highest-precedence/secret override.
+- **L3 Agent E2E evidence**: `replace_l2` + `eager` routing is behaviorally tested, persisted in trajectory traces, surfaced in reporting APIs, and optionally verified against a real LLM provider.
 
 ## Quick Start
 

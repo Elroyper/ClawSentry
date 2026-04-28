@@ -124,7 +124,12 @@ def should_force_l3_follow_up(context: Optional[DecisionContext]) -> bool:
     if context is None or not isinstance(context.session_risk_summary, dict):
         return False
     flags = ("force_l3", "l3_escalate", "force_deep_review", "manual_l3_escalation")
-    return any(bool(context.session_risk_summary.get(flag)) for flag in flags)
+    if any(bool(context.session_risk_summary.get(flag)) for flag in flags):
+        return True
+    return (
+        str(context.session_risk_summary.get("l3_trigger_profile") or "").lower() == "eager"
+        or str(context.session_risk_summary.get("l3_routing_mode") or "").lower() == "replace_l2"
+    )
 
 
 def _compact_prompt_text(value: Optional[str], *, max_len: int = _MAX_CONTEXT_TEXT_LEN) -> Optional[str]:

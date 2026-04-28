@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -175,6 +176,19 @@ def _print_wizard_header(target_dir: Path) -> None:
     print()
 
 
+def _print_wizard_boundary_notes() -> None:
+    """Explain which wizard choices are actually written and runtime-effective."""
+    print("Configuration boundary:")
+    print("  - Writes only runtime-effective .clawsentry.toml fields approved for project config.")
+    print("  - API key values are env-only; keep secrets in process env or .env.clawsentry.")
+    print("  - Runtime precedence still applies: process env and .env.clawsentry still win.")
+    print("  - features.l3 requests L3; actual runtime use still requires provider support.")
+    print("  - L3 routing/eager profiles, advisory automation, anti-bypass, DEFER, and timeouts")
+    print("    stay in env/docs or advanced templates unless a dedicated wizard exposes them.")
+    print("  - Verify final sources with `clawsentry config show --effective`.")
+    print()
+
+
 def _prompt_choice(
     *,
     step: str,
@@ -182,13 +196,17 @@ def _prompt_choice(
     choices: list[str],
     default: str,
 ) -> str:
-    choice_text = "/".join(choices)
+    choice_text = ", ".join(f"{index}) {choice}" for index, choice in enumerate(choices, start=1))
     while True:
         raw = input(f"{step} {label} [{choice_text}] (default: {default}): ").strip()
-        value = raw or default
+        if raw.isdigit():
+            index = int(raw)
+            value = choices[index - 1] if 1 <= index <= len(choices) else raw
+        else:
+            value = raw or default
         if value in choices:
             return value
-        print(f"  Choose one of: {', '.join(choices)}")
+        print(f"  Choose one of: {choice_text}")
 
 
 def _prompt_text(*, step: str, label: str, default: str = "") -> str:
@@ -239,6 +257,7 @@ def _interactive_wizard_values(
     token_budget: int,
 ) -> dict[str, Any]:
     _print_wizard_header(target_dir)
+    _print_wizard_boundary_notes()
     print("Step 1/5 - Select the agent framework.")
     framework_choices = sorted(FRAMEWORK_INITIALIZERS.keys())
     provider_default = "" if llm_provider == "none" else llm_provider
@@ -487,7 +506,10 @@ def run_config_wizard(
             "`clawsentry config wizard --non-interactive` with explicit flags."
         )
     elif not non_interactive and not use_interactive:
-        print("Interactive wizard is not available in this terminal; using supplied/default values.")
+        if os.environ.get("CI") or os.environ.get("NO_COLOR"):
+            print("Non-interactive/CI-safe wizard path: using supplied/default values.")
+        else:
+            print("Interactive wizard is not available in this terminal; using supplied/default values.")
 
     if mode not in {"normal", "strict", "permissive", "benchmark"}:
         raise ValueError("mode must be normal, strict, permissive, or benchmark")

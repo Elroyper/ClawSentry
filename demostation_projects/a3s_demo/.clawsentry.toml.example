@@ -1,0 +1,39 @@
+# Sanitized ClawSentry project config for the a3s_demo recording workspace.
+# Copy to .clawsentry.toml only inside demostation_projects/a3s_demo.
+# Never paste API key values here; api_key_env points at an environment variable.
+
+[project]
+enabled = true
+mode = "normal"
+preset = "high"
+
+[llm]
+provider = "openai"
+api_key_env = "CS_LLM_API_KEY"
+model = "gpt-4o-mini"
+base_url = ""
+
+[features]
+l2 = true
+# features.l3 requests runtime L3 only when provider support is available.
+l3 = true
+enterprise = false
+
+[budgets]
+llm_token_budget_enabled = true
+llm_daily_token_budget = 200000
+llm_token_budget_scope = "total"
+l2_timeout_ms = 60000
+l3_timeout_ms = 300000
+hard_timeout_ms = 600000
+
+[defer]
+bridge_enabled = true
+timeout_s = 86400
+timeout_action = "block"
+max_pending = 0
+
+[benchmark]
+auto_resolve_defer = true
+defer_action = "block"
+persist_scope = "project"

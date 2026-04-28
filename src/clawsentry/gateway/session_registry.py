@@ -697,6 +697,11 @@ class SessionRegistry:
         l3_state = meta.get("l3_state")
         l3_reason = meta.get("l3_reason")
         l3_reason_code = meta.get("l3_reason_code")
+        l3_trace_summary = (
+            dict(meta.get("l3_trace_summary"))
+            if isinstance(meta.get("l3_trace_summary"), dict)
+            else None
+        )
         approval_id = meta.get("approval_id") or event.get("approval_id")
         approval_kind = meta.get("approval_kind")
         approval_state = meta.get("approval_state")
@@ -797,6 +802,8 @@ class SessionRegistry:
             timeline_entry["approval_timeout_s"] = float(approval_timeout_s)
         if evidence_summary is not None:
             timeline_entry["evidence_summary"] = evidence_summary
+        if l3_trace_summary is not None:
+            timeline_entry["l3_trace_summary"] = l3_trace_summary
 
         effect_summary = decision_effect_summary(decision.get("decision_effects"))
         if effect_summary is not None:
@@ -1072,6 +1079,7 @@ class SessionRegistry:
         sort: str = "risk_level",
         min_risk: Optional[str] = None,
         limit: int = 50,
+        max_limit: int = 200,
         since_seconds: Optional[int] = None,
     ) -> dict[str, Any]:
         start = time.perf_counter()
@@ -1099,7 +1107,7 @@ class SessionRegistry:
                     reverse=True,
                 )
 
-            effective_limit = min(max(limit, 1), 200)
+            effective_limit = min(max(limit, 1), max(max_limit, 1))
             serialized_sessions: list[dict[str, Any]] = []
             for session in sessions[:effective_limit]:
                 serialized_session = {
@@ -1277,6 +1285,11 @@ class SessionRegistry:
                         **(
                             {"evidence_summary": item["evidence_summary"]}
                             if item.get("evidence_summary") is not None
+                            else {}
+                        ),
+                        **(
+                            {"l3_trace_summary": item["l3_trace_summary"]}
+                            if item.get("l3_trace_summary") is not None
                             else {}
                         ),
                         **(

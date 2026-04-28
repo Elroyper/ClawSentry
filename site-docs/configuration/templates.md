@@ -30,11 +30,52 @@ clawsentry config show --effective
 | 只想对高风险 session 做事后复盘 | 与实时判决解耦 | L3 advisory full-review | 短测或值守 | [咨询审查模板](#template-advisory-review) |
 | CI、benchmark、安全评测 | 不等待人工 | benchmark deterministic | 短测 | [Benchmark 模板](#template-benchmark) |
 | 生产常驻 | 按团队 SLA | 显式 provider / budget / DB | 持久 | [生产环境变量骨架](#template-production-env) |
+| a3s-code 录屏 demo | 中；展示实时阻断 + L3 复盘 | L2 + L3 | 短测 | [a3s_demo 脱敏模板](#template-a3s-demo) |
 
 ```bash
 clawsentry config wizard --non-interactive --framework codex --mode normal --llm-provider none --write-project-config
 clawsentry config show --effective
 ```
+
+## a3s_demo 脱敏模板：录屏/联调专用 {#template-a3s-demo}
+
+`demostation_projects/a3s_demo/.clawsentry.toml.example` 是 allowlisted demo 模板：它只包含 runtime-effective 项目配置字段，密钥只通过 `api_key_env = "CS_LLM_API_KEY"` 引用，不保存真实 API key。复制后用有效配置命令确认来源：
+
+```bash
+cd demostation_projects/a3s_demo
+cp .clawsentry.toml.example .clawsentry.toml
+clawsentry config show --effective
+```
+
+边界：process env / `.env.clawsentry` 仍优先生效；`features.l3 = true` 只是请求同步 L3，实际参与还取决于 provider、模型、预算和 runtime 能力。
+
+```toml title="demostation_projects/a3s_demo/.clawsentry.toml.example"
+[project]
+enabled = true
+mode = "normal"
+preset = "high"
+
+[llm]
+provider = "openai"
+api_key_env = "CS_LLM_API_KEY"
+model = "gpt-4o-mini"
+base_url = ""
+
+[features]
+l2 = true
+l3 = true
+enterprise = false
+
+[budgets]
+llm_token_budget_enabled = true
+llm_daily_token_budget = 200000
+llm_token_budget_scope = "total"
+l2_timeout_ms = 60000
+l3_timeout_ms = 300000
+hard_timeout_ms = 600000
+```
+
+---
 
 ## 观察优先：先跑起来，不接外部 LLM {#template-observe-first}
 <span id="individual-developer"></span>

@@ -50,6 +50,54 @@ _L2_OVERHEAD_MARGIN_MS: float = 200.0
 _INNER_BUDGET_MARGIN_MS: float = 300.0
 
 
+def _analyzer_supports_l3(analyzer) -> bool:
+    analyzer_id = str(getattr(analyzer, "analyzer_id", "") or "")
+    if analyzer_id == "agent-reviewer":
+        return True
+    for child in getattr(analyzer, "_analyzers", []) or []:
+        if _analyzer_supports_l3(child):
+            return True
+    return False
+
+
+def _effective_requested_tier_for_l3_config(
+    requested_tier: DecisionTier,
+    config: DetectionConfig,
+    analyzer,
+) -> DecisionTier:
+    if (
+        requested_tier == DecisionTier.L2
+        and config.l3_routing_mode == "replace_l2"
+        and _analyzer_supports_l3(analyzer)
+    ):
+        return DecisionTier.L3
+    return requested_tier
+
+
+def _context_with_l3_config(
+    context: Optional[DecisionContext],
+    config: DetectionConfig,
+    requested_tier: DecisionTier,
+) -> Optional[DecisionContext]:
+    if requested_tier != DecisionTier.L3:
+        return context
+    updates: dict[str, str] = {}
+    if config.l3_trigger_profile == "eager":
+        updates["l3_trigger_profile"] = "eager"
+    if config.l3_routing_mode == "replace_l2":
+        updates["l3_routing_mode"] = "replace_l2"
+    if not updates:
+        return context
+
+    session_summary = {}
+    if context is not None and isinstance(context.session_risk_summary, dict):
+        session_summary.update(context.session_risk_summary)
+    session_summary.update(updates)
+    if context is not None:
+        return context.model_copy(update={"session_risk_summary": session_summary})
+    return DecisionContext(session_risk_summary=session_summary)
+
+
 def _build_min_score_map(config: DetectionConfig) -> dict[RiskLevel, float]:
     return {
         RiskLevel.LOW: 0.0,
@@ -127,6 +175,12 @@ class L1PolicyEngine:
             (decision, risk_snapshot, actual_tier)
         """
         effective_config = config if config is not None else self._config
+        requested_tier = _effective_requested_tier_for_l3_config(
+            requested_tier,
+            effective_config,
+            self._analyzer,
+        )
+        context = _context_with_l3_config(context, effective_config, requested_tier)
         start = time.monotonic()
 
         l1_snapshot = compute_risk_snapshot(event, context, self._session_tracker, effective_config)

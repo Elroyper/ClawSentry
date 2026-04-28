@@ -6,6 +6,37 @@
 
 暂无。
 
+## [0.6.0] — 2026-04-29
+
+### 新增
+
+- **Setup / config truth matrix** — 新增配置真值矩阵，逐项记录 `.clawsentry.toml`、`.env.clawsentry` 与 process env 的支持状态、runtime-effective path、验证测试和最终暴露决策，避免把 parse-only 或 env-only 设置误包装成 wizard 可见能力。
+- **真实 L3 Agent 行为回归** — 新增 `replace_l2` 与 `eager` 的 failing-first 行为测试；即使首个 L2 结果已经达到 decisive confidence，`CS_L3_ROUTING_MODE=replace_l2` 仍会真实运行同步 L3，并将 `actual_tier=L3`、`l3_state=completed` 和 trace summary 持久化。
+- **可选真实 provider L3 E2E** — 新增默认跳过的 `CS_L3_RUN_REAL_E2E=true` 测试，用 OpenAI-compatible / Anthropic provider 证明真实 LLM 调用可以完成 L3 执行和 trace 持久化；CI 默认不消耗额度。
+- **Sanitized demo template** — 为 a3s_demo 提供 allowlist 生成的 `.clawsentry.toml.example`，保留 OpenAI-compatible base URL / model / L3 eager / replace-L2 / anti-bypass 等安全占位，不复制原始 `.env.clawsentry` 或任何 token/key。
+
+### 改进
+
+- **交互式配置向导 UX** — `clawsentry config wizard --interactive` 改为编号选择、TTY-safe 进度提示和无新依赖终端 polish；非 TTY、`NO_COLOR`、CI/non-interactive 路径保持 deterministic。
+- **配置优先级文档** — 在线文档明确 `.clawsentry.toml` 是可共享非 secret 项目默认/策略意图，`.env.clawsentry` 是本地启动便利文件且不覆盖已设置 process env，process env 是最高优先级和 secret/deployment override surface。
+- **Reporting API schema 明确化** — OpenAPI 的 `/report/sessions`、`/report/session/{id}/risk`、Enterprise 对应 endpoints 现在在 response schemas/properties 中声明 `session_risk_ewma`，不再只依赖 examples；指标字典补充 alpha=0.3、no-data 语义、分数范围和 non-decision-affecting 边界。
+- **L3 trace report 可观测性** — `/report/session/{id}` 与 `/report/session/{id}/risk` 暴露 compact L3 state/trace summary，便于验证 trigger reason、skill/mode、turns、final verdict 与 evidence summary。
+
+### 修复
+
+- **`replace_l2` / `eager` parse-only 风险** — 修复同步 runtime 只解析 `CS_L3_ROUTING_MODE` / `CS_L3_TRIGGER_PROFILE`、但 decisive L2 结果可能跳过 L3 follow-up 的行为缺口。
+- **API docs drift** — 更新 API inventory traceability、schema tests 和 docs contract，防止 `session_risk_ewma`、`high_or_critical_count` 等 canonical 字段继续漂移。
+- **Secret-safety boundary** — demo template 和测试加入 secret-safety guardrail，避免高熵 secret、`CS_AUTH_TOKEN`、`OPENAI_API_KEY` 或 provider token 进入 docs/artifacts。
+
+### 测试与验证
+
+- Python full regression：dev repo `3251 passed, 5 skipped`; public repo `3250 passed, 6 skipped`。
+- Real-provider L3 E2E（显式启用）：`CS_L3_RUN_REAL_E2E=true python -m pytest src/clawsentry/tests/test_l3_real_provider_e2e.py -q` → `1 passed`。
+- Mandatory setup/docs/L3 contract suites：`529 passed`。
+- Gateway / advisory / Codex E2E focused suites：`171 passed` + `19 passed` + `10 passed` + `6 passed, 1 skipped` + `7 passed` + `4 passed`。
+- Docs API inventory + strict docs build：PASS。
+- Secret scan for new real-provider E2E fixture/template: PASS（no real API key/token patterns）。
+
 ## [0.5.14] — 2026-04-28
 
 ### 新增
@@ -1203,6 +1234,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.6.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.0
 [0.5.14]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.14
 [0.5.13]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.13
 [0.5.12]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.12

@@ -19,6 +19,7 @@ RULES_CI_EXAMPLE = REPO_ROOT / "examples" / "ci" / "rules-governance.yml"
 PACKAGE_README = REPO_ROOT / "src" / "clawsentry" / "README.md"
 PUBLIC_README = REPO_ROOT / "README_PUBLIC.md"
 METRIC_DICTIONARY = REPO_ROOT / "site-docs" / "api" / "metric-dictionary.md"
+OPENAPI_JSON = REPO_ROOT / "site-docs" / "api" / "openapi.json"
 
 
 def _extract(pattern: str, source: str) -> str:
@@ -29,6 +30,11 @@ def _extract(pattern: str, source: str) -> str:
 
 def _read_doc(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _openapi_operation(path: str, method: str) -> dict:
+    openapi = json.loads(OPENAPI_JSON.read_text(encoding="utf-8"))
+    return openapi["paths"][path][method.lower()]
 
 
 def test_workspace_readme_status_and_package_versions_stay_aligned() -> None:
@@ -312,3 +318,86 @@ def test_metric_dictionary_has_single_clear_canonical_section() -> None:
     assert "GET /report/session/{id}/post-action" in reporting_source
     assert "post_action_score_ewma" in reporting_source
     assert "no_data_not_confirmed_low_risk" in reporting_source
+
+
+def test_report_openapi_examples_match_current_runtime_payloads() -> None:
+    risk_example = _openapi_operation(
+        "/report/session/{session_id}/risk", "GET"
+    )["responses"]["200"]["content"]["application/json"]["example"]
+    post_action_example = _openapi_operation(
+        "/report/session/{session_id}/post-action", "GET"
+    )["responses"]["200"]["content"]["application/json"]["example"]
+    sessions_example = _openapi_operation(
+        "/report/sessions", "GET"
+    )["responses"]["200"]["content"]["application/json"]["example"]
+
+    assert "session_risk_ewma" in risk_example
+    assert "window_risk_summary" in risk_example
+    assert "critical_event_count" not in risk_example["window_risk_summary"]
+    assert "decision_path_io" in risk_example
+
+    assert "post_action_score_summary" in post_action_example
+    assert "decision_path_io" in post_action_example
+    assert post_action_example["score_range"] == [0.0, 3.0]
+
+    assert "total_active" in sessions_example
+    assert "total" not in sessions_example
+    assert sessions_example["sessions"][0]["score_range"] == [0.0, 3.0]
+    assert "score_semantics" in sessions_example["sessions"][0]
+
+
+def test_report_openapi_query_params_match_source_routes() -> None:
+    def param_names(path: str) -> set[str]:
+        return {
+            param["name"]
+            for param in _openapi_operation(path, "GET").get("parameters", [])
+            if param.get("in") == "query"
+        }
+
+    assert param_names("/report/sessions") == {
+        "status",
+        "sort",
+        "limit",
+        "min_risk",
+        "window_seconds",
+    }
+    assert param_names("/report/session/{session_id}/risk") == {
+        "limit",
+        "window_seconds",
+    }
+    assert param_names("/report/session/{session_id}/post-action") == {
+        "limit",
+        "window_seconds",
+    }
+    assert param_names("/report/stream") == {
+        "session_id",
+        "min_risk",
+        "types",
+        "token",
+    }
+
+
+def test_enterprise_sessions_openapi_documents_5000_limit() -> None:
+    operation = _openapi_operation("/enterprise/report/sessions", "GET")
+    limit_param = next(
+        param for param in operation["parameters"]
+        if param.get("in") == "query" and param["name"] == "limit"
+    )
+
+    assert limit_param["schema"]["maximum"] == 5000
+
+
+def test_report_docs_do_not_publish_stale_window_or_score_contracts() -> None:
+    reporting = _read_doc("site-docs/api/reporting.md")
+    metric_dictionary = _read_doc("site-docs/api/metric-dictionary.md")
+    openapi_text = OPENAPI_JSON.read_text(encoding="utf-8")
+
+    assert "critical_event_count" not in reporting
+    assert "critical_event_count" not in metric_dictionary
+    assert "critical_event_count" not in openapi_text
+    assert "检测评分（0.0-3.0）" in reporting
+    assert "检测评分（0.0-1.0）" not in reporting
+    post_action_section = reporting.split(
+        "## GET /report/session/{id}/post-action", 1
+    )[1].split("## GET /report/session/{id}/enforcement", 1)[0]
+    assert "decision_path_io" in post_action_section

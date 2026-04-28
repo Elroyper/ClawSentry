@@ -90,6 +90,36 @@ class TestConfigDisableEnable:
 
 
 class TestConfigWizard:
+    def test_interactive_wizard_labels_runtime_boundaries(self, tmp_path, monkeypatch, capsys):
+        answers = iter([
+            "codex",
+            "normal",
+            "openai",
+            "gpt-4o-mini",
+            "",
+            "y",
+            "n",
+            "1000",
+        ])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def fake_input(prompt=""):
+            print(prompt, end="")
+            return next(answers)
+
+        monkeypatch.setattr("builtins.input", fake_input)
+
+        run_config_wizard(target_dir=tmp_path, interactive=True)
+
+        out = capsys.readouterr().out
+        assert "Writes only runtime-effective .clawsentry.toml fields" in out
+        assert "API key values are env-only" in out
+        assert "process env and .env.clawsentry still win" in out
+        assert "features.l3 requests L3" in out
+        assert "anti-bypass" in out
+        assert "DEFER" in out
+        assert "config show --effective" in out
+
     def test_interactive_wizard_prompts_and_writes_choices(self, tmp_path, monkeypatch, capsys):
         answers = iter([
             "claude-code",
@@ -126,6 +156,49 @@ class TestConfigWizard:
         assert "llm_daily_token_budget = 250000" in text
         assert "Preferred framework for guided setup" in text
 
+    def test_interactive_wizard_accepts_numbered_choices(self, tmp_path, monkeypatch, capsys):
+        answers = iter([
+            "codex",
+            "2",
+            "2",
+            "gpt-4o-mini",
+            "",
+            "y",
+            "n",
+            "1000",
+        ])
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+
+        def fake_input(prompt=""):
+            print(prompt, end="")
+            return next(answers)
+
+        monkeypatch.setattr("builtins.input", fake_input)
+
+        run_config_wizard(target_dir=tmp_path, interactive=True)
+
+        out = capsys.readouterr().out
+        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
+        assert "1) normal" in out
+        assert "2) strict" in out
+        assert "1) none" in out
+        assert "2) openai" in out
+        assert 'mode = "strict"' in text
+        assert 'provider = "openai"' in text
+
+    def test_non_tty_ci_wizard_is_deterministic_and_plain(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.setenv("NO_COLOR", "1")
+
+        run_config_wizard(target_dir=tmp_path, framework="codex", llm_provider="none")
+
+        out = capsys.readouterr().out
+        assert "Non-interactive/CI-safe wizard path" in out
+        assert "Step 1/5" not in out
+        assert "\x1b[" not in out
+        assert (tmp_path / ".clawsentry.toml").is_file()
+
     def test_interactive_wizard_reprompts_invalid_choice(self, tmp_path, monkeypatch, capsys):
         answers = iter([
             "bad-framework",
@@ -149,6 +222,24 @@ class TestConfigWizard:
         assert 'provider = ""' in text
         assert "l2 = false" in text
         assert "l3 = false" in text
+
+
+class TestA3SDemoTemplate:
+    def test_a3s_demo_sanitized_project_config_template_is_secret_safe(self):
+        template = Path("demostation_projects/a3s_demo/.clawsentry.toml.example")
+
+        assert template.is_file()
+        text = template.read_text(encoding="utf-8")
+        assert '[project]' in text
+        assert '[llm]' in text
+        assert 'api_key_env = "CS_LLM_API_KEY"' in text
+        assert '[features]' in text
+        assert '[budgets]' in text
+        assert 'features.l3 requests runtime L3 only when provider support is available' in text
+        assert "sk-" not in text
+        assert "OPENAI_API_KEY=" not in text
+        assert "ANTHROPIC_API_KEY=" not in text
+        assert "CS_LLM_API_KEY=" not in text
 
     def test_explicit_interactive_wizard_requires_tty(self, tmp_path, monkeypatch):
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)

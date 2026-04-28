@@ -13,6 +13,7 @@ import struct
 import time
 from collections import deque
 from datetime import date, datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -37,6 +38,11 @@ from clawsentry.gateway.models import (
     RPC_VERSION,
 )
 from clawsentry.gateway.semantic_analyzer import L2Result
+from clawsentry.gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
+from clawsentry.gateway.review_skills import SkillRegistry
+from clawsentry.gateway.review_toolkit import ReadOnlyToolkit
+from clawsentry.gateway.semantic_analyzer import CompositeAnalyzer, RuleBasedAnalyzer
+from clawsentry.gateway.trajectory_store import TrajectoryStore
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +88,23 @@ def _sync_decision_params(**overrides) -> dict:
 
 def _iso_at(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+
+def _gateway_with_fake_l3(tmp_path, skills_dir, provider, config: DetectionConfig) -> SupervisionGateway:
+    trajectory_store = TrajectoryStore(db_path=":memory:")
+    agent = AgentAnalyzer(
+        provider=provider,
+        toolkit=ReadOnlyToolkit(tmp_path, trajectory_store),
+        skill_registry=SkillRegistry(skills_dir),
+        config=AgentAnalyzerConfig(enable_multi_turn=False, initial_trajectory_limit=5),
+        trajectory_store=trajectory_store,
+    )
+    analyzer = CompositeAnalyzer([RuleBasedAnalyzer(), agent])
+    return SupervisionGateway(
+        trajectory_store=trajectory_store,
+        analyzer=analyzer,
+        detection_config=config,
+    )
 
 
 # ===========================================================================
@@ -1323,6 +1346,151 @@ class TestGatewayCore:
             )
         finally:
             gw.event_bus.unsubscribe(sub_id)
+
+    @pytest.mark.asyncio
+    async def test_replace_l2_eager_runs_real_l3_when_l2_would_be_decisive(
+        self,
+        tmp_path,
+        skills_dir,
+    ):
+        provider = MagicMock()
+        provider.provider_id = "fake-l3-provider"
+        provider.complete = AsyncMock(
+            return_value=json.dumps({
+                "risk_level": "critical",
+                "findings": ["fake provider reached by L3 runtime"],
+                "confidence": 0.93,
+            })
+        )
+        gw = _gateway_with_fake_l3(
+            tmp_path,
+            skills_dir,
+            provider,
+            DetectionConfig(l3_routing_mode="replace_l2", l3_trigger_profile="eager"),
+        )
+        gw.trajectory_store.record(
+            event={
+                "event_id": "evt-replace-l2-history",
+                "event_type": "pre_action",
+                "session_id": "sess-replace-l2-eager-l3",
+                "source_framework": "test",
+                "tool_name": "read_file",
+            },
+            decision={"decision": "allow", "risk_level": "low"},
+            snapshot={"risk_level": "low"},
+            meta={"actual_tier": "L1", "record_type": "decision"},
+        )
+
+        params = _sync_decision_params(
+            request_id="req-replace-l2-eager-l3",
+            decision_tier="L2",
+            deadline_ms=1500,
+            event={
+                "event_id": "evt-replace-l2-eager-l3",
+                "trace_id": "trace-replace-l2-eager-l3",
+                "event_type": "pre_action",
+                "session_id": "sess-replace-l2-eager-l3",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"command": "cat prod-token.txt"},
+                "tool_name": "bash",
+                "risk_hints": ["credential_exfiltration"],
+            },
+        )
+
+        result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        assert provider.complete.await_count == 1
+        payload = result["result"]
+        assert payload["actual_tier"] == "L3"
+        assert payload["l3_requested"] is True
+        assert payload["l3_state"] == "completed"
+        assert payload["decision"]["risk_level"] == "critical"
+
+        record = gw.trajectory_store.records[-1]
+        assert record["meta"]["actual_tier"] == "L3"
+        assert record["meta"]["l3_state"] == "completed"
+        assert record["l3_trace"]["trigger_reason"] == "eager"
+        assert record["l3_trace"]["skill_selected"] == "credential-audit"
+        assert record["l3_trace"]["mode"] == "single_turn"
+        assert record["l3_trace"]["turns"][0]["type"] == "llm_call"
+        assert record["l3_trace"]["final_verdict"] == {
+            "risk_level": "critical",
+            "findings": ["fake provider reached by L3 runtime"],
+            "confidence": 0.93,
+        }
+        assert record["l3_trace"]["evidence_summary"]["retained_sources"]
+
+    @pytest.mark.asyncio
+    async def test_eager_l3_report_surfaces_compact_trace_summary(
+        self,
+        tmp_path,
+        skills_dir,
+    ):
+        provider = MagicMock()
+        provider.provider_id = "fake-l3-provider"
+        provider.complete = AsyncMock(
+            return_value=json.dumps({
+                "risk_level": "high",
+                "findings": ["safe-looking action still reached eager L3"],
+                "confidence": 0.87,
+            })
+        )
+        gw = _gateway_with_fake_l3(
+            tmp_path,
+            skills_dir,
+            provider,
+            DetectionConfig(l3_routing_mode="replace_l2", l3_trigger_profile="eager"),
+        )
+        gw.trajectory_store.record(
+            event={
+                "event_id": "evt-eager-l3-history",
+                "event_type": "pre_action",
+                "session_id": "sess-eager-l3-report",
+                "source_framework": "test",
+                "tool_name": "read_file",
+            },
+            decision={"decision": "allow", "risk_level": "low"},
+            snapshot={"risk_level": "low"},
+            meta={"actual_tier": "L1", "record_type": "decision"},
+        )
+
+        params = _sync_decision_params(
+            request_id="req-eager-l3-report",
+            decision_tier="L2",
+            deadline_ms=1500,
+            event={
+                "event_id": "evt-eager-l3-report",
+                "trace_id": "trace-eager-l3-report",
+                "event_type": "pre_action",
+                "session_id": "sess-eager-l3-report",
+                "agent_id": "agent-001",
+                "source_framework": "test",
+                "occurred_at": "2026-03-19T12:00:00+00:00",
+                "payload": {"path": "/tmp/readme.txt"},
+                "tool_name": "read_file",
+            },
+        )
+
+        result = await gw.handle_jsonrpc(_jsonrpc_request("ahp/sync_decision", params))
+
+        assert provider.complete.await_count == 1
+        assert result["result"]["actual_tier"] == "L3"
+        assert result["result"]["l3_state"] == "completed"
+
+        session_risk = gw.report_session_risk("sess-eager-l3-report")
+        timeline = session_risk["risk_timeline"][-1]
+        assert timeline["actual_tier"] == "L3"
+        assert timeline["l3_state"] == "completed"
+        assert timeline["l3_trace_summary"] == {
+            "retained_sources": ["trajectory", "session_risk_history"],
+            "tool_calls_count": 0,
+            "toolkit_budget_mode": "single_turn",
+            "toolkit_budget_cap": 4,
+            "toolkit_calls_remaining": 4,
+            "toolkit_budget_exhausted": False,
+        }
 
     def test_budget_exhaustion_broadcasts_once(self):
         gw = SupervisionGateway(detection_config=DetectionConfig(llm_daily_budget_usd=1.0))

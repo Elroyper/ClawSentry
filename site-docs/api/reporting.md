@@ -8,7 +8,7 @@ description: ClawSentry 报表、会话管理、告警和 SSE 实时推送端点
 ClawSentry Gateway 提供一整套 HTTP API 用于健康检查、聚合统计、会话追踪、告警管理和实时事件流推送。所有 `/report/*` 端点均需 Bearer Token 认证（除非 `CS_AUTH_TOKEN` 为空）。
 
 !!! abstract "本页快速导航"
-    [GET /health](#get-health) · [GET /metrics](#get-metrics) · [GET /report/summary](#get-report-summary) · [GET /report/sessions](#get-report-sessions) · [GET /report/session/{id}](#get-report-session) · [GET /report/session/{id}/risk](#get-report-session-risk) · [GET /report/session/{id}/post-action](#get-report-session-post-action) · [L3 advisory endpoints](#l3-advisory-endpoints) · [GET /report/stream (SSE)](#get-report-stream) · [GET /report/alerts](#get-report-alerts) · [POST /report/alerts/{id}/ack](#post-report-alerts-acknowledge) · [GET /ahp/patterns](#get-ahp-patterns) · [POST /ahp/patterns/confirm](#post-ahp-patterns-confirm)
+    [GET /health](#get-health) · [GET /metrics](#get-metrics) · [GET /report/summary](#get-report-summary) · [GET /report/sessions](#get-report-sessions) · [GET /report/session/{id}](#get-report-session) · [GET /report/session/{id}/risk](#get-report-session-risk) · [GET /report/session/{id}/post-action](#get-report-session-post-action) · [L3 advisory endpoints](#l3-advisory-endpoints) · [GET /report/stream (SSE)](#get-report-stream) · [GET /report/alerts](#get-report-alerts) · [Enterprise OS 20 类风险统计](#enterprise-os-risk-taxonomy-query) · [POST /report/alerts/{id}/ack](#post-report-alerts-acknowledge) · [GET /ahp/patterns](#get-ahp-patterns) · [POST /ahp/patterns/confirm](#post-ahp-patterns-confirm)
 
 ---
 
@@ -205,6 +205,27 @@ curl http://127.0.0.1:8080/metrics
       }
     ]
   },
+  "system_security_posture": {
+    "score_0_100": 72.5,
+    "level": "elevated",
+    "drivers": [
+      {"key": "high_sessions", "label": "High-risk sessions", "value": 3}
+    ],
+    "window_seconds": 3600,
+    "generated_at": "2026-04-25T12:00:05Z",
+    "decision_affecting": false
+  },
+  "decision_path_io": {
+    "record_path": {"calls": 25},
+    "reporting": {
+      "report_summary": {"calls": 1}
+    }
+  },
+  "decision_path_io_pressure": {
+    "level": "healthy",
+    "max_seconds": 0.01,
+    "decision_affecting": false
+  },
   "generated_at": "2026-03-23T10:30:00+00:00",
   "window_seconds": null
 }
@@ -273,7 +294,6 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
         "generated_at": "2026-03-23T10:31:00+00:00",
         "event_count": 25,
         "high_or_critical_count": 3,
-        "critical_event_count": 1,
         "latest_composite_score": 2.4,
         "session_risk_sum": 6.7,
         "session_risk_ewma": 1.9,
@@ -347,7 +367,7 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `evidence_summary` | 当前 session 最新一次保留下来的紧凑证据摘要 |
 | `cumulative_score` | Legacy 兼容字段；不要当作窗口累计 composite score |
 | `latest_composite_score` | 最新事件的原始 composite score，供展示和观测使用 |
-| `session_risk_sum` / `session_risk_ewma` | 与 `window_seconds` 对齐的窗口风险总量和 EWMA 展示分 |
+| `session_risk_sum` / `session_risk_ewma` | 与 `window_seconds` 对齐的窗口风险总量和 EWMA 展示分；EWMA 使用 `alpha=0.3`（首个分数作为种子，之后 `0.3 * score + 0.7 * previous`），范围 `0.0..3.0`，无窗口事件时 `0.0` 表示 `no_data_not_confirmed_low_risk`，且默认不影响 Gateway 判决 |
 | `latest_post_action_score` / `post_action_score_ewma` | post-action 安全围栏分与 session 级 EWMA；范围 `0.0..3.0` |
 | `post_action_score_summary` | post-action score 窗口聚合容器；字段合同见 [Metric Dictionary](metric-dictionary.md) |
 | `score_range` / `score_semantics` | 明确 `0.0..3.0` 范围及空数据语义；`event_count/post_action_event_count == 0` 时 `0.0` 表示“无数据”，不是“确认低风险” |
@@ -505,14 +525,12 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
     "generated_at": "2026-03-23T10:31:00+00:00",
     "event_count": 12,
     "high_or_critical_count": 3,
-    "critical_event_count": 1,
     "latest_composite_score": 2.4,
     "session_risk_sum": 6.7,
     "session_risk_ewma": 1.9,
     "risk_points_sum": 5,
     "risk_velocity": "up",
-    "decision_affecting": false,
-    "latest_event_at": "2026-03-23T10:30:00+00:00"
+    "decision_affecting": false
   },
   "post_action_score_summary": {
     "window_seconds": 3600,
@@ -685,6 +703,12 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
       "handling": "broadcast"
     }
   ],
+  "decision_path_io": {
+    "record_path": {"calls": 25},
+    "reporting": {
+      "report_session_post_action": {"calls": 1}
+    }
+  },
   "generated_at": "2026-03-23T10:31:00+00:00",
   "window_seconds": 3600
 }
@@ -699,6 +723,7 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
 | `post_action_score_avg` / `post_action_score_sum` | 窗口内 post-action score 算术均值 / 总量 |
 | `post_action_score_summary` | 与 `window_seconds` 对齐的聚合容器；默认不影响 Gateway 判决 |
 | `post_action_scores` | 单次 post-action 分析结果时间线；包含 `tier`、命中模式和 handling |
+| `decision_path_io` | 报表路径 I/O 观测快照，帮助排查 reporting/session registry 延迟；不影响判决 |
 
 ### curl 示例
 
@@ -989,10 +1014,10 @@ event: session_enforcement_change
 data: {"session_id":"session-001","state":"enforced","action":"defer","high_risk_count":3,"timestamp":"2026-03-23T10:32:00+00:00"}
 
 event: post_action_finding
-data: {"event_id":"evt-003","session_id":"session-001","source_framework":"a3s-code","tier":"emergency","patterns_matched":["secret_exposure"],"score":0.97,"handling":"block","timestamp":"2026-03-23T10:33:00+00:00"}
+data: {"event_id":"evt-003","session_id":"session-001","source_framework":"a3s-code","tier":"emergency","patterns_matched":["secret_exposure"],"score":2.7,"handling":"block","timestamp":"2026-03-23T10:33:00+00:00"}
 
 event: trajectory_alert
-data: {"session_id":"session-001","sequence_id":"seq-exfil-001","risk_level":"critical","matched_event_ids":["evt-001","evt-003"],"reason":"read secret then exfiltrate","handling":"block","window_risk_summary":{"window_seconds":3600,"critical_event_count":1},"timestamp":"2026-03-23T10:34:00+00:00"}
+data: {"session_id":"session-001","sequence_id":"seq-exfil-001","risk_level":"critical","matched_event_ids":["evt-001","evt-003"],"reason":"read secret then exfiltrate","handling":"block","window_risk_summary":{"window_seconds":3600,"high_or_critical_count":1},"timestamp":"2026-03-23T10:34:00+00:00"}
 
 event: pattern_candidate
 data: {"pattern_id":"EV-A3F8B2C1","session_id":"session-001","source_framework":"a3s-code","status":"candidate","timestamp":"2026-03-23T10:35:00+00:00"}
@@ -1094,7 +1119,7 @@ data: {"review_id":"l3adv-001","snapshot_id":"l3snap-001","session_id":"session-
 | `session_id` | 会话 ID |
 | `source_framework` | 来源框架 |
 | `tier` | 严重程度：`warn` / `escalate` / `emergency` |
-| `score` | 检测评分（0.0-1.0） |
+| `score` | 检测评分（0.0-3.0） |
 | `patterns_matched` | 命中的 post-action 护栏模式 |
 | `handling` | 当前配置的处理方式：`broadcast` / `defer` / `block` |
 | `timestamp` | 事件时间 |
@@ -1552,6 +1577,95 @@ Enterprise 端点只在企业模式启用时注册。它们与基础 `/report/*`
 !!! note "为什么单独分组"
     这些端点是条件 surface，不应和基础 Gateway API 混在一起理解。`api-coverage.json` 使用 `public_status: enterprise` 标记。
 
+### Enterprise OS：20 类风险与三大层该查哪个接口 {#enterprise-os-risk-taxonomy-query}
+
+如果 Enterprise OS 要回答“**当前所有 session 里 20 类风险各有多少、三大风险层各有多少**”，优先使用 Enterprise 条件端点，而不是基础 `/report/*`：
+
+| 需求 | 首选接口 | 读取字段 | 计数口径 |
+| --- | --- | --- | --- |
+| 当前活跃 session 的 20 类风险分布 | `GET /enterprise/report/live?cached=true` | `by_trinityguard_subtype`、`by_trinityguard_tier`、`active_sessions`、`mapped_active_sessions` | 每个活跃 session 取最新 record 分类后计数；适合 Dashboard/Enterprise OS 顶层实时态势。 |
+| 指定时间窗口内所有历史 records 的 20 类风险分布 | `GET /enterprise/report/summary?window_seconds=3600` | `trinityguard.by_subtype`、`trinityguard.by_tier`、`trinityguard.mapped_records`、`trinityguard.unmapped_records` | 按 trajectory record 计数；适合审计、报表、小时/天级统计。 |
+| 会话列表逐条展示最新风险类别 | `GET /enterprise/report/sessions?status=all&limit=5000` | `sessions[].trinityguard_classification`、`enterprise.live_risk_overview` | 每个返回 session 一条最新分类；Enterprise 条件端点上限为 `limit<=5000`，基础 `/report/sessions` 仍保持 `limit<=200`。 |
+| 单 session 内风险时间线/分类明细 | `GET /enterprise/report/session/{id}/risk?limit=1000` | `risk_timeline[].trinityguard_classification`、`trinityguard_summary` | 按该 session 的风险时间线逐事件计数。 |
+| 实时新增事件分类 | `GET /enterprise/report/stream?types=decision,alert,trajectory_alert,post_action_finding` | 每条 SSE data 的 `trinityguard_classification`、`live_risk_overview` | 流式增量；前端可用它更新本地计数，但冷启动仍应先拉 `/enterprise/report/live` 或 `/enterprise/report/summary`。 |
+
+!!! warning "不要混淆两套“层级”"
+    - `RT1` / `RT2` / `RT3` 是 Enterprise OS 风险 taxonomy 的三大层：单智能体/原子风险、通信/交互风险、系统/群体风险。
+    - `L1` / `L2` / `L3` 是 ClawSentry 决策执行层：规则引擎、语义分析、审查 Agent。它们在 `by_actual_tier` 或 `actual_tier_distribution` 中出现，不能当成 20 类风险的三大层。
+
+#### 响应字段速查
+
+| 字段 | 出现位置 | 含义 |
+| --- | --- | --- |
+| `trinityguard_classification.subtype` | session/replay/risk/SSE 单条记录 | 20 类风险的 subtype ID，例如 `prompt_injection`。 |
+| `trinityguard_classification.tier` | session/replay/risk/SSE 单条记录 | 三大风险层：`RT1`、`RT2`、`RT3`。 |
+| `trinityguard.by_subtype` | `/enterprise/report/summary` | 窗口内所有 trajectory records 的 subtype 计数。 |
+| `trinityguard.by_tier` | `/enterprise/report/summary` | 窗口内所有 trajectory records 的 RT1/RT2/RT3 计数。 |
+| `by_trinityguard_subtype` | `/enterprise/report/live`、`live_risk_overview` | 当前活跃 session 最新分类的 subtype 计数。 |
+| `by_trinityguard_tier` | `/enterprise/report/live`、`live_risk_overview` | 当前活跃 session 最新分类的 RT1/RT2/RT3 计数。 |
+| `trinityguard_summary.by_subtype` | `/enterprise/report/session/{id}/risk`、`/enterprise/report/session/{id}` | 单个 session 当前返回 records/timeline 的 subtype 计数。 |
+| `mapped_records` / `unmapped_records` | `trinityguard` / `trinityguard_summary` | 成功映射到 20 类 taxonomy 与未映射的记录数；未映射不应被静默丢弃。 |
+
+#### 20 类风险 taxonomy
+
+| 三大层 | 层名 | subtype ID | 展示名 |
+| --- | --- | --- | --- |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `prompt_injection` | Prompt Injection |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `jailbreak_attack` | Jailbreak Attack |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `sensitive_info_disclosure` | Sensitive Info Disclosure |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `excessive_agency` | Excessive Agency |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `unauthorized_code_execution` | Unauthorized Code Execution |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `hallucination` | Hallucination |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `memory_poisoning` | Memory Poisoning |
+| `RT1` | Atomic Risks（单智能体/原子风险） | `tool_misuse` | Tool Misuse |
+| `RT2` | Communication Risks（通信/交互风险） | `malicious_propagation` | Malicious Propagation |
+| `RT2` | Communication Risks（通信/交互风险） | `misinformation_amplification` | Misinformation Amplification |
+| `RT2` | Communication Risks（通信/交互风险） | `insecure_output_handling` | Insecure Output Handling |
+| `RT2` | Communication Risks（通信/交互风险） | `goal_drift` | Goal Drift |
+| `RT2` | Communication Risks（通信/交互风险） | `message_tampering` | Message Tampering |
+| `RT2` | Communication Risks（通信/交互风险） | `identity_spoofing` | Identity Spoofing |
+| `RT3` | System Risks（系统/群体风险） | `cascading_failure` | Cascading Failure |
+| `RT3` | System Risks（系统/群体风险） | `sandbox_escape` | Sandbox Escape |
+| `RT3` | System Risks（系统/群体风险） | `insufficient_monitoring` | Insufficient Monitoring |
+| `RT3` | System Risks（系统/群体风险） | `group_hallucination` | Group Hallucination |
+| `RT3` | System Risks（系统/群体风险） | `malicious_emergence` | Malicious Emergence |
+| `RT3` | System Risks（系统/群体风险） | `rogue_agent` | Rogue Agent |
+
+#### curl 示例
+
+```bash
+# 当前活跃 session：20 类风险 + 三大风险层实时计数
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/enterprise/report/live?cached=true"
+
+# 最近 1 小时全部 trajectory records：20 类风险 + 三大风险层审计计数
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/enterprise/report/summary?window_seconds=3600"
+
+# 单 session：风险时间线内每条记录的 subtype/tier，以及 trinityguard_summary 聚合
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/enterprise/report/session/sess-001/risk?limit=1000&window_seconds=3600"
+
+# 企业会话列表：需要逐 session 展示最新分类时最多拉 5000 条
+curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
+  "http://127.0.0.1:8080/enterprise/report/sessions?status=all&limit=5000"
+```
+
+最小前端聚合逻辑：
+
+```ts
+const live = await fetchJson('/enterprise/report/live?cached=true')
+
+// 三大风险层：RT1 / RT2 / RT3
+const byTier = live.by_trinityguard_tier
+
+// 20 类风险 subtype 计数
+const bySubtype = live.by_trinityguard_subtype
+
+// 没有映射的 active sessions 不在 bySubtype 中，UI 应同时显示 mapped_active_sessions / active_sessions
+const coverage = `${live.mapped_active_sessions}/${live.active_sessions}`
+```
+
 ### Enterprise overview/cache 合同
 
 企业端点应优先返回 `system_security_posture`，用于 Enterprise OS 和 Dashboard 顶层态势展示。该对象是展示/观测合同，默认不改变 Gateway 判决。
@@ -1574,7 +1688,20 @@ Enterprise 端点只在企业模式启用时注册。它们与基础 `/report/*`
   "degraded": false,
   "degraded_reason": null,
   "active_sessions": 18,
-  "high_risk_sessions": 3
+  "high_risk_sessions": 3,
+  "mapped_active_sessions": 6,
+  "by_trinityguard_tier": {
+    "RT1": 4,
+    "RT2": 1,
+    "RT3": 1
+  },
+  "by_trinityguard_subtype": {
+    "prompt_injection": 2,
+    "sensitive_info_disclosure": 1,
+    "tool_misuse": 1,
+    "insecure_output_handling": 1,
+    "cascading_failure": 1
+  }
 }
 ```
 

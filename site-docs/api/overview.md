@@ -44,6 +44,7 @@ ClawSentry 的公开 API 分为决策入口、报表监控、实时 SSE、L3 adv
 | 实时事件 | `GET /report/stream` | SSE；支持浏览器 query token | [SSE 事件流](reporting.md#get-report-stream) |
 | 告警处置 | `GET /report/alerts` / `POST /report/alerts/{alert_id}/acknowledge` | 查询和确认告警 | [告警端点](reporting.md#get-report-alerts) |
 | 风险指标字段 | `latest_composite_score` / `session_risk_ewma` / `system_security_posture` | 新增报表、SSE、Dashboard、Enterprise OS 展示字段；`cumulative_score` 仅 legacy 兼容 | [Metric Dictionary](metric-dictionary.md) |
+| Enterprise OS 20 类风险统计 | `GET /enterprise/report/live` / `GET /enterprise/report/summary` | `by_trinityguard_subtype` 查 20 类风险数，`by_trinityguard_tier` 查 RT1/RT2/RT3 三大风险层；不要和 L1/L2/L3 决策层混淆 | [Enterprise OS 风险统计](reporting.md#enterprise-os-risk-taxonomy-query) |
 
 ## 风险指标与决策边界
 
@@ -76,6 +77,13 @@ ClawSentry 的公开 API 分为决策入口、报表监控、实时 SSE、L3 adv
 `GET /report/*`、`GET /metrics`、`GET /health`
 
 查询聚合统计、会话轨迹、风险时间线、告警和 Prometheus 指标；`/report/*` 是文档分组别名，不是实际 route。新增风险展示字段以 [Metric Dictionary](metric-dictionary.md) 为准，默认不改变决策语义。
+</div>
+
+<div class="cs-card" markdown>
+### Enterprise 风险 taxonomy
+`GET /enterprise/report/live`、`GET /enterprise/report/summary`
+
+企业模式启用后，Enterprise OS 可直接读取 TrinityGuard-derived 20 类风险统计：实时态势看 `by_trinityguard_subtype` / `by_trinityguard_tier`，历史窗口审计看 `trinityguard.by_subtype` / `trinityguard.by_tier`。
 </div>
 
 <div class="cs-card" markdown>

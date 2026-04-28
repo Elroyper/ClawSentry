@@ -186,26 +186,249 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
         entry["errors"] = ["401", "500"]
     elif method == "GET" and path == "/report/summary":
         entry["response_example"] = {
-            "total_decisions": 128,
-            "risk_distribution": {"low": 101, "medium": 18, "high": 8, "critical": 1},
-            "active_sessions": 7,
-            "l3_advisory": {"snapshots": 4, "jobs": {"queued": 1, "completed": 3}},
+            "total_records": 1250,
+            "by_source_framework": {"a3s-code": 800, "openclaw": 450},
+            "by_event_type": {"pre_action": 900, "post_action": 300, "session": 50},
+            "by_decision": {"allow": 1000, "block": 150, "defer": 80, "modify": 20},
+            "by_risk_level": {"low": 800, "medium": 300, "high": 120, "critical": 30},
+            "by_actual_tier": {"L1": 1200, "L2": 50},
+            "by_caller_adapter": {"a3s-adapter.v1": 800, "openclaw-adapter.v1": 450},
+            "invalid_event": {"count_1m": 0, "count_5m": 2, "count_15m": 5, "rate_5m": 0.004, "rate_15m": 0.002, "alerts": []},
+            "high_risk_trend": {
+                "windows": {
+                    "5m": {"count": 3, "total": 50, "ratio": 0.06},
+                    "15m": {"count": 8, "total": 150, "ratio": 0.053},
+                    "60m": {"count": 20, "total": 500, "ratio": 0.04},
+                },
+                "direction_5m": "up",
+                "series_5m": [
+                    {
+                        "bucket_start": "2026-03-23T09:00:00+00:00",
+                        "bucket_end": "2026-03-23T09:05:00+00:00",
+                        "total_count": 40,
+                        "high_or_critical_count": 2,
+                        "ratio": 0.05,
+                    }
+                ],
+            },
+            "system_security_posture": {
+                "score_0_100": 72.5,
+                "level": "elevated",
+                "drivers": [{"key": "high_sessions", "label": "High-risk sessions", "value": 3}],
+                "window_seconds": 3600,
+                "generated_at": "2026-04-25T12:00:05Z",
+                "decision_affecting": False,
+            },
+            "decision_path_io": {
+                "record_path": {"calls": 25},
+                "reporting": {"report_summary": {"calls": 1}},
+            },
+            "decision_path_io_pressure": {
+                "level": "healthy",
+                "max_seconds": 0.01,
+                "decision_affecting": False,
+            },
+            "generated_at": "2026-03-23T10:30:00+00:00",
+            "window_seconds": None,
+        }
+    elif method == "GET" and path == "/enterprise/report/summary":
+        entry["response_example"] = {
+            "total_records": 1250,
+            "by_source_framework": {"a3s-code": 800, "codex": 450},
+            "by_risk_level": {"low": 800, "medium": 300, "high": 120, "critical": 30},
+            "by_actual_tier": {"L1": 1100, "L2": 120, "L3": 30},
+            "trinityguard": {
+                "total_records": 1250,
+                "mapped_records": 180,
+                "unmapped_records": 1070,
+                "by_tier": {"RT1": 120, "RT2": 40, "RT3": 20},
+                "by_subtype": {
+                    "prompt_injection": 45,
+                    "sensitive_info_disclosure": 35,
+                    "unauthorized_code_execution": 25,
+                    "insecure_output_handling": 20,
+                    "cascading_failure": 12,
+                },
+            },
+            "enterprise": {
+                "live_risk_overview": {
+                    "active_sessions": 18,
+                    "mapped_active_sessions": 6,
+                    "by_trinityguard_tier": {"RT1": 4, "RT2": 1, "RT3": 1},
+                    "by_trinityguard_subtype": {
+                        "prompt_injection": 2,
+                        "sensitive_info_disclosure": 1,
+                        "tool_misuse": 1,
+                        "insecure_output_handling": 1,
+                        "cascading_failure": 1,
+                    },
+                    "system_security_posture": {
+                        "score_0_100": 72.5,
+                        "level": "elevated",
+                        "decision_affecting": False,
+                    },
+                },
+            },
+            "generated_at": "2026-04-25T12:00:05Z",
+            "window_seconds": 3600,
+        }
+    elif method == "GET" and path == "/enterprise/report/live":
+        entry["response_example"] = {
+            "generated_at": "2026-04-25T12:00:05Z",
+            "active_sessions": 18,
+            "high_risk_sessions": 3,
+            "mapped_active_sessions": 6,
+            "by_risk_level": {"low": 10, "medium": 5, "high": 2, "critical": 1},
+            "by_trinityguard_tier": {"RT1": 4, "RT2": 1, "RT3": 1},
+            "by_trinityguard_subtype": {
+                "prompt_injection": 2,
+                "sensitive_info_disclosure": 1,
+                "tool_misuse": 1,
+                "insecure_output_handling": 1,
+                "cascading_failure": 1,
+            },
+            "top_trinityguard_tiers": [
+                {"tier": "RT1", "count": 4},
+                {"tier": "RT2", "count": 1},
+                {"tier": "RT3", "count": 1},
+            ],
+            "top_trinityguard_subtypes": [
+                {"subtype": "prompt_injection", "count": 2},
+                {"subtype": "sensitive_info_disclosure", "count": 1},
+            ],
+            "system_security_posture": {
+                "score_0_100": 72.5,
+                "level": "elevated",
+                "drivers": [{"key": "high_sessions", "label": "High-risk sessions", "value": 2}],
+                "window_seconds": 3600,
+                "decision_affecting": False,
+            },
+            "cache_ttl_ms": 1000,
+            "stale": False,
+            "degraded": False,
+            "degraded_reason": None,
         }
     elif method == "GET" and path == "/report/sessions":
         entry["response_example"] = {
             "sessions": [
                 {
-                    "session_id": "sess-001",
-                    "workspace": "/workspace/demo",
-                    "max_risk": "high",
+                    "session_id": "session-001",
+                    "agent_id": "agent-001",
+                    "source_framework": "a3s-code",
+                    "caller_adapter": "a3s-adapter.v1",
+                    "workspace_root": "/workspace/repo-alpha",
+                    "transcript_path": "/workspace/repo-alpha/.a3s/session-001.jsonl",
+                    "current_risk_level": "high",
+                    "cumulative_score": 5,
+                    "latest_composite_score": 2.4,
+                    "session_risk_sum": 6.7,
+                    "session_risk_ewma": 1.9,
+                    "latest_post_action_score": 1.0,
+                    "post_action_score_ewma": 0.72,
+                    "risk_points_sum": 5,
+                    "risk_velocity": "up",
+                    "window_risk_summary": {
+                        "window_seconds": None,
+                        "generated_at": "2026-03-23T10:31:00+00:00",
+                        "event_count": 25,
+                        "high_or_critical_count": 3,
+                        "latest_composite_score": 2.4,
+                        "session_risk_sum": 6.7,
+                        "session_risk_ewma": 1.9,
+                        "risk_points_sum": 5,
+                        "risk_velocity": "up",
+                        "score_range": [0.0, 3.0],
+                        "score_semantics": {
+                            "zero_with_no_events": "no_data_not_confirmed_low_risk",
+                            "decision_affecting": False,
+                        },
+                        "decision_affecting": False,
+                    },
+                    "post_action_score_summary": {
+                        "window_seconds": None,
+                        "generated_at": "2026-03-23T10:31:00+00:00",
+                        "event_count": 3,
+                        "latest_post_action_score": 1.0,
+                        "post_action_score_sum": 2.4,
+                        "post_action_score_avg": 0.8,
+                        "post_action_score_ewma": 0.72,
+                        "score_range": [0.0, 3.0],
+                        "score_semantics": {
+                            "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+                            "decision_affecting": False,
+                        },
+                        "decision_affecting": False,
+                    },
+                    "score_range": [0.0, 3.0],
+                    "score_semantics": {
+                        "zero_with_no_events": "no_data_not_confirmed_low_risk",
+                        "decision_affecting": False,
+                    },
                     "latest_decision": "defer",
-                    "event_count": 12,
+                    "event_count": 25,
+                    "high_or_critical_count": 3,
+                    "decision_distribution": {"allow": 20, "block": 3, "defer": 2},
+                    "first_event_at": "2026-03-23T10:00:00+00:00",
+                    "last_event_at": "2026-03-23T10:30:00+00:00",
+                    "d4_accumulation": 4,
+                    "l3_state": "completed",
+                    "l3_reason_code": "suspicious_sequence_matched",
+                    "evidence_summary": {
+                        "reasoning_turns": 3,
+                        "tools_observed": ["read_trajectory", "read_file"],
+                        "key_findings": ["Read secret-like file before outbound curl"],
+                    },
                 }
             ],
-            "total": 1,
+            "total_active": 1,
+            "decision_path_io": {
+                "record_path": {"calls": 25},
+                "reporting": {"report_sessions": {"calls": 1}},
+            },
+            "generated_at": "2026-03-23T10:31:00+00:00",
+            "window_seconds": None,
+        }
+    elif method == "GET" and path == "/enterprise/report/sessions":
+        entry["response_example"] = {
+            "sessions": [
+                {
+                    "session_id": "session-001",
+                    "source_framework": "codex",
+                    "workspace_root": "/workspace/repo-alpha",
+                    "current_risk_level": "high",
+                    "session_risk_ewma": 1.9,
+                    "trinityguard_classification": {
+                        "mapped": True,
+                        "tier": "RT1",
+                        "tier_label": "Atomic Risks",
+                        "subtype": "sensitive_info_disclosure",
+                        "label": "Sensitive Info Disclosure",
+                        "confidence": "high",
+                    },
+                }
+            ],
+            "total_active": 1,
+            "enterprise": {
+                "live_risk_overview": {
+                    "active_sessions": 1,
+                    "mapped_active_sessions": 1,
+                    "by_trinityguard_tier": {"RT1": 1},
+                    "by_trinityguard_subtype": {"sensitive_info_disclosure": 1},
+                }
+            },
+            "generated_at": "2026-04-25T12:00:05Z",
+            "window_seconds": None,
         }
     elif method == "GET" and path == "/report/stream":
         entry["response_example"] = "event: decision\ndata: {\"session_id\":\"sess-001\",\"decision\":\"block\",\"risk_level\":\"high\"}\n\n"
+        entry["errors"] = ["401", "429", "500"]
+    elif method == "GET" and path == "/enterprise/report/stream":
+        entry["response_example"] = (
+            "event: decision\n"
+            "data: {\"session_id\":\"sess-001\",\"risk_level\":\"high\","
+            "\"trinityguard_classification\":{\"tier\":\"RT1\",\"subtype\":\"tool_misuse\"},"
+            "\"live_risk_overview\":{\"by_trinityguard_tier\":{\"RT1\":1}}}\n\n"
+        )
         entry["errors"] = ["401", "429", "500"]
     elif method == "GET" and path == "/report/session/{session_id}":
         entry["response_example"] = {
@@ -217,6 +440,29 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
                 }
             ],
         }
+    elif method == "GET" and path == "/enterprise/report/session/{session_id}":
+        entry["response_example"] = {
+            "session_id": "sess-001",
+            "record_count": 1,
+            "records": [
+                {
+                    "event": {"event_id": "evt-001", "event_type": "pre_action", "tool_name": "bash"},
+                    "decision": {"decision": "block", "risk_level": "high"},
+                    "trinityguard_classification": {
+                        "mapped": True,
+                        "tier": "RT1",
+                        "subtype": "unauthorized_code_execution",
+                        "label": "Unauthorized Code Execution",
+                    },
+                }
+            ],
+            "trinityguard_summary": {
+                "mapped_records": 1,
+                "unmapped_records": 0,
+                "by_tier": {"RT1": 1},
+                "by_subtype": {"unauthorized_code_execution": 1},
+            },
+        }
     elif method == "GET" and path == "/report/session/{session_id}/page":
         entry["response_example"] = {
             "session_id": "sess-001",
@@ -224,30 +470,194 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
             "next_cursor": None,
             "has_more": False,
         }
+    elif method == "GET" and path == "/enterprise/report/session/{session_id}/page":
+        entry["response_example"] = {
+            "session_id": "sess-001",
+            "records": [
+                {
+                    "event": {"event_id": "evt-001", "event_type": "pre_action", "tool_name": "bash"},
+                    "trinityguard_classification": {
+                        "mapped": True,
+                        "tier": "RT1",
+                        "subtype": "tool_misuse",
+                        "label": "Tool Misuse",
+                    },
+                }
+            ],
+            "trinityguard_summary": {
+                "mapped_records": 1,
+                "unmapped_records": 0,
+                "by_tier": {"RT1": 1},
+                "by_subtype": {"tool_misuse": 1},
+            },
+            "next_cursor": None,
+            "has_more": False,
+        }
     elif method == "GET" and path == "/report/session/{session_id}/risk":
         entry["response_example"] = {
             "session_id": "sess-001",
-            "risk_timeline": [{"timestamp": "2026-04-22T08:00:00Z", "risk_level": "high", "reason": "credential access"}],
+            "agent_id": "agent-001",
+            "source_framework": "a3s-code",
+            "caller_adapter": "a3s-adapter.v1",
+            "workspace_root": "/workspace/repo-alpha",
+            "transcript_path": "/workspace/repo-alpha/.a3s/session-001.jsonl",
+            "current_risk_level": "high",
+            "cumulative_score": 5,
+            "latest_composite_score": 2.4,
+            "session_risk_sum": 6.7,
+            "session_risk_ewma": 1.9,
+            "latest_post_action_score": 1.0,
+            "post_action_score_ewma": 0.72,
+            "risk_points_sum": 5,
+            "risk_velocity": "up",
+            "window_risk_summary": {
+                "window_seconds": 3600,
+                "generated_at": "2026-03-23T10:31:00+00:00",
+                "event_count": 12,
+                "high_or_critical_count": 3,
+                "latest_composite_score": 2.4,
+                "session_risk_sum": 6.7,
+                "session_risk_ewma": 1.9,
+                "risk_points_sum": 5,
+                "risk_velocity": "up",
+                "score_range": [0.0, 3.0],
+                "score_semantics": {
+                    "zero_with_no_events": "no_data_not_confirmed_low_risk",
+                    "decision_affecting": False,
+                },
+                "decision_affecting": False,
+            },
+            "post_action_score_summary": {
+                "window_seconds": 3600,
+                "generated_at": "2026-03-23T10:31:00+00:00",
+                "event_count": 3,
+                "latest_post_action_score": 1.0,
+                "post_action_score_sum": 2.4,
+                "post_action_score_avg": 0.8,
+                "post_action_score_ewma": 0.72,
+                "score_range": [0.0, 3.0],
+                "score_semantics": {
+                    "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+                    "decision_affecting": False,
+                },
+                "decision_affecting": False,
+            },
+            "score_range": [0.0, 3.0],
+            "score_semantics": {
+                "zero_with_no_events": "no_data_not_confirmed_low_risk",
+                "decision_affecting": False,
+            },
+            "event_count": 25,
+            "high_or_critical_count": 3,
+            "risk_timeline": [
+                {
+                    "event_id": "evt-001",
+                    "occurred_at": "2026-03-23T10:00:00+00:00",
+                    "risk_level": "low",
+                    "composite_score": 1.0,
+                    "tool_name": "bash",
+                    "decision": "allow",
+                },
+                {
+                    "event_id": "evt-002",
+                    "occurred_at": "2026-03-23T10:05:00+00:00",
+                    "risk_level": "high",
+                    "composite_score": 2.4,
+                    "tool_name": "bash",
+                    "decision": "block",
+                },
+            ],
+            "risk_hints_seen": ["destructive_pattern", "shell_execution"],
+            "tools_used": ["bash", "file_editor"],
+            "actual_tier_distribution": {"L1": 23, "L2": 2},
+            "l3_advisory": {
+                "latest_review": {"review_id": "l3adv-001", "snapshot_id": "l3snap-001", "l3_state": "completed", "advisory_only": True},
+                "latest_job": {"job_id": "l3job-001", "job_state": "completed", "runner": "deterministic_local"},
+            },
+            "decision_path_io": {
+                "record_path": {"calls": 25},
+                "reporting": {"report_session_risk": {"calls": 1}},
+            },
+            "generated_at": "2026-03-23T10:31:00+00:00",
+            "window_seconds": 3600,
+        }
+    elif method == "GET" and path == "/enterprise/report/session/{session_id}/risk":
+        entry["response_example"] = {
+            "session_id": "sess-001",
+            "current_risk_level": "high",
+            "session_risk_ewma": 1.9,
+            "actual_tier_distribution": {"L1": 23, "L2": 2, "L3": 1},
+            "risk_timeline": [
+                {
+                    "event_id": "evt-001",
+                    "risk_level": "high",
+                    "decision": "block",
+                    "trinityguard_classification": {
+                        "mapped": True,
+                        "tier": "RT1",
+                        "tier_label": "Atomic Risks",
+                        "subtype": "sensitive_info_disclosure",
+                        "label": "Sensitive Info Disclosure",
+                    },
+                }
+            ],
+            "trinityguard_summary": {
+                "mapped_records": 1,
+                "unmapped_records": 0,
+                "by_tier": {"RT1": 1},
+                "by_subtype": {"sensitive_info_disclosure": 1},
+            },
+            "generated_at": "2026-04-25T12:00:05Z",
+            "window_seconds": 3600,
         }
     elif method == "GET" and path == "/report/session/{session_id}/post-action":
         entry["response_example"] = {
             "session_id": "sess-001",
             "latest_post_action_score": 1.0,
+            "post_action_score_sum": 2.4,
+            "post_action_score_avg": 0.8,
             "post_action_score_ewma": 0.72,
+            "post_action_event_count": 3,
             "score_range": [0.0, 3.0],
             "score_semantics": {
                 "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
                 "decision_affecting": False,
                 "aggregation": "latest, sum, avg, and EWMA are separate from session_risk_ewma; do not add raw channels",
             },
+            "post_action_score_summary": {
+                "window_seconds": 3600,
+                "generated_at": "2026-03-23T10:31:00+00:00",
+                "event_count": 3,
+                "latest_post_action_score": 1.0,
+                "post_action_score_sum": 2.4,
+                "post_action_score_avg": 0.8,
+                "post_action_score_ewma": 0.72,
+                "score_range": [0.0, 3.0],
+                "score_semantics": {
+                    "zero_with_no_events": "no_post_action_data_not_confirmed_low_risk",
+                    "decision_affecting": False,
+                },
+                "decision_affecting": False,
+            },
+            "decision_affecting": False,
             "post_action_scores": [
                 {
                     "event_id": "evt-post-001",
+                    "occurred_at": "2026-03-23T10:05:00+00:00",
+                    "tool_name": "read_file",
+                    "source_framework": "a3s-code",
                     "tier": "escalate",
                     "patterns_matched": ["indirect_injection"],
                     "score": 1.0,
+                    "handling": "broadcast",
                 }
             ],
+            "decision_path_io": {
+                "record_path": {"calls": 25},
+                "reporting": {"report_session_post_action": {"calls": 1}},
+            },
+            "generated_at": "2026-03-23T10:31:00+00:00",
+            "window_seconds": 3600,
         }
     elif path.startswith("/report/l3-advisory/") or "/l3-advisory/" in path:
         if method != "GET":
@@ -259,6 +669,29 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
             "job_id": "l3job-001",
             "review_id": "l3adv-001",
             "l3_state": "completed",
+        }
+    elif method == "GET" and path == "/enterprise/report/alerts":
+        entry["response_example"] = {
+            "alerts": [
+                {
+                    "alert_id": "alert-001",
+                    "severity": "high",
+                    "status": "open",
+                    "session_id": "sess-001",
+                    "trinityguard_classification": {
+                        "mapped": True,
+                        "tier": "RT1",
+                        "subtype": "tool_misuse",
+                        "label": "Tool Misuse",
+                    },
+                }
+            ],
+            "enterprise": {
+                "live_risk_overview": {
+                    "by_trinityguard_tier": {"RT1": 1},
+                    "by_trinityguard_subtype": {"tool_misuse": 1},
+                }
+            },
         }
     elif method == "GET" and path == "/report/alerts":
         entry["response_example"] = {
@@ -384,13 +817,140 @@ def write_coverage() -> None:
     COVERAGE_PATH.write_text(json.dumps(coverage_entries(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+SESSION_RISK_EWMA_SCHEMA: dict[str, Any] = {
+    "type": "number",
+    "minimum": 0.0,
+    "maximum": 3.0,
+    "description": (
+        "Windowed session risk EWMA display score, alpha=0.3 "
+        "(ewma_0 = score_0; ewma_n = 0.3 * score_n + 0.7 * ewma_(n-1)). "
+        "Range is 0.0..3.0. A 0.0 value when no window events exist uses the "
+        "no_data_not_confirmed_low_risk sentinel and must not be read as confirmed low risk. "
+        "This is an observability/UI field and is non-decision-affecting."
+    ),
+}
+
+
+SCORE_RANGE_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "items": {"type": "number"},
+    "minItems": 2,
+    "maxItems": 2,
+    "description": "Inclusive score range for session risk display values: [0.0, 3.0].",
+}
+
+
+SCORE_SEMANTICS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "zero_with_no_events": {
+            "type": "string",
+            "enum": ["no_data_not_confirmed_low_risk"],
+            "description": "0.0 with no events is a no-data sentinel, not confirmed low risk.",
+        },
+        "decision_affecting": {
+            "type": "boolean",
+            "const": False,
+            "description": "Session risk display metrics do not alter canonical Gateway decisions.",
+        },
+    },
+    "additionalProperties": True,
+}
+
+
+WINDOW_RISK_SUMMARY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "window_seconds": {"type": ["integer", "null"], "minimum": 1},
+        "generated_at": {"type": "string"},
+        "event_count": {"type": "integer", "minimum": 0},
+        "high_or_critical_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Canonical high/critical event count. Do not expose legacy high_risk_event_count here.",
+        },
+        "latest_composite_score": {"type": "number", "minimum": 0.0, "maximum": 3.0},
+        "session_risk_sum": {"type": "number", "minimum": 0.0},
+        "session_risk_ewma": SESSION_RISK_EWMA_SCHEMA,
+        "risk_points_sum": {"type": "integer", "minimum": 0},
+        "risk_velocity": {"type": "string"},
+        "score_range": SCORE_RANGE_SCHEMA,
+        "score_semantics": SCORE_SEMANTICS_SCHEMA,
+        "decision_affecting": {"type": "boolean", "const": False},
+    },
+    "additionalProperties": True,
+}
+
+
+SESSION_SUMMARY_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "session_id": {"type": "string"},
+        "agent_id": {"type": "string"},
+        "source_framework": {"type": "string"},
+        "caller_adapter": {"type": "string"},
+        "workspace_root": {"type": "string"},
+        "transcript_path": {"type": "string"},
+        "current_risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+        "cumulative_score": {"type": "number"},
+        "latest_composite_score": {"type": "number", "minimum": 0.0, "maximum": 3.0},
+        "session_risk_sum": {"type": "number", "minimum": 0.0},
+        "session_risk_ewma": SESSION_RISK_EWMA_SCHEMA,
+        "risk_points_sum": {"type": "integer", "minimum": 0},
+        "risk_velocity": {"type": "string"},
+        "window_risk_summary": WINDOW_RISK_SUMMARY_SCHEMA,
+        "score_range": SCORE_RANGE_SCHEMA,
+        "score_semantics": SCORE_SEMANTICS_SCHEMA,
+        "event_count": {"type": "integer", "minimum": 0},
+        "high_or_critical_count": {"type": "integer", "minimum": 0},
+        "decision_distribution": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+    },
+    "additionalProperties": True,
+}
+
+
+def _response_schema_for(entry: dict[str, Any]) -> dict[str, Any] | None:
+    path = entry["path"]
+    if path in {"/report/sessions", "/enterprise/report/sessions"}:
+        return {
+            "type": "object",
+            "properties": {
+                "sessions": {"type": "array", "items": SESSION_SUMMARY_SCHEMA},
+                "total_active": {"type": "integer", "minimum": 0},
+                "generated_at": {"type": "string"},
+                "window_seconds": {"type": ["integer", "null"], "minimum": 1},
+            },
+            "additionalProperties": True,
+        }
+    if path in {"/report/session/{session_id}/risk", "/enterprise/report/session/{session_id}/risk"}:
+        return SESSION_SUMMARY_SCHEMA
+    return None
+
+
 def operation_for(entry: dict[str, Any]) -> dict[str, Any]:
     params = []
     for name in re.findall(r"\{([^}:]+)(?::[^}]+)?\}", entry["path"]):
         params.append({"name": name, "in": "path", "required": True, "schema": {"type": "string"}})
-    if entry["path"] in {"/report/summary", "/report/sessions", "/report/session/{session_id}", "/report/session/{session_id}/page", "/report/session/{session_id}/risk", "/report/stream", "/report/alerts"}:
+    if entry["path"] in {"/report/sessions", "/enterprise/report/sessions"}:
+        limit_maximum = 5000 if entry["path"].startswith("/enterprise/") else 200
+        params.extend([
+            {"name": "status", "in": "query", "required": False, "schema": {"type": "string", "enum": ["active", "all"], "default": "active"}},
+            {"name": "sort", "in": "query", "required": False, "schema": {"type": "string", "enum": ["risk_level", "last_event"], "default": "risk_level"}},
+            {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 1, "maximum": limit_maximum, "default": 50}},
+            {"name": "min_risk", "in": "query", "required": False, "schema": {"type": "string", "enum": ["low", "medium", "high", "critical"]}},
+        ])
+    if entry["path"] in {"/report/session/{session_id}", "/report/session/{session_id}/risk", "/report/session/{session_id}/post-action", "/enterprise/report/session/{session_id}", "/enterprise/report/session/{session_id}/risk"}:
+        params.append({"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}})
+    if entry["path"] in {"/report/session/{session_id}/page", "/enterprise/report/session/{session_id}/page"}:
+        params.extend([
+            {"name": "limit", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}},
+            {"name": "cursor", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 0}},
+        ])
+    if entry["path"] in {"/report/summary", "/report/sessions", "/report/session/{session_id}", "/report/session/{session_id}/page", "/report/session/{session_id}/risk", "/report/session/{session_id}/post-action", "/report/alerts", "/enterprise/report/summary", "/enterprise/report/sessions", "/enterprise/report/session/{session_id}", "/enterprise/report/session/{session_id}/page", "/enterprise/report/session/{session_id}/risk", "/enterprise/report/alerts"}:
         params.append({"name": "window_seconds", "in": "query", "required": False, "schema": {"type": "integer", "minimum": 1, "maximum": 604800}})
-    if entry["path"] == "/report/stream":
+    if entry["path"] == "/enterprise/report/live":
+        params.append({"name": "cached", "in": "query", "required": False, "schema": {"type": "boolean", "default": False}})
+    if entry["path"] in {"/report/stream", "/enterprise/report/stream"}:
         params.extend([
             {"name":"session_id","in":"query","required":False,"schema":{"type":"string"}},
             {"name":"min_risk","in":"query","required":False,"schema":{"type":"string","enum":["low","medium","high","critical"]}},
@@ -407,13 +967,17 @@ def operation_for(entry: dict[str, Any]) -> dict[str, Any]:
     success_content_type = "application/json"
     if entry["path"] == "/metrics":
         success_content_type = "text/plain"
-    elif entry["path"] == "/report/stream":
+    elif entry["path"] in {"/report/stream", "/enterprise/report/stream"}:
         success_content_type = "text/event-stream"
 
     if success_content_type == "application/json":
+        json_content: dict[str, Any] = {"example": entry["response_example"]}
+        response_schema = _response_schema_for(entry)
+        if response_schema is not None:
+            json_content["schema"] = response_schema
         success_response: dict[str, Any] = {
             "description": "Successful response",
-            "content": {"application/json": {"example": entry["response_example"]}},
+            "content": {"application/json": json_content},
         }
     else:
         # Scalar 1.52.5 attempts to parse plain-text and event-stream response
@@ -424,7 +988,8 @@ def operation_for(entry: dict[str, Any]) -> dict[str, Any]:
             "description": (
                 f"Successful {success_content_type} response. "
                 "See api-coverage.json for the curated text example."
-            )
+            ),
+            "x-clawsentry-text-example": entry["response_example"],
         }
 
     op: dict[str, Any] = {
@@ -843,6 +1408,97 @@ def validate() -> list[str]:
     openapi = json.loads(OPENAPI_PATH.read_text(encoding="utf-8"))
     if not isinstance(openapi, dict):
         errors.append("openapi artifact is not a JSON object")
+    else:
+        def _operation(path: str, method: str = "get") -> dict[str, Any]:
+            operation = openapi.get("paths", {}).get(path, {}).get(method, {})
+            return operation if isinstance(operation, dict) else {}
+
+        def _json_example(path: str) -> dict[str, Any]:
+            example = (
+                _operation(path)
+                .get("responses", {})
+                .get("200", {})
+                .get("content", {})
+                .get("application/json", {})
+                .get("example", {})
+            )
+            return example if isinstance(example, dict) else {}
+
+        risk_example = _json_example("/report/session/{session_id}/risk")
+        if "session_risk_ewma" not in risk_example:
+            errors.append("openapi risk example missing session_risk_ewma")
+        if "critical_event_count" in json.dumps(risk_example.get("window_risk_summary", {}), ensure_ascii=False):
+            errors.append("openapi risk window_risk_summary includes stale critical_event_count")
+
+        post_action_example = _json_example("/report/session/{session_id}/post-action")
+        for field in ["post_action_score_summary", "decision_path_io"]:
+            if field not in post_action_example:
+                errors.append(f"openapi post-action example missing {field}")
+
+        sessions_example = _json_example("/report/sessions")
+        if "total_active" not in sessions_example or "total" in sessions_example:
+            errors.append("openapi sessions example must use total_active and not legacy total")
+
+        def _json_schema(path: str) -> dict[str, Any]:
+            schema = (
+                _operation(path)
+                .get("responses", {})
+                .get("200", {})
+                .get("content", {})
+                .get("application/json", {})
+                .get("schema", {})
+            )
+            return schema if isinstance(schema, dict) else {}
+
+        for path in [
+            "/report/sessions",
+            "/report/session/{session_id}/risk",
+            "/enterprise/report/sessions",
+            "/enterprise/report/session/{session_id}/risk",
+        ]:
+            schema = _json_schema(path)
+            if not schema:
+                errors.append(f"openapi {path} missing 200 response schema")
+                continue
+            properties = schema.get("properties", {})
+            if path.endswith("/sessions"):
+                properties = properties.get("sessions", {}).get("items", {}).get("properties", {})
+            ewma_schema = properties.get("session_risk_ewma", {})
+            if ewma_schema.get("type") != "number":
+                errors.append(f"openapi {path} schema missing numeric session_risk_ewma property")
+            if "alpha=0.3" not in ewma_schema.get("description", ""):
+                errors.append(f"openapi {path} session_risk_ewma schema missing alpha=0.3 semantics")
+
+        def _query_param_names(path: str) -> set[str]:
+            return {
+                str(param.get("name"))
+                for param in _operation(path).get("parameters", [])
+                if isinstance(param, dict) and param.get("in") == "query"
+            }
+
+        expected_params = {
+            "/report/sessions": {"status", "sort", "limit", "min_risk", "window_seconds"},
+            "/report/session/{session_id}/risk": {"limit", "window_seconds"},
+            "/report/session/{session_id}/post-action": {"limit", "window_seconds"},
+            "/report/stream": {"session_id", "min_risk", "types", "token"},
+        }
+        for path, names in expected_params.items():
+            actual_params = _query_param_names(path)
+            if actual_params != names:
+                errors.append(f"openapi query params mismatch for {path}: expected {sorted(names)}, got {sorted(actual_params)}")
+
+        if "critical_event_count" in OPENAPI_PATH.read_text(encoding="utf-8"):
+            errors.append("openapi artifact contains stale critical_event_count")
+
+    reporting_doc = API_DOCS_DIR / "reporting.md"
+    if reporting_doc.exists():
+        reporting_source = reporting_doc.read_text(encoding="utf-8")
+        if "critical_event_count" in reporting_source:
+            errors.append("reporting markdown contains stale critical_event_count")
+        if "检测评分（0.0-1.0）" in reporting_source:
+            errors.append("reporting markdown documents stale post-action score range 0.0-1.0")
+        if "检测评分（0.0-3.0）" not in reporting_source:
+            errors.append("reporting markdown missing post-action score range 0.0-3.0")
     for entry in coverage:
         if not _source_line_matches_entry(entry):
             errors.append(f"source line does not point to current route decorator: {entry['service']} {entry['method']} {entry['path']} -> {entry.get('source')}")

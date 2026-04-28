@@ -239,6 +239,54 @@ def test_openapi_artifact_matches_public_coverage_entries() -> None:
             assert operation.get("security") == [{"BearerAuth": []}]
 
 
+def test_report_session_risk_ewma_is_declared_in_openapi_response_schemas() -> None:
+    spec = json.loads(OPENAPI_FILE.read_text(encoding="utf-8"))
+
+    def response_schema(path: str) -> dict:
+        content = (
+            spec["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]
+        )
+        assert "example" in content, path
+        assert "schema" in content, path
+        return content["schema"]
+
+    sessions_paths = [
+        "/report/sessions",
+        "/enterprise/report/sessions",
+    ]
+    risk_paths = [
+        "/report/session/{session_id}/risk",
+        "/enterprise/report/session/{session_id}/risk",
+    ]
+
+    for path in sessions_paths:
+        session_schema = response_schema(path)["properties"]["sessions"]["items"]
+        field = session_schema["properties"]["session_risk_ewma"]
+        assert field["type"] == "number"
+        assert field["minimum"] == 0.0
+        assert field["maximum"] == 3.0
+        assert "alpha=0.3" in field["description"]
+        assert "no_data_not_confirmed_low_risk" in field["description"]
+        assert "decision-affecting" in field["description"]
+
+    for path in risk_paths:
+        field = response_schema(path)["properties"]["session_risk_ewma"]
+        assert field["type"] == "number"
+        assert field["minimum"] == 0.0
+        assert field["maximum"] == 3.0
+        assert "alpha=0.3" in field["description"]
+        assert "no_data_not_confirmed_low_risk" in field["description"]
+        assert "decision-affecting" in field["description"]
+
+    public_window = (
+        response_schema("/report/session/{session_id}/risk")["properties"]["window_risk_summary"]
+        ["properties"]
+    )
+    assert "session_risk_ewma" in public_window
+    assert "high_or_critical_count" in public_window
+    assert "high_risk_event_count" not in public_window
+
+
 def test_api_reference_page_is_in_nav_and_has_raw_openapi_fallback() -> None:
     reference_text = REFERENCE_PAGE.read_text(encoding="utf-8")
     mkdocs_text = (REPO_ROOT / "mkdocs.yml").read_text(encoding="utf-8")

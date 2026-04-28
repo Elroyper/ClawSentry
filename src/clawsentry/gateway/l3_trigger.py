@@ -52,6 +52,8 @@ class L3TriggerPolicy:
     ) -> dict[str, str] | None:
         if self._has_manual_flag(context):
             return {"trigger_reason": "manual_l3_escalate"}
+        if self._has_eager_profile(context):
+            return {"trigger_reason": "eager"}
         pattern_detail = self._suspicious_pattern_detail(event, session_risk_history)
         if pattern_detail is not None:
             return {
@@ -87,6 +89,11 @@ class L3TriggerPolicy:
         if context is None or not isinstance(context.session_risk_summary, dict):
             return False
         return any(bool(context.session_risk_summary.get(flag)) for flag in _MANUAL_FLAGS)
+
+    def _has_eager_profile(self, context: DecisionContext | None) -> bool:
+        if context is None or not isinstance(context.session_risk_summary, dict):
+            return False
+        return str(context.session_risk_summary.get("l3_trigger_profile") or "").lower() == "eager"
 
     def _cumulative_risk_score(self, history: list[Any], current: RiskSnapshot) -> int:
         total = 0

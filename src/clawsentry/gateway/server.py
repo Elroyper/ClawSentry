@@ -406,6 +406,20 @@ def _analyzer_supports_l3(analyzer: Any) -> bool:
             return True
     return False
 
+
+def _effective_requested_tier_for_l3_config(
+    requested_tier: DecisionTier,
+    config: DetectionConfig,
+    analyzer: Any,
+) -> DecisionTier:
+    if (
+        requested_tier == DecisionTier.L2
+        and config.l3_routing_mode == "replace_l2"
+        and _analyzer_supports_l3(analyzer)
+    ):
+        return DecisionTier.L3
+    return requested_tier
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -1285,6 +1299,12 @@ class SupervisionGateway:
                     if budget_exhausted:
                         l3_runtime_reason_override = "LLM budget exhausted; anti-bypass L3 skipped"
                         l3_runtime_reason_code_override = "budget_exhausted"
+            if not budget_exhausted:
+                requested_tier = _effective_requested_tier_for_l3_config(
+                    requested_tier,
+                    effective_config,
+                    self.policy_engine.analyzer,
+                )
             effective_requested_tier = requested_tier
 
             if anti_bypass_match is not None and anti_bypass_match.action in ("block", "defer"):
@@ -1390,6 +1410,9 @@ class SupervisionGateway:
             # Operator-facing replay/session summaries only; not a canonical
             # decision source and intentionally compact.
             meta_dict["evidence_summary"] = compat_evidence_summary
+        l3_trace_summary = _compact_l3_evidence_summary(l3_trace)
+        if l3_trace_summary is not None:
+            meta_dict["l3_trace_summary"] = l3_trace_summary
         # CS-024: Keep stream/session framework consistent for HTTP adapters.
         event_dict["source_framework"] = _infer_source_framework(
             event_dict.get("source_framework"),
@@ -2439,16 +2462,18 @@ class SupervisionGateway:
         limit: int = 50,
         min_risk: Optional[str] = None,
         window_seconds: Optional[int] = None,
+        max_limit: int = 200,
     ) -> dict[str, Any]:
         start = time.perf_counter()
         since_seconds = window_seconds if window_seconds and window_seconds > 0 else None
-        effective_limit = min(max(limit, 1), 200)
+        effective_limit = min(max(limit, 1), max(max_limit, 1))
         generated_at = utc_now_iso()
         result = self.session_registry.list_sessions(
             status=status,
             sort=sort,
             min_risk=min_risk,
             limit=effective_limit,
+            max_limit=max_limit,
             since_seconds=since_seconds,
         )
         generated_at = utc_now_iso()
@@ -3820,7 +3845,7 @@ def create_http_app(
                 status_code=400,
                 media_type="application/json",
             )
-        effective_limit = min(max(limit, 1), 200)
+        effective_limit = min(max(limit, 1), 5000)
         return await enrich_sessions_payload_async(
             gateway.report_sessions(
                 status=status,
@@ -3828,6 +3853,7 @@ def create_http_app(
                 limit=effective_limit,
                 min_risk=min_risk,
                 window_seconds=window_seconds,
+                max_limit=5000,
             ),
             gateway,
         )

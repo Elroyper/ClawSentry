@@ -311,6 +311,24 @@ class TestEnterpriseHttpEndpoints:
         assert "trinityguard_classification" in replay_page_payload["records"][-1]
 
     @pytest.mark.asyncio
+    async def test_enterprise_sessions_limit_allows_large_audit_pages(self, seeded_gw, monkeypatch):
+        captured: dict[str, int] = {}
+
+        def fake_report_sessions(**kwargs):
+            captured["limit"] = kwargs["limit"]
+            return {"sessions": [], "total_active": 0}
+
+        monkeypatch.setattr(seeded_gw, "report_sessions", fake_report_sessions)
+        app = create_http_app(seeded_gw)
+        transport = ASGITransport(app=app)
+
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/enterprise/report/sessions?status=all&limit=5000")
+
+        assert resp.status_code == 200
+        assert captured["limit"] == 5000
+
+    @pytest.mark.asyncio
     async def test_enterprise_alerts_and_live_snapshot(self, app):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
