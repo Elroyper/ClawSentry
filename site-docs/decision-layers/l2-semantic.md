@@ -58,6 +58,7 @@ graph LR
 | L2 语义 | 单轮语义分析，按需调用 provider 或 rule-based analyzer | L1 达到 medium+、关键词/意图需要语义理解 | L1 snapshot、事件正文、有限上下文、LLM budget | 升级后的 risk level、reasons、confidence、latency | 只升不降；LLM 失败时回退 L1 |
 | 同步 L3 Agent | 高风险少量事件的只读 agent review | high/critical、累计风险或显式触发 | 事件、会话轨迹、只读文件/上下文工具 | 深度审查 trace、evidence、L2Result 兼容输出 | 可能影响当前同步判决；不执行修改 |
 | L3 咨询审查 | 事后 full-review / snapshot / job | operator 想复盘一个 session | 固定证据快照、session timeline | advisory report、action summary | advisory only；不改历史 allow/block/defer |
+| Anti-bypass Guard | prior final risky decision 后的 follow-up 检测 | Agent 换说法、换工具或脚本包装重试高风险动作 | compact fingerprints、prior record id、match type | observe / force_l2 / force_l3 / defer / block | 只作用于 `PRE_ACTION`；cross-tool 不本地 hard-block |
 
 !!! tip "何时开启 L2"
     如果你的主要风险是凭证外传、命令伪装、链式打包上传、上下文相关的数据访问，L2 比纯 L1 更有价值。用 [L2 token budget 模板](../configuration/templates.md#team-l2-budgeted) 控制成本；对高敏仓库再考虑 [严格 L3 模板](../configuration/templates.md#strict-l3-review)。
@@ -150,7 +151,7 @@ _CRITICAL_INTENT_PATTERN = re.compile(
 
 #### 攻击模式库（PatternMatcher）{#attack-patterns}
 
-`RuleBasedAnalyzer` 集成了可热更新的**攻击模式库**，通过预定义的结构化规则检测已知攻击类型，覆盖 OWASP AI Agent Security（ASI）Top 5 威胁类别。
+`RuleBasedAnalyzer` 集成了启动时加载的**攻击模式库**，通过预定义的结构化规则检测已知攻击类型，覆盖 OWASP AI Agent Security（ASI）Top 5 威胁类别。
 
 **内置模式：25 条，v1.1**
 
@@ -189,7 +190,7 @@ _CRITICAL_INTENT_PATTERN = re.compile(
 
 - **AND/OR 复合逻辑**：支持多条正则的布尔组合，精确过滤复杂攻击模式
 - **误报过滤**：`false_positive_filters` 排除已知安全用法（如 localhost 访问）
-- **热更新**：设置 `CS_ATTACK_PATTERNS_PATH` 指向自定义 YAML 文件，覆盖内置模式无需重启
+- **启动时自定义**：设置 `CS_ATTACK_PATTERNS_PATH` 指向自定义 YAML 文件，重启 Gateway 后覆盖内置模式
 - **MITRE ATT&CK 映射**：每条模式可关联 ATT&CK 技术 ID，便于合规报告
 
 !!! tip "结合自进化模式库"
@@ -469,7 +470,7 @@ snapshot = RiskSnapshot(
 
 ## 轨迹分析器（TrajectoryAnalyzer）{#trajectory-analyzer}
 
-`TrajectoryAnalyzer` 在 L2 层级独立运行，检测跨事件的**多步攻击序列**。与单事件的 L1/L2 分析不同，轨迹分析器维护每个会话的事件滑动窗口，识别需要多个步骤才能完成的复杂攻击链。
+`TrajectoryAnalyzer` 不属于 L2 analyzer 本身；它在 Gateway 完成 anti-bypass / normal decision evaluation 后运行，检测跨事件的**多步攻击序列**。与单事件的 L1/L2 分析不同，轨迹分析器维护每个会话的事件滑动窗口，识别需要多个步骤才能完成的复杂攻击链。
 
 !!! info "设计动机"
     某些攻击单步看来无害，组合才有危险性：
@@ -484,7 +485,7 @@ snapshot = RiskSnapshot(
 | 序列 ID | 攻击类型 | 检测步骤 | 风险等级 |
 |---------|---------|---------|---------|
 | `exfil-credential` | 凭证窃取 | 读取敏感文件（.env/.pem/.key/id_rsa 等）→ 调用网络工具外传 | CRITICAL |
-| `backdoor-install` | 后门植入 | 下载可执行文件 → `chmod +x` → 修改 shell 配置实现持久化 | CRITICAL |
+| `backdoor-install` | 后门植入 | 下载远程脚本/文件 → `chmod +x` 或写入 shell 配置 | CRITICAL |
 | `recon-then-exploit` | 侦察→利用 | 系统信息收集（uname/id/whoami/hostname）→ 高危命令执行 | CRITICAL |
 | `secret-harvest` | 密钥收集 | 连续多次读取凭证文件（.env/.pem/.key/.p12/.aws/.ssh 等） | HIGH |
 | `staged-exfil` | 分阶段外传 | 写入临时目录（/tmp/）后从临时路径发起网络外传 | HIGH |
@@ -500,7 +501,7 @@ sequenceDiagram
 
     E->>B: record(event)
     B->>T: check_all_sequences()
-    T->>T: 对 5 个序列分别检测<br/>（10 事件窗口 / 60 秒内）
+    T->>T: 对 5 个序列分别检测<br/>（每个序列有自己的事件/时间窗口）
     alt 任一序列匹配
         T->>S: trajectory_alert<br/>{sequence_id, risk_level, matched_event_ids}
     end
@@ -509,7 +510,7 @@ sequenceDiagram
 **默认参数：**
 
 - 每个会话最多缓存 **50 个事件**（`CS_TRAJECTORY_MAX_EVENTS`）
-- 序列步骤需在 **10 个事件** 内或 **60 秒** 内完成（具体见各序列定义）
+- 序列步骤使用各自定义的事件/时间窗口：例如 `5/60s`、`8/120s`、`10/30s`、`10/120s`
 - 全局最多追踪 **10,000 个会话**（`CS_TRAJECTORY_MAX_SESSIONS`），超限 LRU 淘汰
 
 ### SSE 告警格式
@@ -518,7 +519,7 @@ sequenceDiagram
 
 ```json
 {
-  "event_type": "trajectory_alert",
+  "type": "trajectory_alert",
   "sequence_id": "exfil-credential",
   "risk_level": "critical",
   "matched_event_ids": ["evt-001", "evt-003"],
