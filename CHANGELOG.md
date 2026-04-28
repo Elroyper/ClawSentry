@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+暂无。
+
+## [0.5.14] — 2026-04-28
+
 ### 新增
 
 - **Anti-Bypass Follow-up Guard（默认关闭）** — 新增 `PRE_ACTION` follow-up guard，在显式启用 `CS_ANTI_BYPASS_GUARD_ENABLED=true` 后，可基于 prior final risky decision 的 compact fingerprints 检测 exact raw repeat、normalized destructive repeat 与 cross-tool/script similarity。
@@ -24,7 +28,12 @@
 
 - Anti-bypass focused regression：`14 passed`。
 - Focused guard/config/gateway regression：`256 passed`。
-- Full Python regression + docs inventory：`3239 passed, 4 skipped`; docs API inventory valid。
+- Full Python regression：dev repo `3239 passed, 4 skipped`; public repo `3238 passed, 5 skipped`。
+- Full Web UI regression：`53 passed`；Vite build PASS。
+- Docs API inventory + strict docs build：PASS。
+- Package build：PASS（setuptools license deprecation warnings only）。
+- Focused guard/config/gateway regression：`256 passed`。
+- Architect review：APPROVED；Security review：APPROVED。
 - Architect review：APPROVED；Security review：APPROVED。
 
 ## [0.5.13] — 2026-04-27
@@ -1194,6 +1203,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.5.14]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.14
 [0.5.13]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.13
 [0.5.12]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.12
 [0.5.11]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.11

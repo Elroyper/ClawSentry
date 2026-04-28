@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3189 public regression tests** with release-time CI/build evidence
+- **3238 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.5.13
+## What's New in v0.5.14
 
-- **Post-action severity floors**: additive `0.0..3.0` scores remain stable while obvious exfiltration, exposed secrets, and obfuscated secret/exfil combinations get safer response tiers.
-- **Enterprise score semantics**: reporting endpoints now expose `score_range` and `score_semantics` so OS/dashboard consumers can distinguish no-data `0.0` from confirmed low risk.
-- **Benchmark continuation**: AgentDoG labeled manifest replay and a five-framework ingress smoke provide reproducible handoff artifacts for the next raw-vs-protected benchmark lane.
+- **Anti-bypass follow-up guard**: default-off `PRE_ACTION` memory detects repeated risky follow-up attempts from compact final-decision fingerprints.
+- **Safe rollout controls**: `CS_ANTI_BYPASS_*` knobs support observe/review/enforce modes while keeping cross-tool/script similarity out of local hard-block decisions.
+- **Redacted observability**: anti-bypass decisions and defer streams expose hashes, fingerprints, labels, tool names, and record IDs instead of raw payloads or commands.
 
 ## Quick Start
 

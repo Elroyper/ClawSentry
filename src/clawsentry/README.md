@@ -1,12 +1,12 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **3189 public regression tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **3238 public regression tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, Gemini CLI, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
 
-**Current release highlight (v0.5.13)**: Post-action scoring now keeps additive 0.0–3.0 scores while applying severity floors for exfiltration/secrets; Reporting API exposes score semantics for Enterprise OS consumers; AgentDoG labeled replay and five-framework ingress smoke are available for benchmark continuation.
+**Current release highlight (v0.5.14)**: Anti-bypass follow-up guard adds a default-off PRE_ACTION memory for repeated risky attempts, with `CS_ANTI_BYPASS_*` rollout controls, redacted SSE/metadata, and a strict invariant that cross-tool/script similarity cannot local hard-block.
 
 ---
 
@@ -477,7 +477,7 @@ src/clawsentry/
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
-+-- tests/                             # Test suite (3189 public regression tests)
++-- tests/                             # Test suite (3238 public regression tests)
 ```
 
 ---
@@ -623,7 +623,7 @@ pip install -e ".[dev]"
 
 # Full suite
 python -m pytest src/clawsentry/tests/ -v --tb=short
-# Expected: 3189 passed, 11 skipped
+# Expected: 3238 passed, 5 skipped
 
 # E2E (requires LLM API key)
 A3S_SDK_E2E=1 python -m pytest src/clawsentry/tests/ -v --tb=short
