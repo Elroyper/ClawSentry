@@ -50,7 +50,7 @@ graph LR
 
 <span id="operator-map"></span>
 
-## Operator 速读：L1 / L2 / L3 怎么分工？{#operator-summary}
+## Operator 速读：L1 / L2 / L3 怎么分工？ {#operator-summary}
 
 | 层级 | 运行方式 | 什么时候用 | 输入 | 输出 | 副作用 |
 |---|---|---|---|---|---|
@@ -149,7 +149,7 @@ _CRITICAL_INTENT_PATTERN = re.compile(
 !!! tip "RuleBasedAnalyzer 永远参与"
     即使配置了 LLM，`CompositeAnalyzer` 也会同时运行 `RuleBasedAnalyzer`。这确保了即使 LLM 漏判，规则层面的已知威胁信号仍能被捕获。
 
-#### 攻击模式库（PatternMatcher）{#attack-patterns}
+#### 攻击模式库（PatternMatcher） {#attack-patterns}
 
 `RuleBasedAnalyzer` 集成了启动时加载的**攻击模式库**，通过预定义的结构化规则检测已知攻击类型，覆盖 OWASP AI Agent Security（ASI）Top 5 威胁类别。
 
@@ -468,7 +468,7 @@ snapshot = RiskSnapshot(
 
 ---
 
-## 轨迹分析器（TrajectoryAnalyzer）{#trajectory-analyzer}
+## 轨迹分析器（TrajectoryAnalyzer） {#trajectory-analyzer}
 
 `TrajectoryAnalyzer` 不属于 L2 analyzer 本身；它在 Gateway 完成 anti-bypass / normal decision evaluation 后运行，检测跨事件的**多步攻击序列**。与单事件的 L1/L2 分析不同，轨迹分析器维护每个会话的事件滑动窗口，识别需要多个步骤才能完成的复杂攻击链。
 

@@ -80,7 +80,7 @@ flowchart LR
 
 Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文**”。它不会保存 raw payload、raw command、secret、完整路径内容或 L3 trace；只保存 hashes、fingerprints、tool label、policy id、risk level、record id 与时间戳。
 
-### 1. 什么时候写入记忆？{#memory-write}
+### 1. 什么时候写入记忆？ {#memory-write}
 
 一次事件只有满足以下条件才会进入 anti-bypass memory：
 
@@ -94,7 +94,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 !!! note "这里的 final 指什么？"
     Guard 记录的是 Gateway 已生成并持久化的 final canonical decision（`decision.final=true`），写入发生在 `_record_decision_path` 之后。若该 final decision 是 `defer`，后续 operator / timeout resolution 可能再把审批结果解析为 allow/deny；当前 memory 不等待这个后续 resolution，也不会回溯删除已记录的 compact fingerprint。
 
-### 2. 记住哪些指纹？{#fingerprints}
+### 2. 记住哪些指纹？ {#fingerprints}
 
 | 记忆字段 | 用途 | 是否含原文 |
 |----------|------|------------|
@@ -104,7 +104,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 | `normalized_feature_hashes` | 用 Jaccard similarity 判断跨工具/脚本相似度 | 否 |
 | `prior_event_id` / `prior_record_id` / `policy_id` | 让审计人员追溯 prior final decision | 否 |
 
-### 3. 如何匹配 follow-up？{#match-types}
+### 3. 如何匹配 follow-up？ {#match-types}
 
 | Match type | 典型含义 | 默认动作 | 本地 BLOCK 权限 |
 |------------|----------|----------|----------------|
@@ -117,7 +117,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 
 ---
 
-## 决策动作怎么理解？{#actions}
+## 决策动作怎么理解？ {#actions}
 
 | 动作 | 效果 | 适合阶段 |
 |------|------|----------|
