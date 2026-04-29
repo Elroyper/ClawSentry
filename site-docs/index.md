@@ -149,11 +149,12 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 
 <div class="card framework-card" markdown>
 ### :material-moon-waxing-crescent: Kimi CLI
-通过 Kimi native `[[hooks]]` 接入，重点提供 `PreToolUse` / prompt deny 与广泛观察；真实 Kimi k2.5 E2E 已验证。
+通过 Kimi native `[[hooks]]` 接入，可阻断 prompt 和危险 Shell，并记录安全 Shell 与生命周期观察事件。
 
 - `clawsentry init kimi-cli --setup` 写 `$KIMI_SHARE_DIR/config.toml` 或 `~/.kimi/config.toml`
 - 保留非 ClawSentry hooks，只替换 marker-managed blocks
-- 真实 E2E 覆盖 prompt deny、安全 Shell observation、危险 Shell deny；不宣称 native `modify` / true `defer` parity
+- 可阻断 `UserPromptSubmit` 和 `PreToolUse` 高危调用；post/session/subagent/compact/notification 作为观察面
+- 不宣称 native `modify` / true `defer` parity
 
 [:octicons-arrow-right-24: Kimi CLI 集成指南](integration/kimi-cli.md)
 </div>

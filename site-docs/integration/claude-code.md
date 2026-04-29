@@ -58,7 +58,7 @@ which clawsentry-harness  # 确认 harness 命令在 PATH 中
 
 ### 一键初始化
 
-使用 `clawsentry init claude-code` 自动完成所有配置：
+使用 `clawsentry init claude-code` 生成/合并项目策略；需要本机密钥或端口覆盖时，另建显式 env file：
 
 ```bash
 cd your-project/
@@ -67,23 +67,18 @@ clawsentry init claude-code
 
 此命令会自动：
 
-- 生成 **`.clawsentry.env.local`** — 包含 UDS 路径、认证 Token 和框架标识（权限 `600`）
+- 生成/合并 **`.clawsentry.toml`** — 把 `claude-code` 写入 `[frameworks]`，不包含密钥
 - 注入 hooks 到 **`~/.claude/settings.json`** — 智能合并，不覆盖已有 hooks
 
-生成的 `.clawsentry.env.local` 内容示例：
+本机运行时值示例（可选，文件名固定为 `.clawsentry.env.local`，不要提交）：
 
 ```ini
-# ClawSentry — Claude Code integration config
 CS_UDS_PATH=/tmp/clawsentry.sock
-CS_AUTH_TOKEN=<自动生成的安全 token>
-CS_FRAMEWORK=claude-code
+CS_AUTH_TOKEN=<本机安全 token>
 ```
 
 !!! tip "已有配置？"
-    如果 `.clawsentry.env.local` 已存在，使用 `--force` 覆盖：
-    ```bash
-    clawsentry init claude-code --force
-    ```
+    `clawsentry init claude-code` 默认增量合并 `.clawsentry.toml` 和 managed hooks。只有明确要覆盖 managed 配置时才使用 `--force`；密钥仍请放在进程/部署环境或显式 env file。
 
 ### 启动 Gateway
 
@@ -108,7 +103,7 @@ claude   # hooks 自动加载，所有工具调用经过 ClawSentry 评估
 ```
 
 !!! success "就这么简单"
-    三步完成：`clawsentry init claude-code` → `clawsentry start --env-file .clawsentry.env.local` → `clawsentry gateway`，然后正常使用 `claude` 即可。所有工具调用自动经过安全评估。
+    三步完成：`clawsentry init claude-code` → `clawsentry start --env-file .clawsentry.env.local`（或使用进程环境） → `clawsentry gateway`，然后正常使用 `claude` 即可。所有工具调用自动经过安全评估。
 
 ---
 
@@ -231,7 +226,7 @@ Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒
 |------|--------|------|
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | Gateway UDS 套接字路径 |
 | `CS_AUTH_TOKEN` | *(自动生成)* | Bearer Token 认证 |
-| `CS_FRAMEWORK` | `claude-code` | 框架标识（init 自动设置） |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
 | `CS_DEFER_TIMEOUT_ACTION` | `block` | DEFER 超时行为：`block` 或 `allow` |
 | `CS_DEFER_TIMEOUT_S` | `86400` | normal mode DEFER 软超时秒数；benchmark mode 不等待人工审批 |
 
@@ -337,13 +332,13 @@ clawsentry start --framework claude-code --no-watch
     如果省略 `--framework`，ClawSentry 会自动检测：
 
     1. 检查 `~/.claude/settings.json` 中是否包含 ClawSentry hooks
-    2. 检查当前目录 `.clawsentry.env.local` 中的 `CS_FRAMEWORK` 字段
+    2. 检查当前目录 `.clawsentry.toml [frameworks]` 是否启用 `claude-code`
     3. 检测到 `claude-code` 后自动使用对应配置
 
 `clawsentry start` 的完整流程：
 
-1. 如果 `.clawsentry.env.local` 不存在，自动运行 `clawsentry init claude-code`
-2. 加载环境变量
+1. 读取或生成 `.clawsentry.toml` 项目策略
+2. 合成 CLI、进程环境、显式 env file 与项目策略
 3. 后台启动 Gateway 进程
 4. 等待 health check 通过
 5. 前台启动 `watch` 事件流（可用 `--no-watch` 跳过）
@@ -361,7 +356,7 @@ clawsentry init claude-code --uninstall
 此命令会：
 
 - 从 `~/.claude/settings.json`（及旧版 `settings.local.json`）中**精确移除** ClawSentry hooks
-- 从当前目录 `.clawsentry.env.local` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `claude-code`
+- 从当前目录 `.clawsentry.toml [frameworks]` 中移除 `claude-code`
 - 保留其他工具的 hooks 不受影响
 - 保留其他框架配置和共享 `CS_AUTH_TOKEN` 不受影响
 - 如果移除后 `hooks` 字段为空，自动清理该字段

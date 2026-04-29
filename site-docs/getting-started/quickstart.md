@@ -630,4 +630,4 @@ clawsentry init kimi-cli --setup
 clawsentry start --framework kimi-cli --no-watch
 ```
 
-Kimi CLI support is native-hook based: `PreToolUse` / `UserPromptSubmit` can deny, while post/session/subagent/compact/notification hooks are observation-only. Use an isolated `KIMI_SHARE_DIR` for smoke tests before changing a real `~/.kimi/config.toml`.
+Kimi CLI support is native-hook based: `PreToolUse` can block dangerous tool calls, `UserPromptSubmit` can block prompts before model submission, and post/session/subagent/compact/notification hooks are observation-only. Preview managed hooks with an isolated `KIMI_SHARE_DIR` before changing a real `~/.kimi/config.toml`.

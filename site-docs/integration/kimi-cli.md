@@ -1,7 +1,7 @@
 # Kimi CLI 集成
 
 !!! tip "支持范围"
-    Kimi CLI 通过 **native `[[hooks]]`** 接入 ClawSentry。Phase 1 目标是强 pre-tool / prompt 阻断和广泛生命周期观察：`PreToolUse`、`UserPromptSubmit`、`Stop` 同步调用 Gateway；post-tool、session、subagent、compact、notification hooks 使用 async 观察。Kimi 原生 hook 不支持 ClawSentry 的 `modify` / `defer` transport parity，因此文档和诊断都不会把它宣传成 `a3s-code` AHP 等价路径。
+    Kimi CLI 通过 native `[[hooks]]` 接入 ClawSentry。它能在 `PreToolUse` 阶段阻断高危工具调用，也能在 `UserPromptSubmit` 阶段阻断 prompt 注入或敏感请求；同时会记录工具结果、会话、子代理、压缩和通知等生命周期事件。Kimi 原生 hook 目前不支持真正改写 tool input，也不提供可暂停等待人工审批的 native defer，因此 ClawSentry 不把它宣传成 `a3s-code` AHP 的等价 transport。
 
 ## 安装与初始化
 
@@ -18,7 +18,7 @@ kimi --help
 安全预览或隔离测试时，显式传入 Kimi share/config 目录：
 
 ```bash
-export KIMI_SHARE_DIR=/tmp/kimi-clawsentry-smoke
+export KIMI_SHARE_DIR=/tmp/kimi-clawsentry-check
 clawsentry init kimi-cli --setup --dry-run --kimi-home "$KIMI_SHARE_DIR"
 clawsentry init kimi-cli --setup --kimi-home "$KIMI_SHARE_DIR"
 ```
@@ -29,14 +29,14 @@ clawsentry init kimi-cli --setup --kimi-home "$KIMI_SHARE_DIR"
 |---|---|---|---|
 | `PreToolUse` | `clawsentry harness --framework kimi-cli` | allow / deny | 工具执行前阻断高危 shell、文件或外部调用 |
 | `UserPromptSubmit` | `clawsentry harness --framework kimi-cli` | allow / deny | prompt 注入或敏感请求进入模型前阻断 |
-| `Stop` | `clawsentry harness --framework kimi-cli` | allow / deny；无完整 continuation parity | 会话结束前的同步 gate |
+| `Stop` | `clawsentry harness --framework kimi-cli` | allow / deny；没有完整 continuation 语义 | 会话结束前的同步 gate |
 | `PostToolUse` / `PostToolUseFailure` | `clawsentry harness --framework kimi-cli --async` | observation only | 工具结果与失败审计；不能撤销副作用 |
 | `SessionStart` / `SessionEnd` | `clawsentry harness --framework kimi-cli --async` | observation only | 会话边界审计 |
 | `SubagentStart` / `SubagentStop` | `clawsentry harness --framework kimi-cli --async` | observation only | 子代理生命周期审计 |
 | `PreCompact` / `PostCompact` | `clawsentry harness --framework kimi-cli --async` | observation only | 压缩前后上下文风险观察 |
 | `Notification` | `clawsentry harness --framework kimi-cli --async` | observation only | 通知事件审计 |
 
-Gateway 不可达、fallback policy 生效，或 harness 进程本身启动失败时，Kimi native hooks 默认 fail-open，避免把开发工作流整体卡死。同步 gate 返回 Kimi 支持的 `hookSpecificOutput.permissionDecision = "deny"`；`defer` 会退化为 deny，`modify` 不会改写 Kimi tool input，并会被记录为 degraded adapter effect（如 Gateway 提供 decision effects）。
+Gateway 不可达、fallback policy 生效，或 harness 进程本身启动失败时，Kimi native hooks 默认 fail-open，避免把开发工作流整体卡死。同步 gate 返回 Kimi 支持的 `hookSpecificOutput.permissionDecision = "deny"`；ClawSentry 的 `defer` 会按阻断结果呈现，`modify` 只会记录降级结果，不会改写 Kimi 的工具输入。
 
 ## Shell tool 规范化
 
@@ -47,17 +47,17 @@ Kimi 的工具名会保留在 payload 中，同时对已知 shell aliases 规范
 - `payload._clawsentry_meta.raw_tool_name`: 原始工具名
 - `payload._clawsentry_meta.kimi_effect_capability`: `native_allow_block_only`
 
-## 真实 E2E 验证
+## 能力边界
 
-2026-04-29 的发布验证在隔离 `KIMI_SHARE_DIR` 与临时 Gateway socket 下跑过真实 Kimi CLI / Kimi k2.5 端到端 smoke：
+Kimi 集成面向用户时可以这样理解：
 
-- 普通 prompt allow：模型返回预期响应。
-- `UserPromptSubmit` deny：ClawSentry 返回 `permissionDecision=deny`，Kimi 在进入模型前停止。
-- 安全 Shell allow：Kimi 触发 `PreToolUse`，命令允许执行，并触发 `PostToolUse` 观察事件。
-- 危险 Shell deny：Kimi 尝试执行 `rm -rf ...` 时，ClawSentry 在 `PreToolUse` 返回 deny，命令未执行。
-- 卸载 smoke：`clawsentry init kimi-cli --uninstall` 后只移除 ClawSentry marker-managed hooks，保留 Kimi provider/model 与其他配置。
+- **可以阻断 prompt**：`UserPromptSubmit` 返回 deny 时，请求不会继续进入模型。
+- **可以阻断危险工具调用**：`PreToolUse` 返回 deny 时，高危 Shell / 文件 / 外部调用会在执行前停止。
+- **可以观察生命周期事件**：post-tool、session、subagent、compact、notification 事件会进入审计与 Web UI 观察面。
+- **不能原生修改 tool input**：Kimi hook 没有 ClawSentry `modify` 所需的 payload rewrite transport。
+- **不能提供真正 native defer**：需要人工审批语义时，应使用支持 defer 的接入路径，或把 Kimi 结果作为 deny / observation 处理。
 
-这证明的是 Kimi native hook allow/block 与观察面可用；仍不代表 native `modify` 或 true `defer` parity。
+发布前的验证证据保留在 release evidence / validation 文档中；本用户页只描述可依赖的运行时能力和边界。
 
 ## 诊断
 
@@ -79,12 +79,12 @@ clawsentry start --framework kimi-cli --no-watch
 
 ```bash
 clawsentry init kimi-cli --uninstall
-clawsentry init kimi-cli --uninstall --kimi-home /tmp/kimi-clawsentry-smoke
+clawsentry init kimi-cli --uninstall --kimi-home /tmp/kimi-clawsentry-check
 ```
 
 ## 边界声明
 
-- 不 patch Kimi internals；Phase 1 只使用公开 config hook surface。
+- 不 patch Kimi internals；只使用公开 config hook surface。
 - 不声明 `a3s-code` AHP transport parity；`a3s-code` 仍是 explicit SDK transport reference path。
 - Kimi post/session/subagent/compact/notification hooks 是观察面，不提供 side-effect rollback。
-- 生产前仍建议在目标环境隔离 `KIMI_SHARE_DIR` 下跑真实 hook smoke，确认本机 Kimi 版本、网络与 provider 配置仍接受 `permissionDecision=deny`。
+- 生产前建议先在隔离 `KIMI_SHARE_DIR` 下预览 managed hook 配置，再修改真实 `~/.kimi/config.toml`。

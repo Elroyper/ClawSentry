@@ -6,7 +6,7 @@
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
 
-**Current release highlight (v0.6.2)**: Kimi CLI is now a first-class native-hook integration. `PreToolUse` / `UserPromptSubmit` can deny through Kimi permission decisions, async post/session hooks provide observation, and docs/status clearly state that native `modify` and true `defer` parity are not supported.
+**Current release highlight (v0.6.2)**: Kimi CLI is now a first-class native-hook integration. `PreToolUse` can block dangerous tool calls, `UserPromptSubmit` can block prompts before model submission, async lifecycle hooks provide observation, and native `modify` / true `defer` parity are explicitly unsupported.
 
 ---
 
@@ -325,16 +325,16 @@ clawsentry watch
 | `a3s-code` | Explicit SDK transport + `clawsentry-harness` | Yes | Yes | Agent code must wire `SessionOptions.ahp_transport` | High |
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks | Medium-high |
 | `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight | Yes | Session logs / optional `.codex/hooks.json` must be reachable | Medium |
-| `gemini-cli` | Gemini CLI native command hooks | Yes; real `BeforeTool` deny smoke proven for `run_shell_command` | Yes, with post-tool caveat | Project `.gemini/settings.json` managed hooks; global home only with explicit `--gemini-home` | Medium-high (`real_beforetool_block_supported`) |
+| `gemini-cli` | Gemini CLI native command hooks | Yes; `BeforeTool` can deny shell commands | Yes, with post-tool caveat | Project `.gemini/settings.json` managed hooks; global home only with explicit `--gemini-home` | Medium-high (`real_beforetool_block_supported`) |
 | `kimi-cli` | Kimi CLI native `[[hooks]]` | Yes; `PreToolUse` / prompt deny via Kimi permission decision | Yes, observation-only for post/session/subagent/compact/notification | `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml` marker-managed hooks | Medium-high (`native_hook_allow_block_supported`) |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed | Medium |
 
 Operational boundary notes:
 
 - `codex` remains an observation-first path by default; `clawsentry init codex --setup` can add managed native hooks without replacing user/OMX hooks. The tested host-blocking surface is intentionally narrow: `PreToolUse(Bash)` can deny when Gateway returns block/defer; other Codex native events stay async advisory/observational.
-- `gemini-cli` uses Gemini native command hooks via `clawsentry init gemini-cli --setup`, defaulting to project-local `.gemini/settings.json`. Real Gemini CLI hook execution is proven through the provider tool path, including a real `BeforeTool` deny smoke for `run_shell_command` after Gemini shell-tool canonicalization. Do not treat Kimi/OpenAI-compatible endpoints as directly supported by Gemini CLI; Kimi remains a future Google-GenAI-compatible proxy/adapter spike.
+- `gemini-cli` uses Gemini native command hooks via `clawsentry init gemini-cli --setup`, defaulting to project-local `.gemini/settings.json`. Shell-tool events are canonicalized before policy evaluation. Do not treat Kimi/OpenAI-compatible endpoints as directly supported by Gemini CLI.
 - Gemini managed hook commands redirect diagnostics away from stderr and fail open if the harness process itself cannot start, because Gemini can interpret plain stderr text as hook output.
-- `kimi-cli` uses Kimi native `[[hooks]]` through `clawsentry init kimi-cli --setup`. It provides strong allow/block enforcement through `PreToolUse` and prompt blocking through `UserPromptSubmit`, plus broad async observation. Real Kimi k2.5 E2E evidence covered prompt allow/deny, safe Shell allow with `PostToolUse`, and dangerous Shell deny at `PreToolUse`. It does **not** claim native `modify` or true `defer` parity with `a3s-code`; those effects are degraded/unsupported in adapter reporting.
+- `kimi-cli` uses Kimi native `[[hooks]]` through `clawsentry init kimi-cli --setup`. It can block dangerous tool calls through `PreToolUse`, block prompts through `UserPromptSubmit`, and record safe Shell plus lifecycle observation events. It does **not** claim native tool-input rewrite or true `defer` parity with `a3s-code`; those effects are degraded/unsupported in adapter reporting.
 - `a3s-code` should be documented as explicit SDK transport wiring, not `.a3s-code/settings.json` auto-loading.
 - `openclaw` and `claude-code` provide strong coverage only when host-side setup remains intact.
 

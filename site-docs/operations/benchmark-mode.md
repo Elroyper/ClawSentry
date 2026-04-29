@@ -79,7 +79,7 @@ CS_BENCHMARK_AUTO_RESOLVE_DEFER=true
 CS_DEFER_BRIDGE_ENABLED=false
 CS_DEFER_TIMEOUT_ACTION=block
 CS_DEFER_TIMEOUT_S=1
-CS_FRAMEWORK=codex
+# Older wrappers may also emit CS_FRAMEWORK=codex for harness compatibility.
 ```
 
 ### 启用 hooks

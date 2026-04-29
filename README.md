@@ -37,7 +37,7 @@ Requires Python >= 3.11.
 ## What's New in v0.6.2
 
 - **Kimi CLI native-hook support**: `clawsentry init kimi-cli --setup` installs marker-managed Kimi `[[hooks]]` for strong `PreToolUse` / prompt deny and broad async observation.
-- **Real Kimi k2.5 E2E evidence**: a no-key OpenAI-compatible Kimi endpoint smoke over VPN proved prompt allow, prompt deny, safe Shell allow + post observation, and dangerous Shell deny at `PreToolUse`.
+- **Kimi capability boundary**: `PreToolUse` can block dangerous tool calls, `UserPromptSubmit` can block unsafe prompts before model submission, and post/session/subagent/compact/notification hooks provide audit observation.
 - **Honest capability boundaries**: Kimi support is native allow/block hooks, not `a3s-code` AHP transport parity; native `modify` and true `defer` remain unsupported/degraded.
 
 ## Quick Start
@@ -158,18 +158,9 @@ should be understood as explicit transport wiring, not `.a3s-code/settings.json`
 auto-loading. `claude-code` and `openclaw` remain more host-config-dependent than
 `a3s-code`.
 
-`gemini-cli` should be understood as native-hook support with real provider
-pre-action evidence: `clawsentry init gemini-cli --setup` installs project-local
-managed hooks in `.gemini/settings.json`, and real Gemini CLI 0.25.0 smoke runs
-proved managed hook execution plus a real `BeforeTool` deny for
-`run_shell_command` after canonicalizing Gemini's shell tool to policy-facing
-`bash`. Kimi/OpenAI-compatible endpoints are not claimed as directly usable by
-Gemini CLI; that remains a future Google-GenAI proxy/adapter spike. Managed
-Gemini hook commands redirect diagnostics away from stderr and exit fail-open on
-harness process failure so Gemini does not treat plain stderr text as hook
-output.
+`gemini-cli` should be understood as native-hook support: `clawsentry init gemini-cli --setup` installs project-local managed hooks in `.gemini/settings.json`, and shell-tool events are canonicalized to policy-facing `bash` before evaluation. Kimi/OpenAI-compatible endpoints are not claimed as directly usable by Gemini CLI. Managed Gemini hook commands redirect diagnostics away from stderr and exit fail-open on harness process failure so Gemini does not treat plain stderr text as hook output.
 
-`kimi-cli` is native-hook support, not AHP transport parity: `clawsentry init kimi-cli --setup` adds marker-managed `[[hooks]]` entries to `$KIMI_SHARE_DIR/config.toml` (or `~/.kimi/config.toml`), preserves non-ClawSentry user hooks, and maps Gateway block/defer to Kimi-compatible deny. Real Kimi k2.5 E2E over VPN proved prompt allow/deny, safe Shell allow with post observation, and dangerous Shell `PreToolUse` deny. Native `modify` and true `defer` are intentionally reported as unsupported/degraded rather than claimed as equal to `a3s-code`.
+`kimi-cli` is native-hook support, not AHP transport parity: `clawsentry init kimi-cli --setup` adds marker-managed `[[hooks]]` entries to `$KIMI_SHARE_DIR/config.toml` (or `~/.kimi/config.toml`) and preserves non-ClawSentry user hooks. Kimi `PreToolUse` can block dangerous tool calls, `UserPromptSubmit` can block prompts, and lifecycle hooks provide observation. Native tool-input rewrite and true `defer` are intentionally reported as unsupported/degraded rather than claimed as equal to `a3s-code`.
 
 For a machine-readable local view of the same boundaries, run
 `clawsentry integrations status --json`.

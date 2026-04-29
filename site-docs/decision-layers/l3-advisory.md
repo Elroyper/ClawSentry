@@ -61,7 +61,7 @@ boundary: advisory only; canonical decision unchanged
 | 输出是什么 | `snapshot_id`、`job_id`、`review_id`、`risk_level`、recommended `Action`、可选 `analysis_summary` / `analysis_points` / `operator_next_steps`。 |
 | 会不会重判 allow/block/defer | 不会。响应和 action payload 必须保持 `advisory_only=true`、`canonical_decision_mutated=false`。 |
 | 会不会自动联网 | 不会。默认 runner 是 `deterministic_local`；`llm_provider` 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置并显式关闭 dry-run。 |
-| 会不会后台扫所有 session | 不会。Phase 3 的 queued job drain 是有界 one-shot；heartbeat/idle aggregate 只自动冻结/排队，不启动 scheduler。 |
+| 会不会后台扫所有 session | 不会。queued job drain 是有界 one-shot；heartbeat/idle aggregate 只自动冻结/排队，不启动 scheduler。 |
 | 在哪里查询 | Web UI Session Detail、`clawsentry l3 full-review` / `l3 jobs`、`/report/*/l3-advisory/*`、SSE/watch、[报表 API](../api/reporting.md#l3-advisory-endpoints)。 |
 
 ## 它解决什么问题？
@@ -181,9 +181,9 @@ clawsentry l3 full-review \
 
 适合先冻结证据，再由另一个流程决定何时运行 worker。
 
-### Phase 3：查看并有界执行 queued jobs {#phase-3queued-jobs}
+### 查看并有界执行 queued jobs {#queued-jobs}
 
-Phase 3 增加的是 **bounded one-shot execution**，不是 daemon。你可以查看当前 queued jobs：
+这个能力提供 **bounded one-shot execution**，不是 daemon。你可以查看当前 queued jobs：
 
 ```bash
 clawsentry l3 jobs list --state queued --json
@@ -207,7 +207,7 @@ clawsentry l3 jobs drain \
 
 这些命令只 claim `job_state=queued` 的 job；`running` / `completed` / `failed` 不会被 rerun。`llm_provider` runner 仍需要显式 advisory provider gates，默认不会真实联网。
 
-### Phase 3：heartbeat / idle aggregate queueing {#phase-3heartbeat-idle-aggregate-queueing}
+### Heartbeat / idle aggregate queueing {#heartbeat-idle-aggregate-queueing}
 
 当同时启用：
 

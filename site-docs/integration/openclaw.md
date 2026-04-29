@@ -57,7 +57,7 @@ clawsentry --help
 
 ### 一键初始化
 
-默认初始化只生成或合并项目 `.clawsentry.env.local`，不会修改 `~/.openclaw/`：
+默认初始化只生成或合并项目 `.clawsentry.toml`，不会写入密钥，也不会修改 `~/.openclaw/`：
 
 ```bash
 clawsentry init openclaw --auto-detect
@@ -92,7 +92,7 @@ clawsentry init openclaw --restore
 ```
 
 !!! note "恢复范围"
-    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.clawsentry.env.local`。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
+    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.clawsentry.toml` 或任何显式 env file。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
 
 如只想从当前项目配置中禁用 OpenClaw，而保留其他框架和共享 token：
 
@@ -100,16 +100,21 @@ clawsentry init openclaw --restore
 clawsentry init openclaw --uninstall
 ```
 
-`--uninstall` 会移除 `CS_ENABLED_FRAMEWORKS` 中的 `openclaw` 以及 `OPENCLAW_*` 专属变量；它不会恢复 OpenClaw 侧配置文件。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
+`--uninstall` 会从 `.clawsentry.toml [frameworks]` 移除 `openclaw`；它不会恢复 OpenClaw 侧配置文件，也不会删除显式 env file。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
 
-同时更新 `.clawsentry.toml`，内容包括：
+项目策略写入 `.clawsentry.toml`，例如：
 
-```ini
-# ClawSentry — OpenClaw integration config
-CS_FRAMEWORK=openclaw
-CS_ENABLED_FRAMEWORKS=openclaw
-OPENCLAW_WEBHOOK_TOKEN=<自动生成>
-CS_AUTH_TOKEN=<自动生成>
+```toml
+[frameworks]
+enabled = ["openclaw"]
+default = "openclaw"
+```
+
+本机 webhook token、认证 token 和端口覆盖放在显式 env file，例如：
+
+```ini title=".clawsentry.env.local（不要提交）"
+OPENCLAW_WEBHOOK_TOKEN=<本机生成>
+CS_AUTH_TOKEN=<本机安全 token>
 CS_HTTP_PORT=8080
 OPENCLAW_WEBHOOK_PORT=8081
 OPENCLAW_ENFORCEMENT_ENABLED=true
@@ -143,7 +148,7 @@ clawsentry start --framework openclaw --setup-openclaw
 clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
 ```
 
-默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.clawsentry.env.local`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
+默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.clawsentry.toml`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
 
 当检测到 OpenClaw 配置时，日志输出：
 
@@ -298,7 +303,7 @@ clawsentry integrations status --json
 
 其中与 OpenClaw 直接相关的诊断包括：
 
-- `OpenClaw env`：当前项目 `.clawsentry.env.local` 是否存在 `OPENCLAW_*` 配置
+- `OpenClaw env`：进程环境或显式 env file 是否提供 `OPENCLAW_*` 运行时配置
 - `OpenClaw restore`：`~/.openclaw/` 下是否存在可供 `--restore` 使用的 `.bak` 文件
 - `OpenClaw restore files`：检测到的备份文件路径
 - `framework_readiness.openclaw.checks.openclaw_exec_host_gateway`：`openclaw.json` 是否已经把 `tools.exec.host` 设为 `"gateway"`
@@ -460,9 +465,9 @@ ClawSentry 的 resolve 实现了自动降级重试：
 
 ---
 
-## 真实 E2E 验证结果
+## 运行时效果示例
 
-以下是 ClawSentry 连接真实 OpenClaw Gateway 的端到端拦截验证结果：
+以下示例说明 OpenClaw Gateway 接入后的典型拦截效果；发布验证细节请查看 validation / release evidence：
 
 | 命令 | 风险等级 | 决策 | 响应时间 |
 |------|---------|------|---------|
@@ -470,9 +475,9 @@ ClawSentry 的 resolve 实现了自动降级重试：
 | `sudo chmod 777 /etc/passwd` | ==high== | **BLOCK (deny)** | 54ms |
 | `echo hello world` | ==medium== | **DEFER** | 54ms |
 
-!!! success "验证要点"
-    - OpenClaw Agent（`openclaw agent --session-id`）生成的真实工具调用被 Monitor 成功拦截
-    - 高危命令在 60ms 内被自动阻止（deny resolve 发回 OpenClaw）
+!!! success "效果要点"
+    - OpenClaw Agent 生成的工具调用会进入 ClawSentry 评估链路
+    - 高危命令可在执行前被 deny resolve 阻止
     - Gateway 日志确认 `exec.approval.resolved` 事件被正确广播
     - L1 规则引擎的 `destructive_pattern` 检测在 sub-millisecond 内完成判决
 

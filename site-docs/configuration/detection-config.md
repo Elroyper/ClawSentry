@@ -14,13 +14,16 @@ description: 统一调优所有检测参数的 DetectionConfig dataclass — 合
 **设计原则：**
 
 - **完全向后兼容**：所有字段的默认值与原始硬编码常量完全一致，不提供任何 `CS_` 环境变量时行为与旧版本相同。
-- **环境变量驱动**：工厂函数 `build_detection_config_from_env()` 从 `CS_` 前缀环境变量读取覆盖值，适合容器和 12-Factor 部署模式。
+- **项目策略 + 运行时桥接**：底层 runtime 仍消费 `CS_*` 风格的有效值，适合容器和 12-Factor 部署；可提交的 `.clawsentry.toml` 会在缺少对应 `CS_*` 覆盖时桥接为 DetectionConfig 字段，因此团队共享策略仍应写在 TOML。
 - **整体回退安全**：若环境变量的组合违反验证约束，整体回退至全默认配置，并记录 `ERROR` 日志，而不是以损坏配置启动。
 
 **配置流转路径：**
 
 ```
-CS_* 环境变量
+CLI / deployment env / 显式 env file / .clawsentry.toml
+       │
+       ▼
+合成缺失的 CS_* 有效值
        │
        ▼
 build_detection_config_from_env()
@@ -465,7 +468,7 @@ DEFER 决策产生
 
 - **默认行为不变**：以上三个字段全部保持默认值时，L1/L2/L3 行为与旧版本一致。
 - **`replace_l2` 不等于强制 L3 follow-up**：它只在命中 organic L2 入口时改写路由，不会把所有请求都视为显式 `requested_tier=L3`。
-- **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `.clawsentry.toml [overrides].l3_budget_ms` 仍然优先。
+- **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `显式 env file → .clawsentry.toml [project]/[features]/[budgets]/[overrides].l3_budget_ms` 仍然优先。
 - **Advisory 自动化必须显式 opt-in**：L3 咨询审查提供 frozen evidence snapshot / queued advisory job / advisory result 流程；打开 `l3_advisory_async_enabled` 会自动创建 snapshot 并入队 job，但不会自动运行后台 L3 审查或改变 canonical decision。启用 heartbeat review 时，非 heartbeat-compatible 的高风险即时 snapshot queueing 会被抑制，避免和聚合路径重复。
 - **无本地 L3 能力时保持诚实回退**：如果网关启动时没有本地 L3 能力，`replace_l2` / `eager` 会被视为 unsupported runtime，现有 L1/L2 路径继续运行，但运行态会明确暴露 `l3_available=false`、`effective_tier=L3`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
 
@@ -503,10 +506,10 @@ preset = "medium"   # low / medium / high / strict
 ### 配置优先级
 
 ```
-CS_* 环境变量（最高优先级）
+CLI / 进程或部署环境变量（最高优先级）
     │
     ▼
-.clawsentry.toml [overrides]
+显式 env file → .clawsentry.toml [project]/[features]/[budgets]/[overrides]
     │
     ▼
 预设值（PRESETS dict）
@@ -517,12 +520,12 @@ DetectionConfig 默认值（最低优先级）
 
 ### 工作流
 
-1. Harness 启动时读取项目目录下的 `.clawsentry.toml`
-2. 解析 `[project]` 获取 `enabled` 和 `preset`
-3. 解析 `[overrides]` 获取字段级覆盖
-4. 通过 `from_preset(preset, **overrides)` 构建 `DetectionConfig`
+1. 命令启动时先合成 CLI、进程/部署环境、显式 env file 与 `.clawsentry.toml`
+2. `.clawsentry.toml [project]` / `[features]` / `[budgets]` / `[overrides]` 只补齐缺失的运行时字段，不覆盖更高优先级环境变量
+3. 底层 DetectionConfig 继续接收规范化后的 `CS_*` 等效值
+4. 通过 preset + 字段级覆盖构建 `DetectionConfig`
 5. 发送到 Gateway，per-request 覆盖全局配置
-6. 60 秒 TTL 缓存，避免频繁文件 I/O
+6. 项目配置使用 TTL 缓存，避免频繁文件 I/O
 
 ### Fail-open 行为
 

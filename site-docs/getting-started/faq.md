@@ -403,4 +403,4 @@ clawsentry watch --gateway-url http://127.0.0.1:9090 --token your-token
 
 ## Kimi CLI 和 a3s-code 是同等能力吗？
 
-不是。`a3s-code` 是 explicit SDK/AHP transport reference path，能表达 ClawSentry 的完整 allow/block/modify/defer 决策语义。`kimi-cli` Phase 1 使用 Kimi native `[[hooks]]`：`PreToolUse` / `UserPromptSubmit` 可以强 deny，post/session/subagent/compact/notification 可以观察，但没有 Kimi 原生 `modify` 或 true `defer` parity。
+不是。`a3s-code` 是 explicit SDK/AHP transport reference path，能表达 ClawSentry 的完整 allow/block/modify/defer 决策语义。`kimi-cli` 使用 Kimi native `[[hooks]]`：`PreToolUse` 可以阻断危险工具调用，`UserPromptSubmit` 可以阻断 prompt，post/session/subagent/compact/notification 可以观察；但 Kimi 没有原生 tool-input rewrite，也没有 true `defer` parity。

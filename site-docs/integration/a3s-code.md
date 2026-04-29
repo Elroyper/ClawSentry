@@ -58,8 +58,8 @@ clawsentry start --framework a3s-code
 
 它会自动完成 ClawSentry 侧的工作：
 
-- 生成或增量合并当前项目的 `.clawsentry.env.local`
-- 加载配置并启动 Gateway（UDS + HTTP）
+- 读取或生成当前项目的 `.clawsentry.toml` 框架策略
+- 使用进程/部署环境或本次启动生成的临时运行时值启动 Gateway（UDS + HTTP）
 - 在前台显示 `clawsentry watch` 实时事件流
 
 !!! important "a3s-code 还需要一行 SDK 配置"
@@ -116,8 +116,8 @@ python your_agent_script.py
 如果你要把 `start` 拆开运行，命令关系如下：
 
 ```bash
-clawsentry init a3s-code     # 只生成/合并 .clawsentry.env.local
-clawsentry start --env-file .clawsentry.env.local      # 手动加载 token、UDS、端口等环境变量
+clawsentry init a3s-code     # 只生成/合并 .clawsentry.toml 项目策略
+clawsentry start --env-file .clawsentry.env.local      # 可选：显式加载本机 token、UDS、端口等运行时值
 clawsentry gateway          # 只启动 Gateway 服务，不显示事件流
 clawsentry watch            # 可选：仅在手动拆分时另开终端观察事件流
 ```
@@ -130,8 +130,8 @@ Gateway 默认监听：
 | `http://127.0.0.1:8080/ahp` | HTTP (JSON-RPC 2.0) | 通用 RPC 端点 |
 | `http://127.0.0.1:8080/ahp/a3s` | HTTP (JSON-RPC AHP) | a3s-code `HttpTransport` 直连 |
 
-!!! tip "已有配置？"
-    如果 `.clawsentry.env.local` 已存在，`clawsentry init a3s-code` 默认会增量合并，不会轮换已有 `CS_AUTH_TOKEN`。只有明确要替换整个文件时才使用 `--force`。
+!!! tip "本机密钥放哪里？"
+    `clawsentry init a3s-code` 不写入密钥文件。需要稳定 `CS_AUTH_TOKEN`、端口或 UDS 覆盖时，请手动创建 `.clawsentry.env.local` 并在命令中显式传入 `--env-file .clawsentry.env.local`。
 
 ---
 
@@ -141,7 +141,7 @@ Gateway 默认监听：
 clawsentry init a3s-code --uninstall
 ```
 
-此命令会从当前项目 `.clawsentry.env.local` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `a3s-code`。它不会删除共享 `CS_AUTH_TOKEN` 或整个 env 文件，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
+此命令会从当前项目 `.clawsentry.toml [frameworks]` 中移除 `a3s-code`。它不会删除 `CS_AUTH_TOKEN` 或任何显式 env file，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
 
 ---
 
@@ -387,7 +387,7 @@ AHP_SSL_KEYFILE=/path/to/key.pem \
 |------|--------|------|
 | `CS_HTTP_HOST` | `127.0.0.1` | HTTP 监听地址 |
 | `CS_HTTP_PORT` | `8080` | HTTP 监听端口 |
-| `CS_FRAMEWORK` | `a3s-code` | `clawsentry init a3s-code` 写入的框架标识 |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
 | `CS_AUTH_TOKEN` | *(空)* | Bearer Token 认证（空=禁用） |
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | UDS 套接字路径 |
 | `CS_TRAJECTORY_DB_PATH` | `/tmp/clawsentry-trajectory.db` | SQLite 轨迹数据库路径 |
