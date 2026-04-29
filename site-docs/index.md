@@ -80,7 +80,7 @@ hide:
 
 <div class="card" markdown>
 ### :shield: 拦截优先，监控兜底
-Claude Code、a3s-code 和 OpenClaw 支持高危操作前阻断；Codex 默认监控，可显式启用 Bash preflight / approval gate；Gemini CLI 通过 native hooks 接入。每个集成页都会说明可阻断范围、监控范围和 fallback 行为。
+Claude Code、a3s-code 和 OpenClaw 支持高危操作前阻断；Codex 默认监控，可显式启用 Bash preflight / approval gate；Gemini CLI 和 Kimi CLI 通过 native hooks 接入。每个集成页都会说明可阻断范围、监控范围和 fallback 行为。
 </div>
 
 <div class="card" markdown>
@@ -146,6 +146,18 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 [:octicons-arrow-right-24: Codex 快速开始](getting-started/quickstart.md)
 </div>
 
+
+<div class="card framework-card" markdown>
+### :material-moon-waxing-crescent: Kimi CLI
+通过 Kimi native `[[hooks]]` 接入，重点提供 `PreToolUse` / prompt deny 与广泛观察；真实 Kimi k2.5 E2E 已验证。
+
+- `clawsentry init kimi-cli --setup` 写 `$KIMI_SHARE_DIR/config.toml` 或 `~/.kimi/config.toml`
+- 保留非 ClawSentry hooks，只替换 marker-managed blocks
+- 真实 E2E 覆盖 prompt deny、安全 Shell observation、危险 Shell deny；不宣称 native `modify` / true `defer` parity
+
+[:octicons-arrow-right-24: Kimi CLI 集成指南](integration/kimi-cli.md)
+</div>
+
 <div class="card framework-card" markdown>
 ### :material-creation: Gemini CLI
 通过 Gemini CLI native command hooks 接入，支持 prompt、model 与 tool 阶段的安全检查。
@@ -184,7 +196,7 @@ L1 规则引擎 &lt;0.3ms 完成大多数决策；L2/L3 语义分析仅在必要
 
 <div class="card" markdown>
 ### :link: 统一多种 AI 框架
-**a3s-code** + **Claude Code** + **Codex** + **Gemini CLI** + **OpenClaw**
+**a3s-code** + **Claude Code** + **Codex** + **Gemini CLI** + **Kimi CLI** + **OpenClaw**
 
 统一 AHP 协议归一化所有框架事件。
 </div>
@@ -382,7 +394,7 @@ Gateway 在 `/ui` 路径自动挂载静态文件，无需额外配置。
 
 | 指标 | 数据 |
 |:---:|:---:|
-| 测试用例 | **3250 passed / 6 skipped**（发布时以 CI/验证报告为准） |
+| 测试用例 | **3220 passed / 6 skipped**（发布时以 CI/验证报告为准） |
 | 测试耗时 | 随可选依赖与 smoke 范围变化 |
 | 协议版本 | `sync_decision.1.0` |
 | Python 版本 | >= 3.11 |

@@ -78,6 +78,12 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     init_parser.add_argument(
+        "--kimi-home",
+        type=Path,
+        default=None,
+        help="Custom Kimi share/config directory (default: $KIMI_SHARE_DIR or ~/.kimi/).",
+    )
+    init_parser.add_argument(
         "--uninstall",
         action="store_true",
         default=False,
@@ -671,6 +677,7 @@ def main(argv: list[str] | None = None) -> None:
                 target_dir=args.dir,
                 codex_home=getattr(args, "codex_home", None),
                 gemini_home=getattr(args, "gemini_home", None),
+                kimi_home=getattr(args, "kimi_home", None),
             )
             sys.exit(code)
 
@@ -686,6 +693,7 @@ def main(argv: list[str] | None = None) -> None:
             openclaw_home=getattr(args, "openclaw_home", None),
             codex_home=getattr(args, "codex_home", None),
             gemini_home=getattr(args, "gemini_home", None),
+            kimi_home=getattr(args, "kimi_home", None),
         )
         sys.exit(code)
 
@@ -1016,7 +1024,7 @@ def main(argv: list[str] | None = None) -> None:
             if framework is None:
                 print(
                     "Could not auto-detect framework.\n"
-                    "Use: clawsentry start --framework <a3s-code|claude-code|codex|gemini-cli|openclaw>",
+                    "Use: clawsentry start --framework <a3s-code|claude-code|codex|gemini-cli|kimi-cli|openclaw>",
                     file=sys.stderr,
                 )
                 sys.exit(1)

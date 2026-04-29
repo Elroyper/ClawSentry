@@ -6,6 +6,26 @@
 
 暂无。
 
+## [0.6.2] — 2026-04-29
+
+### Added
+
+- **Kimi CLI first-class native-hook support** — Added a `kimi-cli` adapter, harness dispatch path, initializer, readiness reporting, tests, and public integration docs. Kimi `PreToolUse` and `UserPromptSubmit` map Gateway deny decisions to Kimi `hookSpecificOutput.permissionDecision=deny`, while post/session/subagent/compact/notification hooks provide async observation.
+- **Safe Kimi config management** — `clawsentry init kimi-cli --setup` writes marker-managed `[[hooks]]` entries to `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml`, preserves non-ClawSentry user hooks, and `--uninstall` removes only managed entries.
+
+### Changed
+
+- **Explicit Kimi capability boundaries** — Kimi native hooks are documented as native allow/block support, not `a3s-code` AHP transport parity. Native `modify` and true `defer` are reported as unsupported/degraded instead of advertised.
+- **Six-framework documentation coverage** — README, PyPI README, quickstart, CLI docs, FAQ, compatibility matrix, recent feature coverage, and online docs now include Kimi CLI alongside a3s-code, Claude Code, Codex, Gemini CLI, and OpenClaw.
+
+### Tests
+
+- Kimi focused regression: `python -m pytest src/clawsentry/tests/test_kimi_adapter.py` → `11 passed`; `python -m pytest src/clawsentry/tests/test_kimi_harness.py` → `4 passed`; `python -m pytest src/clawsentry/tests/test_kimi_initializer.py` → `5 passed`.
+- Start/status regression including Kimi readiness: `python -m pytest src/clawsentry/tests/test_integrations_command.py src/clawsentry/tests/test_start_command.py` → `73 passed`.
+- Full Python regression: `python -m pytest src/clawsentry/tests/ -q --tb=short` → dev repo `3221 passed, 5 skipped`; public repo `3220 passed, 6 skipped`.
+- Docs build: `mkdocs build --strict` PASS.
+- Real Kimi CLI E2E over VPN no-key `kimi-k2.5` endpoint: prompt allow, prompt deny, safe Shell allow + `PostToolUse`, dangerous Shell deny at `PreToolUse`, and marker-hook uninstall verified.
+
 ## [0.6.1] — 2026-04-29
 
 ### Changed
@@ -1253,6 +1273,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.6.2]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.2
 [0.6.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.1
 [0.6.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.0
 [0.5.14]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.14

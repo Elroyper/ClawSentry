@@ -24,6 +24,9 @@ def _isolate_start_command_tests(tmp_path, monkeypatch):
             "CS_ENABLED_FRAMEWORKS",
             "CS_GEMINI_HOOKS_ENABLED",
             "CS_GEMINI_SETTINGS_PATH",
+            "CS_KIMI_HOOKS_ENABLED",
+            "CS_KIMI_CONFIG_PATH",
+            "KIMI_SHARE_DIR",
         ):
             monkeypatch.delenv(key, raising=False)
         yield
@@ -113,6 +116,25 @@ class TestDetectFramework:
         )
 
         assert result == "codex"
+
+
+    def test_detects_kimi_cli_from_explicit_env_and_config_path(self, tmp_path, monkeypatch):
+        kimi_home = tmp_path / ".kimi"
+        kimi_home.mkdir()
+        config_path = kimi_home / "config.toml"
+        config_path.write_text("[[hooks]]\n")
+        monkeypatch.setenv("CS_KIMI_HOOKS_ENABLED", "true")
+        monkeypatch.setenv("CS_KIMI_CONFIG_PATH", str(config_path))
+        monkeypatch.chdir(tmp_path)
+
+        result = detect_framework(
+            openclaw_home=tmp_path / "nope",
+            a3s_dir=tmp_path / "nope2",
+            codex_home=tmp_path / "nope4",
+            claude_home=tmp_path / "nope3",
+        )
+
+        assert result == "kimi-cli"
 
     def test_detects_gemini_cli_from_explicit_env_and_project_settings(self, tmp_path, monkeypatch):
         settings_path = tmp_path / ".gemini" / "settings.json"

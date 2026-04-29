@@ -399,3 +399,8 @@ clawsentry watch --gateway-url http://127.0.0.1:9090 --token your-token
 - 返回 [安装](installation.md) 查看安装和环境配置详情
 - 阅读 [快速开始](quickstart.md) 跟随实战指南完成首次集成
 - 深入了解 [核心概念](concepts.md) 掌握 AHP 协议和决策模型
+
+
+## Kimi CLI 和 a3s-code 是同等能力吗？
+
+不是。`a3s-code` 是 explicit SDK/AHP transport reference path，能表达 ClawSentry 的完整 allow/block/modify/defer 决策语义。`kimi-cli` Phase 1 使用 Kimi native `[[hooks]]`：`PreToolUse` / `UserPromptSubmit` 可以强 deny，post/session/subagent/compact/notification 可以观察，但没有 Kimi 原生 `modify` 或 true `defer` parity。

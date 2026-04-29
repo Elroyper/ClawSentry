@@ -18,11 +18,11 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Multi-step attack trajectory detection**: 5 built-in sequences with sliding-window analysis, SSE `trajectory_alert` broadcast
 - **Self-evolving pattern library (E-5)**: auto-extract candidates from high-risk events, CANDIDATE→EXPERIMENTAL→STABLE lifecycle, confidence scoring, REST API feedback loop
 - **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with explicit `CS_` / project-level overrides, including high-level L3 routing and trigger controls
-- **Five-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + optional tested `PreToolUse(Bash)` preflight / `PermissionRequest(Bash)` approval gate) + Gemini CLI (native hooks; real provider `BeforeTool` deny smoke proven for `run_shell_command`)
+- **Six-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + optional tested `PreToolUse(Bash)` preflight / `PermissionRequest(Bash)` approval gate) + Gemini CLI (native hooks; real provider `BeforeTool` deny smoke proven for `run_shell_command`) + Kimi CLI (native hooks; real `kimi-k2.5` E2E proven for prompt deny, safe Shell observation, and dangerous Shell `PreToolUse` deny; no native modify/defer parity)
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3198 public regression tests** with release-time CI/build evidence
+- **3220 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.6.1
+## What's New in v0.6.2
 
-- **Strict config-source split**: project config discovery is limited to `.clawsentry.toml`. `.env.clawsentry` is legacy/migration-only and is used only when passed explicitly via `--env-file` or `CLAWSENTRY_ENV_FILE`.
-- **No implicit secret writes**: `init` / `start` no longer generate local secret env files. Runtime values come from process/deployment env, explicit env files, or a fresh in-memory `CS_AUTH_TOKEN` for local startup.
-- **Clear framework enablement**: framework selections live in `.clawsentry.toml [frameworks]`; old `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` aliases remain migration-only.
+- **Kimi CLI native-hook support**: `clawsentry init kimi-cli --setup` installs marker-managed Kimi `[[hooks]]` for strong `PreToolUse` / prompt deny and broad async observation.
+- **Real Kimi k2.5 E2E evidence**: a no-key OpenAI-compatible Kimi endpoint smoke over VPN proved prompt allow, prompt deny, safe Shell allow + post observation, and dangerous Shell deny at `PreToolUse`.
+- **Honest capability boundaries**: Kimi support is native allow/block hooks, not `a3s-code` AHP transport parity; native `modify` and true `defer` remain unsupported/degraded.
 
 ## Quick Start
 
@@ -52,7 +52,7 @@ clawsentry start --framework a3s-code --interactive  # enable DEFER interaction
 ```
 
 The `start` command will:
-1. Auto-detect your framework (a3s-code, Claude Code, Codex, Gemini CLI, or OpenClaw)
+1. Auto-detect your framework (a3s-code, Claude Code, Codex, Gemini CLI, Kimi CLI, or OpenClaw)
 2. Initialize configuration if needed
 3. Start the gateway in the background
 4. Display live monitoring in the foreground
@@ -150,6 +150,7 @@ clawsentry init openclaw --restore
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks |
 | `codex` | Session JSONL watcher + optional native hooks | No by default; optional tested `PreToolUse(Bash)` preflight + `PermissionRequest(Bash)` approval gate | Yes | Session logs / optional `.codex/hooks.json` must be reachable |
 | `gemini-cli` | Gemini CLI native command hooks | Yes; real `BeforeTool` deny smoke proven for `run_shell_command` | Yes, with post-action side-effect caveat | Project `.gemini/settings.json` managed hooks; global home only with explicit `--gemini-home` |
+| `kimi-cli` | Kimi CLI native `[[hooks]]` | Yes; `PreToolUse` and prompt deny via Kimi permission decision | Yes, observation-only for post/session/subagent/compact/notification | `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml` marker-managed hooks |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed |
 
 `codex` should be understood as observation-first by default; optional managed native hooks now provide narrow `PreToolUse(Bash)` deny and `PermissionRequest(Bash)` approval-gate paths, while `PostToolUse`, `UserPromptSubmit`, `Stop`, and `SessionStart` remain advisory/observational by default. `a3s-code`
@@ -167,6 +168,8 @@ Gemini CLI; that remains a future Google-GenAI proxy/adapter spike. Managed
 Gemini hook commands redirect diagnostics away from stderr and exit fail-open on
 harness process failure so Gemini does not treat plain stderr text as hook
 output.
+
+`kimi-cli` is native-hook support, not AHP transport parity: `clawsentry init kimi-cli --setup` adds marker-managed `[[hooks]]` entries to `$KIMI_SHARE_DIR/config.toml` (or `~/.kimi/config.toml`), preserves non-ClawSentry user hooks, and maps Gateway block/defer to Kimi-compatible deny. Real Kimi k2.5 E2E over VPN proved prompt allow/deny, safe Shell allow with post observation, and dangerous Shell `PreToolUse` deny. Native `modify` and true `defer` are intentionally reported as unsupported/degraded rather than claimed as equal to `a3s-code`.
 
 For a machine-readable local view of the same boundaries, run
 `clawsentry integrations status --json`.

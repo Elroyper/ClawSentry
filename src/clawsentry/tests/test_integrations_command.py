@@ -571,3 +571,29 @@ def test_integrations_status_text_includes_gemini_capability(tmp_path, capsys):
     assert "gemini-cli: mode=native_command_hooks" in out
     assert "real BeforeTool deny smoke proven" in out
     assert "Gemini settings:" in out
+
+
+def test_integrations_status_json_reports_kimi_config_readiness(
+    tmp_path,
+    capsys,
+):
+    kimi_home = tmp_path / ".kimi"
+    kimi_home.mkdir()
+    config_path = kimi_home / "config.toml"
+    config_path.write_text(
+        "[[hooks]]\n"
+        'event = "PreToolUse"\n'
+        "command = 'clawsentry harness --framework kimi-cli'\n"
+    )
+    env_file = _write_explicit_env(tmp_path, f"CS_ENABLED_FRAMEWORKS=kimi-cli\nCS_KIMI_CONFIG_PATH={config_path}\n")
+
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["kimi_cli_hooks"] is True
+    assert payload["kimi_cli_config_path"] == str(config_path)
+    readiness = payload["framework_readiness"]["kimi-cli"]
+    assert readiness["status"] == "ready"
+    assert readiness["checks"]["native_modify_supported"] is False
+    assert readiness["checks"]["native_defer_supported"] is False

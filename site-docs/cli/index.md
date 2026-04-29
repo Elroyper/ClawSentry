@@ -79,7 +79,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 ### 语法
 
 ```bash
-clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
+clawsentry start [--framework {a3s-code,claude-code,codex,gemini-cli,kimi-cli,openclaw}]
                  [--frameworks a3s-code,codex,openclaw]
                  [--setup-openclaw | --no-setup-openclaw]
                  [--host HOST] [--port PORT] [--env-file PATH]
@@ -91,7 +91,7 @@ clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--framework` | 读取 `.clawsentry.toml [frameworks]` | 目标框架：`a3s-code`、`claude-code`、`codex`、`gemini-cli`、`openclaw`；新用户建议显式传入 |
+| `--framework` | 读取 `.clawsentry.toml [frameworks]` | 目标框架：`a3s-code`、`claude-code`、`codex`、`gemini-cli`、`kimi-cli`、`openclaw`；新用户建议显式传入 |
 | `--frameworks` | 空 | 逗号分隔的多框架启用列表，如 `a3s-code,codex,openclaw` |
 | `--setup-openclaw` | `false` | 当本次启动涉及 `openclaw` 时，同时显式修改 `~/.openclaw/` 中的审批配置 |
 | `--host` | `127.0.0.1` | Gateway HTTP 监听地址 |
@@ -233,7 +233,7 @@ clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--
 
 | 参数 | 说明 |
 |------|------|
-| `framework` | 目标框架，可选值：`a3s-code`、`claude-code`、`codex`、`openclaw` |
+| `framework` | 目标框架，可选值：`a3s-code`、`claude-code`、`codex`、`gemini-cli`、`kimi-cli`、`openclaw` |
 
 ### 选项
 
@@ -1566,3 +1566,15 @@ clawsentry latch uninstall --keep-data
 | `CS_METRICS_ENABLED` | gateway | 启用 Prometheus `/metrics` 端点 |
 | `CS_LATCH_HUB_URL` | gateway, doctor | Latch Hub 地址（如 `http://127.0.0.1:3006`） |
 | `CS_ENABLED_FRAMEWORKS` | legacy | 旧版迁移字段；多框架启用请使用 `.clawsentry.toml [frameworks].enabled` |
+
+
+### Kimi CLI managed hooks
+
+```bash
+clawsentry init kimi-cli
+clawsentry init kimi-cli --setup --dry-run
+clawsentry init kimi-cli --setup
+clawsentry init kimi-cli --uninstall
+```
+
+`--setup` writes marker-managed `[[hooks]]` blocks to `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml`; use `--kimi-home <dir>` to target an isolated config directory. Non-ClawSentry Kimi hooks are preserved.

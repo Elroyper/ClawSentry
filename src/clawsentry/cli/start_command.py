@@ -24,6 +24,7 @@ _SUPPORTED_FRAMEWORKS = frozenset({
     "codex",
     "claude-code",
     "gemini-cli",
+    "kimi-cli",
 })
 
 
@@ -80,11 +81,12 @@ def detect_framework(
     codex_home: Path | None = None,
     claude_home: Path | None = None,
     gemini_home: Path | None = None,
+    kimi_home: Path | None = None,
 ) -> str | None:
     """Auto-detect which framework is configured.
 
     Returns ``"openclaw"``, ``"a3s-code"``, ``"codex"``, ``"claude-code"``,
-    or ``None``.  Framework project state is read from ``.clawsentry.toml``.
+    ``kimi-cli`` or ``None``.  Framework project state is read from ``.clawsentry.toml``.
 
     Monitoring integrations must be **explicitly enabled**. This function only
     treats project config (``.clawsentry.toml``) and explicit environment
@@ -119,6 +121,20 @@ def detect_framework(
         )
         if (effective_codex_home / "sessions").is_dir():
             return "codex"
+
+    kimi_opt_in = os.environ.get("CS_KIMI_HOOKS_ENABLED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if kimi_opt_in:
+        explicit_config = os.environ.get("CS_KIMI_CONFIG_PATH", "").strip()
+        if explicit_config and Path(explicit_config).expanduser().is_file():
+            return "kimi-cli"
+        effective_kimi_home = kimi_home or Path(os.environ.get("KIMI_SHARE_DIR", str(Path.home() / ".kimi")))
+        if (effective_kimi_home / "config.toml").is_file():
+            return "kimi-cli"
 
     gemini_opt_in = os.environ.get("CS_GEMINI_HOOKS_ENABLED", "").lower() in (
         "1",

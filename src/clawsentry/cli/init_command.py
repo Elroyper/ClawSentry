@@ -14,6 +14,7 @@ _FRAMEWORK_ENV_KEYS: dict[str, set[str]] = {
     "claude-code": set(),
     "codex": {"CS_CODEX_SESSION_DIR", "CS_CODEX_WATCH_ENABLED"},
     "gemini-cli": {"CS_GEMINI_HOOKS_ENABLED", "CS_GEMINI_SETTINGS_PATH"},
+    "kimi-cli": {"CS_KIMI_HOOKS_ENABLED", "CS_KIMI_CONFIG_PATH"},
     "openclaw": {
         "OPENCLAW_ENFORCEMENT_ENABLED",
         "OPENCLAW_OPERATOR_TOKEN",
@@ -35,6 +36,7 @@ def run_init(
     openclaw_home: Path | None = None,
     codex_home: Path | None = None,
     gemini_home: Path | None = None,
+    kimi_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Run init and print results. Returns exit code (0=ok, 1=error).
@@ -64,6 +66,8 @@ def run_init(
             kwargs["codex_home"] = codex_home
         if gemini_home is not None:
             kwargs["gemini_home"] = gemini_home
+        if kimi_home is not None:
+            kwargs["kimi_home"] = kimi_home
         result = initializer.generate_config(target_dir, **kwargs)
     except FileExistsError as exc:
         print(str(exc), file=sys.stderr)
@@ -135,6 +139,24 @@ def run_init(
                 print(f"  WARNING: {w}")
         print()
 
+    # --- Kimi CLI --setup ---
+    if setup and hasattr(initializer, "setup_kimi_hooks"):
+        setup_kwargs = {"target_dir": target_dir, "dry_run": dry_run}
+        if kimi_home is not None:
+            setup_kwargs["kimi_home"] = kimi_home
+        setup_result = initializer.setup_kimi_hooks(**setup_kwargs)
+
+        if setup_result.dry_run:
+            print("  [DRY RUN] The following Kimi CLI hook changes would be applied:")
+        else:
+            print("  Kimi CLI native hooks updated:")
+        for change in setup_result.changes_applied:
+            print(f"    - {change}")
+        if setup_result.warnings:
+            for w in setup_result.warnings:
+                print(f"  WARNING: {w}")
+        print()
+
     # --- Gemini CLI --setup ---
     if setup and hasattr(initializer, "setup_gemini_hooks"):
         setup_kwargs = {"target_dir": target_dir, "dry_run": dry_run}
@@ -163,6 +185,7 @@ def run_uninstall(
     claude_home: Path | None = None,
     codex_home: Path | None = None,
     gemini_home: Path | None = None,
+    kimi_home: Path | None = None,
     quiet: bool = False,
 ) -> int:
     """Disable one framework integration without disturbing other frameworks."""
@@ -193,6 +216,13 @@ def run_uninstall(
         uninstall_kwargs = {"target_dir": target_dir}
         if gemini_home is not None:
             uninstall_kwargs["gemini_home"] = gemini_home
+        result = initializer.uninstall(**uninstall_kwargs)
+        warnings.extend(result.warnings)
+        next_steps.extend(result.next_steps)
+    elif framework == "kimi-cli" and hasattr(initializer, "uninstall"):
+        uninstall_kwargs = {"target_dir": target_dir}
+        if kimi_home is not None:
+            uninstall_kwargs["kimi_home"] = kimi_home
         result = initializer.uninstall(**uninstall_kwargs)
         warnings.extend(result.warnings)
         next_steps.extend(result.next_steps)

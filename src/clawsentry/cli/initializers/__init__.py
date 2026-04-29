@@ -7,6 +7,7 @@ from .base import FrameworkInitializer, InitResult, SetupResult
 from .claude_code import ClaudeCodeInitializer
 from .codex import CodexInitializer
 from .gemini_cli import GeminiCLIInitializer
+from .kimi_cli import KimiCLIInitializer
 from .openclaw import OpenClawInitializer
 
 FRAMEWORK_INITIALIZERS: dict[str, type] = {
@@ -14,6 +15,7 @@ FRAMEWORK_INITIALIZERS: dict[str, type] = {
     "claude-code": ClaudeCodeInitializer,
     "codex": CodexInitializer,
     "gemini-cli": GeminiCLIInitializer,
+    "kimi-cli": KimiCLIInitializer,
     "openclaw": OpenClawInitializer,
 }
 

@@ -59,6 +59,19 @@ FRAMEWORK_CAPABILITIES: dict[str, dict[str, str]] = {
         "maturity": "real_beforetool_block_supported",
         "maturity_label": "medium-high (real BeforeTool deny smoke proven)",
     },
+
+    "kimi-cli": {
+        "integration_mode": "native_command_hooks",
+        "integration_mode_label": "Kimi CLI native command hooks",
+        "pre_action_interception": "supported",
+        "pre_action_label": "yes, via Kimi PreToolUse deny",
+        "post_action_observation": "native_hooks_observation",
+        "post_action_label": "yes, observation only; post-tool cannot undo side effects",
+        "host_config_dependency": "$KIMI_SHARE_DIR/config.toml or ~/.kimi/config.toml must contain ClawSentry managed [[hooks]] entries",
+        "failure_mode": "Kimi CLI runs without ClawSentry supervision if hooks are absent, disabled by config selection, or Gateway is unreachable; fallback policy fails open",
+        "maturity": "native_hook_allow_block_supported",
+        "maturity_label": "medium-high (native-hook based; no modify/defer parity)",
+    },
     "claude-code": {
         "integration_mode": "host_hooks",
         "integration_mode_label": "host hooks + clawsentry-harness",
@@ -131,6 +144,25 @@ def _codex_session_dir(values: dict[str, str]) -> Path | None:
     return codex_home / "sessions"
 
 
+def _kimi_config_path(values: dict[str, str]) -> Path:
+    explicit = values.get("CS_KIMI_CONFIG_PATH", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    share_dir = values.get("KIMI_SHARE_DIR") or os.environ.get("KIMI_SHARE_DIR")
+    if share_dir:
+        return Path(share_dir).expanduser() / "config.toml"
+    return Path.home() / ".kimi" / "config.toml"
+
+
+def _read_text_file(path: Path) -> tuple[str | None, str | None]:
+    if not path.is_file():
+        return None, f"missing file: {path}"
+    try:
+        return path.read_text(encoding="utf-8"), None
+    except OSError as exc:
+        return None, f"failed to read {path}: {exc}"
+
+
 def _gemini_settings_path(target_dir: Path, values: dict[str, str]) -> Path:
     explicit = values.get("CS_GEMINI_SETTINGS_PATH", "").strip()
     if explicit:
@@ -165,6 +197,9 @@ def _build_framework_readiness(
     gemini_settings_path: Path | None,
     gemini_settings_payload: dict[str, object] | None,
     gemini_settings_error: str | None,
+    kimi_config_path: Path | None,
+    kimi_config_text: str | None,
+    kimi_config_error: str | None,
     openclaw_home: Path | None = None,
 ) -> dict[str, dict[str, object]]:
     readiness: dict[str, dict[str, object]] = {}
@@ -304,6 +339,37 @@ def _build_framework_readiness(
             ),
         }
 
+    if "kimi-cli" in enabled:
+        config_present = kimi_config_text is not None
+        managed_entries = bool(kimi_config_text and "clawsentry harness --framework kimi-cli" in kimi_config_text)
+        warnings = []
+        if kimi_config_error:
+            warnings.append(kimi_config_error)
+        if not managed_entries:
+            warnings.append("ClawSentry managed Kimi CLI hooks were not found.")
+        ready = config_present and managed_entries
+        readiness["kimi-cli"] = {
+            "status": "ready" if ready else "needs_attention",
+            "summary": (
+                "Kimi config.toml contains ClawSentry managed native hooks"
+                if ready
+                else "Kimi native hook config is not fully wired"
+            ),
+            "checks": {
+                "config_path": str(kimi_config_path) if kimi_config_path else None,
+                "config_present": config_present,
+                "managed_entries_present": managed_entries,
+                "native_modify_supported": False,
+                "native_defer_supported": False,
+            },
+            "warnings": warnings,
+            "next_step": (
+                "No action required for hook installation; run the isolated Kimi smoke before claiming production coverage."
+                if ready
+                else "Run clawsentry init kimi-cli --setup --dry-run, then apply setup after reviewing config.toml changes."
+            ),
+        }
+
     if "openclaw" in enabled:
         home = openclaw_home or Path.home() / ".openclaw"
         openclaw_json, openclaw_json_error = _read_json_object(home / "openclaw.json")
@@ -389,12 +455,19 @@ def collect_integration_status(
     gemini_settings_path = (
         _gemini_settings_path(target_dir, values) if "gemini-cli" in enabled else None
     )
+    kimi_config_path = (
+        _kimi_config_path(values) if "kimi-cli" in enabled else None
+    )
     gemini_settings_payload: dict[str, object] | None = None
     gemini_settings_error: str | None = None
     if gemini_settings_path is not None:
         gemini_settings_payload, gemini_settings_error = _read_json_object(
             gemini_settings_path
         )
+    kimi_config_text: str | None = None
+    kimi_config_error: str | None = None
+    if kimi_config_path is not None:
+        kimi_config_text, kimi_config_error = _read_text_file(kimi_config_path)
     payload = {
         "env_file": "(explicit only)",
         "env_exists": env_file_present,
@@ -432,6 +505,17 @@ def collect_integration_status(
         "gemini_cli_settings_present": bool(
             gemini_settings_path and gemini_settings_path.is_file()
         ),
+        "kimi_cli_hooks": (
+            "kimi-cli" in enabled
+            and kimi_config_text is not None
+            and "clawsentry harness --framework kimi-cli" in kimi_config_text
+        ),
+        "kimi_cli_config_path": (
+            str(kimi_config_path) if kimi_config_path else None
+        ),
+        "kimi_cli_config_present": bool(
+            kimi_config_path and kimi_config_path.is_file()
+        ),
     }
     payload["framework_readiness"] = _build_framework_readiness(
         values=values,
@@ -442,6 +526,9 @@ def collect_integration_status(
         gemini_settings_path=gemini_settings_path,
         gemini_settings_payload=gemini_settings_payload,
         gemini_settings_error=gemini_settings_error,
+        kimi_config_path=kimi_config_path,
+        kimi_config_text=kimi_config_text,
+        kimi_config_error=kimi_config_error,
         openclaw_home=openclaw_home,
     )
     return payload
@@ -531,6 +618,19 @@ def run_integrations_status(
         )
     else:
         print("Gemini settings: (not configured)")
+    kimi_config_path = payload["kimi_cli_config_path"]
+    if kimi_config_path:
+        print(
+            "Kimi config: "
+            f"{kimi_config_path} "
+            f"({'present' if payload['kimi_cli_config_present'] else 'missing'})"
+        )
+        print(
+            "Kimi hooks: "
+            f"{'present' if payload['kimi_cli_hooks'] else 'not present'}"
+        )
+    else:
+        print("Kimi config: (not configured)")
     all_capabilities = payload["framework_capabilities"]
     framework_details = payload["enabled_framework_details"]
     print("Framework capabilities:")

@@ -17,6 +17,7 @@ try:
     from .a3s_adapter import A3SCodeAdapter
     from .codex_adapter import CodexAdapter
     from .gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output
+    from .kimi_adapter import KimiAdapter, decision_to_kimi_hook_output
     from ..gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict
     from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
@@ -30,6 +31,7 @@ except ImportError:
     from clawsentry.adapters.a3s_adapter import A3SCodeAdapter  # type: ignore[no-redef]
     from clawsentry.adapters.codex_adapter import CodexAdapter  # type: ignore[no-redef]
     from clawsentry.adapters.gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output  # type: ignore[no-redef]
+    from clawsentry.adapters.kimi_adapter import KimiAdapter, decision_to_kimi_hook_output  # type: ignore[no-redef]
     from clawsentry.gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
     from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
 
@@ -737,6 +739,53 @@ class A3SGatewayHarness:
         )
         return result
 
+    async def _handle_kimi_native_hook(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Normalize a Kimi CLI native hook then use the Gateway transport."""
+        evt = KimiAdapter(
+            source_framework=self.adapter.source_framework
+        ).normalize_native_hook_event(
+            msg,
+            agent_id=_resolve_string(
+                msg.get("agent_id"),
+                msg.get("agentId"),
+                self.default_agent_id,
+            ),
+        )
+        if evt is None:
+            return {
+                "action": "continue",
+                "decision": "allow",
+                "reason": "Event filtered: kimi native hook",
+                "metadata": {"source": "clawsentry-gateway-harness"},
+            }
+
+        if project_meta and evt.payload is not None:
+            _merge_clawsentry_meta(evt.payload, project_meta)
+
+        decision = await self.adapter.request_decision(evt)
+        result = _decision_to_ahp_result(decision)
+        event_name = str(msg.get("hook_event_name", ""))
+        action = str(result.get("action", "continue"))
+        enforced = action in {"continue", "allow", "block"} and event_name in {
+            "PreToolUse",
+            "UserPromptSubmit",
+            "Stop",
+        }
+        degraded_reason = None if enforced else "kimi_native_hooks_do_not_support_modify_or_defer_effects"
+        _record_inprocess_adapter_effect_result(
+            self.adapter,
+            evt,
+            result,
+            enforced=enforced,
+            degraded_reason=degraded_reason,
+        )
+        return result
+
     async def _handle_gemini_native_hook(
         self,
         msg: dict[str, Any],
@@ -835,6 +884,9 @@ class A3SGatewayHarness:
         is_gemini_native_hook = (
             native_framework == "gemini-cli" and "hook_event_name" in msg
         )
+        is_kimi_native_hook = (
+            native_framework == "kimi-cli" and "hook_event_name" in msg
+        )
         is_claude_code_hook = (
             native_framework == "claude-code" and "hook_event_name" in msg
         )
@@ -846,7 +898,7 @@ class A3SGatewayHarness:
             project_cfg = _get_project_config(cwd)
             if not project_cfg.enabled:
                 _diag(f"project disabled via .clawsentry.toml at {cwd}")
-                if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
+                if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
                     return None  # exit 0 = allow
                 return {"result": {"action": "continue", "reason": "project monitoring disabled"}}
             # Attach preset info for Gateway to use
@@ -868,9 +920,13 @@ class A3SGatewayHarness:
                 asyncio.ensure_future(
                     self._async_dispatch_gemini_native(msg, project_meta=project_meta)
                 )
+            elif is_kimi_native_hook:
+                asyncio.ensure_future(
+                    self._async_dispatch_kimi_native(msg, project_meta=project_meta)
+                )
             else:
                 asyncio.ensure_future(self._async_dispatch(params))
-            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
+            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
                 return None  # host native hook: empty stdout + exit 0 = allow
             return {"result": {"action": "continue", "reason": "async: event dispatched"}}
         try:
@@ -884,11 +940,16 @@ class A3SGatewayHarness:
                     msg,
                     project_meta=project_meta,
                 )
+            elif is_kimi_native_hook:
+                result = await self._handle_kimi_native_hook(
+                    msg,
+                    project_meta=project_meta,
+                )
             else:
                 result = await self._handle_event(params)
         except Exception:  # noqa: BLE001
             logger.exception("Failed handling native hook event")
-            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook:
+            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
                 return None  # allow on error (fail-open for hooks)
             return {"result": {"action": "continue", "reason": "harness internal error"}}
 
@@ -900,6 +961,12 @@ class A3SGatewayHarness:
             )
         if is_gemini_native_hook:
             return decision_to_gemini_hook_output(
+                result,
+                str(msg.get("hook_event_name", "")),
+                msg,
+            )
+        if is_kimi_native_hook:
+            return decision_to_kimi_hook_output(
                 result,
                 str(msg.get("hook_event_name", "")),
                 msg,
@@ -1069,6 +1136,18 @@ class A3SGatewayHarness:
         except Exception:  # noqa: BLE001
             logger.debug("Codex async dispatch failed (non-blocking)", exc_info=True)
 
+    async def _async_dispatch_kimi_native(
+        self,
+        msg: dict[str, Any],
+        *,
+        project_meta: dict[str, Any] | None = None,
+    ) -> None:
+        """Background dispatch for Kimi native hooks. Errors are non-blocking."""
+        try:
+            await self._handle_kimi_native_hook(msg, project_meta=project_meta)
+        except Exception:  # noqa: BLE001
+            logger.debug("Kimi async dispatch failed (non-blocking)", exc_info=True)
+
     async def _async_dispatch_gemini_native(
         self,
         msg: dict[str, Any],
@@ -1085,7 +1164,7 @@ class A3SGatewayHarness:
         """Return whether hook stderr must stay empty for the host protocol."""
         return (
             str(getattr(self.adapter, "source_framework", "") or "").lower()
-            == "gemini-cli"
+            in {"gemini-cli", "kimi-cli"}
         )
 
     def _log_hook_stderr(self, msg: str) -> None:
