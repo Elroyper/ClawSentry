@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .dotenv_loader import EnvFileError, resolve_explicit_env_file
 from .initializers import FRAMEWORK_INITIALIZERS
 from clawsentry.gateway.detection_config import PRESETS
 from clawsentry.gateway.project_config import (
@@ -107,7 +108,17 @@ def _write_toml(
         "# threshold_critical = 2.2",
     ]
     if framework:
-        lines.extend(["", "# Preferred framework for guided setup", f"# framework = {_toml_value(framework)}"])
+        lines.extend(
+            [
+                "",
+                "[frameworks]",
+                f"enabled = [{_toml_value(framework)}]",
+                f"default = {_toml_value(framework)}",
+                "",
+                f"[frameworks.{framework}]",
+                "enabled = true",
+            ]
+        )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -124,15 +135,39 @@ def run_config_init(
     print(f"Created {toml_path} (preset: {preset})")
 
 
-def run_config_show(*, target_dir: Path, effective: bool = False) -> None:
+def run_config_show(
+    *,
+    target_dir: Path,
+    effective: bool = False,
+    env_file: Path | None = None,
+) -> None:
     if effective:
-        eff = resolve_effective_config(target_dir)
+        try:
+            parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+        except EnvFileError as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(2) from exc
+        eff = resolve_effective_config(
+            target_dir,
+            environ=os.environ,
+            env_file_values=parsed.values,
+            env_file_provenance=parsed,
+        )
         print("Effective ClawSentry configuration:")
         for key, value, source in eff.rows():
-            if source == "env":
+            detail = eff.source_detail_for(key)
+            if source == "process-env":
                 env_name = canonical_env_source_for(key)
-                source = f"env:{env_name}" if env_name is not None else "env"
+                source = f"process-env:{env_name or detail or ''}".rstrip(":")
+            elif source == "env-file":
+                source = f"env-file:{detail}" if detail else "env-file"
+            elif source == "project":
+                source = detail or "project"
+            elif source == "legacy-env":
+                source = f"legacy-env:{detail}" if detail else "legacy-env"
             print(f"  {key}: {value} (source={source})")
+        for warning in parsed.warnings:
+            eff.warnings.append(warning)
         if eff.warnings:
             print("Warnings:")
             for warning in eff.warnings:
@@ -180,8 +215,8 @@ def _print_wizard_boundary_notes() -> None:
     """Explain which wizard choices are actually written and runtime-effective."""
     print("Configuration boundary:")
     print("  - Writes only runtime-effective .clawsentry.toml fields approved for project config.")
-    print("  - API key values are env-only; keep secrets in process env or .env.clawsentry.")
-    print("  - Runtime precedence still applies: process env and .env.clawsentry still win.")
+    print("  - API key values are env-only; keep secrets in process env or explicit --env-file.")
+    print("  - Runtime precedence: CLI > process env > explicit env-file > TOML > legacy aliases > defaults.")
     print("  - features.l3 requests L3; actual runtime use still requires provider support.")
     print("  - L3 routing/eager profiles, advisory automation, anti-bypass, DEFER, and timeouts")
     print("    stay in env/docs or advanced templates unless a dedicated wizard exposes them.")
@@ -561,7 +596,7 @@ def run_config_wizard(
     if llm_provider:
         print("LLM API key is read from CS_LLM_API_KEY; secrets were not written to config.")
     print("Framework integration is selected for the next command; this wizard does not install hooks.")
-    print(f"Next: run `clawsentry start --framework {framework}`.")
+    print("Next: run `clawsentry start --open-browser`.")
     print("Next: run `clawsentry config show --effective` to verify resolved values.")
 
 

@@ -157,7 +157,7 @@
     "service": "stack",
     "method": "POST",
     "path": "/ahp/resolve",
-    "source": "src/clawsentry/gateway/stack.py:206",
+    "source": "src/clawsentry/gateway/stack.py:207",
     "group": "AHP 决策",
     "audience": "operator",
     "public_status": "public",

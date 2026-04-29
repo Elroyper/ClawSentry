@@ -38,7 +38,7 @@ clawsentry init codex
 `init codex` 会：
 
 1. 自动检测 Codex session 目录
-2. 生成 `.env.clawsentry` 配置文件
+2. 更新 `.clawsentry.toml` 项目配置
 3. 提示监控模式使用方法
 
 如需同时安装 ClawSentry 管理的 Codex native hooks（保留已有用户 / OMX hooks），显式运行：
@@ -55,7 +55,7 @@ clawsentry init codex --setup
 ### 2. 启动 Gateway
 
 ```bash
-source .env.clawsentry
+clawsentry start --env-file .clawsentry.env.local
 clawsentry gateway
 ```
 
@@ -198,7 +198,7 @@ clawsentry start --framework codex
 
 此命令会依次执行：
 
-1. 检查 `.env.clawsentry` 是否存在，不存在则自动运行 `clawsentry init codex`
+1. 检查 `.clawsentry.env.local` 是否存在，不存在则自动运行 `clawsentry init codex`
 2. 加载环境变量
 3. 在后台启动 Gateway
 4. 等待健康检查通过
@@ -216,7 +216,7 @@ clawsentry start --framework codex
 clawsentry init codex --uninstall
 ```
 
-此命令只会从当前项目 `.env.clawsentry` 中移除 `codex` 启用标记和 `CS_CODEX_*` 专属变量，不会删除其他框架配置或轮换共享 `CS_AUTH_TOKEN`。
+此命令只会从当前项目 `.clawsentry.env.local` 中移除 `codex` 启用标记和 `CS_CODEX_*` 专属变量，不会删除其他框架配置或轮换共享 `CS_AUTH_TOKEN`。
 
 ---
 
@@ -347,7 +347,7 @@ curl -N http://127.0.0.1:8080/report/stream
 `clawsentry doctor` 包含 Codex 专属的配置检查。当 `CS_FRAMEWORK=codex` 时，会额外验证：
 
 ```bash
-source .env.clawsentry
+clawsentry start --env-file .clawsentry.env.local
 clawsentry doctor
 ```
 
@@ -633,7 +633,7 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
        ```bash
        echo $CS_AUTH_TOKEN
        ```
-    3. 如果刚修改了 `.env.clawsentry`，需要重新 `source .env.clawsentry` 并重启 Gateway
+    3. 如果刚修改了 `.clawsentry.env.local`，需要重新 `clawsentry start --env-file .clawsentry.env.local` 并重启 Gateway
 
 ??? question "POST /ahp/codex 返回 400 invalid JSON body"
     1. 确认请求体是有效的 JSON 格式
@@ -658,7 +658,7 @@ http://{CS_HTTP_HOST}:{CS_HTTP_PORT}/ahp/codex
     ```bash
     # 重新初始化（会生成新 Token）
     clawsentry init codex --force
-    source .env.clawsentry
+    clawsentry start --env-file .clawsentry.env.local
     ```
 
 ??? question "决策延迟过高"

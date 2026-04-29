@@ -5,7 +5,15 @@ from __future__ import annotations
 import pytest
 
 from clawsentry.gateway.detection_config import DetectionConfig, PRESETS, from_preset
-from clawsentry.gateway.project_config import ProjectConfig, load_project_config
+from clawsentry.cli.dotenv_loader import parse_env_file
+from clawsentry.gateway.project_config import (
+    ProjectConfig,
+    load_project_config,
+    read_project_frameworks,
+    remove_project_framework,
+    resolve_effective_config,
+    update_project_framework,
+)
 
 
 class TestPresets:
@@ -110,6 +118,77 @@ class TestProjectConfig:
         cfg = load_project_config(tmp_path)
         assert cfg.enabled is True
         assert cfg.preset == "medium"
+
+    def test_frameworks_parse_from_toml(self, tmp_path):
+        toml = tmp_path / ".clawsentry.toml"
+        toml.write_text(
+            '[frameworks]\nenabled = ["codex", "openclaw"]\ndefault = "codex"\n'
+            "\n[frameworks.codex]\nmanaged_hooks = false\n"
+        )
+
+        cfg = load_project_config(tmp_path)
+
+        assert cfg.frameworks["enabled"] == ["codex", "openclaw"]
+        assert cfg.frameworks["default"] == "codex"
+        assert cfg.frameworks["codex"]["managed_hooks"] is False
+
+    def test_update_and_remove_project_frameworks(self, tmp_path):
+        path = update_project_framework(tmp_path, "codex")
+        update_project_framework(tmp_path, "openclaw")
+
+        enabled, default = read_project_frameworks(tmp_path)
+        assert path == tmp_path / ".clawsentry.toml"
+        assert enabled == ["codex", "openclaw"]
+        assert default == "codex"
+
+        remove_project_framework(tmp_path, "codex")
+        enabled, default = read_project_frameworks(tmp_path)
+        assert enabled == ["openclaw"]
+        assert default == "openclaw"
+
+    def test_effective_config_precedence_process_env_over_env_file_over_project(self, tmp_path):
+        (tmp_path / ".clawsentry.toml").write_text('[llm]\nprovider = "project"\nmodel = "project-model"\n')
+        env_file = tmp_path / ".clawsentry.env.local"
+        env_file.write_text("CS_LLM_PROVIDER=env-file\nCS_LLM_MODEL=env-file-model\n")
+        parsed = parse_env_file(env_file)
+
+        eff = resolve_effective_config(
+            tmp_path,
+            environ={"CS_LLM_PROVIDER": "process"},
+            env_file_values=parsed.values,
+            env_file_provenance=parsed,
+        )
+
+        assert eff.values["llm.provider"] == "process"
+        assert eff.sources["llm.provider"] == "process-env"
+        assert eff.values["llm.model"] == "env-file-model"
+        assert eff.sources["llm.model"] == "env-file"
+
+    def test_effective_config_project_beats_legacy_alias(self, tmp_path):
+        (tmp_path / ".clawsentry.toml").write_text("[budgets]\nl2_timeout_ms = 1234\n")
+
+        eff = resolve_effective_config(tmp_path, environ={"CS_L2_BUDGET_MS": "9999"})
+
+        assert eff.values["budgets.l2_timeout_ms"] == 1234
+        assert eff.sources["budgets.l2_timeout_ms"] == "project"
+
+    def test_effective_config_redacts_env_file_secret_with_source_detail(self, tmp_path):
+        (tmp_path / ".clawsentry.toml").write_text('[llm]\nprovider = "openai"\n')
+        env_file = tmp_path / ".clawsentry.env.local"
+        env_file.write_text("CS_LLM_API_KEY=sk-test-secret-value\n")
+        parsed = parse_env_file(env_file)
+
+        eff = resolve_effective_config(
+            tmp_path,
+            environ={},
+            env_file_values=parsed.values,
+            env_file_provenance=parsed,
+        )
+
+        assert eff.values["llm.api_key"] != "sk-test-secret-value"
+        assert eff.values["llm.api_key"].startswith("sk-t")
+        assert eff.sources["llm.api_key"] == "env-file"
+        assert eff.source_detail_for("llm.api_key") == f"{env_file}:1"
 
 
 class TestGatewayPresetApplication:

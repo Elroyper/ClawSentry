@@ -400,7 +400,7 @@
             "description": "Error 429"
           }
         },
-        "x-clawsentry-source": "src/clawsentry/gateway/stack.py:206",
+        "x-clawsentry-source": "src/clawsentry/gateway/stack.py:207",
         "x-clawsentry-markdown-ref": "api/decisions.md#post-ahp-resolve",
         "x-clawsentry-auth-note": "Uses Gateway auth dependency; CS_AUTH_TOKEN empty disables Bearer auth.",
         "requestBody": {

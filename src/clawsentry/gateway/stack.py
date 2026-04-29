@@ -80,6 +80,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Run ClawSentry local stack (Gateway + OpenClaw Webhook Receiver)."
     )
     parser.add_argument("--uds-path", default=bootstrap_defaults.gateway_uds_path)
+    parser.add_argument("--env-file", default=None, help="Explicit local env file for secrets/runtime values.")
     parser.add_argument("--gateway-host", default=os.getenv("CS_HTTP_HOST", DEFAULT_HTTP_HOST))
     parser.add_argument(
         "--gateway-port",
@@ -605,8 +606,25 @@ async def run_stack(args: argparse.Namespace) -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
-    from ..cli.dotenv_loader import load_dotenv
-    load_dotenv()
+    from ..cli.dotenv_loader import (
+        EnvFileError,
+        apply_env_file_to_legacy_environ,
+        resolve_explicit_env_file,
+    )
+    # Pre-parse only --env-file so parser defaults derived from os.environ can
+    # see explicitly supplied local runtime values. This is a named legacy
+    # adapter and still never implicitly loads cwd legacy env files.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--env-file", default=None)
+    pre_args, _ = pre.parse_known_args()
+    try:
+        parsed_env = resolve_explicit_env_file(
+            cli_env_file=Path(pre_args.env_file) if pre_args.env_file else None,
+            environ=os.environ,
+        )
+    except EnvFileError as exc:
+        raise SystemExit(str(exc)) from exc
+    apply_env_file_to_legacy_environ(parsed_env, environ=os.environ)
     parser = _build_parser()
     args = parser.parse_args()
     try:

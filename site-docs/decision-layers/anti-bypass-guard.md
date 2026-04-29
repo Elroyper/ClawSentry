@@ -159,7 +159,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 
     适合第一周上线：验证是否有误报，不改变任何 verdict。
 
-    ```bash title=".env.clawsentry"
+    ```bash title=".clawsentry.env.local"
     CS_ANTI_BYPASS_GUARD_ENABLED=true
     CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=observe
     CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=observe
@@ -170,7 +170,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 
     适合生产灰度：重复危险动作进入人工确认，跨工具相似请求 L3 复核。
 
-    ```bash title=".env.clawsentry"
+    ```bash title=".clawsentry.env.local"
     CS_ANTI_BYPASS_GUARD_ENABLED=true
     CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=defer
     CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
@@ -181,7 +181,7 @@ Guard 的核心是“**只记住可比较的安全指纹，不记住敏感原文
 
     适合已经观察过误报的环境：只对 exact repeat 本地阻断，其他变体仍走 review。
 
-    ```bash title=".env.clawsentry"
+    ```bash title=".clawsentry.env.local"
     CS_ANTI_BYPASS_GUARD_ENABLED=true
     CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
     CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer

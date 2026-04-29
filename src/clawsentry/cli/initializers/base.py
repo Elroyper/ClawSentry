@@ -30,7 +30,7 @@ class SetupResult:
 
 @dataclass
 class EnvDisableResult:
-    """Result of disabling one framework in a project env file."""
+    """Result of disabling one framework in a legacy env file."""
 
     changed: bool
     enabled_frameworks: list[str]
@@ -39,6 +39,7 @@ class EnvDisableResult:
 
 
 ENV_FILE_NAME = ".env.clawsentry"
+LOCAL_ENV_FILE_EXAMPLE = ".clawsentry.env.local"
 
 
 def read_env_file(path: Path) -> dict[str, str]:
@@ -61,7 +62,7 @@ def read_env_file(path: Path) -> dict[str, str]:
 
 
 def write_env_file(path: Path, header: str, values: dict[str, str]) -> None:
-    """Write env values using the project-standard .env.clawsentry format."""
+    """Write values using the legacy KEY=VALUE env-file format."""
     lines = [header]
     for key, val in values.items():
         lines.append(f"{key}={val}")
@@ -78,7 +79,7 @@ def merge_env_file(
     framework: str,
     force: bool = False,
 ) -> dict[str, str]:
-    """Create or merge .env.clawsentry without rotating existing shared secrets.
+    """Create or merge a legacy env file without rotating existing shared secrets.
 
     Existing values win when *force* is false.  This lets a user add another
     framework without changing the token or the legacy single-framework marker
@@ -118,6 +119,23 @@ def merge_env_file(
     return merged
 
 
+def merge_project_framework_config(
+    target_dir: Path,
+    *,
+    framework: str,
+    force: bool = False,
+) -> tuple[Path, dict[str, str]]:
+    """Record framework enablement in ``.clawsentry.toml``.
+
+    Returns a TOML path plus non-secret compatibility values for CLI display.
+    Secrets such as ``CS_AUTH_TOKEN`` are intentionally not generated here.
+    """
+    from clawsentry.gateway.project_config import update_project_framework
+
+    path = update_project_framework(target_dir, framework, force=force)
+    return path, {"CLAW_SENTRY_FRAMEWORK": framework}
+
+
 def _parse_enabled_frameworks(values: dict[str, str]) -> list[str]:
     """Return de-duplicated enabled frameworks from env values."""
     enabled: list[str] = []
@@ -140,7 +158,7 @@ def disable_framework_env(
     framework: str,
     framework_keys: set[str],
 ) -> EnvDisableResult:
-    """Disable one framework in .env.clawsentry without touching shared secrets."""
+    """Disable one framework in a legacy env file without touching shared secrets."""
     if not path.exists():
         return EnvDisableResult(
             changed=False,

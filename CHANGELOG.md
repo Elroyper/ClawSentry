@@ -6,6 +6,25 @@
 
 暂无。
 
+## [0.6.1] — 2026-04-29
+
+### Changed
+
+- **Strict configuration-source split** — `.clawsentry.toml` is now the only auto-discovered project configuration file. Local secrets/runtime values come from process/deployment environment or explicit `--env-file` / `CLAWSENTRY_ENV_FILE`; `.env.clawsentry` is legacy/migration-only and is never generated or auto-loaded in normal `init` / `start` flows.
+- **Framework enablement moved to TOML** — framework state is stored under `.clawsentry.toml [frameworks]`; `CS_FRAMEWORK` and `CS_ENABLED_FRAMEWORKS` are retained only for migration/legacy harness defaults.
+- **Explicit env-file provenance** — env-file parsing is non-mutating and reports isolated values plus source labels; effective resolution follows `CLI > process env > explicit env-file > .clawsentry.toml > legacy aliases > defaults`.
+- **Fresh local start UX** — `clawsentry start` generates an ephemeral in-memory `CS_AUTH_TOKEN` when no token is provided, without writing secrets to disk; `start --no-watch` now prints a copyable `clawsentry watch --token ...` command for ephemeral-token sessions.
+- **Readiness UX alignment** — `start` and `integrations status` readiness checks now use the effective process-env + explicit-env-file view, avoiding false “not configured” warnings when runtime values come from shell/deployment env.
+
+### Documentation
+
+- Rewrote configuration overview, env-vars, templates, CLI, quickstart, deployment, troubleshooting, integration pages, README copy, and related online docs for the new `.clawsentry.toml` + explicit env-file model.
+- Added production configuration layering guidance, env-file migration troubleshooting, `[frameworks]` blocks in copyable TOML templates, and clearer a3s-code / ephemeral-token notes.
+
+### Tests
+
+- Added regression coverage for explicit env-file L3 behavior in `clawsentry test-llm`, non-mutating env-file parsing, project/env precedence, TOML framework enablement, readiness from process env, and no `.env.clawsentry` generation in init/start flows.
+
 ## [0.6.0] — 2026-04-29
 
 ### 新增
@@ -1234,6 +1253,7 @@
 - 775 个测试用例，覆盖单元测试 + 集成测试 + E2E 测试
 - 测试通过时间 ~6.5s
 
+[0.6.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.1
 [0.6.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.0
 [0.5.14]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.14
 [0.5.13]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.5.13

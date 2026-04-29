@@ -52,7 +52,8 @@ class TestCLIParsing:
             capture_output=True, text=True, timeout=10, env=_cli_env(),
         )
         assert proc.returncode == 0
-        assert (tmp_path / ".env.clawsentry").exists()
+        assert (tmp_path / ".clawsentry.toml").exists()
+        assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_init_a3s_code_in_tmpdir(self, tmp_path):
         proc = subprocess.run(
@@ -63,7 +64,8 @@ class TestCLIParsing:
             capture_output=True, text=True, timeout=10, env=_cli_env(),
         )
         assert proc.returncode == 0
-        assert (tmp_path / ".env.clawsentry").exists()
+        assert (tmp_path / ".clawsentry.toml").exists()
+        assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_init_codex_setup_writes_native_hooks(self, tmp_path):
         codex_home = tmp_path / ".codex"

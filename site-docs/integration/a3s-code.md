@@ -58,7 +58,7 @@ clawsentry start --framework a3s-code
 
 它会自动完成 ClawSentry 侧的工作：
 
-- 生成或增量合并当前项目的 `.env.clawsentry`
+- 生成或增量合并当前项目的 `.clawsentry.env.local`
 - 加载配置并启动 Gateway（UDS + HTTP）
 - 在前台显示 `clawsentry watch` 实时事件流
 
@@ -116,8 +116,8 @@ python your_agent_script.py
 如果你要把 `start` 拆开运行，命令关系如下：
 
 ```bash
-clawsentry init a3s-code     # 只生成/合并 .env.clawsentry
-source .env.clawsentry      # 手动加载 token、UDS、端口等环境变量
+clawsentry init a3s-code     # 只生成/合并 .clawsentry.env.local
+clawsentry start --env-file .clawsentry.env.local      # 手动加载 token、UDS、端口等环境变量
 clawsentry gateway          # 只启动 Gateway 服务，不显示事件流
 clawsentry watch            # 可选：仅在手动拆分时另开终端观察事件流
 ```
@@ -131,7 +131,7 @@ Gateway 默认监听：
 | `http://127.0.0.1:8080/ahp/a3s` | HTTP (JSON-RPC AHP) | a3s-code `HttpTransport` 直连 |
 
 !!! tip "已有配置？"
-    如果 `.env.clawsentry` 已存在，`clawsentry init a3s-code` 默认会增量合并，不会轮换已有 `CS_AUTH_TOKEN`。只有明确要替换整个文件时才使用 `--force`。
+    如果 `.clawsentry.env.local` 已存在，`clawsentry init a3s-code` 默认会增量合并，不会轮换已有 `CS_AUTH_TOKEN`。只有明确要替换整个文件时才使用 `--force`。
 
 ---
 
@@ -141,7 +141,7 @@ Gateway 默认监听：
 clawsentry init a3s-code --uninstall
 ```
 
-此命令会从当前项目 `.env.clawsentry` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `a3s-code`。它不会删除共享 `CS_AUTH_TOKEN` 或整个 env 文件，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
+此命令会从当前项目 `.clawsentry.env.local` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `a3s-code`。它不会删除共享 `CS_AUTH_TOKEN` 或整个 env 文件，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
 
 ---
 

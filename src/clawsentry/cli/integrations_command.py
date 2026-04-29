@@ -6,7 +6,8 @@ import json
 import os
 from pathlib import Path
 
-from .initializers.base import ENV_FILE_NAME, read_env_file
+from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
+from clawsentry.gateway.project_config import read_project_frameworks
 
 
 FRAMEWORK_CAPABILITIES: dict[str, dict[str, str]] = {
@@ -125,7 +126,7 @@ def _codex_session_dir(values: dict[str, str]) -> Path | None:
         return Path(explicit).expanduser()
 
     codex_home = Path(
-        os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
+        values.get("CODEX_HOME") or os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))
     ).expanduser()
     return codex_home / "sessions"
 
@@ -174,7 +175,7 @@ def _build_framework_readiness(
         )
         warnings: list[str] = []
         if not gateway_endpoint_configured:
-            warnings.append("Gateway transport env is not configured in .env.clawsentry.")
+            warnings.append("Gateway transport env is not configured in process env or explicit env file.")
         else:
             warnings.append(
                 "ClawSentry cannot prove runtime coverage for a3s-code from env alone."
@@ -366,10 +367,11 @@ def collect_integration_status(
     *,
     claude_home: Path | None = None,
     openclaw_home: Path | None = None,
+    env_values: dict[str, str] | None = None,
+    env_file_present: bool = False,
 ) -> dict[str, object]:
-    env_path = target_dir / ENV_FILE_NAME
-    values = read_env_file(env_path)
-    enabled = _enabled_frameworks(values)
+    values = dict(env_values or {})
+    enabled, legacy_default = read_project_frameworks(target_dir)
     enabled_framework_details = {
         framework: dict(FRAMEWORK_CAPABILITIES[framework])
         for framework in enabled
@@ -394,9 +396,9 @@ def collect_integration_status(
             gemini_settings_path
         )
     payload = {
-        "env_file": str(env_path),
-        "env_exists": env_path.is_file(),
-        "legacy_default": values.get("CS_FRAMEWORK", ""),
+        "env_file": "(explicit only)",
+        "env_exists": env_file_present,
+        "legacy_default": legacy_default,
         "enabled_frameworks": enabled,
         "framework_capabilities": FRAMEWORK_CAPABILITIES,
         "enabled_framework_details": enabled_framework_details,
@@ -449,9 +451,23 @@ def run_integrations_status(
     *,
     target_dir: Path = Path("."),
     json_mode: bool = False,
+    env_file: Path | None = None,
 ) -> int:
     """Print configured framework integration status."""
-    payload = collect_integration_status(target_dir)
+    try:
+        parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+    except EnvFileError as exc:
+        print(str(exc))
+        return 2
+    effective_env = overlay_env_file(os.environ, parsed)
+    payload = collect_integration_status(
+        target_dir,
+        env_values=effective_env,
+        env_file_present=parsed.path is not None,
+    )
+    if parsed.path:
+        payload["env_file"] = str(parsed.path)
+        payload["env_exists"] = True
     if json_mode:
         print(json.dumps(payload, indent=2))
         return 0

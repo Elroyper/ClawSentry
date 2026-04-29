@@ -616,7 +616,7 @@ def test_start_with_latch_no_binary(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -635,7 +635,7 @@ def test_start_with_latch_success(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -672,7 +672,7 @@ def test_start_with_latch_uses_hub_ui_url_in_banner(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -705,7 +705,7 @@ def test_start_with_latch_open_browser_targets_hub_ui():
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -738,7 +738,7 @@ def test_start_with_latch_gateway_health_fails(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -767,7 +767,7 @@ def test_start_with_latch_hub_health_fails(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -800,7 +800,7 @@ def test_start_with_latch_no_watch(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -833,7 +833,7 @@ def test_start_with_latch_keyboard_interrupt(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.latch.binary_manager.BinaryManager.is_installed",
         new_callable=mock.PropertyMock,
@@ -873,7 +873,7 @@ def test_start_without_latch_uses_launch_gateway(capsys):
     ), mock.patch(
         _START_COMMON_PATCHES["load_dotenv"],
     ), mock.patch(
-        _START_COMMON_PATCHES["read_token"], return_value="tok",
+        _START_COMMON_PATCHES["read_token"], return_value=("tok", False),
     ), mock.patch(
         "clawsentry.cli.start_command.launch_gateway",
         return_value=fake_proc,

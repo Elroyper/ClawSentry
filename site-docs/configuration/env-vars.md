@@ -4,17 +4,18 @@ ClawSentry 通过环境变量进行配置，遵循 12-Factor App 原则。本页
 
 ---
 
-## .env 文件支持
+## 显式 env file 支持
 
-ClawSentry 在启动时会自动加载当前工作目录下的 `.env.clawsentry` 文件，无需手动 `source`。
+ClawSentry 不再自动加载当前目录的 `.env.clawsentry`。本机密钥、端口覆盖、provider API key 等运行时值应来自进程/部署环境，或通过 `--env-file PATH` / `CLAWSENTRY_ENV_FILE=PATH` 显式传入。解析阶段是非突变的：命令先得到隔离的 key/value 和 provenance，再按优先级合成有效配置。
 
-!!! info "自动加载规则"
-    - 文件名必须为 `.env.clawsentry`（不是 `.env`）
-    - 仅当变量**尚未存在于环境中**时才加载（不覆盖已有值）
+!!! info "显式加载规则"
+    - 推荐本机文件名：`.clawsentry.env.local`（加入 `.gitignore`，不要提交）
+    - 旧 `.env.clawsentry` 只作为 legacy/migration 文件名；需要复用时必须显式 `--env-file .env.clawsentry`
+    - 已存在的进程环境变量优先于 env file
     - 支持 `#` 注释和引号包裹的值
     - 使用 Python 标准库实现，零外部依赖
 
-```bash title=".env.clawsentry 示例"
+```bash title=".clawsentry.env.local 示例"
 # Gateway 核心配置
 CS_HTTP_HOST=0.0.0.0
 CS_HTTP_PORT=8080
@@ -27,6 +28,11 @@ CS_LLM_MODEL=gpt-4o-mini
 
 # Token 预算（可选，基于 provider 真实 usage 执法）
 CS_LLM_TOKEN_BUDGET_ENABLED=false
+```
+
+```bash
+clawsentry start --env-file .clawsentry.env.local
+clawsentry config show --effective --env-file .clawsentry.env.local
 ```
 
 ---
@@ -44,11 +50,11 @@ CS_LLM_TOKEN_BUDGET_ENABLED=false
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | Unix Domain Socket 路径。主传输通道，延迟最低 |
 | `CS_RATE_LIMIT_PER_MINUTE` | `300` | 每分钟最大请求数。设为 `0` 禁用速率限制。超限时返回 HTTP 429 |
 | `AHP_TRAJECTORY_RETENTION_SECONDS` | `2592000` (30 天) | 轨迹数据保留时间（秒）。过期记录自动清理 |
-| `CS_FRAMEWORK` | (自动检测) | 兼容字段：单框架默认标识，或 harness 默认 source framework |
-| `CS_ENABLED_FRAMEWORKS` | (空) | 逗号分隔的已启用框架列表，由 `clawsentry init <framework>` 增量维护 |
+| `CS_FRAMEWORK` | (空) | 旧版兼容字段；仅迁移旧脚本或作为 harness source framework 默认值 |
+| `CS_ENABLED_FRAMEWORKS` | (空) | 旧版兼容字段；框架启用请改用 `.clawsentry.toml [frameworks]` |
 
 !!! note "多框架配置"
-    `CS_FRAMEWORK` 是旧版单值字段，ClawSentry 会保留它以兼容旧脚本。多框架并存时以 `CS_ENABLED_FRAMEWORKS` 表达启用列表，例如 `a3s-code,codex,openclaw`。重新运行 `clawsentry init <framework>` 默认会合并缺失变量，不会轮换已有 `CS_AUTH_TOKEN`；使用 `--force` 才会覆盖 `.env.clawsentry`。
+    新配置把框架启用状态写入 `.clawsentry.toml [frameworks]`。`CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 只保留给旧脚本迁移和底层 harness 默认值，不再是 `init` / `start` 的正常 source of truth。
 
 !!! tip "生产环境建议"
     - 必须设置 `CS_AUTH_TOKEN` 以启用认证
@@ -73,7 +79,7 @@ CS_LLM_TOKEN_BUDGET_ENABLED=false
 | `CS_LLM_API_KEY` | - | 通用 LLM API 密钥。作为 `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` 的替代方案，`doctor` 检查时也会检测此变量 |
 
 !!! warning "API 密钥安全"
-    API 密钥属于敏感信息，建议通过 `.env.clawsentry` 文件或密钥管理系统注入，切勿硬编码在脚本或版本控制中。
+    API 密钥属于敏感信息，建议通过进程/部署环境、密钥管理系统，或显式 `--env-file .clawsentry.env.local` 注入，切勿写入 `.clawsentry.toml`、脚本或版本控制。
 
 ### 决策层级关系
 
@@ -387,7 +393,7 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CODEX_HOME` | `~/.codex` | Codex 根目录。仅在 `CS_CODEX_WATCH_ENABLED=true` 时用于自动检测 session 目录 |
 | `CS_CODEX_WATCH_ENABLED` | `false`（`init codex` 写入 `true`） | 启用 Codex Session Watcher 自动探测 |
 | `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | Watcher 轮询间隔（秒） |
-| `CS_FRAMEWORK` | (自动检测) | 框架标识。设为 `codex` 启用 Codex 专用检查和 Watcher |
+| `CS_FRAMEWORK` | (空) | 旧版迁移字段；Codex watcher 正常启用请使用 `.clawsentry.toml [frameworks]` 与 `CS_CODEX_WATCH_ENABLED` |
 
 !!! note "Codex watcher 启用顺序"
     `CS_CODEX_SESSION_DIR` 显式设置时优先使用该目录；否则在 `CS_CODEX_WATCH_ENABLED=true` 时从 `CODEX_HOME`（默认 `~/.codex`）自动探测 `sessions/`。Watcher 会按 JSONL offset 追踪新增事件，重启后继续从已处理位置之后读取，避免重复广播旧事件。
@@ -456,14 +462,14 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 
 ### 最小配置（仅 L1 规则引擎）
 
-```bash title=".env.clawsentry"
+```bash title="无需 env file"
 # 无需任何配置，开箱即用
 # 所有变量使用默认值
 ```
 
 ### 开发环境配置
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 CS_HTTP_HOST=127.0.0.1
 CS_HTTP_PORT=8080
 CS_RATE_LIMIT_PER_MINUTE=0
@@ -477,7 +483,7 @@ CS_LLM_MODEL=qwen2.5:7b
 
 ### 生产环境配置
 
-```bash title=".env.clawsentry"
+```bash title="/etc/clawsentry/gateway.env"
 # Gateway 核心
 CS_HTTP_HOST=0.0.0.0
 CS_HTTP_PORT=8080
@@ -528,12 +534,8 @@ OPENCLAW_WEBHOOK_SECRET=your-hmac-secret
 ## 环境变量优先级
 
 ```
-CLI 参数 > 规范环境变量 / .env.clawsentry > .clawsentry.toml > 内置默认值 > 旧环境变量别名
+CLI 参数 > 进程/部署环境变量 > 显式 env file > .clawsentry.toml > 白名单旧别名 > 内置默认值
 ```
 
 !!! tip "调试技巧"
-    启动 Gateway 时，日志会输出已加载的环境变量数量：
-    ```
-    INFO [clawsentry.cli.dotenv_loader] Loaded 8 env vars from /path/to/.env.clawsentry
-    ```
-    如果某个变量未生效，检查是否已在系统环境中设置了同名变量（`.env.clawsentry` 不会覆盖已有值）。
+    使用 `clawsentry config show --effective --env-file .clawsentry.env.local` 查看每个字段的来源。若旧 `.env.clawsentry` 短期仍需复用，必须显式传入 `--env-file .env.clawsentry`；没有这个参数时不会自动加载。

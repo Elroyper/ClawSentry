@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from .initializers import get_initializer
-from .initializers.base import ENV_FILE_NAME, disable_framework_env
+from clawsentry.gateway.project_config import remove_project_framework
 
 
 _FRAMEWORK_ENV_KEYS: dict[str, set[str]] = {
@@ -197,25 +197,8 @@ def run_uninstall(
         warnings.extend(result.warnings)
         next_steps.extend(result.next_steps)
 
-    env_result = disable_framework_env(
-        target_dir / ENV_FILE_NAME,
-        framework=framework,
-        framework_keys=_FRAMEWORK_ENV_KEYS.get(framework, set()),
-    )
-    warnings.extend(env_result.warnings)
-    if env_result.changed:
-        if env_result.enabled_frameworks:
-            next_steps.append(
-                "Project env updated; still enabled: "
-                f"{', '.join(env_result.enabled_frameworks)}."
-            )
-        else:
-            next_steps.append("Project env updated; no frameworks remain enabled.")
-    else:
-        next_steps.append("Project env unchanged.")
-
-    if framework != "claude-code":
-        next_steps.append(f"{framework} disabled in .env.clawsentry.")
+    remove_project_framework(target_dir, framework)
+    next_steps.append(f"{framework} disabled in .clawsentry.toml [frameworks].")
 
     if quiet:
         print(f"[clawsentry] {framework} integration uninstalled.")

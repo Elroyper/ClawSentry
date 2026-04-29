@@ -105,6 +105,36 @@ description: ClawSentry 常见问题诊断与解决方案
 
 ---
 
+## 配置来源与 env-file
+
+??? question "`.clawsentry.env.local` / `.env.clawsentry` 中的配置没有生效"
+
+    **症状**：`CS_AUTH_TOKEN` 为空、LLM provider 未加载、端口/预算仍是默认值，或 `config show --effective` 显示来源不是你预期的文件。
+
+    **诊断**：
+    ```bash
+    clawsentry config show --effective --env-file .clawsentry.env.local
+    clawsentry config show --effective --env-file .env.clawsentry  # 仅迁移旧文件时使用
+    ```
+
+    **原因**：
+
+    1. `.clawsentry.toml` 是唯一自动发现的项目配置。
+    2. `.clawsentry.env.local` 和旧 `.env.clawsentry` 都不会自动加载；必须显式 `--env-file PATH` 或设置 `CLAWSENTRY_ENV_FILE=PATH`。
+    3. 进程/部署环境变量优先于 env-file；如果 shell 已经 export 同名 `CS_*`，文件中的值不会覆盖它。
+    4. `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 只用于旧脚本迁移，框架启用请看 `.clawsentry.toml [frameworks]`。
+
+    **解决方案**：
+    ```bash
+    clawsentry start --env-file .clawsentry.env.local
+    clawsentry test-llm --env-file .clawsentry.env.local --json
+    clawsentry doctor --env-file .clawsentry.env.local
+    ```
+
+    如果只是本地体验且未设置 `CS_AUTH_TOKEN`，`clawsentry start` 会生成仅本次进程内有效的临时 token，并在启动 banner / Web UI URL 中展示；它不会写入 env file。
+
+---
+
 ## 认证问题
 
 ??? question "认证失败：401 Unauthorized"
@@ -530,7 +560,7 @@ description: ClawSentry 常见问题诊断与解决方案
        clawsentry start --framework claude-code
        ```
 
-    2. **Auth Token 不匹配**：确保 `.env.clawsentry` 中的 `CS_AUTH_TOKEN` 与 Gateway 使用的一致
+    2. **Auth Token 不匹配**：确保进程环境或显式 `--env-file` 中的 `CS_AUTH_TOKEN` 与 Gateway 使用的一致；若未设置 token，请复制本次 `start` banner 打印的 URL/token
        ```bash
        clawsentry doctor
        ```

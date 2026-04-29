@@ -143,7 +143,7 @@ Authorization: Bearer <token>
 
 ### 登录失败时如何区分
 
-- **invalid token / 401**：token 与 Gateway 的 `CS_AUTH_TOKEN` 不一致，重新复制 `clawsentry start` 打印的 `?token=` 链接或 `.env.clawsentry` 中的值。
+- **invalid token / 401**：token 与 Gateway 的 `CS_AUTH_TOKEN` 不一致，重新复制 `clawsentry start` 打印的 `?token=` 链接或 `.clawsentry.env.local` 中的值。
 - **Gateway unavailable**：Gateway 未启动、端口不对、浏览器无法访问本机服务或代理拦截。这不是 bad credentials；先确认 `http://127.0.0.1:8080/health`，必要时设置 `NO_PROXY=localhost,127.0.0.1,::1`。
 
 ### 字体与离线降级

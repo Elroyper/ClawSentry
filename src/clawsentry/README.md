@@ -1,12 +1,12 @@
 # ClawSentry — AHP Supervision Gateway
 
-> **Python 3.11+** | **3250 public regression tests** | Protocol `ahp.1.0`
+> **Python 3.11+** | **3198 public regression tests** | Protocol `ahp.1.0`
 
 **ClawSentry** is the Python reference implementation of AHP (Agent Harness Protocol) — a unified security supervision gateway for multi-agent frameworks. Deployed as a sidecar, it normalizes runtime events from different frameworks (a3s-code, Claude Code, Codex, Gemini CLI, OpenClaw) into a unified protocol, passes them through a three-layer progressive risk evaluation pipeline, and produces real-time decisions (allow / block / modify / defer) with complete audit trails.
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
 
-**Current release highlight (v0.6.0)**: setup/config docs, OpenAPI metric schemas, sanitized demo templates, and synchronous L3 Agent routing are now aligned with behavioral tests, including `replace_l2` + `eager` L3 execution and optional real-provider E2E verification.
+**Current release highlight (v0.6.1)**: configuration sources now use a strict shareable-TOML vs explicit-runtime-env split. `.clawsentry.toml` is the only auto-discovered project config, local env files are explicit only, framework enablement lives in `[frameworks]`, and fresh local starts use an ephemeral in-memory auth token when no token is supplied.
 
 ---
 
@@ -472,7 +472,7 @@ src/clawsentry/
 |   |-- init_command.py                # init + --setup + --auto-detect
 |   |-- start_command.py               # Framework detection + start routing
 |   |-- watch_command.py               # watch SSE terminal + --interactive DEFER
-|   |-- dotenv_loader.py               # .env.clawsentry auto-load
+|   |-- dotenv_loader.py               # explicit env-file parser
 |   +-- initializers/                  # Framework initializers (openclaw/a3s_code)
 |-- ui/                                # Web security dashboard (React SPA)
 |   |-- src/                           # TypeScript source

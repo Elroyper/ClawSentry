@@ -5,7 +5,7 @@ description: 按 L3 延迟容忍度、启用方式、部署周期、严格度与
 
 # 配置模板
 
-本页按 operator 的真实选择顺序组织模板：先决定是否只观察，还是启用 L2/L3；再决定 L3 延迟、部署周期、严格度、provider 与 token budget。所有模板都可以复制到 `.clawsentry.toml`，再用 `clawsentry config show --effective` 验证最终生效值。
+本页按 operator 的真实选择顺序组织模板：先决定是否只观察，还是启用 L2/L3；再决定 L3 延迟、部署周期、严格度、provider 与 token budget。标为 `.clawsentry.toml` 的模板可以直接复制；其中 `[frameworks]` 是框架启用来源，可按你的实际框架替换，再用 `clawsentry config show --effective` 验证最终生效值。
 
 !!! note "`config wizard` 支持交互式和确定性两种路径"
     在本地 TTY 中运行 `clawsentry config wizard --interactive` 会进入 5 步终端向导。模板页仍使用 `--non-interactive`，因为复制命令和 CI 需要稳定、可复现的输出。
@@ -47,13 +47,17 @@ cp .clawsentry.toml.example .clawsentry.toml
 clawsentry config show --effective
 ```
 
-边界：process env / `.env.clawsentry` 仍优先生效；`features.l3 = true` 只是请求同步 L3，实际参与还取决于 provider、模型、预算和 runtime 能力。
+边界：CLI / process env / 显式 `--env-file` 仍优先生效；`features.l3 = true` 只是请求同步 L3，实际参与还取决于 provider、模型、预算和 runtime 能力。
 
 ```toml title="demostation_projects/a3s_demo/.clawsentry.toml.example"
 [project]
 enabled = true
 mode = "normal"
 preset = "high"
+
+[frameworks]
+enabled = ["codex"]
+default = "codex"
 
 [llm]
 provider = "openai"
@@ -87,6 +91,10 @@ hard_timeout_ms = 600000
 enabled = true
 mode = "normal"
 preset = "medium"
+
+[frameworks]
+enabled = ["codex"]
+default = "codex"
 
 [llm]
 provider = ""
@@ -136,6 +144,10 @@ enabled = true
 mode = "normal"
 preset = "high"
 
+[frameworks]
+enabled = ["codex"]
+default = "codex"
+
 [llm]
 provider = "openai"
 api_key_env = "CS_LLM_API_KEY"
@@ -162,13 +174,13 @@ timeout_action = "block"
 max_pending = 0
 ```
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local（不要提交）"
 CS_LLM_API_KEY=sk-...
 ```
 
 ```bash title="验证"
-clawsentry config show --effective
-clawsentry test-llm --json
+clawsentry config show --effective --env-file .clawsentry.env.local
+clawsentry test-llm --env-file .clawsentry.env.local --json
 ```
 
 你应该看到 provider、model、token budget 的来源；密钥只显示脱敏值。Dashboard / Session Detail 会优先展示 `session_risk_ewma`、`latest_composite_score` 与 L2/L3 运行态字段（如果存在）。
@@ -185,6 +197,10 @@ clawsentry test-llm --json
 enabled = true
 mode = "strict"
 preset = "strict"
+
+[frameworks]
+enabled = ["claude-code"]
+default = "claude-code"
 
 [llm]
 provider = "anthropic"
@@ -324,6 +340,10 @@ enabled = true
 mode = "benchmark"
 preset = "high"
 
+[frameworks]
+enabled = ["codex"]
+default = "codex"
+
 [benchmark]
 auto_resolve_defer = true
 defer_action = "block"
@@ -343,7 +363,7 @@ max_pending = 0
 
 ```bash title="Codex benchmark 示例"
 export CS_CODEX_HOME="$(mktemp -d)"
-clawsentry benchmark env --framework codex --mode guarded > .env.clawsentry.benchmark
+clawsentry benchmark env --framework codex --mode guarded > .clawsentry.benchmark.env
 clawsentry benchmark enable --dir . --framework codex --codex-home "$CS_CODEX_HOME"
 clawsentry benchmark run --dir . --framework codex --codex-home "$CS_CODEX_HOME" -- \
   bash benchmarks/scripts/skills_safety_bench_codex.sh

@@ -114,13 +114,13 @@ curl http://127.0.0.1:8080/health
 </div>
 
 <div class="cs-card" markdown>
-### 3. 配置 LLM / 预算
-需要 L2/L3 时，进入[配置模板](../configuration/templates.md)和[LLM 配置](../configuration/llm-config.md)。
+### 3. 理解配置来源
+先读[配置概览](../configuration/configuration-overview.md)确认优先级、`.clawsentry.toml` 与显式 env-file 边界，再用[配置模板](../configuration/templates.md)选择 L2/L3 / 预算。
 </div>
 
 <div class="cs-card" markdown>
-### 4. 部署、复盘或评测
-团队常驻看[生产部署](../operations/deployment.md)；高风险复盘看[L3 咨询审查](../decision-layers/l3-advisory.md)；CI / benchmark 看[Benchmark 模式](../operations/benchmark-mode.md)。
+### 4. 注入密钥并部署
+本机/CI secrets 看[环境变量参考](../configuration/env-vars.md)；团队常驻看[生产部署](../operations/deployment.md)；遇到配置未生效看[故障排查](../operations/troubleshooting.md)。
 </div>
 
 </div>
@@ -168,7 +168,7 @@ Dashboard -> Sessions -> Session Detail
 
 ### Web UI 登录与本地代理
 
-`clawsentry start` 会在终端打印形如 `http://127.0.0.1:8080/ui?token=...` 的 Web UI 地址。页面会把 `?token=` 写入浏览器 `sessionStorage` 后立刻清理地址栏中的 token；如果手动登录，使用同一个 `CS_AUTH_TOKEN`（通常来自 `.env.clawsentry`）。
+`clawsentry start` 会在终端打印形如 `http://127.0.0.1:8080/ui?token=...` 的 Web UI 地址。页面会把 `?token=` 写入浏览器 `sessionStorage` 后立刻清理地址栏中的 token；如果手动登录，使用同一个 `CS_AUTH_TOKEN`（来自进程环境、显式 `--env-file`，或本次 `start` 生成的临时 token）。
 
 - `401` 表示 invalid token：复制的 token 与 Gateway 启动时的 `CS_AUTH_TOKEN` 不一致。
 - `Gateway unavailable` 表示浏览器或 CLI 连不上 Gateway，不等同于 token 错误；先确认 Gateway 地址、端口和本机代理设置。
@@ -234,13 +234,12 @@ export NO_PROXY=localhost,127.0.0.1,::1
         clawsentry init claude-code
         ```
 
-        生成 `.env.clawsentry`，自动注入 hooks 到 `~/.claude/settings.json`。
+        更新 `.clawsentry.toml [frameworks]`，并可自动注入 hooks 到 `~/.claude/settings.json`。
 
         **步骤 2：启动 Gateway**
 
         ```bash
-        source .env.clawsentry
-        clawsentry gateway
+        clawsentry gateway --env-file .clawsentry.env.local
         ```
 
         **步骤 3：使用 Claude Code**
@@ -301,7 +300,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
     session = agent.session(".", opts, permissive=True)
     ```
 
-    如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway：
+    如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway。注意：fresh `clawsentry start` 生成的临时 token 不会写入父 shell；HTTP 方式请先显式 `export CS_AUTH_TOKEN=...` 或使用 `--env-file`，否则优先用上面的 stdio transport：
 
     ```python
     import os
@@ -335,7 +334,6 @@ export NO_PROXY=localhost,127.0.0.1,::1
 
         ```bash
         clawsentry init a3s-code
-        source .env.clawsentry
         ```
 
         **步骤 2：启动 Gateway**
@@ -355,7 +353,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
         session = agent.session(".", opts, permissive=True)
         ```
 
-        如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway：
+        如需 HTTP 方式，可改用 `HttpTransport` 直连 Gateway。注意临时 token 不会写入父 shell；请显式设置 `CS_AUTH_TOKEN` / `--env-file`：
 
         ```python
         import os
@@ -370,7 +368,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
         session = agent.session(".", opts, permissive=True)
         ```
 
-        运行你的 a3s-code Agent 脚本后，如果你还想单独看事件流，可以在另一终端运行 `clawsentry watch`。
+        运行你的 a3s-code Agent 脚本后，如果你还想单独看事件流，可以在另一终端运行 `clawsentry watch`；如果 Gateway 使用临时 token，复制 `start --no-watch` 输出里的 `clawsentry watch --token ...`。
 
     ### 验证
 
@@ -422,10 +420,9 @@ export NO_PROXY=localhost,127.0.0.1,::1
 
         ```bash
         clawsentry init openclaw --auto-detect --setup
-        source .env.clawsentry
         ```
 
-        `--auto-detect` 从 `~/.openclaw/openclaw.json` 读取 Token。
+        `--auto-detect` 检查 `~/.openclaw/openclaw.json`，但不会把 Token 写入 `.clawsentry.toml`。
         `--setup` 自动配置 `tools.exec.host = "gateway"`。
 
         **步骤 2：启动 Gateway**
@@ -480,7 +477,6 @@ export NO_PROXY=localhost,127.0.0.1,::1
         # 可选：安装 managed Codex native hooks
         # PreToolUse(Bash) 同步 preflight；其他 native events best-effort 异步观察
         clawsentry init codex --setup
-        source .env.clawsentry
         ```
 
         **步骤 2：启动 Gateway**
@@ -517,7 +513,7 @@ export NO_PROXY=localhost,127.0.0.1,::1
 
 ## 多框架并存
 
-同一个项目可以逐个初始化多个框架，ClawSentry 会增量合并 `.env.clawsentry`：
+同一个项目可以逐个初始化多个框架，ClawSentry 会增量合并 `.clawsentry.toml [frameworks]`：
 
 ```bash
 clawsentry init a3s-code
@@ -534,13 +530,18 @@ clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
 
 这条命令除了显示 `Enabled: ...`，还会在启动 banner 里打印每个框架的 `Readiness` 摘要与 `Next actions`。例如，`a3s-code` 会提示仍需人工确认 `SessionOptions.ahp_transport` 是否已经在 agent 代码里接好，`openclaw` 会在宿主配置不完整时直接提醒你改用 `--setup-openclaw`。
 
-合并时不会轮换已有 `CS_AUTH_TOKEN`，也不会改写已有 `CS_FRAMEWORK`；新增框架会记录到 `CS_ENABLED_FRAMEWORKS`：
+合并时不会写入或轮换 `CS_AUTH_TOKEN`，也不会依赖 `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS`。新增框架会记录到 `.clawsentry.toml`：
 
-```ini
-CS_FRAMEWORK=a3s-code
-CS_ENABLED_FRAMEWORKS=a3s-code,codex,openclaw
-CS_CODEX_WATCH_ENABLED=true
-OPENCLAW_ENFORCEMENT_ENABLED=true
+```toml
+[frameworks]
+enabled = ["a3s-code", "codex", "openclaw"]
+default = "a3s-code"
+
+[frameworks.codex]
+watch_enabled = true
+
+[frameworks.openclaw]
+enforcement_enabled = true
 ```
 
 !!! tip "OpenClaw 可恢复"
@@ -550,7 +551,7 @@ OPENCLAW_ENFORCEMENT_ENABLED=true
     clawsentry init openclaw --restore
     ```
 
-如需只禁用其中一个框架，使用同一个 `init` 入口的 `--uninstall`，不会删除整个 `.env.clawsentry` 或影响其他已启用框架：
+如需只禁用其中一个框架，使用同一个 `init` 入口的 `--uninstall`，只更新 `.clawsentry.toml [frameworks]` 和相关 managed hooks，不影响其他已启用框架：
 
 ```bash
 clawsentry init codex --uninstall

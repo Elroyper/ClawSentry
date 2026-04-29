@@ -57,7 +57,7 @@ clawsentry --help
 
 ### 一键初始化
 
-默认初始化只生成或合并项目 `.env.clawsentry`，不会修改 `~/.openclaw/`：
+默认初始化只生成或合并项目 `.clawsentry.env.local`，不会修改 `~/.openclaw/`：
 
 ```bash
 clawsentry init openclaw --auto-detect
@@ -92,7 +92,7 @@ clawsentry init openclaw --restore
 ```
 
 !!! note "恢复范围"
-    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.env.clawsentry`。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
+    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.clawsentry.env.local`。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
 
 如只想从当前项目配置中禁用 OpenClaw，而保留其他框架和共享 token：
 
@@ -102,7 +102,7 @@ clawsentry init openclaw --uninstall
 
 `--uninstall` 会移除 `CS_ENABLED_FRAMEWORKS` 中的 `openclaw` 以及 `OPENCLAW_*` 专属变量；它不会恢复 OpenClaw 侧配置文件。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
 
-同时生成 `.env.clawsentry`，内容包括：
+同时更新 `.clawsentry.toml`，内容包括：
 
 ```ini
 # ClawSentry — OpenClaw integration config
@@ -128,7 +128,7 @@ OPENCLAW_OPERATOR_TOKEN=<从 openclaw.json 自动读取>
 
 ```bash
 # 加载环境变量
-source .env.clawsentry
+clawsentry start --env-file .clawsentry.env.local
 
 # 启动 Gateway（自动检测 OpenClaw 配置，启用 WS + Webhook）
 clawsentry gateway
@@ -143,7 +143,7 @@ clawsentry start --framework openclaw --setup-openclaw
 clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
 ```
 
-默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.env.clawsentry`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
+默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.clawsentry.env.local`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
 
 当检测到 OpenClaw 配置时，日志输出：
 
@@ -298,7 +298,7 @@ clawsentry integrations status --json
 
 其中与 OpenClaw 直接相关的诊断包括：
 
-- `OpenClaw env`：当前项目 `.env.clawsentry` 是否存在 `OPENCLAW_*` 配置
+- `OpenClaw env`：当前项目 `.clawsentry.env.local` 是否存在 `OPENCLAW_*` 配置
 - `OpenClaw restore`：`~/.openclaw/` 下是否存在可供 `--restore` 使用的 `.bak` 文件
 - `OpenClaw restore files`：检测到的备份文件路径
 - `framework_readiness.openclaw.checks.openclaw_exec_host_gateway`：`openclaw.json` 是否已经把 `tools.exec.host` 设为 `"gateway"`
@@ -644,7 +644,7 @@ docker run -d \
     1. 确认 `OPENCLAW_ENFORCEMENT_ENABLED=true` 已设置
     2. 确认 `OPENCLAW_OPERATOR_TOKEN` 不为空
     3. 确认 `OPENCLAW_WS_URL` 格式正确（如 `ws://127.0.0.1:18789`）
-    4. 加载环境变量：`source .env.clawsentry`
+    4. 加载环境变量：`clawsentry start --env-file .clawsentry.env.local`
 
 ??? question "Webhook 接收器收不到事件"
     **说明**：Webhook 是补充通道。主要事件流通过 WS 实现。

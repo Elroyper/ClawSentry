@@ -55,6 +55,18 @@ class TestConfigShow:
         out = capsys.readouterr().out
         assert "strict" in out
 
+    def test_effective_show_uses_explicit_env_file_source_and_redacts(self, tmp_path, capsys):
+        (tmp_path / ".clawsentry.toml").write_text('[llm]\nprovider = "openai"\n')
+        env_file = tmp_path / ".clawsentry.env.local"
+        env_file.write_text("CS_LLM_API_KEY=sk-secret-value\n")
+
+        run_config_show(target_dir=tmp_path, effective=True, env_file=env_file)
+
+        out = capsys.readouterr().out
+        assert "source=env-file:" in out
+        assert "sk-secret-value" not in out
+        assert "llm.api_key" in out
+
 
 class TestConfigSet:
     def test_set_preset(self, tmp_path):
@@ -114,7 +126,7 @@ class TestConfigWizard:
         out = capsys.readouterr().out
         assert "Writes only runtime-effective .clawsentry.toml fields" in out
         assert "API key values are env-only" in out
-        assert "process env and .env.clawsentry still win" in out
+        assert "process env > explicit env-file > TOML" in out
         assert "features.l3 requests L3" in out
         assert "anti-bypass" in out
         assert "DEFER" in out
@@ -146,7 +158,7 @@ class TestConfigWizard:
         assert "L2/L3 can improve semantic detection" in out
         assert "Enable L2 semantic analysis" in out
         assert "Step 5/5" in out
-        assert "Next: run `clawsentry start --framework claude-code`." in out
+        assert "Next: run `clawsentry start --open-browser`." in out
         assert 'mode = "strict"' in text
         assert 'provider = "openai"' in text
         assert 'model = "gpt-4o-mini"' in text
@@ -154,7 +166,8 @@ class TestConfigWizard:
         assert "l2 = true" in text
         assert "l3 = true" in text
         assert "llm_daily_token_budget = 250000" in text
-        assert "Preferred framework for guided setup" in text
+        assert "[frameworks]" in text
+        assert 'default = "claude-code"' in text
 
     def test_interactive_wizard_accepts_numbered_choices(self, tmp_path, monkeypatch, capsys):
         answers = iter([

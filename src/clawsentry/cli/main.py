@@ -264,6 +264,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Disable ANSI colour codes in output.",
     )
+    doc_parser.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for diagnostics.")
 
     # --- test-llm ---
     test_llm_parser = sub.add_parser(
@@ -288,6 +289,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Skip L3 agent review test.",
     )
+    test_llm_parser.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for secrets/runtime values.")
 
     # --- l3 ---
     l3_parser = sub.add_parser(
@@ -404,6 +406,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "config",
         help="Manage project-level .clawsentry.toml configuration.",
     )
+    config_parser.add_argument("--dir", type=Path, default=Path("."), help="Project directory (default: current directory).")
     config_sub = config_parser.add_subparsers(dest="config_command")
 
     config_init = config_sub.add_parser("init", help="Create .clawsentry.toml in current directory.")
@@ -412,6 +415,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     config_show = config_sub.add_parser("show", help="Show current project config.")
     config_show.add_argument("--effective", action="store_true", default=False)
+    config_show.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for effective source resolution.")
 
     config_set = config_sub.add_parser("set", help="Change project preset or section.field key.")
     config_set.add_argument("key_or_preset")
@@ -535,7 +539,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         type=Path,
         default=Path("."),
-        help="Directory containing .env.clawsentry (default: current dir).",
+        help="Project directory containing .clawsentry.toml (default: current dir).",
     )
     integrations_status.add_argument(
         "--json",
@@ -543,6 +547,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Output status as JSON.",
     )
+    integrations_status.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for readiness checks.")
 
     # --- start ---
     start_parser = sub.add_parser(
@@ -614,6 +619,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=3006,
         help="Latch Hub port (default: 3006). Only used with --with-latch.",
     )
+    start_parser.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for secrets/runtime values.")
 
     # --- stop ---
     sub.add_parser("stop", help="Stop running gateway.")
@@ -625,8 +631,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
-    from .dotenv_loader import load_dotenv
-    load_dotenv()
     parser = _build_parser()
     args, remaining = parser.parse_known_args(argv)
 
@@ -740,6 +744,7 @@ def main(argv: list[str] | None = None) -> None:
         code = run_doctor(
             json_mode=args.json,
             color=not args.no_color,
+            env_file=args.env_file,
         )
         sys.exit(code)
 
@@ -750,6 +755,7 @@ def main(argv: list[str] | None = None) -> None:
             color=not args.no_color,
             skip_l3=args.skip_l3,
             json_mode=args.json,
+            env_file=args.env_file,
         )
         sys.exit(code)
 
@@ -879,11 +885,11 @@ def main(argv: list[str] | None = None) -> None:
             run_config_init, run_config_show, run_config_set,
             run_config_disable, run_config_enable, run_config_wizard,
         )
-        target = Path(".")
+        target = args.dir
         if args.config_command == "init":
             run_config_init(target_dir=target, preset=args.preset, force=args.force)
         elif args.config_command == "show":
-            run_config_show(target_dir=target, effective=args.effective)
+            run_config_show(target_dir=target, effective=args.effective, env_file=args.env_file)
         elif args.config_command == "set":
             if args.value is None:
                 run_config_set(target_dir=target, preset=args.key_or_preset)
@@ -975,6 +981,7 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(run_integrations_status(
                 target_dir=args.dir,
                 json_mode=args.json,
+                env_file=args.env_file,
             ))
         print("Usage: clawsentry integrations {status}")
 
@@ -1027,6 +1034,7 @@ def main(argv: list[str] | None = None) -> None:
             hub_port=args.hub_port,
             auto_detected=auto_detected,
             enabled_frameworks=enabled_frameworks,
+            env_file=args.env_file,
         )
 
     elif args.command == "stop":

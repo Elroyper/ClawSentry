@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Mapping, MutableMapping
 
+from clawsentry.cli.dotenv_loader import ParsedEnvFile
+
 from .detection_config import DetectionConfig, from_preset
 
 logger = logging.getLogger(__name__)
@@ -65,6 +67,171 @@ def _redact_secret(value: str) -> str:
     return f"{value[:4]}...{value[-4:]}"
 
 
+def _toml_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _toml_value(value: Any) -> str:
+    if isinstance(value, list):
+        return "[" + ", ".join(_toml_scalar(item) for item in value) + "]"
+    return _toml_scalar(value)
+
+
+def _load_project_config_data(project_dir: Path) -> dict[str, Any]:
+    config_path = project_dir / CONFIG_FILENAME
+    if not config_path.is_file():
+        return {}
+    try:
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as exc:
+        raise ValueError(f"Failed to parse {config_path}: {exc}") from exc
+    return data if isinstance(data, dict) else {}
+
+
+def _write_project_config_data(config_path: Path, data: Mapping[str, Any]) -> None:
+    """Write the subset of TOML used by ClawSentry config helpers."""
+    lines = [
+        "# ClawSentry project configuration",
+        "# Docs: https://elroyper.github.io/ClawSentry/configuration/configuration-overview/",
+        "",
+    ]
+    for section in ("project", "frameworks", "llm", "features", "budgets", "defer", "benchmark"):
+        values = data.get(section)
+        if not isinstance(values, Mapping):
+            continue
+        scalar_items = {
+            key: value
+            for key, value in values.items()
+            if not isinstance(value, Mapping)
+        }
+        if scalar_items:
+            lines.append(f"[{section}]")
+            for key, value in scalar_items.items():
+                lines.append(f"{key} = {_toml_value(value)}")
+            lines.append("")
+        for child_key, child_values in values.items():
+            if not isinstance(child_values, Mapping):
+                continue
+            lines.append(f"[{section}.{child_key}]")
+            for key, value in child_values.items():
+                if isinstance(value, Mapping):
+                    continue
+                lines.append(f"{key} = {_toml_value(value)}")
+            lines.append("")
+    overrides = data.get("overrides")
+    if isinstance(overrides, Mapping) and overrides:
+        lines.append("[overrides]")
+        for key, value in overrides.items():
+            lines.append(f"{key} = {_toml_value(value)}")
+        lines.append("")
+    config_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def default_framework_config(framework: str) -> dict[str, Any]:
+    """Return safe-to-commit defaults for a framework subsection."""
+    defaults: dict[str, dict[str, Any]] = {
+        "codex": {"watch_sessions": True, "managed_hooks": False},
+        "openclaw": {
+            "setup_managed_config": False,
+            "websocket_url_env": "OPENCLAW_WS_URL",
+        },
+        "a3s-code": {"explicit_transport_required": True},
+        "claude-code": {"managed_hooks": True},
+        "gemini-cli": {
+            "managed_hooks": False,
+            "settings_path": ".gemini/settings.json",
+        },
+    }
+    return dict(defaults.get(framework, {}))
+
+
+def read_project_frameworks(project_dir: Path) -> tuple[list[str], str]:
+    """Read enabled/default frameworks from .clawsentry.toml."""
+    cfg = load_project_config(project_dir)
+    enabled_raw = cfg.frameworks.get("enabled", [])
+    enabled = [
+        str(item)
+        for item in (enabled_raw if isinstance(enabled_raw, list) else [])
+        if str(item).strip()
+    ]
+    default = str(cfg.frameworks.get("default", "") or "")
+    return enabled, default
+
+
+def update_project_framework(
+    project_dir: Path,
+    framework: str,
+    *,
+    force: bool = False,
+    make_default: bool = False,
+) -> Path:
+    """Add/update one framework in ``.clawsentry.toml``."""
+    project_dir.mkdir(parents=True, exist_ok=True)
+    config_path = project_dir / CONFIG_FILENAME
+    data = _load_project_config_data(project_dir)
+    project = data.setdefault("project", {})
+    if isinstance(project, dict):
+        project.setdefault("enabled", True)
+        project.setdefault("mode", "normal")
+        project.setdefault("preset", "medium")
+    frameworks = data.setdefault("frameworks", {})
+    if not isinstance(frameworks, dict):
+        frameworks = {}
+        data["frameworks"] = frameworks
+    enabled_raw = frameworks.get("enabled", [])
+    enabled = [
+        str(item)
+        for item in (enabled_raw if isinstance(enabled_raw, list) else [])
+        if str(item).strip()
+    ]
+    if framework not in enabled:
+        enabled.append(framework)
+    frameworks["enabled"] = enabled
+    if make_default or not frameworks.get("default"):
+        frameworks["default"] = framework
+    if force or not isinstance(frameworks.get(framework), dict):
+        frameworks[framework] = default_framework_config(framework)
+    else:
+        defaults = default_framework_config(framework)
+        child = frameworks.setdefault(framework, {})
+        if isinstance(child, dict):
+            for key, value in defaults.items():
+                child.setdefault(key, value)
+    _write_project_config_data(config_path, data)
+    return config_path
+
+
+def remove_project_framework(project_dir: Path, framework: str, *, prune_config: bool = False) -> Path:
+    """Remove one framework from enabled list in ``.clawsentry.toml``."""
+    project_dir.mkdir(parents=True, exist_ok=True)
+    config_path = project_dir / CONFIG_FILENAME
+    data = _load_project_config_data(project_dir)
+    frameworks = data.setdefault("frameworks", {})
+    if not isinstance(frameworks, dict):
+        frameworks = {}
+        data["frameworks"] = frameworks
+    enabled_raw = frameworks.get("enabled", [])
+    enabled = [
+        str(item)
+        for item in (enabled_raw if isinstance(enabled_raw, list) else [])
+        if str(item).strip() and str(item) != framework
+    ]
+    frameworks["enabled"] = enabled
+    if frameworks.get("default") == framework:
+        frameworks["default"] = enabled[0] if enabled else ""
+    if prune_config:
+        frameworks.pop(framework, None)
+    elif isinstance(frameworks.get(framework), dict):
+        frameworks[framework]["enabled"] = False
+    _write_project_config_data(config_path, data)
+    return config_path
+
+
 @dataclass(frozen=True)
 class ProjectConfig:
     """Parsed project configuration from .clawsentry.toml."""
@@ -78,6 +245,7 @@ class ProjectConfig:
     budgets: _ConfigSection = field(default_factory=_ConfigSection)
     defer: _ConfigSection = field(default_factory=_ConfigSection)
     benchmark: _ConfigSection = field(default_factory=_ConfigSection)
+    frameworks: _ConfigSection = field(default_factory=_ConfigSection)
 
     def to_detection_config(self) -> DetectionConfig:
         """Build DetectionConfig from preset, legacy overrides, and canonical sections."""
@@ -150,6 +318,7 @@ def load_project_config(project_dir: Path) -> ProjectConfig:
         budgets=_section(data.get("budgets", {}) or {}),
         defer=_section(data.get("defer", {}) or {}),
         benchmark=_section(data.get("benchmark", {}) or {}),
+        frameworks=_section(data.get("frameworks", {}) or {}),
     )
 
 
@@ -159,10 +328,17 @@ class EffectiveConfig:
 
     values: dict[str, Any]
     sources: dict[str, str]
+    source_details: dict[str, str] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def rows(self) -> list[tuple[str, Any, str]]:
-        return [(key, self.values[key], self.sources.get(key, "default")) for key in sorted(self.values)]
+        return [
+            (key, self.values[key], self.sources.get(key, "default"))
+            for key in sorted(self.values)
+        ]
+
+    def source_detail_for(self, key: str) -> str | None:
+        return self.source_details.get(key)
 
 
 _DEFAULT_EFFECTIVE: dict[str, Any] = {
@@ -190,6 +366,8 @@ _DEFAULT_EFFECTIVE: dict[str, Any] = {
     "benchmark.auto_resolve_defer": True,
     "benchmark.defer_action": "block",
     "benchmark.persist_scope": "project",
+    "frameworks.enabled": [],
+    "frameworks.default": "",
 }
 
 _PROJECT_MAP: dict[str, tuple[str, str]] = {
@@ -216,6 +394,8 @@ _PROJECT_MAP: dict[str, tuple[str, str]] = {
     "benchmark.auto_resolve_defer": ("benchmark", "auto_resolve_defer"),
     "benchmark.defer_action": ("benchmark", "defer_action"),
     "benchmark.persist_scope": ("benchmark", "persist_scope"),
+    "frameworks.enabled": ("frameworks", "enabled"),
+    "frameworks.default": ("frameworks", "default"),
 }
 
 _ENV_MAP: dict[str, str] = {
@@ -261,6 +441,7 @@ def _project_sections(cfg: ProjectConfig) -> dict[str, Mapping[str, Any]]:
         "budgets": cfg.budgets,
         "defer": cfg.defer,
         "benchmark": cfg.benchmark,
+        "frameworks": cfg.frameworks,
     }
 
 
@@ -274,55 +455,163 @@ def _coerce_like(default: Any, raw: Any) -> Any:
     return str(raw)
 
 
-def resolve_effective_config(project_dir: Path, *, environ: Mapping[str, str] | None = None) -> EffectiveConfig:
+def _env_file_detail(parsed_env_file: ParsedEnvFile | None, env_key: str) -> str:
+    detail = parsed_env_file.source_detail_for(env_key) if parsed_env_file else None
+    return detail or env_key
+
+
+def _set_value(
+    *,
+    key: str,
+    value: Any,
+    source: str,
+    detail: str | None,
+    values: dict[str, Any],
+    sources: dict[str, str],
+    source_details: dict[str, str],
+) -> None:
+    values[key] = value
+    sources[key] = source
+    if detail:
+        source_details[key] = detail
+    else:
+        source_details.pop(key, None)
+
+
+def resolve_effective_config(
+    project_dir: Path,
+    *,
+    environ: Mapping[str, str] | None = None,
+    env_file_values: Mapping[str, str] | None = None,
+    env_file_provenance: ParsedEnvFile | None = None,
+    cli_overrides: Mapping[str, Any] | None = None,
+) -> EffectiveConfig:
     """Resolve canonical config values with source metadata and redaction."""
     env = os.environ if environ is None else environ
+    file_env = {} if env_file_values is None else env_file_values
+    cli = {} if cli_overrides is None else cli_overrides
     cfg = load_project_config(project_dir)
     values = dict(_DEFAULT_EFFECTIVE)
     sources = {key: "default" for key in values}
+    source_details: dict[str, str] = {}
     warnings: list[str] = []
 
     sections = _project_sections(cfg)
     for key, (section, field_name) in _PROJECT_MAP.items():
         section_values = sections.get(section, {})
         if field_name in section_values:
-            values[key] = section_values[field_name]
-            sources[key] = "project"
+            _set_value(
+                key=key,
+                value=section_values[field_name],
+                source="project",
+                detail=f"{CONFIG_FILENAME}:[{section}].{field_name}",
+                values=values,
+                sources=sources,
+                source_details=source_details,
+            )
+
+    for env_key, key in _ENV_MAP.items():
+        if env_key in file_env and str(file_env[env_key]).strip() != "":
+            try:
+                _set_value(
+                    key=key,
+                    value=_coerce_like(_DEFAULT_EFFECTIVE[key], file_env[env_key]),
+                    source="env-file",
+                    detail=_env_file_detail(env_file_provenance, env_key),
+                    values=values,
+                    sources=sources,
+                    source_details=source_details,
+                )
+            except (TypeError, ValueError):
+                warnings.append(f"Ignoring invalid env-file {env_key}={file_env[env_key]!r}")
 
     for env_key, key in _ENV_MAP.items():
         if env_key in env and str(env[env_key]).strip() != "":
             try:
-                values[key] = _coerce_like(_DEFAULT_EFFECTIVE[key], env[env_key])
-                sources[key] = "env"
+                _set_value(
+                    key=key,
+                    value=_coerce_like(_DEFAULT_EFFECTIVE[key], env[env_key]),
+                    source="process-env",
+                    detail=env_key,
+                    values=values,
+                    sources=sources,
+                    source_details=source_details,
+                )
             except (TypeError, ValueError):
                 warnings.append(f"Ignoring invalid {env_key}={env[env_key]!r}")
 
     for env_key, (key, canonical_env) in _LEGACY_ENV_MAP.items():
         if env_key not in env or str(env[env_key]).strip() == "":
             continue
-        if canonical_env in env or sources.get(key) in {"env", "project"}:
+        if canonical_env in env or sources.get(key) in {"process-env", "env-file", "project"}:
             warnings.append(f"Ignoring deprecated {env_key}; canonical/project {key} wins")
             continue
         try:
-            values[key] = _coerce_like(_DEFAULT_EFFECTIVE[key], env[env_key])
-            sources[key] = "legacy-env"
+            _set_value(
+                key=key,
+                value=_coerce_like(_DEFAULT_EFFECTIVE[key], env[env_key]),
+                source="legacy-env",
+                detail=env_key,
+                values=values,
+                sources=sources,
+                source_details=source_details,
+            )
             warnings.append(f"Deprecated {env_key}; use {canonical_env}")
         except (TypeError, ValueError):
             warnings.append(f"Ignoring invalid {env_key}={env[env_key]!r}")
 
+    for key, raw_value in cli.items():
+        if key not in values or raw_value is None or str(raw_value).strip() == "":
+            continue
+        try:
+            _set_value(
+                key=key,
+                value=_coerce_like(_DEFAULT_EFFECTIVE[key], raw_value),
+                source="cli",
+                detail=key,
+                values=values,
+                sources=sources,
+                source_details=source_details,
+            )
+        except (TypeError, ValueError):
+            warnings.append(f"Ignoring invalid CLI override {key}={raw_value!r}")
+
     api_key_env = str(values.get("llm.api_key_env") or "CS_LLM_API_KEY")
-    api_key = str(env.get(api_key_env, "") or "")
+    api_key = ""
+    api_source = "default"
+    api_detail: str | None = None
+    if api_key_env in file_env and str(file_env[api_key_env]).strip():
+        api_key = str(file_env[api_key_env] or "")
+        api_source = "env-file"
+        api_detail = _env_file_detail(env_file_provenance, api_key_env)
+    if api_key_env in env and str(env[api_key_env]).strip():
+        api_key = str(env[api_key_env] or "")
+        api_source = "process-env"
+        api_detail = api_key_env
     provider = str(values.get("llm.provider") or "").lower()
-    if not api_key and provider == "openai":
-        api_key = str(env.get("OPENAI_API_KEY", "") or "")
-    if not api_key and provider == "anthropic":
-        api_key = str(env.get("ANTHROPIC_API_KEY", "") or "")
-    values["llm.api_key"] = _redact_secret(api_key)
-    sources["llm.api_key"] = "env" if api_key else "default"
+    provider_key = "OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY" if provider == "anthropic" else ""
+    if not api_key and provider_key:
+        if provider_key in file_env and str(file_env[provider_key]).strip():
+            api_key = str(file_env[provider_key] or "")
+            api_source = "env-file"
+            api_detail = _env_file_detail(env_file_provenance, provider_key)
+        if provider_key in env and str(env[provider_key]).strip():
+            api_key = str(env[provider_key] or "")
+            api_source = "process-env"
+            api_detail = provider_key
+    _set_value(
+        key="llm.api_key",
+        value=_redact_secret(api_key),
+        source=api_source if api_key else "default",
+        detail=api_detail,
+        values=values,
+        sources=sources,
+        source_details=source_details,
+    )
 
     if _as_bool(values.get("budgets.llm_token_budget_enabled")) and int(values.get("budgets.llm_daily_token_budget") or 0) <= 0:
         warnings.append("Token budget enabled with non-positive limit; runtime disables enforcement")
-    return EffectiveConfig(values=values, sources=sources, warnings=warnings)
+    return EffectiveConfig(values=values, sources=sources, source_details=source_details, warnings=warnings)
 
 
 def apply_project_config_to_environ(
@@ -334,8 +623,9 @@ def apply_project_config_to_environ(
 
     Runtime components historically read canonical ``CS_*`` variables.  This
     bridge makes ``.clawsentry.toml`` effective without overwriting explicit
-    environment values, preserving the documented precedence: env > project >
-    defaults.  It intentionally writes only canonical names.
+    environment values, preserving the runtime bridge precedence: existing environment values
+    always win over project defaults. Full effective resolution is CLI >
+    process env > explicit env-file > project > legacy aliases > defaults.  It intentionally writes only canonical names.
     """
     target = os.environ if environ is None else environ
     cfg = load_project_config(project_dir)

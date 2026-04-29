@@ -6,7 +6,7 @@ import json
 import secrets
 from pathlib import Path
 
-from .base import ENV_FILE_NAME, InitResult, SetupResult, merge_env_file
+from .base import LOCAL_ENV_FILE_EXAMPLE, InitResult, SetupResult, merge_project_framework_config
 
 _DEFAULT_WS_PORT = 18789
 
@@ -88,13 +88,7 @@ class OpenClawInitializer:
         auto_detect: bool = False,
         openclaw_home: Path | None = None,
     ) -> InitResult:
-        env_path = target_dir / ENV_FILE_NAME
         warnings: list[str] = []
-
-        if env_path.exists() and force:
-            warnings.append(f"Overwriting existing {env_path}")
-        elif env_path.exists():
-            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
 
         # --- defaults ---
         token = ""
@@ -113,28 +107,23 @@ class OpenClawInitializer:
                 if token:
                     enforcement_enabled = "true"
 
-        env_vars = {
-            "CS_FRAMEWORK": self.framework_name,
+        config_path, env_vars = merge_project_framework_config(
+            target_dir,
+            framework=self.framework_name,
+            force=force,
+        )
+        env_vars.update({
             "OPENCLAW_WEBHOOK_TOKEN": secrets.token_urlsafe(32),
-            "CS_AUTH_TOKEN": secrets.token_urlsafe(32),
             "CS_HTTP_PORT": "8080",
             "OPENCLAW_WEBHOOK_PORT": "8081",
             # Enforcement (WebSocket approval callback)
             "OPENCLAW_ENFORCEMENT_ENABLED": enforcement_enabled,
             "OPENCLAW_WS_URL": f"ws://127.0.0.1:{ws_port}",
             "OPENCLAW_OPERATOR_TOKEN": token,
-        }
-
-        env_vars = merge_env_file(
-            env_path,
-            header="# ClawSentry — OpenClaw integration config",
-            new_values=env_vars,
-            framework=self.framework_name,
-            force=force,
-        )
+        })
 
         next_steps = [
-            f"source {ENV_FILE_NAME}",
+            f"Put OpenClaw secrets in process env or pass --env-file {LOCAL_ENV_FILE_EXAMPLE}",
             "clawsentry stack",
             (
                 "Configure OpenClaw webhook URL:\n"
@@ -155,7 +144,7 @@ class OpenClawInitializer:
         ]
 
         return InitResult(
-            files_created=[env_path],
+            files_created=[config_path],
             env_vars=env_vars,
             next_steps=next_steps,
             warnings=warnings,

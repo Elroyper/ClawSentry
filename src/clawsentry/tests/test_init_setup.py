@@ -259,9 +259,14 @@ class TestSetupOpenClawConfig:
         )
         assert exit_code == 0
 
-        # auto_detect should have been implicitly enabled
-        env_content = (tmp_path / ".env.clawsentry").read_text()
-        assert "my-token-123" in env_content
+        # auto_detect should have been implicitly enabled for setup, while
+        # framework enablement is stored in .clawsentry.toml and secrets are
+        # not written to a local env file by init.
+        toml_content = (tmp_path / ".clawsentry.toml").read_text()
+        assert '[frameworks]' in toml_content
+        assert 'default = "openclaw"' in toml_content
+        assert not (tmp_path / ".env.clawsentry").exists()
+        assert "my-token-123" not in toml_content
 
 
 class TestSetupExecApprovalsCreation:
@@ -355,6 +360,25 @@ class TestSetupCLIIntegration:
         captured = capsys.readouterr()
         # No setup output for a3s-code
         assert "OpenClaw configuration updated" not in captured.out
+        assert (tmp_path / ".clawsentry.toml").is_file()
+        assert not (tmp_path / ".env.clawsentry").exists()
+
+    def test_init_codex_records_frameworks_in_toml_only(self, tmp_path: Path):
+        exit_code = run_init(
+            framework="codex",
+            target_dir=tmp_path,
+            force=False,
+            setup=False,
+            dry_run=False,
+        )
+
+        assert exit_code == 0
+        text = (tmp_path / ".clawsentry.toml").read_text()
+        assert '[frameworks]' in text
+        assert 'enabled = ["codex"]' in text
+        assert 'default = "codex"' in text
+        assert "CS_AUTH_TOKEN" not in text
+        assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_cli_main_restore_openclaw_dispatch(self, tmp_path: Path, capsys):
         """CLI --restore should restore OpenClaw files from backups."""

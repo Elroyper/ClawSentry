@@ -376,7 +376,7 @@ DANGEROUS_TOOLS = {"bash", "shell", "exec", "sudo", "chmod", "chown", "kill", "p
 
 ### 开发环境
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 # 禁用速率限制，方便测试
 CS_RATE_LIMIT_PER_MINUTE=0
 
@@ -398,7 +398,7 @@ OPENAI_API_KEY=ollama
 
 ### 预发布环境
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 # 启用认证
 CS_AUTH_TOKEN=staging-token-xxx
 
@@ -422,7 +422,7 @@ CS_TRAJECTORY_DB_PATH=/data/clawsentry/trajectory.db
 
 ### 生产环境
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 # 强认证
 CS_AUTH_TOKEN=prod-high-entropy-token-64chars
 
@@ -582,7 +582,7 @@ DEFER 桥接在以下**所有条件**同时满足时激活：
 
 ### 完整示例
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 # 启用 DEFER 桥接
 CS_DEFER_BRIDGE_ENABLED=true
 CS_DEFER_TIMEOUT_S=86400        # normal mode 24 小时软超时；CI 用 benchmark mode
@@ -660,7 +660,7 @@ Bridge 将 ClawSentry 事件转换为人类可读的消息格式：
 
 ### 使用示例
 
-```bash title=".env.clawsentry"
+```bash title=".clawsentry.env.local"
 # 启用 Hub 转发
 CS_HUB_BRIDGE_ENABLED=true
 CS_LATCH_HUB_URL=http://127.0.0.1:3006

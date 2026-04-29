@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import secrets
 from pathlib import Path
 from typing import Any
 
-from .base import ENV_FILE_NAME, InitResult, merge_env_file
+from .base import LOCAL_ENV_FILE_EXAMPLE, InitResult, merge_project_framework_config
 
 
 _CLAWSENTRY_HOOK_MARKER = "clawsentry-harness"
@@ -66,31 +65,15 @@ class ClaudeCodeInitializer:
         claude_home: Path | None = None,
         **_kwargs: object,
     ) -> InitResult:
-        env_path = target_dir / ENV_FILE_NAME
         warnings: list[str] = []
         files_created: list[Path] = []
 
-        # --- .env.clawsentry ---
-        if env_path.exists() and force:
-            warnings.append(f"Overwriting existing {env_path}")
-        elif env_path.exists():
-            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
-
-        token = secrets.token_urlsafe(32)
-        env_vars = {
-            "CS_UDS_PATH": "/tmp/clawsentry.sock",
-            "CS_AUTH_TOKEN": token,
-            "CS_FRAMEWORK": "claude-code",
-        }
-
-        env_vars = merge_env_file(
-            env_path,
-            header="# ClawSentry — Claude Code integration config",
-            new_values=env_vars,
+        config_path, env_vars = merge_project_framework_config(
+            target_dir,
             framework=self.framework_name,
             force=force,
         )
-        files_created.append(env_path)
+        files_created.append(config_path)
 
         # --- ~/.claude/settings.json (hooks) ---
         # Write hooks to settings.json (not settings.local.json) to ensure
@@ -119,10 +102,10 @@ class ClaudeCodeInitializer:
         files_created.append(settings_path)
 
         next_steps = [
-            f"source {ENV_FILE_NAME}",
+            f"Optional local secrets: clawsentry start --env-file {LOCAL_ENV_FILE_EXAMPLE}",
             "clawsentry gateway    # start Gateway on UDS + HTTP :8080",
             "claude                 # hooks auto-loaded from ~/.claude/settings.json",
-            'clawsentry watch --token "$CS_AUTH_TOKEN"    # real-time monitoring',
+            "clawsentry watch --token <startup-token>    # real-time monitoring",
         ]
 
         return InitResult(

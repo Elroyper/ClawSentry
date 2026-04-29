@@ -7,11 +7,34 @@ import json
 from unittest.mock import patch
 
 from clawsentry.cli.integrations_command import run_integrations_status
+from clawsentry.gateway.project_config import update_project_framework
+
+
+def _write_explicit_env(tmp_path, content: str) -> Path:
+    env_file = tmp_path / ".env.clawsentry"
+    env_file.write_text(content)
+    values = {}
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    frameworks = []
+    for item in values.get("CS_ENABLED_FRAMEWORKS", "").split(","):
+        item = item.strip()
+        if item and item not in frameworks:
+            frameworks.append(item)
+    legacy = values.get("CS_FRAMEWORK", "").strip()
+    if legacy and legacy not in frameworks:
+        frameworks.insert(0, legacy)
+    for framework in frameworks:
+        update_project_framework(tmp_path, framework)
+    return env_file
 
 
 def test_integrations_status_reports_enabled_frameworks(tmp_path, capsys):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=a3s-code",
@@ -23,7 +46,7 @@ def test_integrations_status_reports_enabled_frameworks(tmp_path, capsys):
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path)
+    exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0
@@ -32,11 +55,25 @@ def test_integrations_status_reports_enabled_frameworks(tmp_path, capsys):
     assert "Codex watcher: enabled" in out
 
 
+
+def test_integrations_status_uses_process_env_for_readiness(tmp_path, capsys, monkeypatch):
+    update_project_framework(tmp_path, "a3s-code")
+    monkeypatch.setenv("CS_HTTP_PORT", "8080")
+
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["env_exists"] is False
+    readiness = payload["framework_readiness"]
+    assert readiness["a3s-code"]["status"] == "manual_verification_required"
+    assert readiness["a3s-code"]["checks"]["gateway_endpoint_configured"] is True
+
 def test_main_integrations_status_dispatches(tmp_path, monkeypatch):
     import pytest
     from clawsentry.cli.main import main
 
-    (tmp_path / ".env.clawsentry").write_text("CS_ENABLED_FRAMEWORKS=codex\n")
+    _write_explicit_env(tmp_path, "CS_ENABLED_FRAMEWORKS=codex\n")
     monkeypatch.chdir(tmp_path)
 
     with patch.dict(os.environ, {}, clear=True):
@@ -50,8 +87,7 @@ def test_integrations_status_json_does_not_report_a3s_transport_for_codex_only(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=codex",
@@ -63,7 +99,7 @@ def test_integrations_status_json_does_not_report_a3s_transport_for_codex_only(
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -74,8 +110,7 @@ def test_integrations_status_json_reports_claude_hooks_only_when_present(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=claude-code",
@@ -86,7 +121,7 @@ def test_integrations_status_json_reports_claude_hooks_only_when_present(
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -114,7 +149,7 @@ def test_integrations_status_json_reports_claude_hooks_only_when_present(
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -128,8 +163,7 @@ def test_integrations_status_json_reports_openclaw_restore_backups(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=openclaw",
@@ -144,7 +178,7 @@ def test_integrations_status_json_reports_openclaw_restore_backups(
     (openclaw_home / "openclaw.json.bak").write_text("{}")
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -158,8 +192,7 @@ def test_integrations_status_json_reports_codex_session_dir_reachability(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=codex",
@@ -178,7 +211,7 @@ def test_integrations_status_json_reports_codex_session_dir_reachability(
         patch("pathlib.Path.home", return_value=tmp_path),
         patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}, clear=False),
     ):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -190,8 +223,7 @@ def test_integrations_status_json_includes_framework_capability_matrix(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=codex",
@@ -202,7 +234,7 @@ def test_integrations_status_json_includes_framework_capability_matrix(
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 0
@@ -215,8 +247,7 @@ def test_integrations_status_json_includes_framework_capability_matrix(
 
 
 def test_integrations_status_json_includes_framework_readiness(tmp_path, capsys):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=a3s-code",
@@ -229,7 +260,7 @@ def test_integrations_status_json_includes_framework_readiness(tmp_path, capsys)
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     readiness = payload["framework_readiness"]
@@ -249,8 +280,7 @@ def test_integrations_status_json_reports_openclaw_host_setup_gaps(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=openclaw",
@@ -267,7 +297,7 @@ def test_integrations_status_json_reports_openclaw_host_setup_gaps(
     (openclaw_home / "openclaw.json").write_text("{}")
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     readiness = payload["framework_readiness"]["openclaw"]
@@ -280,8 +310,7 @@ def test_integrations_status_json_reports_openclaw_host_setup_gaps(
 
 
 def test_integrations_status_text_includes_extended_diagnostics(tmp_path, capsys):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=openclaw",
@@ -324,7 +353,7 @@ def test_integrations_status_text_includes_extended_diagnostics(tmp_path, capsys
         patch("pathlib.Path.home", return_value=tmp_path),
         patch.dict(os.environ, {"CODEX_HOME": str(tmp_path / ".codex")}, clear=False),
     ):
-        exit_code = run_integrations_status(target_dir=tmp_path)
+        exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0
@@ -340,8 +369,7 @@ def test_integrations_status_json_reports_framework_capability_matrix(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_ENABLED_FRAMEWORKS=a3s-code,claude-code,codex,openclaw",
@@ -351,7 +379,7 @@ def test_integrations_status_json_reports_framework_capability_matrix(
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     capabilities = payload["framework_capabilities"]
@@ -369,8 +397,7 @@ def test_integrations_status_text_includes_framework_capability_summary(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_ENABLED_FRAMEWORKS=a3s-code,codex,openclaw",
@@ -380,7 +407,7 @@ def test_integrations_status_text_includes_framework_capability_summary(
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path)
+    exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0
@@ -400,8 +427,7 @@ def test_integrations_status_json_includes_multi_framework_readiness(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=a3s-code",
@@ -426,7 +452,7 @@ def test_integrations_status_json_includes_multi_framework_readiness(
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+        exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     readiness = payload["framework_readiness"]
@@ -447,8 +473,7 @@ def test_integrations_status_text_includes_framework_readiness_block(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=a3s-code",
@@ -461,7 +486,7 @@ def test_integrations_status_text_includes_framework_readiness_block(
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path)
+        exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0
@@ -476,8 +501,7 @@ def test_integrations_status_text_includes_framework_readiness_section(
     tmp_path,
     capsys,
 ):
-    env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_ENABLED_FRAMEWORKS=a3s-code,codex",
@@ -489,7 +513,7 @@ def test_integrations_status_text_includes_framework_readiness_section(
     )
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        exit_code = run_integrations_status(target_dir=tmp_path)
+        exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0
@@ -504,7 +528,7 @@ def test_integrations_status_json_includes_gemini_readiness(tmp_path, capsys):
 
     GeminiCLIInitializer().setup_gemini_hooks(target_dir=tmp_path)
     settings_path = tmp_path / ".gemini" / "settings.json"
-    (tmp_path / ".env.clawsentry").write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=gemini-cli",
@@ -516,7 +540,7 @@ def test_integrations_status_json_includes_gemini_readiness(tmp_path, capsys):
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True)
+    exit_code = run_integrations_status(target_dir=tmp_path, json_mode=True, env_file=env_file)
 
     payload = json.loads(capsys.readouterr().out)
     readiness = payload["framework_readiness"]["gemini-cli"]
@@ -529,7 +553,7 @@ def test_integrations_status_json_includes_gemini_readiness(tmp_path, capsys):
 
 
 def test_integrations_status_text_includes_gemini_capability(tmp_path, capsys):
-    (tmp_path / ".env.clawsentry").write_text(
+    env_file = _write_explicit_env(tmp_path,
         "\n".join(
             [
                 "CS_FRAMEWORK=gemini-cli",
@@ -540,7 +564,7 @@ def test_integrations_status_text_includes_gemini_capability(tmp_path, capsys):
         )
     )
 
-    exit_code = run_integrations_status(target_dir=tmp_path)
+    exit_code = run_integrations_status(target_dir=tmp_path, env_file=env_file)
 
     out = capsys.readouterr().out
     assert exit_code == 0

@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3250 public regression tests** with release-time CI/build evidence
+- **3198 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,11 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.6.0
+## What's New in v0.6.1
 
-- **Polished setup path**: `clawsentry config wizard --interactive` now uses numbered choices, TTY-safe progress, and honest labels for runtime-effective vs env-only settings.
-- **Clear config precedence**: `.clawsentry.toml` is shareable non-secret project policy, `.env.clawsentry` is local startup convenience, and process environment remains highest-precedence/secret override.
-- **L3 Agent E2E evidence**: `replace_l2` + `eager` routing is behaviorally tested, persisted in trajectory traces, surfaced in reporting APIs, and optionally verified against a real LLM provider.
+- **Strict config-source split**: project config discovery is limited to `.clawsentry.toml`. `.env.clawsentry` is legacy/migration-only and is used only when passed explicitly via `--env-file` or `CLAWSENTRY_ENV_FILE`.
+- **No implicit secret writes**: `init` / `start` no longer generate local secret env files. Runtime values come from process/deployment env, explicit env files, or a fresh in-memory `CS_AUTH_TOKEN` for local startup.
+- **Clear framework enablement**: framework selections live in `.clawsentry.toml [frameworks]`; old `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` aliases remain migration-only.
 
 ## Quick Start
 
@@ -63,8 +63,7 @@ The `start` command will:
 `clawsentry start` prints a Web UI URL such as
 `http://127.0.0.1:8080/ui?token=...`. The browser stores that token in
 `sessionStorage` and removes `?token=` from the address bar before loading data.
-Manual login uses the same `CS_AUTH_TOKEN` from the startup environment or
-`.env.clawsentry`.
+Manual login uses the same `CS_AUTH_TOKEN` from the startup environment, explicit `--env-file`, or the ephemeral token printed by `start`.
 
 - `invalid token` / `401` means the pasted value does not match
   `CS_AUTH_TOKEN`.
@@ -75,11 +74,10 @@ Manual login uses the same `CS_AUTH_TOKEN` from the startup environment or
 
 Press Ctrl+C to gracefully shutdown.
 
-`clawsentry init <framework>` merges into an existing `.env.clawsentry` by
-default: existing `CS_AUTH_TOKEN` and `CS_FRAMEWORK` values are preserved, and
-additional frameworks are recorded in `CS_ENABLED_FRAMEWORKS` (for example
-`a3s-code,codex,openclaw`). Use `--force` only when you want to replace the
-existing env file.
+`clawsentry init <framework>` updates `.clawsentry.toml [frameworks]` by
+default and does not write secrets. Framework enablement is stored in project
+config; local tokens and provider keys belong in process/deployment env or an
+explicit `--env-file` such as `.clawsentry.env.local`.
 
 Start multiple integrations together:
 
@@ -116,7 +114,7 @@ clawsentry init openclaw --uninstall     # env only; use --restore for OpenClaw-
 #### a3s-code
 
 ```bash
-clawsentry init a3s-code           # generate .env.clawsentry
+clawsentry init a3s-code           # update .clawsentry.toml [frameworks]
 clawsentry gateway                 # start gateway (default :8080)
 clawsentry watch                   # tail live decisions in your terminal
 ```
@@ -129,7 +127,7 @@ does not auto-load it.
 #### OpenClaw
 
 ```bash
-clawsentry init openclaw           # generate project env only
+clawsentry init openclaw           # update .clawsentry.toml [frameworks] only
 clawsentry init openclaw --setup   # opt-in: patch OpenClaw settings
 clawsentry gateway                 # start gateway (default :8080)
 open http://localhost:8080/ui      # open web dashboard
@@ -202,9 +200,9 @@ Full documentation is available at **https://elroyper.github.io/ClawSentry/**
 | Variable | Default | Description |
 |---|---|---|
 | `CS_AUTH_TOKEN` | *(required)* | Bearer token for all REST / SSE endpoints |
-| `AHP_LLM_PROVIDER` | `rule_based` | LLM backend for L2/L3: `anthropic`, `openai`, or `rule_based` |
-| `AHP_L3_ENABLED` | `false` | Enable L3 multi-turn review agent |
-| `AHP_SESSION_ENFORCEMENT_ENABLED` | `false` | Auto-escalate sessions after N high-risk events |
+| `CS_LLM_PROVIDER` | *(empty = rules only)* | LLM backend for L2/L3: `anthropic`, `openai`, or empty for rules-only mode |
+| `CS_L3_ENABLED` | `false` | Enable L3 multi-turn review agent |
+| `AHP_SESSION_ENFORCEMENT_ENABLED` | `false` | Legacy session-enforcement flag; prefer canonical `CS_*` settings where available |
 | `OPENCLAW_WS_URL` | — | WebSocket URL of a running OpenClaw gateway |
 | `CS_EVOLVING_ENABLED` | `false` | Enable self-evolving pattern library (E-5) |
 | `CS_EVOLVED_PATTERNS_PATH` | — | Path to store evolved patterns YAML |

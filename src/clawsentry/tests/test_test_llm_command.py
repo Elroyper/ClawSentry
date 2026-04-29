@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -415,6 +416,37 @@ class TestRunTestLlm:
         data = json.loads(output)
         assert data["all_pass"] is True
         assert len(data["results"]) >= 3
+
+    @patch("clawsentry.cli.test_llm_command._test_reachability")
+    @patch("clawsentry.cli.test_llm_command._test_l2")
+    @patch("clawsentry.cli.test_llm_command._test_l3")
+    def test_env_file_l3_enabled_runs_l3_without_mutating_process_env(
+        self, mock_l3, mock_l2, mock_reach, tmp_path, capsys
+    ):
+        env_file = tmp_path / "clawsentry.env"
+        env_file.write_text(
+            "\n".join(
+                [
+                    "CS_LLM_PROVIDER=openai",
+                    "OPENAI_API_KEY=sk-test-key-1234567890abcdef",
+                    "CS_L3_ENABLED=true",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        mock_reach.return_value = (True, 200.0, "PONG")
+        mock_l2.return_value = (True, 600.0, "risk=medium")
+        mock_l3.return_value = (True, 900.0, "mode=multi_turn, trigger=manual_l3_escalate")
+
+        code = run_test_llm(color=False, json_mode=True, env_file=env_file)
+
+        assert code == 0
+        assert mock_l3.await_count == 1
+        assert mock_l3.await_args.kwargs["runtime_env"]["CS_L3_ENABLED"] == "true"
+        data = json.loads(capsys.readouterr().out)
+        l3_result = next(item for item in data["results"] if item["test"] == "l3_review")
+        assert l3_result["latency_ms"] == 900.0
+        assert "CS_L3_ENABLED" not in os.environ
 
     @patch("clawsentry.cli.test_llm_command._build_provider")
     @patch("clawsentry.cli.test_llm_command._test_reachability")

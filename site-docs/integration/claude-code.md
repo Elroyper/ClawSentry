@@ -67,10 +67,10 @@ clawsentry init claude-code
 
 此命令会自动：
 
-- 生成 **`.env.clawsentry`** — 包含 UDS 路径、认证 Token 和框架标识（权限 `600`）
+- 生成 **`.clawsentry.env.local`** — 包含 UDS 路径、认证 Token 和框架标识（权限 `600`）
 - 注入 hooks 到 **`~/.claude/settings.json`** — 智能合并，不覆盖已有 hooks
 
-生成的 `.env.clawsentry` 内容示例：
+生成的 `.clawsentry.env.local` 内容示例：
 
 ```ini
 # ClawSentry — Claude Code integration config
@@ -80,7 +80,7 @@ CS_FRAMEWORK=claude-code
 ```
 
 !!! tip "已有配置？"
-    如果 `.env.clawsentry` 已存在，使用 `--force` 覆盖：
+    如果 `.clawsentry.env.local` 已存在，使用 `--force` 覆盖：
     ```bash
     clawsentry init claude-code --force
     ```
@@ -89,7 +89,7 @@ CS_FRAMEWORK=claude-code
 
 ```bash
 # 加载环境变量
-source .env.clawsentry
+clawsentry start --env-file .clawsentry.env.local
 
 # 启动 Gateway（监听 UDS + HTTP）
 clawsentry gateway
@@ -108,7 +108,7 @@ claude   # hooks 自动加载，所有工具调用经过 ClawSentry 评估
 ```
 
 !!! success "就这么简单"
-    三步完成：`clawsentry init claude-code` → `source .env.clawsentry` → `clawsentry gateway`，然后正常使用 `claude` 即可。所有工具调用自动经过安全评估。
+    三步完成：`clawsentry init claude-code` → `clawsentry start --env-file .clawsentry.env.local` → `clawsentry gateway`，然后正常使用 `claude` 即可。所有工具调用自动经过安全评估。
 
 ---
 
@@ -337,12 +337,12 @@ clawsentry start --framework claude-code --no-watch
     如果省略 `--framework`，ClawSentry 会自动检测：
 
     1. 检查 `~/.claude/settings.json` 中是否包含 ClawSentry hooks
-    2. 检查当前目录 `.env.clawsentry` 中的 `CS_FRAMEWORK` 字段
+    2. 检查当前目录 `.clawsentry.env.local` 中的 `CS_FRAMEWORK` 字段
     3. 检测到 `claude-code` 后自动使用对应配置
 
 `clawsentry start` 的完整流程：
 
-1. 如果 `.env.clawsentry` 不存在，自动运行 `clawsentry init claude-code`
+1. 如果 `.clawsentry.env.local` 不存在，自动运行 `clawsentry init claude-code`
 2. 加载环境变量
 3. 后台启动 Gateway 进程
 4. 等待 health check 通过
@@ -361,7 +361,7 @@ clawsentry init claude-code --uninstall
 此命令会：
 
 - 从 `~/.claude/settings.json`（及旧版 `settings.local.json`）中**精确移除** ClawSentry hooks
-- 从当前目录 `.env.clawsentry` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `claude-code`
+- 从当前目录 `.clawsentry.env.local` 的 `CS_ENABLED_FRAMEWORKS` 中移除 `claude-code`
 - 保留其他工具的 hooks 不受影响
 - 保留其他框架配置和共享 `CS_AUTH_TOKEN` 不受影响
 - 如果移除后 `hooks` 字段为空，自动清理该字段

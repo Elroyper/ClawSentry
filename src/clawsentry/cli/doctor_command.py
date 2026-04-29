@@ -1,6 +1,6 @@
 """``clawsentry doctor`` — offline configuration security audit.
 
-Loads ``.env.clawsentry``, runs 20 checks, and outputs a PASS/WARN/FAIL report.
+Runs offline checks and can include explicit env-file values when requested.
 """
 
 from __future__ import annotations
@@ -808,9 +808,31 @@ def compute_exit_code(results: list[DoctorCheck]) -> int:
     return 0
 
 
-def run_doctor(json_mode: bool = False, color: bool = True) -> int:
+def run_doctor(
+    json_mode: bool = False,
+    color: bool = True,
+    env_file: Path | None = None,
+) -> int:
     """Run doctor command and print output. Returns exit code."""
-    results = run_all_checks()
+    from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
+
+    old_env: dict[str, str] | None = None
+    if env_file is not None or os.environ.get("CLAWSENTRY_ENV_FILE"):
+        try:
+            parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+        except EnvFileError as exc:
+            print(str(exc))
+            return 2
+        # Doctor checks are still env-backed; isolate by restoring os.environ.
+        old_env = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(overlay_env_file(old_env, parsed))
+    try:
+        results = run_all_checks()
+    finally:
+        if old_env is not None:
+            os.environ.clear()
+            os.environ.update(old_env)
     if json_mode:
         print(format_json(results))
     else:

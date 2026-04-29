@@ -21,10 +21,14 @@ HTTP API 端点（`/ahp`、`/ahp/a3s`、`/ahp/resolve`、`/report/*`）默认使
 export CS_AUTH_TOKEN="your-secure-token-at-least-32-chars"
 ```
 
-或在 `.env.clawsentry` 文件中配置（Gateway 启动时自动加载）：
+或在显式 env file 中配置，并在启动时传入 `--env-file`：
 
-```ini
+```ini title=".clawsentry.env.local"
 CS_AUTH_TOKEN=your-secure-token-at-least-32-chars
+```
+
+```bash
+clawsentry start --env-file .clawsentry.env.local
 ```
 
 ### 使用方式
@@ -203,7 +207,7 @@ export AHP_WEBHOOK_TOKEN_TTL_SECONDS=86400  # 24 小时
 ### Webhook 安全配置完整示例
 
 ```bash
-# .env.clawsentry
+# .clawsentry.env.local（使用 --env-file 显式传入）
 
 # Webhook 令牌
 OPENCLAW_WEBHOOK_TOKEN=primary-token-32-chars-minimum

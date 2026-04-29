@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import secrets
 from pathlib import Path
 from typing import Any
 
-from .base import ENV_FILE_NAME, InitResult, SetupResult, merge_env_file
+from .base import LOCAL_ENV_FILE_EXAMPLE, InitResult, SetupResult, merge_project_framework_config
 
 
 _GEMINI_HOOK_MARKER = "clawsentry harness --framework gemini-cli"
@@ -55,40 +54,25 @@ class GeminiCLIInitializer:
         gemini_home: Path | None = None,
         **_kwargs: object,
     ) -> InitResult:
-        env_path = target_dir / ENV_FILE_NAME
         settings_path = _gemini_settings_path(target_dir, gemini_home=gemini_home)
         warnings: list[str] = []
 
-        if env_path.exists() and force:
-            warnings.append(f"Overwriting existing {env_path}")
-        elif env_path.exists():
-            warnings.append(f"Merging {self.framework_name} settings into existing {env_path}")
-
-        token = secrets.token_urlsafe(32)
-        env_vars = {
-            "CS_HTTP_PORT": "8080",
-            "CS_AUTH_TOKEN": token,
-            "CS_FRAMEWORK": self.framework_name,
-            "CS_GEMINI_HOOKS_ENABLED": "true",
-            "CS_GEMINI_SETTINGS_PATH": str(settings_path),
-        }
-        env_vars = merge_env_file(
-            env_path,
-            header="# ClawSentry — Gemini CLI integration config",
-            new_values=env_vars,
+        config_path, env_vars = merge_project_framework_config(
+            target_dir,
             framework=self.framework_name,
             force=force,
         )
+        env_vars["CS_GEMINI_SETTINGS_PATH"] = str(settings_path)
 
         next_steps = [
-            f"source {ENV_FILE_NAME}",
+            f"Optional local secrets: clawsentry start --env-file {LOCAL_ENV_FILE_EXAMPLE}",
             "clawsentry gateway    # start Gateway for Gemini hook decisions",
             "clawsentry init gemini-cli --setup --dry-run    # preview project-local .gemini/settings.json hook changes",
             "clawsentry init gemini-cli --setup              # install project-local Gemini hooks",
             "gemini --prompt 'say hello'                    # use Gemini CLI in this project",
         ]
         return InitResult(
-            files_created=[env_path],
+            files_created=[config_path],
             env_vars=env_vars,
             next_steps=next_steps,
             warnings=warnings,

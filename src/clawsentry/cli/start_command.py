@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -11,7 +12,9 @@ from pathlib import Path
 
 from .init_command import run_init
 from .integrations_command import collect_integration_status
+from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
 from .initializers.base import ENV_FILE_NAME, read_env_file
+from clawsentry.gateway.project_config import read_project_frameworks
 
 
 _PID_FILE = Path("/tmp/clawsentry-gateway.pid")
@@ -43,7 +46,7 @@ def _remove_pid_file(path: Path) -> None:
 
 
 def read_enabled_frameworks_from_env_file(env_file: Path) -> list[str]:
-    """Read CS_ENABLED_FRAMEWORKS/CS_FRAMEWORK from .env.clawsentry."""
+    """Read migration-only framework markers from an explicit env file."""
     values = read_env_file(env_file)
     enabled: list[str] = []
     raw_enabled = values.get("CS_ENABLED_FRAMEWORKS", "")
@@ -58,7 +61,7 @@ def read_enabled_frameworks_from_env_file(env_file: Path) -> list[str]:
 
 
 def _read_framework_from_env_file(env_file: Path) -> str | None:
-    """Read the default framework from .env.clawsentry, if present."""
+    """Read the default framework from an explicit legacy env file, if present."""
     values = read_env_file(env_file)
     fw = values.get("CS_FRAMEWORK", "").strip()
     if fw in _SUPPORTED_FRAMEWORKS:
@@ -81,30 +84,20 @@ def detect_framework(
     """Auto-detect which framework is configured.
 
     Returns ``"openclaw"``, ``"a3s-code"``, ``"codex"``, ``"claude-code"``,
-    or ``None``.  Explicit ``CS_FRAMEWORK`` in ``.env.clawsentry`` takes
-    highest priority.
+    or ``None``.  Framework project state is read from ``.clawsentry.toml``.
 
     Monitoring integrations must be **explicitly enabled**. This function only
-    treats project-local config (``.env.clawsentry``) and explicit environment
+    treats project config (``.clawsentry.toml``) and explicit environment
     variables as opt-in signals. It deliberately avoids silently activating
     monitoring based on home-directory heuristics (e.g. ``~/.codex/sessions``,
     ``~/.claude/settings.json``, ``~/.openclaw/openclaw.json``).
     """
-    env_file = Path.cwd() / ".env.clawsentry"
-    env_framework = _read_framework_from_env_file(env_file)
-    if env_framework:
-        return env_framework
-
-    # Explicit shell env can opt-in without writing .env.clawsentry first.
-    shell_framework = os.environ.get("CS_FRAMEWORK", "").strip()
-    if shell_framework in _SUPPORTED_FRAMEWORKS:
-        return shell_framework
-    shell_enabled = os.environ.get("CS_ENABLED_FRAMEWORKS", "").strip()
-    if shell_enabled:
-        enabled = [item.strip() for item in shell_enabled.split(",") if item.strip()]
-        for item in enabled:
-            if item in _SUPPORTED_FRAMEWORKS:
-                return item
+    enabled, default = read_project_frameworks(Path.cwd())
+    if default in _SUPPORTED_FRAMEWORKS:
+        return default
+    for item in enabled:
+        if item in _SUPPORTED_FRAMEWORKS:
+            return item
 
     # Legacy ClawSentry releases wrote .a3s-code/settings.json. Keep it as a
     # project marker only; a3s-code AHP still requires explicit SDK transport.
@@ -151,13 +144,13 @@ def ensure_init(
     openclaw_home: Path | None = None,
     setup_openclaw: bool = False,
 ) -> bool:
-    """Run init if .env.clawsentry does not exist. Returns True if init was run.
+    """Run init if .clawsentry.toml does not enable framework. Returns True if init was run.
 
     Raises:
         RuntimeError: If initialization fails.
     """
-    env_file = target_dir / ENV_FILE_NAME
-    if env_file.exists():
+    enabled, _default = read_project_frameworks(target_dir)
+    if framework in enabled:
         return False
 
     exit_code = run_init(
@@ -182,9 +175,8 @@ def ensure_integrations(
     openclaw_home: Path | None = None,
     setup_openclaw: bool = False,
 ) -> list[str]:
-    """Ensure requested frameworks are present in project env config."""
-    env_file = target_dir / ENV_FILE_NAME
-    existing = read_enabled_frameworks_from_env_file(env_file)
+    """Ensure requested frameworks are present in project TOML config."""
+    existing, _default = read_project_frameworks(target_dir)
     initialized: list[str] = []
 
     for framework in frameworks:
@@ -203,7 +195,7 @@ def ensure_integrations(
         if exit_code != 0:
             raise RuntimeError(f"Failed to initialize {framework} configuration")
         initialized.append(framework)
-        existing = read_enabled_frameworks_from_env_file(env_file)
+        existing, _default = read_project_frameworks(target_dir)
 
     return initialized
 
@@ -278,18 +270,12 @@ def shutdown_gateway(proc: subprocess.Popen, timeout: float = 5.0) -> None:
         proc.wait(timeout=2)
 
 
-def _read_token_from_env(target_dir: Path) -> str:
-    """Read CS_AUTH_TOKEN from environment or .env.clawsentry file."""
-    token = os.environ.get("CS_AUTH_TOKEN", "")
+def _read_token_from_env(effective_env: dict[str, str]) -> tuple[str, bool]:
+    """Read CS_AUTH_TOKEN or generate an ephemeral local token."""
+    token = effective_env.get("CS_AUTH_TOKEN", "").strip()
     if token:
-        return token
-    env_file = target_dir / ENV_FILE_NAME
-    if env_file.is_file():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line.startswith("CS_AUTH_TOKEN="):
-                return line.split("=", 1)[1].strip()
-    return ""
+        return token, False
+    return secrets.token_urlsafe(32), True
 
 
 def _status_label(status: str) -> str:
@@ -326,12 +312,17 @@ def _print_framework_readiness(
     return False
 
 
-def _print_effective_config_summary(target_dir: Path) -> None:
+def _print_effective_config_summary(target_dir: Path, *, env_file_values: dict[str, str] | None = None, parsed_env_file=None) -> None:
     """Render a compact non-secret config summary for startup UX."""
     try:
         from ..gateway.project_config import resolve_effective_config
 
-        eff = resolve_effective_config(target_dir)
+        eff = resolve_effective_config(
+            target_dir,
+            environ=os.environ,
+            env_file_values=env_file_values or {},
+            env_file_provenance=parsed_env_file,
+        )
     except Exception:
         return
     v = eff.values
@@ -427,9 +418,15 @@ def run_start(
     with_latch: bool = False,
     hub_port: int = 3006,
     auto_detected: bool = False,
+    env_file: Path | None = None,
 ) -> None:
     """Orchestrate: auto-init → launch gateway → health check → watch."""
-    from .dotenv_loader import load_dotenv
+    try:
+        parsed_env = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+    except EnvFileError as exc:
+        print(str(exc), file=sys.stderr)
+        return
+    effective_env = overlay_env_file(os.environ, parsed_env)
 
     # 1. Auto-init if needed
     requested_frameworks = enabled_frameworks or [framework]
@@ -441,22 +438,24 @@ def run_start(
     )
     did_init = bool(initialized)
 
-    # 2. Load env vars (picks up newly created .env.clawsentry)
-    load_dotenv(search_dir=target_dir)
-    active_frameworks = enabled_frameworks or read_enabled_frameworks_from_env_file(
-        target_dir / ENV_FILE_NAME
-    ) or [framework]
+    # 2. Determine active frameworks from explicit args / .clawsentry.toml.
+    project_frameworks, project_default = read_project_frameworks(target_dir)
+    active_frameworks = enabled_frameworks or project_frameworks or [framework]
+    if not framework and project_default:
+        framework = project_default
     openclaw_setup_result = None
     if setup_openclaw and "openclaw" in active_frameworks:
         openclaw_setup_result = ensure_openclaw_setup(openclaw_home=openclaw_home)
     integration_status = collect_integration_status(
         target_dir,
         openclaw_home=openclaw_home,
+        env_values=effective_env,
+        env_file_present=parsed_env.path is not None,
     )
     framework_readiness = integration_status["framework_readiness"]
 
     # 3. Read token
-    token = _read_token_from_env(target_dir)
+    token, ephemeral_token = _read_token_from_env(effective_env)
     gateway_url = f"http://{host}:{port}"
     log_path = Path("/tmp/clawsentry-gateway.log")
     gateway_ui_url = f"{gateway_url}/ui"
@@ -503,6 +502,10 @@ def run_start(
             )
     print(f"  Gateway:    {gateway_url} (background)")
     print(f"  Web UI:     {gateway_ui_url}")
+    if ephemeral_token:
+        print("  Auth token: ephemeral; not persisted")
+    elif parsed_env.path is not None and "CS_AUTH_TOKEN" in parsed_env.values and "CS_AUTH_TOKEN" not in os.environ:
+        print(f"  Auth token: explicit env-file ({parsed_env.source_detail_for('CS_AUTH_TOKEN')})")
     print(f"  Log file:   {log_path}")
     if openclaw_setup_result is not None:
         if openclaw_setup_result.files_modified:
@@ -520,13 +523,20 @@ def run_start(
         active_frameworks=active_frameworks,
         readiness=framework_readiness,
     )
-    _print_effective_config_summary(target_dir)
+    _print_effective_config_summary(
+        target_dir,
+        env_file_values=parsed_env.values,
+        parsed_env_file=parsed_env,
+    )
     if has_next_actions:
         print("  Full diagnostics: clawsentry integrations status --json")
     print()
 
     # 5. Launch gateway
-    proc = launch_gateway(host=host, port=port, log_path=log_path)
+    child_env = dict(parsed_env.values)
+    child_env.update(os.environ)
+    child_env["CS_AUTH_TOKEN"] = token
+    proc = launch_gateway(host=host, port=port, log_path=log_path, extra_env=child_env)
     _write_pid_file(_PID_FILE, proc.pid)
 
     # 6. Health check
@@ -543,7 +553,10 @@ def run_start(
 
     if no_watch:
         print(f"Gateway running (PID {proc.pid}). Use 'clawsentry stop' to stop it.")
-        print(f"  clawsentry watch    # to monitor events")
+        if ephemeral_token:
+            print(f"  clawsentry watch --token {token}    # to monitor events with this ephemeral token")
+        else:
+            print(f"  clawsentry watch    # to monitor events")
         return
 
     # 7. Watch loop (foreground)

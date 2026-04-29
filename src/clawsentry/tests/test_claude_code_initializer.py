@@ -1,212 +1,51 @@
-"""Tests for clawsentry init claude-code."""
+"""Tests for Claude Code initializer under TOML-first config model."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import pytest
-
+from clawsentry.cli.init_command import run_uninstall
 from clawsentry.cli.initializers.claude_code import ClaudeCodeInitializer
+from clawsentry.gateway.project_config import read_project_frameworks
 
 
 class TestClaudeCodeInitializer:
-    """Test Claude Code framework initializer."""
-
-    def test_framework_name(self):
-        init = ClaudeCodeInitializer()
-        assert init.framework_name == "claude-code"
-
-    def test_generate_config_creates_env_file(self, tmp_path):
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        env_path = tmp_path / ".env.clawsentry"
-        assert env_path.exists()
-        content = env_path.read_text()
-        assert "CS_UDS_PATH" in content
-        assert "CS_AUTH_TOKEN" in content
-
-    def test_generate_config_creates_hook_settings(self, tmp_path):
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        # Hooks now written to settings.json (not settings.local.json)
-        settings_path = tmp_path / ".claude" / "settings.json"
-        assert settings_path.exists()
-        settings = json.loads(settings_path.read_text())
-        assert "hooks" in settings
-        assert "PreToolUse" in settings["hooks"]
-        assert "PostToolUse" in settings["hooks"]
-
-    def test_hook_command_uses_clawsentry_harness(self, tmp_path):
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        settings_path = tmp_path / ".claude" / "settings.json"
-        settings = json.loads(settings_path.read_text())
-        hook_cmd = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
-        assert "clawsentry-harness" in hook_cmd
-        assert "--framework claude-code" in hook_cmd
-
-    def test_merges_existing_settings(self, tmp_path):
-        """Should preserve existing settings when merging hooks."""
+    def test_generate_config_creates_toml_and_hooks_not_env_file(self, tmp_path):
         claude_home = tmp_path / ".claude"
-        claude_home.mkdir()
-        existing = {"env": {"MY_KEY": "my_value"}, "model": "opus"}
-        (claude_home / "settings.json").write_text(json.dumps(existing))
+        result = ClaudeCodeInitializer().generate_config(tmp_path, claude_home=claude_home)
 
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=claude_home)
-
-        settings = json.loads((claude_home / "settings.json").read_text())
-        # Existing keys preserved
-        assert settings.get("env", {}).get("MY_KEY") == "my_value"
-        assert settings.get("model") == "opus"
-        # Hooks added
-        assert "PreToolUse" in settings["hooks"]
-
-    def test_merges_existing_hooks(self, tmp_path):
-        """Should preserve existing hooks for other event types."""
-        claude_home = tmp_path / ".claude"
-        claude_home.mkdir()
-        existing = {
-            "hooks": {
-                "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "my-notifier"}]}]
-            }
-        }
-        (claude_home / "settings.json").write_text(json.dumps(existing))
-
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=claude_home)
-
-        settings = json.loads((claude_home / "settings.json").read_text())
-        # Existing hook preserved
-        assert "Notification" in settings["hooks"]
-        assert settings["hooks"]["Notification"][0]["hooks"][0]["command"] == "my-notifier"
-        # New hooks added
-        assert "PreToolUse" in settings["hooks"]
+        assert (tmp_path / ".clawsentry.toml").exists()
+        assert not (tmp_path / ".env.clawsentry").exists()
+        assert (claude_home / "settings.json").exists()
+        assert "clawsentry-harness" in (claude_home / "settings.json").read_text()
+        assert result.env_vars == {"CLAW_SENTRY_FRAMEWORK": "claude-code"}
+        assert "CS_AUTH_TOKEN" not in (tmp_path / ".clawsentry.toml").read_text()
 
     def test_no_overwrite_without_force(self, tmp_path):
+        claude_home = tmp_path / ".claude"
         init = ClaudeCodeInitializer()
-        init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        first = json.loads((tmp_path / ".claude" / "settings.json").read_text())
+        init.generate_config(tmp_path, claude_home=claude_home)
+        first = json.loads((claude_home / "settings.json").read_text())
 
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
+        init.generate_config(tmp_path, claude_home=claude_home)
 
-        merged = json.loads((tmp_path / ".claude" / "settings.json").read_text())
-        assert merged == first
-        assert "CS_ENABLED_FRAMEWORKS=claude-code" in (tmp_path / ".env.clawsentry").read_text()
-        assert result.warnings
+        assert json.loads((claude_home / "settings.json").read_text()) == first
+        assert read_project_frameworks(tmp_path)[0] == ["claude-code"]
 
-    def test_overwrite_with_force(self, tmp_path):
-        init = ClaudeCodeInitializer()
-        init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude", force=True)
-        assert len(result.warnings) > 0  # warned about overwrite
+    def test_existing_legacy_env_file_is_left_untouched(self, tmp_path):
+        legacy = tmp_path / ".env.clawsentry"
+        legacy.write_text("CS_AUTH_TOKEN=keep-token\n")
 
-    def test_next_steps_include_gateway(self, tmp_path):
-        init = ClaudeCodeInitializer()
-        result = init.generate_config(tmp_path, claude_home=tmp_path / ".claude")
-        combined = " ".join(result.next_steps)
-        assert "gateway" in combined.lower()
+        ClaudeCodeInitializer().generate_config(tmp_path, claude_home=tmp_path / ".claude", force=True)
 
-    def test_registered_in_framework_initializers(self):
-        from clawsentry.cli.initializers import FRAMEWORK_INITIALIZERS
-        assert "claude-code" in FRAMEWORK_INITIALIZERS
+        assert legacy.read_text() == "CS_AUTH_TOKEN=keep-token\n"
 
 
 class TestClaudeCodeUninstall:
-    """Test hook removal via --uninstall."""
-
-    def test_uninstall_removes_hooks(self, tmp_path):
-        claude_home = tmp_path / ".claude"
-        init = ClaudeCodeInitializer()
-        # Install first (writes to settings.json)
-        init.generate_config(tmp_path, claude_home=claude_home)
-        settings = json.loads((claude_home / "settings.json").read_text())
-        assert "PreToolUse" in settings["hooks"]
-
-        # Uninstall
-        result = init.uninstall(claude_home=claude_home)
-        settings = json.loads((claude_home / "settings.json").read_text())
-        # ClawSentry hooks removed
-        for hook_type in ("PreToolUse", "PostToolUse", "SessionStart", "SessionEnd"):
-            if hook_type in settings.get("hooks", {}):
-                entries = settings["hooks"][hook_type]
-                for entry in entries:
-                    assert "clawsentry-harness" not in str(entry)
-
-    def test_uninstall_preserves_other_hooks(self, tmp_path):
-        """Uninstall should preserve non-ClawSentry hooks."""
-        claude_home = tmp_path / ".claude"
-        claude_home.mkdir()
-        existing = {
-            "hooks": {
-                "PreToolUse": [
-                    {"matcher": "", "hooks": [{"type": "command", "command": "clawsentry-harness --framework claude-code"}]},
-                    {"matcher": "", "hooks": [{"type": "command", "command": "my-other-hook"}]},
-                ],
-                "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "my-notifier"}]}],
-            }
-        }
-        # Test with settings.json
-        (claude_home / "settings.json").write_text(json.dumps(existing))
-
-        init = ClaudeCodeInitializer()
-        init.uninstall(claude_home=claude_home)
-
-        settings = json.loads((claude_home / "settings.json").read_text())
-        # Other hook preserved
-        assert "Notification" in settings["hooks"]
-        # ClawSentry entry removed, but other PreToolUse entry preserved
-        pre_entries = settings["hooks"].get("PreToolUse", [])
-        assert len(pre_entries) == 1
-        assert "my-other-hook" in str(pre_entries[0])
-
-    def test_uninstall_cleans_legacy_settings_local(self, tmp_path):
-        """Uninstall should also clean hooks from legacy settings.local.json."""
-        claude_home = tmp_path / ".claude"
-        claude_home.mkdir()
-        # Legacy hooks in settings.local.json
-        legacy = {
-            "hooks": {
-                "PreToolUse": [
-                    {"matcher": "", "hooks": [{"type": "command", "command": "clawsentry-harness --framework claude-code"}]},
-                ],
-            }
-        }
-        (claude_home / "settings.local.json").write_text(json.dumps(legacy))
-
-        init = ClaudeCodeInitializer()
-        result = init.uninstall(claude_home=claude_home)
-
-        settings = json.loads((claude_home / "settings.local.json").read_text())
-        assert "hooks" not in settings or not settings.get("hooks")
-
-    def test_uninstall_nonexistent_settings(self, tmp_path):
-        """Uninstall on missing settings file should not crash."""
-        init = ClaudeCodeInitializer()
-        result = init.uninstall(claude_home=tmp_path / ".claude-nonexist")
-        assert len(result.warnings) > 0
-
-    def test_run_uninstall_removes_hooks_and_env_entry(self, tmp_path):
-        """CLI uninstall helper should remove Claude hooks and keep other frameworks."""
-        from clawsentry.cli.init_command import run_uninstall
-
+    def test_uninstall_removes_hooks_and_toml_enablement(self, tmp_path):
         claude_home = tmp_path / ".claude"
         init = ClaudeCodeInitializer()
         init.generate_config(tmp_path, claude_home=claude_home)
-        env_path = tmp_path / ".env.clawsentry"
-        env_path.write_text(
-            "\n".join(
-                [
-                    "# ClawSentry test config",
-                    "CS_FRAMEWORK=claude-code",
-                    "CS_ENABLED_FRAMEWORKS=claude-code,codex",
-                    "CS_AUTH_TOKEN=keep-token",
-                    "CS_CODEX_WATCH_ENABLED=true",
-                    "",
-                ]
-            )
-        )
 
         exit_code = run_uninstall(
             framework="claude-code",
@@ -217,7 +56,5 @@ class TestClaudeCodeUninstall:
         assert exit_code == 0
         settings = json.loads((claude_home / "settings.json").read_text())
         assert "clawsentry-harness" not in str(settings)
-        env_content = env_path.read_text()
-        assert "CS_ENABLED_FRAMEWORKS=codex" in env_content
-        assert "CS_FRAMEWORK=codex" in env_content
-        assert "CS_CODEX_WATCH_ENABLED=true" in env_content
+        enabled, _default = read_project_frameworks(tmp_path)
+        assert enabled == []

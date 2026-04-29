@@ -89,7 +89,7 @@ api_key_env = "CS_LLM_API_KEY"
     eff = resolve_effective_config(tmp_path)
     assert eff.values["llm.provider"] == "openai"
     assert eff.sources["llm.provider"] == "project"
-    assert eff.sources["budgets.l2_timeout_ms"] == "env"
+    assert eff.sources["budgets.l2_timeout_ms"] == "process-env"
     assert eff.values["llm.api_key"] != "sk-1234567890secret"
     assert eff.values["llm.api_key"].startswith("sk-1")
 

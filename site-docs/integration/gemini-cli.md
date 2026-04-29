@@ -11,7 +11,7 @@
 clawsentry init gemini-cli
 clawsentry init gemini-cli --setup --dry-run
 clawsentry init gemini-cli --setup
-source .env.clawsentry
+clawsentry start --env-file .clawsentry.env.local
 clawsentry gateway
 gemini --prompt "say hello"
 ```

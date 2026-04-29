@@ -4931,6 +4931,7 @@ def _build_gateway_parser() -> argparse.ArgumentParser:
         metavar="SECONDS",
         help=f"Trajectory retention window [AHP_TRAJECTORY_RETENTION_SECONDS] (default: {DEFAULT_TRAJECTORY_RETENTION_SECONDS})",
     )
+    parser.add_argument("--env-file", default=None, help="Explicit local env file for secrets/runtime values.")
     parser.add_argument(
         "--ssl-certfile",
         default=None,
@@ -4948,8 +4949,22 @@ def _build_gateway_parser() -> argparse.ArgumentParser:
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
-    from ..cli.dotenv_loader import load_dotenv
-    load_dotenv()
+    from ..cli.dotenv_loader import (
+        EnvFileError,
+        apply_env_file_to_legacy_environ,
+        resolve_explicit_env_file,
+    )
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--env-file", default=None)
+    pre_args, _ = pre.parse_known_args()
+    try:
+        parsed_env = resolve_explicit_env_file(
+            cli_env_file=Path(pre_args.env_file) if pre_args.env_file else None,
+            environ=os.environ,
+        )
+    except EnvFileError as exc:
+        raise SystemExit(str(exc)) from exc
+    apply_env_file_to_legacy_environ(parsed_env, environ=os.environ)
 
     parser = _build_gateway_parser()
     args = parser.parse_args()

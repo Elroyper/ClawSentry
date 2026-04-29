@@ -24,12 +24,12 @@ clawsentry-harness   # 等价于 clawsentry harness
 clawsentry-stack     # 等价于 clawsentry stack
 ```
 
-!!! info "`.env.clawsentry` 自动加载"
-    `clawsentry gateway`、`clawsentry stack`、`clawsentry start` 和 `clawsentry-gateway`、`clawsentry-stack` 启动时会自动读取当前目录下的 `.env.clawsentry` 文件，并将其中的环境变量注入进程。**已存在的环境变量不会被覆盖。**
+!!! info "配置来源：`.clawsentry.toml` + 显式 env file"
+    `.clawsentry.toml` 是唯一会自动发现的项目配置文件，用于非密钥策略和 framework enablement。`clawsentry gateway`、`stack`、`start` 不再自动读取当前目录的 `.env.clawsentry`。
 
-    文件格式：
+    本机 secrets/runtime 值请用进程环境、部署环境，或显式传入 `--env-file PATH` / `CLAWSENTRY_ENV_FILE=PATH`：
     ```ini
-    # 注释行
+    # .clawsentry.env.local（不要提交）
     CS_AUTH_TOKEN=my-secret-token
     CS_HTTP_PORT=9100
     OPENCLAW_OPERATOR_TOKEN="quoted-value"
@@ -62,7 +62,7 @@ clawsentry-stack     # 等价于 clawsentry stack
     | 命令 | 你什么时候用 | 与 `start` 的关系 |
     |------|---------------|-------------------|
     | `clawsentry start` | 日常启动和新用户接入 | 推荐入口；内部会按需调用初始化、启动 Gateway、接上事件流 |
-    | `clawsentry init` | 只想生成/合并 `.env.clawsentry` 或安装框架 hook | 手动配置步骤；`start` 在缺配置时会自动做 |
+    | `clawsentry init` | 写入/更新 `.clawsentry.toml [frameworks]` 或安装框架 hook | 手动配置步骤；`start` 在缺配置时会自动做 |
     | `clawsentry gateway` | 只启动后台服务、systemd/Docker/调试 transport | `start --no-watch` 的底层服务部分 |
     | `clawsentry watch` | Gateway 已经在跑，只想另开终端看实时事件 | `start` 的前台监控部分 |
     | `clawsentry-harness` | a3s-code stdio transport 自动调用 | 不是普通用户入口，通常只出现在 SDK transport 配置里 |
@@ -74,7 +74,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 
 ## clawsentry start
 
-**一键启动 ClawSentry 监督网关**（推荐方式）。自动检测或按参数选择框架，补齐配置，启动 Gateway，并显示实时监控。
+**一键启动 ClawSentry 监督网关**（推荐方式）。优先使用 `.clawsentry.toml [frameworks]` 或显式 `--framework` 选择框架，补齐配置，启动 Gateway，并显示实时监控。
 
 ### 语法
 
@@ -82,7 +82,7 @@ clawsentry-stack     # 等价于 clawsentry stack
 clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
                  [--frameworks a3s-code,codex,openclaw]
                  [--setup-openclaw | --no-setup-openclaw]
-                 [--host HOST] [--port PORT]
+                 [--host HOST] [--port PORT] [--env-file PATH]
                  [--no-watch] [--interactive | -i]
                  [--open-browser] [--with-latch] [--hub-port PORT]
 ```
@@ -91,7 +91,7 @@ clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--framework` | 自动检测 | 目标框架：`a3s-code`、`claude-code`、`codex`、`openclaw` |
+| `--framework` | 读取 `.clawsentry.toml [frameworks]` | 目标框架：`a3s-code`、`claude-code`、`codex`、`gemini-cli`、`openclaw`；新用户建议显式传入 |
 | `--frameworks` | 空 | 逗号分隔的多框架启用列表，如 `a3s-code,codex,openclaw` |
 | `--setup-openclaw` | `false` | 当本次启动涉及 `openclaw` 时，同时显式修改 `~/.openclaw/` 中的审批配置 |
 | `--host` | `127.0.0.1` | Gateway HTTP 监听地址 |
@@ -101,30 +101,32 @@ clawsentry start [--framework {a3s-code,claude-code,codex,openclaw}]
 | `--open-browser` | `false` | 启动后在浏览器中打开 Web UI |
 | `--with-latch` | `false` | 同时启动 Latch Hub（需先运行 `clawsentry latch install`） |
 | `--hub-port` | `3006` | Latch Hub 端口，配合 `--with-latch` 使用 |
+| `--env-file PATH` | 空 | 显式读取本机 secrets/runtime env file；不会自动发现 `.env.clawsentry` |
 
 ### 工作流程
 
 `clawsentry start` 会自动执行以下步骤：
 
-1. **框架检测**：优先读取 `.env.clawsentry` 中的 `CS_FRAMEWORK`，再扫描 OpenClaw / Claude Code 等已知配置，自动识别框架类型
-2. **配置初始化**：如果 `.env.clawsentry` 缺失或 `--frameworks` 中有未启用框架，自动运行 `clawsentry init <framework>` 增量合并
-3. **环境加载**：读取 `.env.clawsentry` 并注入环境变量
-4. **Gateway 启动**：后台启动 Gateway 进程，等待健康检查通过
+1. **框架选择**：优先读取 `.clawsentry.toml [frameworks]`；新项目建议显式传入 `--framework`，避免依赖环境探测
+2. **配置初始化**：如果项目未启用目标框架，自动运行 `clawsentry init <framework>` 更新 `.clawsentry.toml`
+3. **显式 env 合成**：只在传入 `--env-file` / `CLAWSENTRY_ENV_FILE` 时读取本机 runtime 值；进程环境优先
+4. **Gateway 启动**：后台启动 Gateway 进程，等待健康检查通过；缺少 `CS_AUTH_TOKEN` 时使用本次进程内临时 token
 5. **实时监控**：前台显示 `clawsentry watch` 输出（除非使用 `--no-watch`）
 6. **优雅关闭**：按 `Ctrl+C` 时，先发送 SIGTERM，5 秒后降级为 SIGKILL
 
 ### 示例
 
-#### 自动检测并启动
+#### 从项目配置启动
 
 ```bash
-clawsentry start
+clawsentry start                 # 已有 .clawsentry.toml [frameworks] 时
+clawsentry start --framework codex  # 新项目/首次使用时更明确
 ```
 
 ??? example "终端输出"
     ```
     ClawSentry starting...
-      Framework:  openclaw (auto-detected)
+      Framework:  codex
       Gateway:    http://127.0.0.1:8080 (background)
       Web UI:     http://127.0.0.1:8080/ui?token=xK7m9p2QaB3...
       Log file:   /tmp/clawsentry-gateway.log
@@ -151,7 +153,7 @@ clawsentry start --framework a3s-code --port 9100
 clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
 ```
 
-此命令会按列表增量合并 `.env.clawsentry`，启动 banner 会显示 `Enabled: a3s-code, codex, openclaw`。默认不会修改 `~/.openclaw/`；如需在启动时一并配置 OpenClaw 侧审批文件，显式添加 `--setup-openclaw`。
+此命令会按列表更新 `.clawsentry.toml [frameworks]`，启动 banner 会显示 `Enabled: a3s-code, codex, openclaw`。默认不会修改 `~/.openclaw/`；如需在启动时一并配置 OpenClaw 侧审批文件，显式添加 `--setup-openclaw`。
 启动 banner 会打印 `Readiness` 摘要，把每个框架是 `ready`、`needs attention` 还是 `manual verification required` 直接讲明白，并给出 `Next actions`。
 
 如果加上 `--with-latch`，`start` 会在 Gateway 之外编排 Latch Hub，并把 Web UI / watch / Latch 的启动信息放进同一份 banner；如果 Latch 二进制或 token 尚未就绪，readiness 会给出具体 next step，而不是把多框架启动误报为完全可用。
@@ -162,7 +164,7 @@ clawsentry start --frameworks a3s-code,codex,openclaw --no-watch
 clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
 ```
 
-当启用了 `openclaw` 且显式传入 `--setup-openclaw` 时，`start` 会在项目 `.env.clawsentry` 合并完成后继续尝试更新 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。如果当前项目已经启用了 OpenClaw，这个参数仍会生效，不需要先删除 `.env.clawsentry` 重新初始化。
+当启用了 `openclaw` 且显式传入 `--setup-openclaw` 时，`start` 会在 `.clawsentry.toml` 确认启用后继续尝试更新 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。如果当前项目已经启用了 OpenClaw，这个参数仍会生效，不需要重建本机 env file。
 
 #### 仅启动 Gateway（不显示监控）
 
@@ -170,7 +172,7 @@ clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
 clawsentry start --no-watch
 ```
 
-此模式下，Gateway 在后台运行，命令立即返回。你可以稍后手动运行 `clawsentry watch` 查看事件。
+此模式下，Gateway 在后台运行，命令立即返回。你可以稍后手动运行 `clawsentry watch` 查看事件；如果本次使用的是临时 token，启动输出会打印可复制的 `clawsentry watch --token ...` 命令。
 停止后台 Gateway 时运行 `clawsentry stop`。
 
 #### 启用交互式 DEFER 审批
@@ -190,7 +192,7 @@ Web UI: http://127.0.0.1:8080/ui?token=xK7m9p2QaB3...
 ```
 
 点击该 URL 即可自动登录，无需手动输入 token。
-前端会把 `?token=` 保存到 `sessionStorage` 后清理地址栏；后续手动登录时使用同一个 `CS_AUTH_TOKEN`。如果看到 invalid token / `401`，重新复制启动 banner 或 `.env.clawsentry` 中的 token；如果看到 `Gateway unavailable`，这表示本机 Gateway 无法访问而不是凭证错误。代理环境下可先设置：
+前端会把 `?token=` 保存到 `sessionStorage` 后清理地址栏；后续手动登录时使用同一个 `CS_AUTH_TOKEN`。如果看到 invalid token / `401`，重新复制启动 banner，或检查进程环境 / 显式 `--env-file` 中的 `CS_AUTH_TOKEN`；如果看到 `Gateway unavailable`，这表示本机 Gateway 无法访问而不是凭证错误。代理环境下可先设置：
 
 ```bash
 export NO_PROXY=localhost,127.0.0.1,::1
@@ -217,7 +219,7 @@ Gateway 的 stdout/stderr 输出会写入临时日志文件：
 
 ## clawsentry init
 
-初始化框架集成配置。根据目标框架生成 `.env.clawsentry` 配置文件和所需的设置文件。
+初始化框架集成配置。根据目标框架更新 `.clawsentry.toml [frameworks]`，并在显式 `--setup` 时配置所需的框架侧设置文件。
 
 ### 语法
 
@@ -238,25 +240,23 @@ clawsentry init <framework> [--dir PATH] [--force] [--auto-detect] [--setup] [--
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--dir PATH` | `.`（当前目录） | 配置文件写入目录 |
-| `--force` | `false` | 覆盖已存在的配置文件；默认会增量合并 `.env.clawsentry` |
+| `--force` | `false` | 覆盖 ClawSentry 管理的 framework 配置段；默认合并 `.clawsentry.toml` |
 | `--auto-detect` | `true` | 自动检测已有的框架配置（如 `~/.openclaw/` 中的 Gateway Token） |
 | `--setup` | `false` | 自动配置框架设置以支持 ClawSentry 集成（隐含 `--auto-detect`；OpenClaw 写宿主审批配置，Codex 写 managed native hooks） |
 | `--dry-run` | `false` | 预览 `--setup` 将要执行的配置变更，但不实际应用 |
-| `--uninstall` | `false` | 从项目 `.env.clawsentry` 中禁用该框架；`claude-code` / `codex` 会同时移除 ClawSentry 管理的 hooks |
+| `--uninstall` | `false` | 从项目 `.clawsentry.toml [frameworks]` 中禁用该框架；`claude-code` / `codex` 会同时移除 ClawSentry 管理的 hooks |
 | `--openclaw-home PATH` | `~/.openclaw` | 指定 OpenClaw 配置目录（用于 `--setup` / `--restore`） |
 | `--codex-home PATH` | `$CODEX_HOME` 或 `~/.codex` | 指定 Codex 配置目录（用于 `--setup` / `--uninstall`） |
 | `--restore` | `false` | 从 ClawSentry 备份恢复框架设置（目前支持 `openclaw`） |
 
 !!! info "多框架增量合并"
-    如果 `.env.clawsentry` 已存在，`clawsentry init <framework>` 默认不会轮换已有 `CS_AUTH_TOKEN`，也不会改写已有 `CS_FRAMEWORK`。命令会追加缺失的框架专属变量，并维护 `CS_ENABLED_FRAMEWORKS`（如 `a3s-code,codex,openclaw`）。
-
-    只有显式使用 `--force` 时才会覆盖 `.env.clawsentry`。
+    `clawsentry init <framework>` 默认只更新 `.clawsentry.toml [frameworks]`：追加缺失框架、保留已有框架，并不写入 `CS_AUTH_TOKEN`、provider API key 或 `.env.clawsentry`。本机 secrets 请放在进程环境或显式 `--env-file` 中。
 
 !!! info "按框架安全卸载"
-    `clawsentry init <framework> --uninstall` 不会删除整个 `.env.clawsentry`，也不会轮换共享 `CS_AUTH_TOKEN`。命令只会从 `CS_ENABLED_FRAMEWORKS` 移除目标框架，并删除该框架专属变量（如 `CS_CODEX_*` 或 `OPENCLAW_*`）；如果还有其他框架启用，`CS_FRAMEWORK` 会指向剩余框架之一。
+    `clawsentry init <framework> --uninstall` 只会从 `.clawsentry.toml [frameworks]` 移除目标框架，并清理 ClawSentry 管理的框架侧 hook（如适用）。它不会删除本机 env file，也不会轮换 `CS_AUTH_TOKEN`。
 
 !!! warning "OpenClaw setup 是显式 opt-in"
-    `clawsentry init openclaw` 默认只生成或合并 `.env.clawsentry`，不会修改 `~/.openclaw/openclaw.json` 或 `exec-approvals.json`。需要自动修改 OpenClaw 侧配置时，显式加上 `--setup`；建议先运行 `--setup --dry-run`。
+    `clawsentry init openclaw` 默认只更新 `.clawsentry.toml [frameworks]`，不会修改 `~/.openclaw/openclaw.json` 或 `exec-approvals.json`。需要自动修改 OpenClaw 侧配置时，显式加上 `--setup`；建议先运行 `--setup --dry-run`。
 
 ### 示例
 
@@ -270,20 +270,19 @@ clawsentry init a3s-code
     ```
     [clawsentry] a3s-code integration initialized
 
-      Files created:
-        .env.clawsentry
+      Files updated:
+        .clawsentry.toml
 
-      Environment variables:
-        CS_FRAMEWORK=a3s-code
-        CS_UDS_PATH=/tmp/clawsentry.sock
-        CS_AUTH_TOKEN=xK7m9p2QaB3...（自动生成 32 字符令牌）
+      Framework config:
+        [frameworks]
+        enabled = ["a3s-code"]
+        default = "a3s-code"
 
       Next steps:
-        1. source .env.clawsentry
-        2. export NO_PROXY=127.0.0.1,localhost
-        3. clawsentry gateway    # starts on UDS + HTTP port 8080
-        4. Configure a3s-code AHP transport explicitly in your agent script
-        5. clawsentry watch --token "$CS_AUTH_TOKEN"
+        1. export CS_AUTH_TOKEN=<your-dev-token>   # optional; start can create an ephemeral token
+        2. clawsentry gateway --env-file .clawsentry.env.local
+        3. Configure a3s-code AHP transport explicitly in your agent script
+        4. clawsentry watch --token "$CS_AUTH_TOKEN"
     ```
 
 #### 初始化 OpenClaw 集成（自动检测令牌）
@@ -292,7 +291,7 @@ clawsentry init a3s-code
 clawsentry init openclaw --auto-detect
 ```
 
-此命令会从 `~/.openclaw/openclaw.json` 中读取 `gateway.auth.token`，并自动填入 `.env.clawsentry` 文件。
+此命令会检测 `~/.openclaw/openclaw.json`，但不会把 token 写入 `.clawsentry.toml`。需要复用 OpenClaw token 时，请通过进程环境或显式 env file 提供。
 
 它不会修改 OpenClaw 侧配置文件；需要自动设置 `tools.exec.host` 和审批策略时使用下一节的 `--setup`。
 
@@ -306,18 +305,17 @@ clawsentry init openclaw --setup --dry-run
     ```
     [clawsentry] openclaw integration initialized
 
-      Files created:
-        .env.clawsentry
+      Files updated:
+        .clawsentry.toml
 
-      Environment variables:
+      Runtime values (not persisted):
         OPENCLAW_WS_URL=ws://127.0.0.1:18789
-        OPENCLAW_OPERATOR_TOKEN=xxxxxxxxxxxxxxxx...
-        CS_AUTH_TOKEN=xK7m9p2QaB3...
+        OPENCLAW_OPERATOR_TOKEN=<set in env or --env-file>
+        CS_AUTH_TOKEN=<set in env or ephemeral at start>
 
       Next steps:
-        1. source .env.clawsentry
-        2. clawsentry gateway
-        3. clawsentry watch
+        1. clawsentry gateway --env-file .clawsentry.env.local
+        2. clawsentry watch
 
       [DRY RUN] The following changes would be applied:
         - Set tools.exec.host = "gateway" in openclaw.json
@@ -361,17 +359,17 @@ clawsentry init openclaw --restore
 #### 卸载某个框架
 
 ```bash
-# 只从当前项目 env 中禁用 Codex watcher，并移除 ClawSentry managed native hooks；保留其他框架和共享 token
+# 只从当前项目 .clawsentry.toml 中禁用 Codex，并移除 ClawSentry managed native hooks；保留其他框架
 clawsentry init codex --uninstall
 
-# 移除 Claude Code hooks，并从当前项目 env 中移除 claude-code 启用标记
+# 移除 Claude Code hooks，并从当前项目 .clawsentry.toml 中移除 claude-code 启用标记
 clawsentry init claude-code --uninstall
 
-# 禁用 OpenClaw env 变量；如需恢复 OpenClaw 侧文件，另用 --restore
+# 禁用 OpenClaw framework 配置；如需恢复 OpenClaw 侧文件，另用 --restore
 clawsentry init openclaw --uninstall
 ```
 
-`--uninstall` 的默认作用域是当前目录的 `.env.clawsentry`。如配置文件位于其他项目目录，使用 `--dir PATH` 指定。
+`--uninstall` 的默认作用域是当前目录的 `.clawsentry.toml`。如项目配置位于其他目录，使用 `--dir PATH` 指定。
 
 ---
 
@@ -909,7 +907,7 @@ clawsentry doctor [--json] [--no-color]
 | `WHITELIST_REGEX` | 正则 | Post-action 白名单正则可编译 |
 | `L2_TIMEOUT` | LLM | `CS_L2_TIMEOUT_MS` 为正数（旧 `CS_L2_BUDGET_MS` 仅兼容） |
 | `TRAJECTORY_DB` | 数据库 | 数据库目录可写 |
-| `CODEX_CONFIG` | Codex | `CS_FRAMEWORK=codex` 时 auth token 已设置 |
+| `CODEX_CONFIG` | Codex | `.clawsentry.toml` 启用 Codex 时 hooks / watcher 配置可用 |
 | `LATCH_BINARY` | Latch | Latch 二进制已安装且可执行 |
 | `LATCH_HUB_HEALTH` | Latch | Latch Hub 健康端点响应正常 |
 | `LATCH_TOKEN_SYNC` | Latch | `CS_AUTH_TOKEN` 与 `CLI_API_TOKEN` 匹配 |
@@ -1258,6 +1256,10 @@ enabled = true
 mode = "normal"
 preset = "high"
 
+[frameworks]
+enabled = ["codex"]
+default = "codex"
+
 [budgets]
 llm_token_budget_enabled = false
 l2_timeout_ms = 60000
@@ -1269,7 +1271,7 @@ timeout_s = 86400
 timeout_action = "block"
 ```
 
-该文件应放置在项目根目录，Gateway 和 Harness 启动时会自动读取并应用预设配置。
+该文件应放置在项目根目录，是 ClawSentry 唯一自动发现的项目配置。密钥和本机 runtime 值仍应通过进程/部署环境或显式 `--env-file` 注入。
 
 ---
 
@@ -1280,7 +1282,7 @@ timeout_action = "block"
 ### 语法
 
 ```bash
-clawsentry benchmark env --framework codex --mode guarded > .env.clawsentry.benchmark
+clawsentry benchmark env --framework codex --mode guarded > .clawsentry.benchmark.env
 clawsentry benchmark enable --dir . --framework codex --codex-home /tmp/cs-codex-home
 clawsentry benchmark run --framework codex --codex-home /tmp/cs-codex-home -- <command>
 clawsentry benchmark disable --dir . --framework codex --codex-home /tmp/cs-codex-home
@@ -1351,14 +1353,15 @@ clawsentry rules dry-run --events my-events.json --skills-dir /etc/clawsentry/sk
 ### 语法
 
 ```bash
-clawsentry integrations status [--dir PATH] [--json]
+clawsentry integrations status [--dir PATH] [--env-file PATH] [--json]
 ```
 
 ### 选项
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
-| `--dir PATH` | `.`（当前目录） | 包含 `.env.clawsentry` 的项目目录 |
+| `--dir PATH` | `.`（当前目录） | 包含 `.clawsentry.toml` 的项目目录 |
+| `--env-file PATH` | 空 | 显式本机 env file，用于 readiness 检查，不自动发现 `.env.clawsentry` |
 | `--json` | `false` | 输出 JSON，便于脚本或 CI 检查 |
 
 ### 示例
@@ -1371,10 +1374,10 @@ clawsentry integrations status
     ```
     ClawSentry Integrations
     ============================================================
-    Env file: .env.clawsentry
-    Env exists: yes
+    Project config: .clawsentry.toml
+    Explicit env file: none
     Enabled frameworks: openclaw, codex, claude-code
-    Legacy default: openclaw
+    Default framework: openclaw
     Codex watcher: enabled
     OpenClaw env: configured
     OpenClaw restore: available
@@ -1553,7 +1556,7 @@ clawsentry latch uninstall --keep-data
 | `AHP_SESSION_ENFORCEMENT_ENABLED` | gateway | 启用会话级强制策略 |
 | `AHP_SSL_CERTFILE` | gateway | SSL 证书文件路径 |
 | `AHP_SSL_KEYFILE` | gateway | SSL 私钥文件路径 |
-| `CS_FRAMEWORK` | start, init | 框架类型标识（`a3s-code`/`claude-code`/`codex`/`openclaw`） |
+| `CS_FRAMEWORK` | legacy/harness | 旧版迁移字段；框架启用请使用 `.clawsentry.toml [frameworks]` |
 | `CS_CODEX_SESSION_DIR` | gateway | Codex 会话目录路径（用于 Session Watcher） |
 | `CS_DEFER_TIMEOUT_ACTION` | gateway, harness | DEFER 超时后的动作：`block`（默认）或 `allow` |
 | `CS_DEFER_TIMEOUT_S` | gateway, harness | normal mode DEFER 软超时（秒），默认 `86400`；benchmark mode 不等待 |
@@ -1562,4 +1565,4 @@ clawsentry latch uninstall --keep-data
 | `CS_LLM_DAILY_BUDGET_USD` | gateway | 旧版兼容字段；仅迁移/估算提示，不推荐执法 |
 | `CS_METRICS_ENABLED` | gateway | 启用 Prometheus `/metrics` 端点 |
 | `CS_LATCH_HUB_URL` | gateway, doctor | Latch Hub 地址（如 `http://127.0.0.1:3006`） |
-| `CS_ENABLED_FRAMEWORKS` | init, docs | 多框架启用列表（如 `a3s-code,codex,openclaw`） |
+| `CS_ENABLED_FRAMEWORKS` | legacy | 旧版迁移字段；多框架启用请使用 `.clawsentry.toml [frameworks].enabled` |

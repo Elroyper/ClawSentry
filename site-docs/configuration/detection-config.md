@@ -40,9 +40,9 @@ DetectionConfig（frozen dataclass）
 
 ## 快速开始 {#quickstart}
 
-将下列内容保存为 `.env.clawsentry`（ClawSentry 启动时自动加载），按需取消注释并修改：
+将下列内容保存为 `.clawsentry.env.local`（不要提交），按需取消注释并修改；启动或检查时必须显式传入 `--env-file .clawsentry.env.local`：
 
-```bash title=".env.clawsentry — 检测管线常用调优示例"
+```bash title=".clawsentry.env.local — 检测管线常用调优示例"
 # ── 风险等级阈值（默认值已适合大多数场景）─────────────────────────────────
 # CS_THRESHOLD_MEDIUM=0.8       # >= 此值 → MEDIUM
 # CS_THRESHOLD_HIGH=1.5         # >= 此值 → HIGH
@@ -73,8 +73,8 @@ DetectionConfig（frozen dataclass）
 # CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
 ```
 
-!!! tip "dotenv 文件位置"
-    ClawSentry 在启动时自动加载当前工作目录下的 `.env.clawsentry` 文件。系统环境变量优先于文件中的值（文件不覆盖已存在的环境变量）。
+!!! tip "显式 env-file"
+    `.clawsentry.env.local` 不会自动加载。使用 `clawsentry start --env-file .clawsentry.env.local` 或 `clawsentry config show --effective --env-file .clawsentry.env.local`；系统/进程环境变量优先于文件中的值。
 
 ---
 

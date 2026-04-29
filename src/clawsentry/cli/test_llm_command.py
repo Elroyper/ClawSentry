@@ -17,6 +17,8 @@ from pathlib import Path
 
 from ..gateway.l3_runtime import infer_l3_reason_code
 
+_TRUE_VALUES = ("true", "1", "yes", "on")
+
 
 def _colorize(text: str, code: str, color: bool) -> str:
     if not color:
@@ -44,29 +46,45 @@ def _dim(text: str, color: bool) -> str:
     return _colorize(text, "\033[2m", color)
 
 
-def _build_provider():
-    """Build LLM provider from environment variables. Returns (provider, info_dict) or (None, error_str)."""
+def _env_bool_from(runtime_env: dict[str, str], name: str, default: bool = False) -> bool:
+    raw = str(runtime_env.get(name, "")).strip()
+    if not raw:
+        return default
+    return raw.lower() in _TRUE_VALUES
+
+
+def _resolve_runtime_env(env_file: Path | None = None) -> dict[str, str]:
+    """Resolve process, explicit env-file, and project config into an isolated runtime env."""
+    from .dotenv_loader import apply_env_file_to_legacy_environ, resolve_explicit_env_file
     from ..gateway.project_config import apply_project_config_to_environ
+
+    runtime_env = dict(os.environ)
+    parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+    apply_env_file_to_legacy_environ(parsed, environ=runtime_env)
+    apply_project_config_to_environ(Path.cwd(), environ=runtime_env)
+    return runtime_env
+
+
+def _build_provider_from_env(runtime_env: dict[str, str]):
+    """Build LLM provider from a resolved runtime env."""
     from ..gateway.llm_provider import LLMProviderConfig, AnthropicProvider, OpenAIProvider
 
-    apply_project_config_to_environ(Path.cwd())
-
-    provider_name = os.getenv("CS_LLM_PROVIDER", "").strip().lower()
+    provider_name = runtime_env.get("CS_LLM_PROVIDER", "").strip().lower()
     if not provider_name:
         # Try to auto-detect from available API keys
-        if os.getenv("ANTHROPIC_API_KEY", "").strip():
+        if runtime_env.get("ANTHROPIC_API_KEY", "").strip():
             provider_name = "anthropic"
-        elif os.getenv("OPENAI_API_KEY", "").strip():
+        elif runtime_env.get("OPENAI_API_KEY", "").strip():
             provider_name = "openai"
         else:
             return None, "No LLM provider configured. Set CS_LLM_PROVIDER and the corresponding API key."
 
-    model = os.getenv("CS_LLM_MODEL", "").strip() or ""
-    base_url = os.getenv("CS_LLM_BASE_URL", "").strip() or None
+    model = runtime_env.get("CS_LLM_MODEL", "").strip() or ""
+    base_url = runtime_env.get("CS_LLM_BASE_URL", "").strip() or None
 
     if provider_name == "anthropic":
-        api_key = (os.getenv("CS_LLM_API_KEY", "").strip()
-                   or os.getenv("ANTHROPIC_API_KEY", "").strip())
+        api_key = (runtime_env.get("CS_LLM_API_KEY", "").strip()
+                   or runtime_env.get("ANTHROPIC_API_KEY", "").strip())
         if not api_key:
             return None, "CS_LLM_PROVIDER=anthropic but no API key found (ANTHROPIC_API_KEY or CS_LLM_API_KEY)."
         effective_model = model or AnthropicProvider.DEFAULT_MODEL
@@ -74,8 +92,8 @@ def _build_provider():
         provider = AnthropicProvider(config)
 
     elif provider_name == "openai":
-        api_key = (os.getenv("CS_LLM_API_KEY", "").strip()
-                   or os.getenv("OPENAI_API_KEY", "").strip())
+        api_key = (runtime_env.get("CS_LLM_API_KEY", "").strip()
+                   or runtime_env.get("OPENAI_API_KEY", "").strip())
         if not api_key:
             return None, "CS_LLM_PROVIDER=openai but no API key found (OPENAI_API_KEY or CS_LLM_API_KEY)."
         effective_model = model or OpenAIProvider.DEFAULT_MODEL
@@ -92,6 +110,17 @@ def _build_provider():
         "key_preview": api_key[:6] + "..." + api_key[-4:] if len(api_key) > 10 else "***",
     }
     return provider, info
+
+
+def _build_provider(env_file: Path | None = None):
+    """Build LLM provider from environment variables. Returns (provider, info_dict) or (None, error_str)."""
+    from .dotenv_loader import EnvFileError
+
+    try:
+        runtime_env = _resolve_runtime_env(env_file)
+    except EnvFileError as exc:
+        return None, str(exc)
+    return _build_provider_from_env(runtime_env)
 
 
 def _format_analysis_detail(result: object) -> str:
@@ -214,11 +243,14 @@ async def _test_l2(provider, timeout_ms: float = 15000) -> tuple[bool, float, st
         return False, latency, str(e)[:120]
 
 
-async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, str]:
+async def _test_l3(
+    provider,
+    timeout_ms: float = 30000,
+    runtime_env: dict[str, str] | None = None,
+) -> tuple[bool, float, str]:
     """Run a sample through L3 agent review. Returns (ok, latency_ms, detail)."""
     try:
         from ..gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
-        from ..gateway.llm_factory import _env_bool
         from ..gateway.review_toolkit import ReadOnlyToolkit
         from ..gateway.review_skills import SkillRegistry
     except ImportError as e:
@@ -234,7 +266,7 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
     skill_registry = SkillRegistry(skills_dir)
     config = AgentAnalyzerConfig(
         l3_budget_ms=timeout_ms,
-        enable_multi_turn=_env_bool("CS_L3_MULTI_TURN", True),
+        enable_multi_turn=_env_bool_from(runtime_env or dict(os.environ), "CS_L3_MULTI_TURN", True),
     )
     agent = AgentAnalyzer(
         provider=provider,
@@ -283,12 +315,25 @@ async def _test_l3(provider, timeout_ms: float = 30000) -> tuple[bool, float, st
         return False, latency, str(e)[:120]
 
 
-async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool = False) -> int:
+async def _run_tests(
+    color: bool = True,
+    skip_l3: bool = False,
+    json_mode: bool = False,
+    env_file: Path | None = None,
+) -> int:
     """Run all LLM tests. Returns exit code (0=all pass, 1=any fail)."""
     results = []
 
     # --- Step 0: Build provider ---
-    provider, info = _build_provider()
+    try:
+        runtime_env = _resolve_runtime_env(env_file)
+    except Exception as exc:
+        if json_mode:
+            print(json.dumps({"error": str(exc)}))
+        else:
+            print(f"\n  {_red('FAIL', color)} {exc}")
+        return 1
+    provider, info = _build_provider(env_file=env_file)
     if provider is None:
         if json_mode:
             print(json.dumps({"error": info}))
@@ -347,7 +392,7 @@ async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool 
 
     # --- Test 4: L3 Agent Review ---
     if not skip_l3:
-        l3_enabled = os.getenv("CS_L3_ENABLED", "").strip().lower() in ("true", "1", "yes")
+        l3_enabled = _env_bool_from(runtime_env, "CS_L3_ENABLED")
         if not l3_enabled:
             results.append({"test": "l3_review", "ok": True, "latency_ms": 0, "detail": "Skipped (CS_L3_ENABLED not set)"})
             if not json_mode:
@@ -356,7 +401,7 @@ async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool 
         else:
             if not json_mode:
                 print("  [4/4] Testing L3 agent review ...", end="", flush=True)
-            ok4, latency4, detail4 = await _test_l3(provider)
+            ok4, latency4, detail4 = await _test_l3(provider, runtime_env=runtime_env)
             results.append({"test": "l3_review", "ok": ok4, "latency_ms": round(latency4, 1), "detail": detail4})
             if not json_mode:
                 status = _green("PASS", color) if ok4 else _red("FAIL", color)
@@ -378,6 +423,11 @@ async def _run_tests(color: bool = True, skip_l3: bool = False, json_mode: bool 
     return 0 if all_ok else 1
 
 
-def run_test_llm(color: bool = True, skip_l3: bool = False, json_mode: bool = False) -> int:
+def run_test_llm(
+    color: bool = True,
+    skip_l3: bool = False,
+    json_mode: bool = False,
+    env_file: Path | None = None,
+) -> int:
     """Entry point for clawsentry test-llm."""
-    return asyncio.run(_run_tests(color=color, skip_l3=skip_l3, json_mode=json_mode))
+    return asyncio.run(_run_tests(color=color, skip_l3=skip_l3, json_mode=json_mode, env_file=env_file))

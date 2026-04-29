@@ -299,7 +299,7 @@ flowchart LR
 
         ```bash
         clawsentry init claude-code   # 一键配置 hooks
-        source .env.clawsentry
+        clawsentry start --env-file .clawsentry.env.local
         clawsentry gateway &          # 启动 Gateway
         claude                        # 正常使用，所有工具调用自动监控
         ```
@@ -313,7 +313,7 @@ flowchart LR
         ```bash
         clawsentry init codex         # 生成 watcher 配置
         clawsentry init codex --setup # 可选：安装 PreToolUse(Bash) preflight + 异步观察 hooks
-        source .env.clawsentry
+        clawsentry start --env-file .clawsentry.env.local
         clawsentry gateway            # 启动 Gateway
         codex --approval-policy untrusted
         ```
@@ -330,7 +330,7 @@ flowchart LR
         clawsentry init gemini-cli
         clawsentry init gemini-cli --setup --dry-run
         clawsentry init gemini-cli --setup
-        source .env.clawsentry
+        clawsentry start --env-file .clawsentry.env.local
         clawsentry gateway
         gemini --prompt "say hello"
         ```

@@ -9,7 +9,7 @@ interface LoginFormProps {
 
 function failureMessage(authFailure: AuthFailure): string | null {
   if (authFailure === 'invalid_token') {
-    return 'Token was rejected (401). Paste the exact CS_AUTH_TOKEN value printed by clawsentry start or stored in .env.clawsentry.'
+    return 'Token was rejected (401). Paste the exact CS_AUTH_TOKEN value printed by clawsentry start, set in process env, or passed with --env-file.'
   }
   if (authFailure === 'gateway_unavailable') {
     return 'Gateway is unavailable. This is not a bad token; start the Gateway or check host/port/proxy settings, then retry.'
@@ -36,7 +36,7 @@ export default function LoginForm({ onLogin, authFailure = null, checking = fals
         <div className="subtitle">Enter your AHP auth token to connect</div>
         <p className="login-help">
           Use the token printed by clawsentry start in the Web UI URL, or the
-          <code> CS_AUTH_TOKEN</code> value in your local <code>.env.clawsentry</code>.
+          <code> CS_AUTH_TOKEN</code> value in your process env or explicit <code>--env-file</code>.
         </p>
         {message && (
           <div className="login-alert" role="alert">
