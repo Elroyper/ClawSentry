@@ -60,7 +60,7 @@ boundary: advisory only; canonical decision unchanged
 | 输入是什么 | frozen trajectory record range。报告基于固定 records，不读取不断变化的 live workspace。 |
 | 输出是什么 | `snapshot_id`、`job_id`、`review_id`、`risk_level`、recommended `Action`、可选 `analysis_summary` / `analysis_points` / `operator_next_steps`。 |
 | 会不会重判 allow/block/defer | 不会。响应和 action payload 必须保持 `advisory_only=true`、`canonical_decision_mutated=false`。 |
-| 会不会自动联网 | 不会。默认 runner 是 `deterministic_local`；`llm_provider` 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置并显式关闭 dry-run。 |
+| 会不会自动联网 | 默认 runner 是 `llm_provider`；配置了有效 `CS_LLM_*` 和 API key 时会执行真实 LLM 复盘。缺少配置时生成明确 `degraded` review，不静默 fallback 到本地 runner。 |
 | 会不会后台扫所有 session | 不会。queued job drain 是有界 one-shot；heartbeat/idle aggregate 只自动冻结/排队，不启动 scheduler。 |
 | 在哪里查询 | Web UI Session Detail、`clawsentry l3 full-review` / `l3 jobs`、`/report/*/l3-advisory/*`、SSE/watch、[报表 API](../api/reporting.md#l3-advisory-endpoints)。 |
 
@@ -105,9 +105,9 @@ graph LR
     A[High-risk session] --> B[Freeze snapshot<br/>bounded records]
     B --> C[Queue advisory job]
     C --> D{Runner}
-    D -->|default| E[deterministic_local]
-    D -->|contract test| F[fake_llm]
-    D -->|explicit opt-in| G[llm_provider]
+    D -->|default| E[llm_provider]
+    D -->|explicit local support| F[deterministic_local]
+    D -->|missing CS_LLM_*| G[degraded review]
     E --> H[Advisory review]
     F --> H
     G --> H
@@ -153,7 +153,7 @@ graph LR
 
 ## 在 CLI 里怎么用
 
-### 默认：立即生成一份本地咨询报告
+### 默认：立即生成一份 LLM-backed 咨询报告
 
 ```bash
 clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
@@ -169,6 +169,8 @@ review:   l3adv-... (completed, risk=high)
 advisory_only: true
 canonical_decision_mutated: false
 ```
+
+如果 Gateway 没有解析到有效的 `CS_LLM_PROVIDER`、API key 或 `CS_LLM_MODEL`，命令仍会完成，但 review 会标记为 `l3_state=degraded`，并带 `provider_disabled` / `provider_missing_key` / `provider_missing_model` 等 reason code，提示补齐 LLM 配置。
 
 ### 只排队，不运行
 
@@ -205,7 +207,7 @@ clawsentry l3 jobs drain \
   --max-jobs 2
 ```
 
-这些命令只 claim `job_state=queued` 的 job；`running` / `completed` / `failed` 不会被 rerun。`llm_provider` runner 仍需要显式 advisory provider gates，默认不会真实联网。
+这些命令只 claim `job_state=queued` 的 job；`running` / `completed` / `failed` 不会被 rerun。省略 `--runner` 时默认执行 `llm_provider`。
 
 ### Heartbeat / idle aggregate queueing {#heartbeat-idle-aggregate-queueing}
 
@@ -243,19 +245,16 @@ clawsentry l3 full-review \
 
 | Runner | 是否联网 | 适合谁 | 说明 |
 |--------|----------|--------|------|
-| `deterministic_local` | 否 | 大多数用户 | 默认选择，稳定、可重复、无外部依赖 |
-| `fake_llm` | 否 | 集成测试 / 平台验证 | 验证 job/review 流程，不代表真实模型判断 |
-| `llm_provider` | 默认不联网；显式打开后可联网 | 需要 LLM 审查的安全团队 | 需要独立 `CS_L3_ADVISORY_PROVIDER_*` 配置，不继承同步 L2/L3 LLM 配置 |
+| `llm_provider` | 是；使用共享 `CS_LLM_*` provider 配置 | 默认 full-review / queued job | 继承 `CS_LLM_PROVIDER`、API key、`CS_LLM_MODEL`、`CS_LLM_BASE_URL`、`CS_LLM_TEMPERATURE`、`CS_LLM_PROVIDER_TIMEOUT_MS`；缺配置时写入 `degraded` review |
+| `deterministic_local` | 否 | 离线调试 / 审计管道验证 | 只有显式传入 `runner=deterministic_local` 或 `--runner deterministic_local` 时运行 |
 
-!!! warning "provider runner 必须显式打开"
-    即使你已经配置了 `CS_LLM_PROVIDER`，L3 咨询审查也不会自动用它联网。`llm_provider` 仍需要独立设置 provider、model、key，并把 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`。
+!!! warning "无 LLM 配置时会显式降级"
+    `llm_provider` 不会静默改跑本地 deterministic review。没有有效 `CS_LLM_*` / API key 时，full-review 会生成 `degraded` review/action，并建议配置 LLM provider。
 
     ```bash
-    CS_L3_ADVISORY_PROVIDER_ENABLED=true
-    CS_L3_ADVISORY_PROVIDER=openai        # 或 anthropic
-    CS_L3_ADVISORY_MODEL=<model>
-    CS_L3_ADVISORY_PROVIDER_DRY_RUN=false
-    OPENAI_API_KEY=<key>                  # 或 CS_L3_ADVISORY_API_KEY
+    CS_LLM_PROVIDER=openai        # 或 anthropic
+    CS_LLM_MODEL=<model>
+    OPENAI_API_KEY=<key>          # 或 CS_LLM_API_KEY
     ```
 
 ### 手动 readiness / smoke 验证
@@ -271,13 +270,9 @@ python -m clawsentry.devtools.l3_advisory_provider_smoke \
 
 预期边界：
 
-- 默认 dry-run 或缺少 provider/key/model 时，结果应安全降级为 `degraded`，不会发起真实网络调用；
-- 只有显式配置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`、provider/model/key，并设置
-  `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 后，`llm_provider` 才可能调用真实 provider；
-- 需要把真实 provider smoke 作为发布 gate 时，再加 `--require-completed`，让未完成的
-  review 以失败退出；
-- readiness check 不启动 scheduler，不修改 canonical decision，仍只写
-  `advisory_only=true` 的 review 证据。
+- 缺少 `CS_LLM_PROVIDER`、API key 或 `CS_LLM_MODEL` 时，结果应安全降级为 `degraded`，并说明 provider/config 问题；
+- 需要把真实 provider smoke 作为发布 gate 时，再加 `--require-completed`，让未完成的 review 以失败退出；
+- readiness check 不启动 scheduler，不修改 canonical decision，仍只写 `advisory_only=true` 的 review 证据。
 
 ---
 
@@ -298,7 +293,7 @@ POST /report/session/{session_id}/l3-advisory/full-review
   "to_record_id": 8,
   "max_records": 100,
   "max_tool_calls": 0,
-  "runner": "deterministic_local",
+  "runner": "llm_provider",
   "run": true
 }
 ```
@@ -360,7 +355,7 @@ L3 ADVISORY REVIEW    l3adv-...   State=Completed Action=Inspect
 | 输入 | 当前事件 + bounded context | frozen trajectory record range |
 | 输出 | 决策路径中的 L3 结果 / trace | advisory review / recommended operator action |
 | 延迟模型 | 同步路径预算内返回，超时/失败降级 | job/review 生命周期，可排队、手动 run-next/drain |
-| LLM 配置 | 继承同步 L2/L3 provider：`CS_LLM_PROVIDER`、`CS_LLM_MODEL` 等 | 独立安全闸门：`CS_L3_ADVISORY_PROVIDER_*`，默认 dry-run |
+| LLM 配置 | 继承同步 L2/L3 provider：`CS_LLM_PROVIDER`、`CS_LLM_MODEL` 等 | 同样继承 `CS_LLM_*`；无有效配置时 loud degraded |
 | 是否改历史判决 | 不适用 | 明确不改，`canonical_decision_mutated=false` |
 
 ## 最近功能覆盖状态 {#recent-feature-coverage}

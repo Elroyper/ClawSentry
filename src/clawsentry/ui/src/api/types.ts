@@ -375,7 +375,7 @@ export interface L3AdvisoryJob {
 
 export interface L3FullReviewResponse {
   snapshot: L3EvidenceSnapshot | { snapshot_id: string }
-  job: L3AdvisoryJob | { job_id: string; job_state: string }
+  job: L3AdvisoryJob | { job_id: string; job_state: string; runner?: string }
   review: L3AdvisoryReview | null
   advisory_only: true
   canonical_decision_mutated: false
@@ -572,6 +572,7 @@ export type SSEL3AdvisoryReviewEvent = {
   risk_level: RiskLevel
   recommended_operator_action: string
   l3_state: string
+  l3_reason_code?: string | null
   analysis_summary?: string
   analysis_points?: string[]
   operator_next_steps?: string[]

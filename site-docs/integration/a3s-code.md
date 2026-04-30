@@ -58,7 +58,7 @@ clawsentry start --framework a3s-code
 
 它会自动完成 ClawSentry 侧的工作：
 
-- 读取或生成当前项目的 `.clawsentry.toml` 框架策略
+- 读取或生成当前项目的 `.clawsentry.env.example` 框架策略
 - 使用进程/部署环境或本次启动生成的临时运行时值启动 Gateway（UDS + HTTP）
 - 在前台显示 `clawsentry watch` 实时事件流
 
@@ -116,7 +116,7 @@ python your_agent_script.py
 如果你要把 `start` 拆开运行，命令关系如下：
 
 ```bash
-clawsentry init a3s-code     # 只生成/合并 .clawsentry.toml 项目策略
+clawsentry init a3s-code     # 输出 env 建议；不写密钥或项目 env file
 clawsentry start --env-file .clawsentry.env.local      # 可选：显式加载本机 token、UDS、端口等运行时值
 clawsentry gateway          # 只启动 Gateway 服务，不显示事件流
 clawsentry watch            # 可选：仅在手动拆分时另开终端观察事件流
@@ -141,7 +141,7 @@ Gateway 默认监听：
 clawsentry init a3s-code --uninstall
 ```
 
-此命令会从当前项目 `.clawsentry.toml [frameworks]` 中移除 `a3s-code`。它不会删除 `CS_AUTH_TOKEN` 或任何显式 env file，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
+此命令会从当前 explicit env / deployment env 中移除 `a3s-code`。它不会删除 `CS_AUTH_TOKEN` 或任何显式 env file，因此同一项目里的 Codex、Claude Code、OpenClaw 配置不会受影响。
 
 ---
 
@@ -387,7 +387,7 @@ AHP_SSL_KEYFILE=/path/to/key.pem \
 |------|--------|------|
 | `CS_HTTP_HOST` | `127.0.0.1` | HTTP 监听地址 |
 | `CS_HTTP_PORT` | `8080` | HTTP 监听端口 |
-| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` |
 | `CS_AUTH_TOKEN` | *(空)* | Bearer Token 认证（空=禁用） |
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | UDS 套接字路径 |
 | `CS_TRAJECTORY_DB_PATH` | `/tmp/clawsentry-trajectory.db` | SQLite 轨迹数据库路径 |

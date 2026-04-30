@@ -42,3 +42,7 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# ClawSentry local env-first secrets
+.clawsentry.env.local
+*.clawsentry.env.local

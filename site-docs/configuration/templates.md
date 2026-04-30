@@ -1,152 +1,114 @@
 ---
 title: 配置模板
-description: 按观察、L2 预算、严格 L3、咨询审查、benchmark 和生产部署选择 ClawSentry 配置
+description: 按功能块复制 ClawSentry dotenv 配置：L1、L2、L3、Anti-bypass、DEFER、Benchmark、生产部署
 ---
 
 # 配置模板
 
-ClawSentry 推荐只记住一个配置规则：
+本页是**唯一推荐复制配置片段的页面**。所有片段都是 dotenv `KEY=VALUE` 格式，可放入 `.clawsentry.env.example`、`.clawsentry.env.local`、CI secret/env 或 systemd `EnvironmentFile=`。不要在 ClawSentry env file 里使用 section、数组或嵌套表。
 
-> **提交 `.clawsentry.toml` 管项目策略；用环境变量管密钥和运行时；本地文件只用 `.clawsentry.env.local`，且必须显式 `--env-file`。**
-
-本页只提供两类可复制模板：
-
-- **`.clawsentry.toml.example`**：可提交的项目策略示例，放 preset、mode、frameworks、LLM provider/model、features、budgets、defer、benchmark 等非密钥配置。
-- **`.clawsentry.env.local.example`**：本机便利文件示例，不提交；只在命令中显式传入 `--env-file .clawsentry.env.local` 或设置 `CLAWSENTRY_ENV_FILE` 时读取。
-
-`.env.clawsentry` 是旧版本迁移文件名，不再作为模板入口；如短期复用，必须显式 `--env-file .env.clawsentry`。
-
-!!! note "`config wizard` 支持交互式和确定性两种路径"
-    在本地 TTY 中运行 `clawsentry config wizard --interactive` 会进入 5 步终端向导。模板页仍使用 `--non-interactive`，因为复制命令和 CI 需要稳定、可复现的输出。
+> **规则**：可提交文件只放非密钥策略；密钥和本机端口放进进程/部署环境或显式 `--env-file .clawsentry.env.local`。
 
 ```bash
-clawsentry config wizard --interactive
-clawsentry config show --effective
+clawsentry config show --effective --env-file .clawsentry.env.local
+clawsentry start --env-file .clawsentry.env.local --framework codex --open-browser
 ```
-
-```bash
-clawsentry config wizard --non-interactive --framework codex --mode normal --llm-provider none --write-project-config
-clawsentry config show --effective
-```
-
-## 该选哪个模板？ {#choose-template}
-
-| 你的目标 | L3 延迟容忍度 | 启用方式 | 推荐模板 |
-|---|---:|---|---|
-| 先验证 Gateway / Web UI / session 分组 | 0 秒 | L1 + 审计观察 | [观察优先](#template-observe-first) |
-| 团队仓库要看语义风险但控制成本 | 低；只接受 L2 provider 延迟 | L2 + token budget | [L2 + token budget](#template-l2-budgeted) |
-| 安全敏感仓库，愿意为 high/critical 事件等待审查 | 中高；L3 可 10s+ | L2 + 同步 L3 | [严格 L3](#template-l3-strict) |
-| 只想对高风险 session 做事后复盘 | 与实时判决解耦 | L3 advisory full-review | [咨询审查](#template-advisory-review) |
-| CI、benchmark、安全评测 | 不等待人工 | benchmark deterministic | [CI / benchmark](#template-benchmark) |
-| 生产常驻 | 按团队 SLA | deployment env + 持久化 DB | [生产环境变量骨架](#template-production-env) |
 
 ---
 
-## 观察优先：先跑起来，不接外部 LLM {#template-observe-first}
-<span id="individual-developer"></span>
+## 该选哪个模板？ {#choose-template}
 
-适合第一次体验 Gateway、Web UI、审计记录、Framework/Workspace/Session 分组和 L1 规则。无 provider 成本；所有密钥和端口覆盖都留给进程环境或显式 env file。
+| 你的目标 | 复制哪些块 | 下一步 |
+|---|---|---|
+| 先跑起来看 Gateway / Web UI | [基础骨架](#base-skeleton) + [L1 only](#template-l1-only) | `clawsentry start --framework codex` |
+| 团队共享 L2 语义分析 | [基础骨架](#base-skeleton) + [L2 + token budget](#template-l2-budgeted) | 配本机 `CS_LLM_API_KEY` |
+| 高风险操作同步审查 | [严格 L3](#template-l3-strict) + [DEFER 审批](#template-defer-bridge) | 先小仓库试运行 |
+| 防重试/绕过 | [Anti-bypass Guard](#template-anti-bypass) | 从 observe rollout 开始 |
+| 处理工具输出泄露/外部指令 | [Post-action / trajectory](#template-runtime-detectors) | 观察 SSE/UI finding |
+| CI / benchmark | [CI / benchmark](#template-benchmark) | 使用临时 `CODEX_HOME` |
+| systemd / Docker 常驻 | [生产环境变量骨架](#template-production-env) | `service validate --env-file` |
 
-```toml title=".clawsentry.toml.example"
-[project]
-enabled = true
-mode = "normal"
-preset = "medium"
+---
 
-[frameworks]
-enabled = ["codex"]
-default = "codex"
+## 基础骨架 {#base-skeleton}
 
-[llm]
-provider = ""
-api_key_env = "CS_LLM_API_KEY"
-model = ""
-base_url = ""
+```bash title=".clawsentry.env.example — 可提交基础策略"
+CS_FRAMEWORK=codex
+CS_ENABLED_FRAMEWORKS=codex
+CS_MODE=normal                  # normal | strict | permissive | benchmark
+CS_PRESET=medium                # low | medium | high | strict
 
-[features]
-l2 = false
-l3 = false
-enterprise = false
+CS_HTTP_HOST=127.0.0.1
+CS_HTTP_PORT=8080
+CS_TRAJECTORY_DB_PATH=/tmp/clawsentry-trajectory.db
 
-[budgets]
-llm_token_budget_enabled = false
-llm_daily_token_budget = 0
-llm_token_budget_scope = "total"
-l2_timeout_ms = 60000
-l3_timeout_ms = 300000
-hard_timeout_ms = 600000
-
-[defer]
-bridge_enabled = true
-timeout_s = 86400
-timeout_action = "block"
-max_pending = 0
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=86400
+CS_DEFER_TIMEOUT_ACTION=block
+CS_DEFER_MAX_PENDING=0
 ```
 
-```bash title="验证"
-cp .clawsentry.toml.example .clawsentry.toml
-clawsentry config show --effective
-clawsentry start --framework codex --open-browser
+```bash title=".clawsentry.env.local — 不提交，本机密钥/覆盖"
+CS_AUTH_TOKEN=replace-with-local-token
+# CS_HTTP_PORT=9100
+# CS_LLM_API_KEY=sk-...
 ```
 
-你应该看到 Web UI token、Runtime Feed、Session 列表和 L1 风险分；不会看到 provider token usage。
+---
+
+## L1 only：零外部依赖观察模式 {#template-l1-only}
+
+适合首次体验、开发测试、成本为零的审计观察。
+
+```bash
+CS_LLM_PROVIDER=
+CS_LLM_MODEL=
+CS_L2_ENABLED=false
+CS_L3_ENABLED=false
+CS_ENTERPRISE_ENABLED=false
+CS_LLM_TOKEN_BUDGET_ENABLED=false
+CS_LLM_DAILY_TOKEN_BUDGET=0
+```
+
+验证：
+
+```bash
+clawsentry config show --effective --env-file .clawsentry.env.local
+clawsentry start --env-file .clawsentry.env.local --framework codex --open-browser
+```
 
 ---
 
 ## L2 + token budget：团队语义分析 {#template-l2-budgeted}
 <span id="team-l2-budgeted"></span>
-<span id="team-maintainer-l2-token-budget"></span>
 
-适合团队共享仓库：开启 L2 语义分析，但用 provider usage 的每日 token 上限控制成本。`.clawsentry.toml` 只写 provider 名、模型名和密钥环境变量名；真实 API key 放环境变量或显式 env file。
 
-```toml title=".clawsentry.toml.example"
-[project]
-enabled = true
-mode = "normal"
-preset = "high"
+共享策略文件只写 provider/model/预算，真实 API key 放本机或部署环境。
 
-[frameworks]
-enabled = ["codex"]
-default = "codex"
+```bash title="可提交策略"
+CS_LLM_PROVIDER=openai
+CS_LLM_MODEL=gpt-4o-mini
+CS_LLM_BASE_URL=
+CS_L2_ENABLED=true
+CS_L3_ENABLED=false
 
-[llm]
-provider = "openai"
-api_key_env = "CS_LLM_API_KEY"
-model = "gpt-4o-mini"
-base_url = ""
-
-[features]
-l2 = true
-l3 = false
-enterprise = false
-
-[budgets]
-llm_token_budget_enabled = true
-llm_daily_token_budget = 200000
-llm_token_budget_scope = "total"
-l2_timeout_ms = 60000
-l3_timeout_ms = 300000
-hard_timeout_ms = 600000
-
-[defer]
-bridge_enabled = true
-timeout_s = 86400
-timeout_action = "block"
-max_pending = 0
+CS_LLM_TOKEN_BUDGET_ENABLED=true
+CS_LLM_DAILY_TOKEN_BUDGET=200000
+CS_LLM_TOKEN_BUDGET_SCOPE=total
+CS_L2_TIMEOUT_MS=60000
+CS_HARD_TIMEOUT_MS=600000
 ```
 
-```bash title=".clawsentry.env.local.example（不要提交）"
+```bash title="本机/部署密钥（不要提交）"
 CS_LLM_API_KEY=sk-...
-# 可选：本机运行时覆盖，不放进 .clawsentry.toml
-CS_AUTH_TOKEN=replace-with-local-token
-CS_HTTP_PORT=8080
+# 或 provider 原生命名：OPENAI_API_KEY / ANTHROPIC_API_KEY
 ```
 
-```bash title="验证"
-cp .clawsentry.toml.example .clawsentry.toml
-cp .clawsentry.env.local.example .clawsentry.env.local
-clawsentry config show --effective --env-file .clawsentry.env.local
+验证：
+
+```bash
 clawsentry test-llm --env-file .clawsentry.env.local --json
+clawsentry config show --effective --env-file .clawsentry.env.local
 ```
 
 ---
@@ -154,172 +116,229 @@ clawsentry test-llm --env-file .clawsentry.env.local --json
 ## 严格 L3：高风险事件同步审查 {#template-l3-strict}
 <span id="strict-l3-review"></span>
 
-适合敏感仓库、发布前窗口或需要在 high/critical 事件上做同步深度审查的团队。L3 会读取有界上下文并使用只读工具，多轮模式可能带来 10s+ 延迟；上线前请先在小仓库试运行。
 
-```toml title=".clawsentry.toml.example"
-[project]
-enabled = true
-mode = "strict"
-preset = "strict"
+适合敏感仓库、发布前窗口或需要 high/critical 事件进入深度审查的团队。L3 会增加模型成本和 10s+ 延迟；先在小仓库试运行。
 
-[frameworks]
-enabled = ["claude-code"]
-default = "claude-code"
+```bash
+CS_MODE=strict
+CS_PRESET=strict
+CS_LLM_PROVIDER=anthropic
+CS_LLM_MODEL=claude-3-5-sonnet-latest
+CS_L2_ENABLED=true
+CS_L3_ENABLED=true
+CS_L3_MULTI_TURN=true
+CS_L3_TIMEOUT_MS=300000
+CS_HARD_TIMEOUT_MS=600000
 
-[llm]
-provider = "anthropic"
-api_key_env = "CS_LLM_API_KEY"
-model = "claude-3-5-sonnet-latest"
-base_url = ""
-
-[features]
-l2 = true
-l3 = true
-enterprise = false
-
-[budgets]
-llm_token_budget_enabled = true
-llm_daily_token_budget = 500000
-llm_token_budget_scope = "total"
-l2_timeout_ms = 60000
-l3_timeout_ms = 300000
-hard_timeout_ms = 600000
-
-[defer]
-bridge_enabled = true
-timeout_s = 86400
-timeout_action = "block"
-max_pending = 0
+CS_LLM_TOKEN_BUDGET_ENABLED=true
+CS_LLM_DAILY_TOKEN_BUDGET=500000
+CS_LLM_TOKEN_BUDGET_SCOPE=total
 ```
 
-```bash title=".clawsentry.env.local.example（不要提交）"
-CS_LLM_API_KEY=sk-...
-CS_AUTH_TOKEN=replace-with-local-token
+```bash title="密钥"
+CS_LLM_API_KEY=sk-ant-...
 ```
 
-```bash title="验证"
-cp .clawsentry.toml.example .clawsentry.toml
-cp .clawsentry.env.local.example .clawsentry.env.local
-clawsentry test-llm --env-file .clawsentry.env.local --json
-clawsentry start --env-file .clawsentry.env.local --framework claude-code --interactive --open-browser
-```
+运行态读数：
 
-运营判断：
-
-| 读数 | 说明 |
+| 读数 | 含义 |
 |---|---|
-| `l3_state=completed` | 同步 L3 已实际参与本次高风险事件审查 |
-| `l3_reason_code=local_l3_unavailable` | 配置请求 L3，但 runtime 没有可用 L3 能力；实际会回退到可用层级 |
-| `budget_exhaustion_event` | token/time budget 用尽，结果需要按降级语义阅读 |
+| `l3_state=completed` | L3 实际参与本次高风险事件审查 |
+| `l3_reason_code=local_l3_unavailable` | 请求 L3，但本地 runtime 没有可用 L3 能力 |
+| `budget_exhaustion_event` | token/time budget 用尽，按降级语义阅读结果 |
 
 ---
 
-## 咨询审查：只读 full-review，不改历史判决 {#template-advisory-review}
+## Anti-bypass Guard：防重试/绕过机制 {#template-anti-bypass}
 
-适合只想对高风险 session 做 operator-triggered 复盘的团队。它冻结一段证据、排队/运行 advisory job、生成 review；`advisory_only=true`，不会修改已经发生的 allow/block/defer 判决。
+Anti-bypass follow-up guard 用于检测 `PRE_ACTION` 中对 prior final risky decision 的重复、规范化等价或跨工具近似绕过。默认关闭；建议按 observe → review → enforce 三阶段启用。完整机制见 [Anti-bypass Guard](../decision-layers/anti-bypass-guard.md)，字段详表见 [DetectionConfig](detection-config.md#anti-bypass-guard)。
+
+### Observe only：只记录，不改变 verdict
 
 ```bash
-# 同步 L3 可不开；先启动 Gateway / Web UI
-clawsentry start --framework codex --open-browser
-
-# 对已记录 session 发起咨询审查
-clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
-
-# 或只排队，交给后续 worker 有界执行
-clawsentry l3 full-review --session sess-001 --queue-only --json
-clawsentry l3 jobs run-next --runner deterministic_local --json
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_MEMORY_TTL_S=86400
+CS_ANTI_BYPASS_MEMORY_MAX_RECORDS_PER_SESSION=256
+CS_ANTI_BYPASS_MIN_PRIOR_RISK=high
+CS_ANTI_BYPASS_PRIOR_VERDICTS=block,defer
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=observe
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=observe
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=observe
+CS_ANTI_BYPASS_SIMILARITY_THRESHOLD=0.92
+CS_ANTI_BYPASS_RECORD_ALLOW_DECISIONS=false
 ```
 
-如需 heartbeat / idle aggregate queueing，把这些运行时开关放在进程环境或显式 env file，不放进项目策略：
+### Review：exact/normalized 进入人工确认，cross-tool 请求 L3
 
-```bash title=".clawsentry.env.local.example（不要提交）"
+```bash
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
+CS_ANTI_BYPASS_SIMILARITY_THRESHOLD=0.92
+CS_ANTI_BYPASS_MIN_PRIOR_RISK=high
+CS_ANTI_BYPASS_PRIOR_VERDICTS=block,defer
+```
+
+### Enforce：只对 exact repeat 本地阻断
+
+```bash
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
+CS_ANTI_BYPASS_SIMILARITY_THRESHOLD=0.92
+```
+
+!!! warning "cross-tool/script 不本地 hard-block"
+    `CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=block` 无效，会回退到 `force_l3`。跨工具近似匹配可选 `observe` / `force_l2` / `force_l3` / `defer`。
+
+---
+
+## DEFER 审批桥接 {#template-defer-bridge}
+
+```bash
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=86400
+CS_DEFER_TIMEOUT_ACTION=block
+CS_DEFER_MAX_PENDING=0
+```
+
+交互审批：
+
+```bash
+# 终端 1
+clawsentry start --env-file .clawsentry.env.local --framework codex
+
+# 终端 2
+clawsentry watch --interactive --token "$CS_AUTH_TOKEN"
+```
+
+---
+
+## Post-action / trajectory 运行时检测器 {#template-runtime-detectors}
+
+这组配置控制工具执行后的输出检查、轨迹告警以及高预设下的后续执法。
+
+```bash
+CS_POST_ACTION_MONITOR=0.3
+CS_POST_ACTION_ESCALATE=0.6
+CS_POST_ACTION_EMERGENCY=0.9
+CS_POST_ACTION_WHITELIST=^https://internal\.corp\.example\.com,^data:image/
+CS_POST_ACTION_FINDING_ACTION=broadcast   # broadcast | defer | block
+
+CS_TRAJECTORY_MAX_EVENTS=50
+CS_TRAJECTORY_MAX_SESSIONS=10000
+CS_TRAJECTORY_ALERT_ACTION=broadcast       # broadcast | defer | block
+
+CS_EXTERNAL_CONTENT_D6_BOOST=0.3
+CS_EXTERNAL_CONTENT_POST_ACTION_MULTIPLIER=1.3
+```
+
+---
+
+## D4 频率异常检测 {#template-d4-frequency}
+
+```bash
+CS_D4_FREQ_ENABLED=true
+CS_D4_FREQ_BURST_COUNT=10
+CS_D4_FREQ_BURST_WINDOW_S=5
+CS_D4_FREQ_REPETITIVE_COUNT=20
+CS_D4_FREQ_REPETITIVE_WINDOW_S=60
+CS_D4_FREQ_RATE_LIMIT_PER_MIN=60
+```
+
+---
+
+## 自进化模式库 {#template-evolving-patterns}
+
+```bash
+CS_EVOLVING_ENABLED=true
+CS_EVOLVED_PATTERNS_PATH=/var/lib/clawsentry/evolved_patterns.yaml
+# 可选：替换核心攻击模式库
+# CS_ATTACK_PATTERNS_PATH=/etc/clawsentry/attack_patterns.yaml
+```
+
+---
+
+## L3 advisory：只读 full-review，不改历史判决 {#template-advisory-review}
+
+```bash
 CS_L3_ADVISORY_ASYNC_ENABLED=true
 CS_L3_HEARTBEAT_REVIEW_ENABLED=true
 ```
 
-边界：不启动后台 daemon，不自动联网，不重写 canonical decision。完整说明见 [L3 咨询审查](../decision-layers/l3-advisory.md)。
+```bash
+clawsentry l3 full-review --session sess-001 --token "$CS_AUTH_TOKEN"
+clawsentry l3 full-review --session sess-001 --queue-only --json
+clawsentry l3 jobs run-next --runner deterministic_local --json
+```
+
+边界：advisory review 冻结证据、排队/运行 job、生成 review；不会修改已经发生的 canonical allow/block/defer 判决。
 
 ---
 
 ## CI / benchmark：无人值守且可审计 {#template-benchmark}
 <span id="ci-benchmark-operator"></span>
 
-适合自动化评测、安全 benchmark、CI smoke test。会产生 DEFER 的 pre-action 被确定性转换为 `block`，并在元数据中标记 `auto_resolved=true`。Codex benchmark 必须使用临时 `CODEX_HOME`，不要复用正在工作的 `~/.codex`。
 
-```toml title=".clawsentry.toml.example"
-[project]
-enabled = true
-mode = "benchmark"
-preset = "high"
-
-[frameworks]
-enabled = ["codex"]
-default = "codex"
-
-[benchmark]
-auto_resolve_defer = true
-defer_action = "block"
-persist_scope = "project"
-
-[features]
-l2 = false
-l3 = false
-enterprise = false
-
-[defer]
-bridge_enabled = false
-timeout_s = 1
-timeout_action = "block"
-max_pending = 0
+```bash
+CS_MODE=benchmark
+CS_PRESET=high
+CS_FRAMEWORK=codex
+CS_ENABLED_FRAMEWORKS=codex
+CS_BENCHMARK_AUTO_RESOLVE_DEFER=true
+CS_BENCHMARK_DEFER_ACTION=block
+CS_BENCHMARK_PERSIST_SCOPE=project
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_ACTION=block
 ```
 
-```bash title="Codex benchmark 示例"
-cp .clawsentry.toml.example .clawsentry.toml
-export CS_CODEX_HOME="$(mktemp -d)"
-clawsentry benchmark env --framework codex --mode guarded > .clawsentry.benchmark.env
-clawsentry benchmark enable --dir . --framework codex --codex-home "$CS_CODEX_HOME"
-clawsentry benchmark run --dir . --framework codex --codex-home "$CS_CODEX_HOME" -- \
-  bash benchmarks/scripts/skills_safety_bench_codex.sh
-clawsentry benchmark disable --dir . --framework codex --codex-home "$CS_CODEX_HOME"
+Codex benchmark 必须使用临时 `CODEX_HOME`，不要复用正在工作的 `~/.codex`。
+
+```bash
+TMP_CODEX_HOME="$(mktemp -d)"
+CODEX_HOME="$TMP_CODEX_HOME" clawsentry benchmark run -- codex --approval-policy untrusted
+rm -rf "$TMP_CODEX_HOME"
 ```
 
 ---
 
 ## 生产环境变量骨架 {#template-production-env}
-<span id="production-env"></span>
-
-生产环境至少设置认证、监听地址、持久化数据库和明确的 LLM/token 策略。是否启用 L3 取决于你的延迟 SLA；如果值守团队只需要复盘，优先使用 L3 advisory。
 
 ```bash title="/etc/clawsentry/gateway.env"
-CS_AUTH_TOKEN=replace-with-long-random-token
-CS_HTTP_HOST=127.0.0.1
+CS_HTTP_HOST=0.0.0.0
 CS_HTTP_PORT=8080
+CS_AUTH_TOKEN=replace-with-high-entropy-token
 CS_TRAJECTORY_DB_PATH=/var/lib/clawsentry/trajectory.db
+AHP_TRAJECTORY_RETENTION_SECONDS=7776000
 
-CS_MODE=normal
-CS_L2_TIMEOUT_MS=60000
-CS_L3_TIMEOUT_MS=300000
-CS_HARD_TIMEOUT_MS=600000
-CS_DEFER_TIMEOUT_S=86400
-CS_DEFER_TIMEOUT_ACTION=block
+CS_RATE_LIMIT_PER_MINUTE=300
+CS_MODE=strict
+CS_PRESET=high
 
 CS_LLM_PROVIDER=openai
 CS_LLM_MODEL=gpt-4o-mini
 CS_LLM_API_KEY=sk-...
+CS_L2_ENABLED=true
+CS_L3_ENABLED=false
 CS_LLM_TOKEN_BUDGET_ENABLED=true
-CS_LLM_DAILY_TOKEN_BUDGET=500000
+CS_LLM_DAILY_TOKEN_BUDGET=1000000
 CS_LLM_TOKEN_BUDGET_SCOPE=total
 
-# Optional synchronous L3. Enable only after latency/budget tests.
-CS_L3_ENABLED=false
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=86400
+CS_DEFER_TIMEOUT_ACTION=block
 
-# Optional advisory review queueing. Does not mutate canonical decisions.
-CS_L3_ADVISORY_ASYNC_ENABLED=true
+CS_ANTI_BYPASS_GUARD_ENABLED=true
+CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block
+CS_ANTI_BYPASS_NORMALIZED_DESTRUCTIVE_REPEAT_ACTION=defer
+CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
 ```
 
-```bash title="部署前验证"
+验证：
+
+```bash
 clawsentry service validate --env-file /etc/clawsentry/gateway.env
-clawsentry test-llm --env-file /etc/clawsentry/gateway.env --json
+clawsentry config show --effective --env-file /etc/clawsentry/gateway.env
 ```
-
-更多 systemd、launchd、Docker 细节见：[生产部署](../operations/deployment.md)。

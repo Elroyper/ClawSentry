@@ -14,13 +14,13 @@ description: 统一调优所有检测参数的 DetectionConfig dataclass — 合
 **设计原则：**
 
 - **完全向后兼容**：所有字段的默认值与原始硬编码常量完全一致，不提供任何 `CS_` 环境变量时行为与旧版本相同。
-- **项目策略 + 运行时桥接**：底层 runtime 仍消费 `CS_*` 风格的有效值，适合容器和 12-Factor 部署；可提交的 `.clawsentry.toml` 会在缺少对应 `CS_*` 覆盖时桥接为 DetectionConfig 字段，因此团队共享策略仍应写在 TOML。
+- **env-first 运行时桥接**：底层 runtime 消费 `CS_*` 风格的有效值，适合 shell、CI、容器和 12-Factor 部署；团队共享策略可写成 dotenv 模板，但必须显式 `--env-file` 加载。
 - **整体回退安全**：若环境变量的组合违反验证约束，整体回退至全默认配置，并记录 `ERROR` 日志，而不是以损坏配置启动。
 
 **配置流转路径：**
 
 ```
-CLI / deployment env / 显式 env file / .clawsentry.toml
+CLI / deployment env / 显式 env file
        │
        ▼
 合成缺失的 CS_* 有效值
@@ -341,7 +341,7 @@ CS_ANTI_BYPASS_CROSS_TOOL_SIMILARITY_ACTION=force_l3
 
 ### 安全预设等级 {#presets}
 
-ClawSentry 提供 4 个内置安全预设，通过 `.clawsentry.toml` 或 `clawsentry config set` 一键切换。
+ClawSentry 提供 4 个内置安全预设，通过 `.clawsentry.env.example` 或 `clawsentry config set` 一键切换。
 
 | 参数 | low | medium (默认) | high | strict |
 |------|-----|---------------|------|--------|
@@ -468,84 +468,60 @@ DEFER 决策产生
 
 - **默认行为不变**：以上三个字段全部保持默认值时，L1/L2/L3 行为与旧版本一致。
 - **`replace_l2` 不等于强制 L3 follow-up**：它只在命中 organic L2 入口时改写路由，不会把所有请求都视为显式 `requested_tier=L3`。
-- **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `显式 env file → .clawsentry.toml [project]/[features]/[budgets]/[overrides].l3_budget_ms` 仍然优先。
+- **预算扩容必须显式 opt-in**：只有 `l3_budget_tuning_enabled=true` 时，模式感知预算默认值才会生效；显式 `CS_L3_BUDGET_MS` 或 `CS_L3_TIMEOUT_MS` / 旧别名 `CS_L3_BUDGET_MS` 仍然优先。
 - **Advisory 自动化必须显式 opt-in**：L3 咨询审查提供 frozen evidence snapshot / queued advisory job / advisory result 流程；打开 `l3_advisory_async_enabled` 会自动创建 snapshot 并入队 job，但不会自动运行后台 L3 审查或改变 canonical decision。启用 heartbeat review 时，非 heartbeat-compatible 的高风险即时 snapshot queueing 会被抑制，避免和聚合路径重复。
 - **无本地 L3 能力时保持诚实回退**：如果网关启动时没有本地 L3 能力，`replace_l2` / `eager` 会被视为 unsupported runtime，现有 L1/L2 路径继续运行，但运行态会明确暴露 `l3_available=false`、`effective_tier=L3`、`l3_state=skipped`、`l3_reason_code=local_l3_unavailable`。
 
 ---
 
-## 项目级配置 (.clawsentry.toml) {#project-config}
+## 从 env 到 DetectionConfig {#project-config}
 
-通过项目根目录的 `.clawsentry.toml` 文件，可以为不同项目设置独立的安全预设和参数覆盖，无需修改全局环境变量。
+当前版本不读取 ClawSentry 项目级 section 配置；`DetectionConfig` 的输入是已经合成好的环境变量映射。`DetectionConfig` 的输入是已经合成好的环境变量映射：
 
-### TOML Schema
-
-```toml title=".clawsentry.toml"
-[project]
-enabled = true
-preset = "medium"   # low / medium / high / strict
-
-[overrides]
-# 可选：覆盖预设中的单个参数
-# threshold_critical = 2.0
-# d6_injection_multiplier = 0.7
-# l3_routing_mode = "replace_l2"
-# l3_trigger_profile = "eager"
-# l3_budget_tuning_enabled = true
-# l3_budget_ms = 20000
-```
-
-### 字段说明
-
-| 字段 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `project.enabled` | bool | `true` | 是否为此项目启用 ClawSentry |
-| `project.preset` | string | `"medium"` | 安全预设等级 |
-| `overrides.*` | 各类型 | (预设值) | 覆盖预设中的单个 DetectionConfig 字段 |
-
-### 配置优先级
-
-```
-CLI / 进程或部署环境变量（最高优先级）
+```text
+CLI 参数 / 进程环境 / 显式 env file
     │
     ▼
-显式 env file → .clawsentry.toml [project]/[features]/[budgets]/[overrides]
+规范化 CS_* / AHP_* 有效值
     │
     ▼
-预设值（PRESETS dict）
+build_detection_config_from_env()
     │
     ▼
-DetectionConfig 默认值（最低优先级）
+DetectionConfig(frozen=True)
 ```
 
-### 工作流
-
-1. 命令启动时先合成 CLI、进程/部署环境、显式 env file 与 `.clawsentry.toml`
-2. `.clawsentry.toml [project]` / `[features]` / `[budgets]` / `[overrides]` 只补齐缺失的运行时字段，不覆盖更高优先级环境变量
-3. 底层 DetectionConfig 继续接收规范化后的 `CS_*` 等效值
-4. 通过 preset + 字段级覆盖构建 `DetectionConfig`
-5. 发送到 Gateway，per-request 覆盖全局配置
-6. 项目配置使用 TTL 缓存，避免频繁文件 I/O
-
-### Fail-open 行为
-
-- 文件不存在 → 使用全局默认配置（`ProjectConfig()` 默认值）
-- 文件格式无效 → 记录 WARNING 日志，使用默认配置
-- 字段缺失 → 使用默认值填充
-
-### CLI 管理
-
-使用 `clawsentry config` 管理项目配置：
+因此本页的每个字段都可以用对应 `CS_*` 变量配置；如果你需要可复制的场景配置，请使用 [配置模板](templates.md)。典型 workflow：
 
 ```bash
-clawsentry config init --preset high     # 创建 .clawsentry.toml
-clawsentry config show                   # 显示当前配置
-clawsentry config set strict             # 切换预设
-clawsentry config disable                # 禁用项目配置
-clawsentry config enable                 # 重新启用
+# 1. 生成 dotenv 模板；不会写 section 配置
+clawsentry config wizard --non-interactive --framework codex --mode normal --force
+
+# 2. 按需编辑 KEY=VALUE；本机密钥放 .clawsentry.env.local，且不要提交
+cp .clawsentry.env.example .clawsentry.env.local
+
+# 3. 显式检查来源和最终值
+clawsentry config show --effective --env-file .clawsentry.env.local
+
+# 4. 显式启动
+clawsentry start --env-file .clawsentry.env.local --framework codex
 ```
 
-详见 [CLI 命令参考 > clawsentry config](../cli/index.md#clawsentry-config)。
+优先级保持简单：
+
+```text
+CLI 参数 > 进程/部署环境变量 > 显式 env file > 白名单旧别名 > 内置默认值
+```
+
+Fail-open 行为：
+
+- 未传 `--env-file` → 只使用 CLI、进程/部署环境和默认值。
+- 显式 env file 不存在 → 命令报错，避免误以为空文件运行。
+- 单个变量类型错误 → 忽略该变量并记录 warning。
+- 多个字段组合违反 `DetectionConfig` 约束 → 整体回退默认 `DetectionConfig()` 并记录 error。
+
+!!! tip "复制配置的位置"
+    Anti-bypass、DEFER、post-action、benchmark、生产部署等直接可用片段统一维护在 [配置模板](templates.md)，本页只保留字段语义、默认值和约束。
 
 ---
 
@@ -612,4 +588,4 @@ clawsentry config enable                 # 重新启用
 | `src/clawsentry/gateway/trajectory_analyzer.py` | `trajectory_max_events`、`trajectory_max_sessions` |
 | `src/clawsentry/gateway/server.py` | `trajectory_alert_action`、`post_action_finding_action`、`anti_bypass_*` decision path 集成 |
 | `src/clawsentry/gateway/pattern_matcher.py` | `attack_patterns_path` |
-| `src/clawsentry/gateway/project_config.py` | `ProjectConfig` dataclass + `.clawsentry.toml` 加载 |
+| `src/clawsentry/gateway/project_config.py` | 兼容旧 import 的 env-first facade；实际解析委托给 `env_config.py` |

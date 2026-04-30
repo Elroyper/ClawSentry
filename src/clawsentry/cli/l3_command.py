@@ -19,7 +19,7 @@ def build_full_review_payload(
     to_record_id: int | None,
     max_records: int,
     max_tool_calls: int,
-    runner: str,
+    runner: str | None,
     queue_only: bool,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -27,9 +27,10 @@ def build_full_review_payload(
         "trigger_detail": trigger_detail or "operator_requested_full_review",
         "max_records": max_records,
         "max_tool_calls": max_tool_calls,
-        "runner": runner,
         "run": not queue_only,
     }
+    if runner:
+        payload["runner"] = runner
     if from_record_id is not None:
         payload["from_record_id"] = from_record_id
     if to_record_id is not None:
@@ -48,7 +49,7 @@ def run_l3_full_review(
     to_record_id: int | None,
     max_records: int,
     max_tool_calls: int,
-    runner: str,
+    runner: str | None,
     queue_only: bool,
     json_mode: bool,
     timeout: float,

@@ -1,6 +1,6 @@
 # 环境变量参考
 
-ClawSentry 通过环境变量进行配置，遵循 12-Factor App 原则。本页列出常用和兼容环境变量。新配置应优先参考[配置总览](configuration-overview.md)和[配置模板](templates.md)：规范名称用于新部署，旧名称仅保留兼容。
+ClawSentry 通过环境变量和显式 env file 配置，遵循 12-Factor App 原则。本页是变量索引：查默认值、含义和兼容旧名请看这里；复制成套配置请看[配置模板](templates.md)；理解来源优先级请看[配置总览](configuration-overview.md)。
 
 ---
 
@@ -50,11 +50,11 @@ clawsentry config show --effective --env-file .clawsentry.env.local
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | Unix Domain Socket 路径。主传输通道，延迟最低 |
 | `CS_RATE_LIMIT_PER_MINUTE` | `300` | 每分钟最大请求数。设为 `0` 禁用速率限制。超限时返回 HTTP 429 |
 | `AHP_TRAJECTORY_RETENTION_SECONDS` | `2592000` (30 天) | 轨迹数据保留时间（秒）。过期记录自动清理 |
-| `CS_FRAMEWORK` | (空) | 旧版兼容字段；仅迁移旧脚本或作为 harness source framework 默认值 |
-| `CS_ENABLED_FRAMEWORKS` | (空) | 旧版兼容字段；框架启用请改用 `.clawsentry.toml [frameworks]` |
+| `CS_FRAMEWORK` | (空) | 默认 framework 名称；用于 `start`/harness/source framework 默认值 |
+| `CS_ENABLED_FRAMEWORKS` | (空) | 逗号分隔的启用 framework 列表，例如 `codex,claude-code` |
 
 !!! note "多框架配置"
-    新配置把框架启用状态写入 `.clawsentry.toml [frameworks]`。`CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 只保留给旧脚本迁移和底层 harness 默认值，不再是 `init` / `start` 的正常 source of truth。
+    框架启用状态现在也是 env-first：使用 `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS`，或让 `clawsentry config wizard` 写入同名 `KEY=VALUE` 模板。
 
 !!! tip "生产环境建议"
     - 必须设置 `CS_AUTH_TOKEN` 以启用认证
@@ -79,7 +79,7 @@ clawsentry config show --effective --env-file .clawsentry.env.local
 | `CS_LLM_API_KEY` | - | 通用 LLM API 密钥。作为 `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` 的替代方案，`doctor` 检查时也会检测此变量 |
 
 !!! warning "API 密钥安全"
-    API 密钥属于敏感信息，建议通过进程/部署环境、密钥管理系统，或显式 `--env-file .clawsentry.env.local` 注入，切勿写入 `.clawsentry.toml`、脚本或版本控制。
+    API 密钥属于敏感信息，建议通过进程/部署环境、密钥管理系统，或显式 `--env-file .clawsentry.env.local` 注入，切勿写入 `.clawsentry.env.example`、脚本或版本控制。
 
 ### 决策层级关系
 
@@ -393,7 +393,7 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CODEX_HOME` | `~/.codex` | Codex 根目录。仅在 `CS_CODEX_WATCH_ENABLED=true` 时用于自动检测 session 目录 |
 | `CS_CODEX_WATCH_ENABLED` | `false`（`init codex` 写入 `true`） | 启用 Codex Session Watcher 自动探测 |
 | `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | Watcher 轮询间隔（秒） |
-| `CS_FRAMEWORK` | (空) | 旧版迁移字段；Codex watcher 正常启用请使用 `.clawsentry.toml [frameworks]` 与 `CS_CODEX_WATCH_ENABLED` |
+| `CS_FRAMEWORK` | (空) | Codex watcher 事件的默认 source framework；通常设为 `codex` |
 
 !!! note "Codex watcher 启用顺序"
     `CS_CODEX_SESSION_DIR` 显式设置时优先使用该目录；否则在 `CS_CODEX_WATCH_ENABLED=true` 时从 `CODEX_HOME`（默认 `~/.codex`）自动探测 `sessions/`。Watcher 会按 JSONL offset 追踪新增事件，重启后继续从已处理位置之后读取，避免重复广播旧事件。
@@ -411,14 +411,11 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
 | `CS_L3_BUDGET_TUNING_ENABLED` | `false` | 是否允许按 L3 模式启用更大的默认预算。显式 `CS_L3_BUDGET_MS` 仍然优先 |
 | `CS_L3_ADVISORY_ASYNC_ENABLED` | `false` | 启用 advisory snapshot 自动创建：high/critical decision 或 high+ trajectory alert 后冻结当前 trajectory record range。当前不自动启动真实 L3 review scheduler |
 | `CS_L3_HEARTBEAT_REVIEW_ENABLED` | `false` | 预留给 heartbeat/idle 聚合后的 advisory snapshot review。默认关闭，且不启用 timer-only full review |
-| `CS_L3_ADVISORY_PROVIDER_ENABLED` | `false` | 显式启用 advisory provider worker。未启用、缺 key、缺 model、不支持 provider，或 dry-run 未关闭时都会写入 `degraded` advisory review |
-| `CS_L3_ADVISORY_PROVIDER` | (空) | advisory provider shell 选择，支持 `openai` / `anthropic`。故意不继承 `CS_LLM_PROVIDER`，避免同步 L2/L3 配置意外启动异步 advisory worker |
-| `CS_L3_ADVISORY_MODEL` | (空) | advisory worker model 标签。故意不继承 `CS_LLM_MODEL` |
-| `CS_L3_ADVISORY_BASE_URL` | (空) | advisory worker OpenAI-compatible endpoint；仅在显式启用 provider 且关闭 dry-run 时使用 |
-| `CS_L3_ADVISORY_API_KEY` | (空) | advisory worker 专用 API key；未设置时按 provider 读取 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`。默认 dry-run 不发真实网络请求 |
-| `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | `true` | advisory provider worker dry-run 安全闸门。只有显式设为 `false` 且 provider/key/model 都有效时，`llm_provider` runner 才会桥接到真实 LLM provider |
-| `CS_L3_ADVISORY_TEMPERATURE` | `1.0` | advisory provider 独立 temperature。部分 OpenAI-compatible 端点（如 Kimi）要求 `1` |
-| `CS_L3_ADVISORY_DEADLINE_MS` | `30000` | advisory provider 单次 completion deadline（毫秒）。慢速兼容端点可在手动 readiness check 中调大 |
+| `CS_LLM_PROVIDER` | (空) | L2/L3 与 L3 advisory `llm_provider` 共用的 provider：`openai` / `anthropic` |
+| `CS_LLM_MODEL` | (provider 默认) | L2/L3 与 L3 advisory `llm_provider` 共用模型名 |
+| `CS_LLM_BASE_URL` | (provider 默认) | OpenAI-compatible endpoint；L3 advisory `llm_provider` 会继承 |
+| `CS_LLM_TEMPERATURE` | `0.0` | L2/L3 与 L3 advisory provider 调用共用 temperature |
+| `CS_LLM_PROVIDER_TIMEOUT_MS` | `3000` | L2/L3 与 L3 advisory provider 调用共用 timeout |
 | `CS_L3_ADVISORY_RUN_REAL_SMOKE` | `false` | 仅用于测试套件里的真实 provider readiness gate；默认跳过真实网络调用 |
 | `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | `true` | 手动 readiness check 默认剥离 proxy 环境变量，避免本地 SOCKS proxy 缺依赖污染 provider client；需经代理时可显式设为 `false` |
 
@@ -438,23 +435,14 @@ Codex 默认通过 Session Watcher 监控 JSONL 日志实现安全评估；`claw
     `CS_L3_ADVISORY_ASYNC_ENABLED` 和 `CS_L3_HEARTBEAT_REVIEW_ENABLED`
     是 L3 咨询审查的显式 opt-in 开关。系统会持久化 frozen evidence snapshot 与 `advisory_only=true` review 结果，并通过 report / watch / UI 暴露状态；打开 `CS_L3_ADVISORY_ASYNC_ENABLED` 只会自动创建 snapshot，不会运行后台 L3 review，也不会修改 canonical decision。详见 [L3 咨询审查](../decision-layers/l3-advisory.md)。
 
-!!! warning "Advisory provider safety gate"
-    `CS_L3_ADVISORY_PROVIDER_*` 是 L3 advisory provider worker 的独立安全闸门。
-    它不会继承 `CS_LLM_*`，因此现有同步 L2/L3 LLM 配置不会意外触发
-    advisory worker。默认 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=true` 时 `llm_provider`
-    runner 仍不发网络请求；所有未启用、
-    缺 key、缺 model、不支持 provider 或 dry-run 路径都会安全降级为 `l3_state=degraded`。只有显式
-    设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`、provider/model/key 有效，并把
-    `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false` 后，`llm_provider` runner 才会桥接到真实 LLM provider。
+!!! warning "Advisory provider 继承 CS_LLM_*"
+    L3 advisory full-review 和 queued job 默认使用 `llm_provider`，并继承 `CS_LLM_PROVIDER`、provider API key、`CS_LLM_MODEL`、`CS_LLM_BASE_URL`、`CS_LLM_TEMPERATURE` 与 `CS_LLM_PROVIDER_TIMEOUT_MS`。如果这些配置缺失或无效，系统会写入 `l3_state=degraded` review 和 provider/config reason，而不是静默 fallback 到 `deterministic_local`。
 
 !!! tip "手动 readiness check"
     如需验证 advisory provider 链路，可用随包提供的 devtools 模块做 operator-controlled
-    readiness check。该流程要求显式设置 `CS_L3_ADVISORY_PROVIDER_ENABLED=true`，
-    会构造一个 frozen snapshot、排队并执行一个 `llm_provider` job，并可通过
-    `--output-report <path>` 写出 markdown 证据。provider readiness check 默认保持 dry-run，并以 degraded 结果证明不会误发网络请求；`--require-completed` 用作真实 provider
-    execution gate。测试套件里的真实网络 gate 还需要
-    `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`，否则默认跳过。当前已用
-    OpenAI-compatible `kimi-k2.5` 完成一次显式真实 provider readiness check。
+    readiness check。该流程会构造一个 frozen snapshot、排队并执行一个 `llm_provider` job，并可通过
+    `--output-report <path>` 写出 markdown 证据。缺少 `CS_LLM_*` 时会生成 degraded 结果；`--require-completed` 用作真实 provider execution gate。测试套件里的真实网络 gate 还需要
+    `CS_L3_ADVISORY_RUN_REAL_SMOKE=true`，否则默认跳过。
 
 ---
 
@@ -534,7 +522,7 @@ OPENCLAW_WEBHOOK_SECRET=your-hmac-secret
 ## 环境变量优先级
 
 ```
-CLI 参数 > 进程/部署环境变量 > 显式 env file > .clawsentry.toml > 白名单旧别名 > 内置默认值
+CLI 参数 > 进程/部署环境变量 > 显式 env file > 白名单旧别名 > 内置默认值
 ```
 
 !!! tip "调试技巧"

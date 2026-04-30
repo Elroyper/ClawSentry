@@ -318,7 +318,7 @@ def _build_parser() -> argparse.ArgumentParser:
     l3_full.add_argument("--to-record-id", type=int, default=None, help="Optional frozen range end record ID.")
     l3_full.add_argument("--max-records", type=int, default=100, help="Maximum records to freeze (default: 100).")
     l3_full.add_argument("--max-tool-calls", type=int, default=0, help="Advisory evidence tool-call budget (default: 0).")
-    l3_full.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to queue/execute.")
+    l3_full.add_argument("--runner", default=None, choices=["llm_provider", "deterministic_local"], help="Optional runner to queue/execute (default: service llm_provider).")
     l3_full.add_argument("--queue-only", action="store_true", default=False, help="Freeze evidence and queue the job without running it.")
     l3_full.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
     l3_full.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
@@ -333,13 +333,13 @@ def _build_parser() -> argparse.ArgumentParser:
     l3_jobs_list.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
     l3_jobs_list.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
     l3_jobs_list.add_argument("--state", default="queued", choices=["queued", "running", "completed", "failed"], help="Job state filter (default: queued).")
-    l3_jobs_list.add_argument("--runner", default=None, choices=["deterministic_local", "fake_llm", "llm_provider"], help="Optional runner filter.")
+    l3_jobs_list.add_argument("--runner", default=None, choices=["llm_provider", "deterministic_local"], help="Optional runner filter.")
     l3_jobs_list.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
     l3_jobs_list.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default: 30).")
     l3_jobs_run_next = l3_jobs_sub.add_parser("run-next", help="Run the oldest queued L3 advisory job.")
     l3_jobs_run_next.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
     l3_jobs_run_next.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
-    l3_jobs_run_next.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to execute.")
+    l3_jobs_run_next.add_argument("--runner", default="llm_provider", choices=["llm_provider", "deterministic_local"], help="Runner to execute (default: llm_provider).")
     l3_jobs_run_next.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
     l3_jobs_run_next.add_argument("--dry-run", action="store_true", default=False, help="Select without claiming/running.")
     l3_jobs_run_next.add_argument("--json", action="store_true", default=False, help="Output raw JSON.")
@@ -347,7 +347,7 @@ def _build_parser() -> argparse.ArgumentParser:
     l3_jobs_drain = l3_jobs_sub.add_parser("drain", help="Run up to N queued L3 advisory jobs.")
     l3_jobs_drain.add_argument("--gateway-url", default=_l3_default_url, help=f"Gateway base URL (default: {_l3_default_url}).")
     l3_jobs_drain.add_argument("--token", default=os.environ.get("CS_AUTH_TOKEN"), help="Bearer token [CS_AUTH_TOKEN].")
-    l3_jobs_drain.add_argument("--runner", default="deterministic_local", choices=["deterministic_local", "fake_llm", "llm_provider"], help="Runner to execute.")
+    l3_jobs_drain.add_argument("--runner", default="llm_provider", choices=["llm_provider", "deterministic_local"], help="Runner to execute (default: llm_provider).")
     l3_jobs_drain.add_argument("--session", dest="session_id", default=None, help="Optional session ID filter.")
     l3_jobs_drain.add_argument("--max-jobs", type=int, default=1, help="Maximum queued jobs to run (1-10, default: 1).")
     l3_jobs_drain.add_argument("--dry-run", action="store_true", default=False, help="Select without claiming/running.")
@@ -410,22 +410,25 @@ def _build_parser() -> argparse.ArgumentParser:
     # --- config ---
     config_parser = sub.add_parser(
         "config",
-        help="Manage project-level .clawsentry.toml configuration.",
+        help="Inspect and generate env-first ClawSentry configuration.",
     )
     config_parser.add_argument("--dir", type=Path, default=Path("."), help="Project directory (default: current directory).")
     config_sub = config_parser.add_subparsers(dest="config_command")
 
-    config_init = config_sub.add_parser("init", help="Create .clawsentry.toml in current directory.")
+    config_init = config_sub.add_parser("init", help="Create an env-first template in current directory.")
     config_init.add_argument("--preset", default="medium", choices=["low", "medium", "high", "strict"])
+    config_init.add_argument("--output", type=Path, default=None, help="Explicit env template path to write.")
     config_init.add_argument("--force", action="store_true", default=False)
 
-    config_show = config_sub.add_parser("show", help="Show current project config.")
+    config_show = config_sub.add_parser("show", help="Show env-first effective config.")
     config_show.add_argument("--effective", action="store_true", default=False)
     config_show.add_argument("--env-file", type=Path, default=None, help="Explicit local env file for effective source resolution.")
 
-    config_set = config_sub.add_parser("set", help="Change project preset or section.field key.")
+    config_set = config_sub.add_parser("set", help="Print export instructions or update an explicit env file.")
     config_set.add_argument("key_or_preset")
     config_set.add_argument("value", nargs="?")
+    config_set.add_argument("--env-file", type=Path, default=None, help="Explicit env file to update.")
+    config_set.add_argument("--output", type=Path, default=None, help="Alias for --env-file for template/update workflows.")
 
     config_wizard = config_sub.add_parser("wizard", help="Guided ClawSentry configuration.")
     config_wizard.add_argument("--non-interactive", action="store_true", default=False)
@@ -443,16 +446,11 @@ def _build_parser() -> argparse.ArgumentParser:
     config_wizard.add_argument("--l2", action=argparse.BooleanOptionalAction, default=None)
     config_wizard.add_argument("--l3", action=argparse.BooleanOptionalAction, default=False)
     config_wizard.add_argument("--token-budget", type=int, default=0)
-    config_wizard.add_argument(
-        "--write-project-config",
-        action="store_true",
-        default=True,
-        help="Write .clawsentry.toml in the target directory (default behavior; accepted for copy/paste clarity).",
-    )
+    config_wizard.add_argument("--output", type=Path, default=None, help="Explicit env template path to write.")
     config_wizard.add_argument("--force", action="store_true", default=False)
 
-    config_sub.add_parser("disable", help="Disable ClawSentry for this project.")
-    config_sub.add_parser("enable", help="Enable ClawSentry for this project.")
+    config_sub.add_parser("disable", help="Print env instruction to disable ClawSentry for a process.")
+    config_sub.add_parser("enable", help="Print env instruction to enable ClawSentry for a process.")
 
     # --- rules ---
     rules_parser = sub.add_parser(
@@ -545,7 +543,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir",
         type=Path,
         default=Path("."),
-        help="Project directory containing .clawsentry.toml (default: current dir).",
+        help="Project directory for framework-side readiness checks (default: current dir).",
     )
     integrations_status.add_argument(
         "--json",
@@ -895,14 +893,14 @@ def main(argv: list[str] | None = None) -> None:
         )
         target = args.dir
         if args.config_command == "init":
-            run_config_init(target_dir=target, preset=args.preset, force=args.force)
+            run_config_init(target_dir=target, preset=args.preset, force=args.force, output=args.output)
         elif args.config_command == "show":
             run_config_show(target_dir=target, effective=args.effective, env_file=args.env_file)
         elif args.config_command == "set":
             if args.value is None:
-                run_config_set(target_dir=target, preset=args.key_or_preset)
+                run_config_set(target_dir=target, preset=args.key_or_preset, env_file=args.env_file, output=args.output)
             else:
-                run_config_set(target_dir=target, key=args.key_or_preset, value=args.value)
+                run_config_set(target_dir=target, key=args.key_or_preset, value=args.value, env_file=args.env_file, output=args.output)
         elif args.config_command == "wizard":
             run_config_wizard(
                 target_dir=target,
@@ -917,6 +915,7 @@ def main(argv: list[str] | None = None) -> None:
                 l3=args.l3,
                 token_budget=args.token_budget,
                 force=args.force,
+                output=args.output,
             )
         elif args.config_command == "disable":
             run_config_disable(target_dir=target)
@@ -1020,7 +1019,16 @@ def main(argv: list[str] | None = None) -> None:
 
         auto_detected = False
         if framework is None:
-            framework = detect_framework()
+            from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
+            try:
+                parsed_start_env = resolve_explicit_env_file(
+                    cli_env_file=args.env_file,
+                    environ=os.environ,
+                )
+            except EnvFileError as exc:
+                print(str(exc), file=sys.stderr)
+                sys.exit(2)
+            framework = detect_framework(env_values=overlay_env_file(os.environ, parsed_start_env))
             if framework is None:
                 print(
                     "Could not auto-detect framework.\n"

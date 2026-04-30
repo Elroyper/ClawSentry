@@ -284,7 +284,7 @@ def _l3_advisory_job_transition_hint(job_state: str) -> str | None:
     if normalized == "failed":
         return "worker failed; inspect advisory job evidence"
     if normalized == "degraded":
-        return "review degraded; inspect retained evidence boundary"
+        return "review degraded; check LLM provider configuration and retained evidence boundary"
     return None
 
 
@@ -310,10 +310,10 @@ _OPERATOR_LABELS: dict[str, dict[str, str]] = {
         "escalate": "Escalate",
         "pause": "Pause",
         "none": "None",
+        "configure_llm_provider": "Configure LLM provider",
     },
     "runner": {
         "deterministic_local": "Deterministic local",
-        "fake_llm": "Fake LLM",
         "llm_provider": "LLM provider",
     },
 }
@@ -1128,6 +1128,7 @@ def _format_l3_advisory_review(
     risk_level = str(event.get("risk_level") or "unknown")
     action = str(event.get("recommended_operator_action") or "inspect")
     l3_state = str(event.get("l3_state") or "unknown")
+    l3_reason_code = str(event.get("l3_reason_code") or "").strip()
     action_label = _operator_display("operator_action", action)
     l3_state_label = _operator_display("l3_state", l3_state)
 
@@ -1151,6 +1152,10 @@ def _format_l3_advisory_review(
         f"State: {_c('grey', l3_state_label, color=color)}",
         f"Action: {_c('grey', action_label, color=color)}",
     ]
+    if l3_reason_code:
+        detail_items.append(
+            f"Provider/config: {_c('grey', _operator_display('l3_reason_code', l3_reason_code), color=color)}"
+        )
     if event.get("advisory_only") is True:
         if event.get("canonical_decision_mutated") is False:
             boundary = "advisory only; canonical unchanged"

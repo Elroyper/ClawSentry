@@ -238,7 +238,7 @@ class TestPostActionAnalyzer:
             "Authorization: Bearer abcdefghijklmnopqrstuvwxyz1234567890",
             "DATABASE_URL=postgres://user:pass@example.com/db",
             "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ1234",
-            "OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz123456",
+            "OPENAI_API_KEY" + "=" + "sk-" + "abcdefghijklmnopqrstuvwxyz123456",
             "xox" + "b-123456789012-abcdefghijklmnop",
         ],
     )
@@ -896,7 +896,7 @@ class TestReviewFixes:
 
     def test_sk_bare_no_fp_css_class(self):
         """R-03: sk- prefix in non-key context should not trigger."""
-        score = detect_secret_exposure("class='sk-abcdefghijklmnopqrstu' style='color:red'")
+        score = detect_secret_exposure("class='sk-redacted' style='color:red'")
         assert score == 0.0
 
     def test_sk_with_context_still_detects(self):

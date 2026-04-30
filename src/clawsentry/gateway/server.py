@@ -49,7 +49,6 @@ from .trajectory_store import (
     DEFAULT_TRAJECTORY_DB_PATH,
     DEFAULT_TRAJECTORY_RETENTION_SECONDS,
     HIGH_RISK_LEVELS,
-    L3_ADVISORY_RUNNERS,
     MAX_WINDOW_SECONDS,
 )
 from .models import (
@@ -75,6 +74,7 @@ from .models import (
     decision_effects_for_trajectory,
     utc_now_iso,
 )
+
 from .defer_manager import DeferManager
 from .detection_config import (
     DetectionConfig,
@@ -107,6 +107,17 @@ from .enterprise import (
 logger = logging.getLogger("clawsentry")
 
 _DEFAULT_UI_DIR = Path(__file__).parent.parent / "ui" / "dist"
+DEFAULT_L3_ADVISORY_RUNNER = "llm_provider"
+PUBLIC_L3_ADVISORY_RUNNERS = {"deterministic_local", DEFAULT_L3_ADVISORY_RUNNER}
+
+
+def _validate_public_l3_advisory_runner(runner: str) -> None:
+    if runner not in PUBLIC_L3_ADVISORY_RUNNERS:
+        raise ValueError(
+            "runner must be one of: "
+            f"{', '.join(sorted(PUBLIC_L3_ADVISORY_RUNNERS))}; "
+            "fake_llm is reserved for internal tests"
+        )
 
 # ---------------------------------------------------------------------------
 # Shared risk-level helpers
@@ -1134,7 +1145,7 @@ class SupervisionGateway:
         start = time.monotonic()
         deadline_at = start + req.deadline_ms / 1000.0
 
-        # --- Project preset config (from .clawsentry.toml via harness) ---
+        # --- Optional event-scoped preset config from harness metadata ---
         _preset_name, _preset_overrides = _extract_project_config(
             req.event.payload
         )
@@ -2746,6 +2757,7 @@ class SupervisionGateway:
             "risk_level": review["risk_level"],
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
+            "l3_reason_code": review.get("l3_reason_code"),
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review["created_at"],
@@ -2784,6 +2796,7 @@ class SupervisionGateway:
             "risk_level": review["risk_level"],
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
+            "l3_reason_code": review.get("l3_reason_code"),
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
@@ -2802,6 +2815,7 @@ class SupervisionGateway:
             "risk_level": review["risk_level"],
             "recommended_operator_action": review["recommended_operator_action"],
             "l3_state": review["l3_state"],
+            "l3_reason_code": review.get("l3_reason_code"),
             "advisory_only": True,
             "canonical_decision_mutated": False,
             "timestamp": review.get("completed_at") or review["created_at"],
@@ -2814,8 +2828,9 @@ class SupervisionGateway:
         self,
         *,
         snapshot_id: str,
-        runner: str = "deterministic_local",
+        runner: str = DEFAULT_L3_ADVISORY_RUNNER,
     ) -> dict[str, Any]:
+        _validate_public_l3_advisory_runner(runner)
         job = self.trajectory_store.enqueue_l3_advisory_job(
             snapshot_id,
             runner=runner,
@@ -2951,12 +2966,11 @@ class SupervisionGateway:
     def run_next_l3_advisory_job(
         self,
         *,
-        runner: str = "deterministic_local",
+        runner: str = DEFAULT_L3_ADVISORY_RUNNER,
         session_id: str | None = None,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-        if runner not in L3_ADVISORY_RUNNERS:
-            raise ValueError(f"runner must be one of: {', '.join(sorted(L3_ADVISORY_RUNNERS))}")
+        _validate_public_l3_advisory_runner(runner)
         queued = self.trajectory_store.list_l3_advisory_jobs(
             session_id=session_id,
             job_state="queued",
@@ -3000,13 +3014,12 @@ class SupervisionGateway:
     def drain_l3_advisory_jobs(
         self,
         *,
-        runner: str = "deterministic_local",
+        runner: str = DEFAULT_L3_ADVISORY_RUNNER,
         session_id: str | None = None,
         max_jobs: int = 1,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-        if runner not in L3_ADVISORY_RUNNERS:
-            raise ValueError(f"runner must be one of: {', '.join(sorted(L3_ADVISORY_RUNNERS))}")
+        _validate_public_l3_advisory_runner(runner)
         if max_jobs < 1 or max_jobs > 10:
             raise ValueError("max_jobs must be between 1 and 10")
         queued = self.trajectory_store.list_l3_advisory_jobs(
@@ -3056,9 +3069,10 @@ class SupervisionGateway:
         to_record_id: int | None = None,
         max_records: int = 100,
         max_tool_calls: int = 0,
-        runner: str = "deterministic_local",
+        runner: str = DEFAULT_L3_ADVISORY_RUNNER,
         run: bool = True,
     ) -> dict[str, Any]:
+        _validate_public_l3_advisory_runner(runner)
         snapshot = self.create_l3_evidence_snapshot(
             session_id=session_id,
             trigger_event_id=trigger_event_id,
@@ -4011,7 +4025,7 @@ def create_http_app(
         body = body or {}
         try:
             return gateway.run_next_l3_advisory_job(
-                runner=str(body.get("runner") or "deterministic_local"),
+                runner=str(body.get("runner") or DEFAULT_L3_ADVISORY_RUNNER),
                 session_id=(
                     str(body.get("session_id"))
                     if body.get("session_id") is not None
@@ -4038,7 +4052,7 @@ def create_http_app(
         body = body or {}
         try:
             return gateway.drain_l3_advisory_jobs(
-                runner=str(body.get("runner") or "deterministic_local"),
+                runner=str(body.get("runner") or DEFAULT_L3_ADVISORY_RUNNER),
                 session_id=(
                     str(body.get("session_id"))
                     if body.get("session_id") is not None
@@ -4067,7 +4081,7 @@ def create_http_app(
         try:
             job = gateway.enqueue_l3_advisory_job(
                 snapshot_id=snapshot_id,
-                runner=str((body or {}).get("runner") or "deterministic_local"),
+                runner=str((body or {}).get("runner") or DEFAULT_L3_ADVISORY_RUNNER),
             )
         except ValueError as exc:
             status_code = 404 if "was not found" in str(exc) else 400
@@ -4232,9 +4246,11 @@ def create_http_app(
         if isinstance(auth_result, Response):
             return auth_result
         try:
+            worker_name = str((body or {}).get("worker") or DEFAULT_L3_ADVISORY_RUNNER)
+            _validate_public_l3_advisory_runner(worker_name)
             result = gateway.run_l3_advisory_worker(
                 job_id=job_id,
-                worker_name=str((body or {}).get("worker") or "fake_llm"),
+                worker_name=worker_name,
             )
         except ValueError as exc:
             status_code = 404 if "was not found" in str(exc) else 400
@@ -4276,7 +4292,7 @@ def create_http_app(
                 ),
                 max_records=int(body.get("max_records") or 100),
                 max_tool_calls=int(body.get("max_tool_calls") or 0),
-                runner=str(body.get("runner") or "deterministic_local"),
+                runner=str(body.get("runner") or DEFAULT_L3_ADVISORY_RUNNER),
                 run=bool(body.get("run", True)),
             )
         except (TypeError, ValueError) as exc:
@@ -4797,12 +4813,7 @@ async def run_gateway(
     ssl_keyfile: str | None = None,
 ) -> None:
     """Run the Supervision Gateway with both UDS and HTTP transports."""
-    # Make .clawsentry.toml runtime-effective while preserving env precedence.
-    from .project_config import apply_project_config_to_environ
-
-    apply_project_config_to_environ(Path.cwd())
-
-    # Build detection config from project-backed canonical CS_ environment variables.
+    # Build detection config from canonical CS_ environment variables.
     detection_config = build_detection_config_from_env()
     logger.info("DetectionConfig: %s", detection_config)
 

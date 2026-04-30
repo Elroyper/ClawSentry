@@ -51,27 +51,13 @@ def run_smoke(
 ) -> AdvisoryProviderSmokeResult:
     """Run the manual L3 advisory provider smoke.
 
-    The smoke is skipped unless ``CS_L3_ADVISORY_PROVIDER_ENABLED`` is truthy.
-    Current provider shells still degrade with ``provider_not_implemented`` once
-    config validation succeeds; that is accepted unless ``require_completed`` is
-    set for a future real-provider smoke.
+    The smoke always exercises the pull-based ``llm_provider`` job path. Without
+    valid shared ``CS_LLM_*`` configuration it writes a degraded review artifact;
+    ``require_completed`` is the explicit gate for real-provider validation.
     """
 
     effective_environ = _smoke_environ(environ)
     config = resolve_l3_advisory_provider_config(environ=effective_environ)
-    if not config.enabled:
-        result = AdvisoryProviderSmokeResult(
-            status="skipped",
-            provider=config.provider,
-            model=config.model,
-            evidence={
-                "opt_in_required": "CS_L3_ADVISORY_PROVIDER_ENABLED=true",
-                "network_default": "not attempted",
-            },
-            failure_reason="CS_L3_ADVISORY_PROVIDER_ENABLED is not true",
-        )
-        _maybe_write_report(result, output_report)
-        return result
 
     store = TrajectoryStore(retention_seconds=0)
     record_id = _record_sample_event(store)

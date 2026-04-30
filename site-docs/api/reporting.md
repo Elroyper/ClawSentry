@@ -599,7 +599,7 @@ curl -H "Authorization: Bearer $CS_AUTH_TOKEN" \
     "latest_job": {
       "job_id": "l3job-001",
       "job_state": "completed",
-      "runner": "deterministic_local"
+      "runner": "llm_provider"
     }
   },
   "decision_path_io": {
@@ -872,7 +872,7 @@ Completed/degraded review 可以附带可选自然语言字段：
 
 ```json
 {
-  "runner": "deterministic_local"
+  "runner": "llm_provider"
 }
 ```
 
@@ -881,7 +881,7 @@ Completed/degraded review 可以附带可选自然语言字段：
 列出 advisory jobs，常用过滤：
 
 - `state=queued|running|completed|failed`
-- `runner=deterministic_local|fake_llm|llm_provider`
+- `runner=llm_provider|deterministic_local`
 - `session_id=sess-001`
 
 响应包含 `jobs[]`、`advisory_only=true` 与 `canonical_decision_mutated=false`。
@@ -892,7 +892,7 @@ Completed/degraded review 可以附带可选自然语言字段：
 
 ```json
 {
-  "runner": "deterministic_local",
+  "runner": "llm_provider",
   "session_id": "sess-001",
   "dry_run": false
 }
@@ -904,7 +904,7 @@ Completed/degraded review 可以附带可选自然语言字段：
 
 ```json
 {
-  "runner": "deterministic_local",
+  "runner": "llm_provider",
   "max_jobs": 2,
   "dry_run": false
 }
@@ -916,7 +916,7 @@ Completed/degraded review 可以附带可选自然语言字段：
 
 ### POST /report/l3-advisory/job/{job_id}/run-worker
 
-显式运行 worker adapter。`fake_llm` 用于 contract/dry-run；`llm_provider` 只有在 `CS_L3_ADVISORY_PROVIDER_*` 独立安全闸门满足且 dry-run 被显式关闭时，才会桥接 OpenAI / Anthropic provider。
+显式运行 worker adapter。公共 API 支持 `llm_provider`；它继承共享 `CS_LLM_*` 配置，缺配置时写入 `degraded` review。
 
 ### POST /report/session/{id}/l3-advisory/full-review
 
@@ -930,7 +930,7 @@ Operator-triggered full review：一次请求完成“冻结证据 + 排队 job 
   "to_record_id": 42,
   "max_records": 100,
   "max_tool_calls": 0,
-  "runner": "deterministic_local",
+  "runner": "llm_provider",
   "run": true
 }
 ```
@@ -1035,7 +1035,7 @@ event: l3_advisory_snapshot
 data: {"snapshot_id":"l3snap-001","session_id":"session-001","trigger_reason":"operator_full_review","event_range":{"from_record_id":1,"to_record_id":42},"advisory_only":true,"timestamp":"2026-03-23T10:38:00+00:00"}
 
 event: l3_advisory_job
-data: {"job_id":"l3job-001","snapshot_id":"l3snap-001","session_id":"session-001","job_state":"completed","runner":"deterministic_local","timestamp":"2026-03-23T10:38:02+00:00"}
+data: {"job_id":"l3job-001","snapshot_id":"l3snap-001","session_id":"session-001","job_state":"completed","runner":"llm_provider","timestamp":"2026-03-23T10:38:02+00:00"}
 
 event: l3_advisory_review
 data: {"review_id":"l3adv-001","snapshot_id":"l3snap-001","session_id":"session-001","l3_state":"completed","risk_level":"high","recommended_operator_action":"inspect","advisory_only":true,"canonical_decision_mutated":false,"timestamp":"2026-03-23T10:38:03+00:00"}
@@ -1193,7 +1193,7 @@ data: {"review_id":"l3adv-001","snapshot_id":"l3snap-001","session_id":"session-
 | `snapshot_id` | 关联 snapshot |
 | `session_id` | 会话 ID |
 | `job_state` | `queued` / `running` / `completed` / `failed` |
-| `runner` | `deterministic_local` / `fake_llm` / `llm_provider` |
+| `runner` | `llm_provider` / `deterministic_local` |
 | `timestamp` | 事件时间 |
 
 #### l3_advisory_review

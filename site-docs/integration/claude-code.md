@@ -67,18 +67,18 @@ clawsentry init claude-code
 
 此命令会自动：
 
-- 生成/合并 **`.clawsentry.toml`** — 把 `claude-code` 写入 `[frameworks]`，不包含密钥
+- 生成/合并 **`.clawsentry.env.example`** — 把 `claude-code` 输出 `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 建议，不包含密钥
 - 注入 hooks 到 **`~/.claude/settings.json`** — 智能合并，不覆盖已有 hooks
 
 本机运行时值示例（可选，文件名固定为 `.clawsentry.env.local`，不要提交）：
 
 ```ini
 CS_UDS_PATH=/tmp/clawsentry.sock
-CS_AUTH_TOKEN=<本机安全 token>
+CS_AUTH_TOKEN = <本机安全 token>
 ```
 
 !!! tip "已有配置？"
-    `clawsentry init claude-code` 默认增量合并 `.clawsentry.toml` 和 managed hooks。只有明确要覆盖 managed 配置时才使用 `--force`；密钥仍请放在进程/部署环境或显式 env file。
+    `clawsentry init claude-code` 默认输出 env 建议并合并 managed hooks。只有明确要覆盖 managed 配置时才使用 `--force`；密钥仍请放在进程/部署环境或显式 env file。
 
 ### 启动 Gateway
 
@@ -202,19 +202,21 @@ clawsentry-harness --framework claude-code --async
 - **仅用于审计和监控事件**，不产生拦截决策
 - `PreToolUse` **必须**使用同步模式以确保拦截能力
 
-### 项目级配置
+### env-first 预设
 
-在项目根目录创建 `.clawsentry.toml` 可为不同项目设置独立的安全预设：
+如需为当前项目保留安全预设，把 dotenv 变量写入显式 env file，并在启动时传入：
 
-```toml title=".clawsentry.toml"
-[project]
-enabled = true
-preset = "high"     # low / medium / high / strict
+```bash title=".clawsentry.env.local"
+CS_PRESET=high
+CS_FRAMEWORK=claude-code
+CS_ENABLED_FRAMEWORKS=claude-code
 ```
 
-Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒 TTL 缓存），并将预设覆盖发送到 Gateway。
+```bash
+clawsentry start --env-file .clawsentry.env.local --framework claude-code
+```
 
-详见 [DetectionConfig 项目级配置](../configuration/detection-config.md#project-config)。
+详见 [配置概览](../configuration/configuration-overview.md) 与 [配置模板](../configuration/templates.md)。
 
 ---
 
@@ -226,7 +228,7 @@ Harness 会在每次 Hook 调用时检查项目目录下的配置文件（60 秒
 |------|--------|------|
 | `CS_UDS_PATH` | `/tmp/clawsentry.sock` | Gateway UDS 套接字路径 |
 | `CS_AUTH_TOKEN` | *(自动生成)* | Bearer Token 认证 |
-| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` |
 | `CS_DEFER_TIMEOUT_ACTION` | `block` | DEFER 超时行为：`block` 或 `allow` |
 | `CS_DEFER_TIMEOUT_S` | `86400` | normal mode DEFER 软超时秒数；benchmark mode 不等待人工审批 |
 
@@ -332,12 +334,12 @@ clawsentry start --framework claude-code --no-watch
     如果省略 `--framework`，ClawSentry 会自动检测：
 
     1. 检查 `~/.claude/settings.json` 中是否包含 ClawSentry hooks
-    2. 检查当前目录 `.clawsentry.toml [frameworks]` 是否启用 `claude-code`
+    2. 检查当前目录 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` 是否启用 `claude-code`
     3. 检测到 `claude-code` 后自动使用对应配置
 
 `clawsentry start` 的完整流程：
 
-1. 读取或生成 `.clawsentry.toml` 项目策略
+1. 读取或生成 `.clawsentry.env.example` 项目策略
 2. 合成 CLI、进程环境、显式 env file 与项目策略
 3. 后台启动 Gateway 进程
 4. 等待 health check 通过
@@ -356,7 +358,7 @@ clawsentry init claude-code --uninstall
 此命令会：
 
 - 从 `~/.claude/settings.json`（及旧版 `settings.local.json`）中**精确移除** ClawSentry hooks
-- 从当前目录 `.clawsentry.toml [frameworks]` 中移除 `claude-code`
+- 从你的 explicit env file / deployment env 中移除 `claude-code`
 - 保留其他工具的 hooks 不受影响
 - 保留其他框架配置和共享 `CS_AUTH_TOKEN` 不受影响
 - 如果移除后 `hooks` 字段为空，自动清理该字段

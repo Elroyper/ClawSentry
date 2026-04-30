@@ -362,7 +362,12 @@ def build_detection_config_from_env() -> DetectionConfig:
     If the combination of overrides violates validation constraints,
     the entire config falls back to defaults with an error log.
     """
-    overrides: dict = {}
+    preset_name = os.getenv("CS_PRESET", "medium").strip() or "medium"
+    try:
+        overrides: dict = dict(PRESETS[preset_name])
+    except KeyError:
+        logger.warning("Invalid CS_PRESET=%r, using medium defaults", preset_name)
+        overrides = {}
 
     for env_key, field_name, typ in _ENV_MAP:
         raw = os.getenv(env_key)
@@ -499,7 +504,7 @@ def build_detection_config_with_preset(
 
     Priority chain (highest wins):
       1. ``CS_`` environment variables
-      2. ``project_overrides`` (from ``.clawsentry.toml [overrides]``)
+      2. explicit preset/override parameters
       3. Preset values
       4. :class:`DetectionConfig` defaults
 

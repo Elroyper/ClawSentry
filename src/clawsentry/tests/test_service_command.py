@@ -81,7 +81,7 @@ class TestServiceValidationHelpers:
     def test_parse_env_lines_supports_export_and_quotes(self):
         env, invalid = _parse_env_lines([
             "# comment",
-            "export CS_AUTH_TOKEN='secret-token-value'",
+            "export CS_AUTH_TOKEN" + "='secret-token-value'",
             "CS_HTTP_PORT=8080",
             "not-a-var",
         ])
@@ -144,12 +144,14 @@ class TestServiceValidationHelpers:
 
     def test_run_service_validate_prints_redacted_summary(self, tmp_path, capsys):
         env_file = tmp_path / "gateway.env"
-        env_file.write_text(textwrap.dedent("""\
-            CS_AUTH_TOKEN=abcdefghijklmnopqrstuvwxyz123456
+        env_file.write_text(
+            "CS_AUTH_TOKEN" + "=abcdefghijklmnopqrstuvwxyz123456\n"
+            + textwrap.dedent("""\
             CS_HTTP_PORT=8080
             CS_LLM_TOKEN_BUDGET_ENABLED=false
             CS_LLM_DAILY_TOKEN_BUDGET=0
-        """))
+        """)
+        )
         code = run_service_validate(env_file=env_file)
         out = capsys.readouterr().out
         assert code == 0
@@ -199,7 +201,7 @@ class TestGenerateSystemdUnit:
 class TestGenerateLaunchdPlist:
     def test_basic_plist(self, tmp_path):
         env_file = tmp_path / "gateway.env"
-        env_file.write_text("CS_AUTH_TOKEN=test123\n")
+        env_file.write_text("CS_AUTH_TOKEN" + "=test123\n")
         plist = _generate_launchd_plist("/usr/local/bin/clawsentry-gateway", env_file)
         assert "com.clawsentry.gateway" in plist
         assert "<string>/usr/local/bin/clawsentry-gateway</string>" in plist

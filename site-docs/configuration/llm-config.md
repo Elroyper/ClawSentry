@@ -74,7 +74,7 @@ pip install anthropic
 
 ```bash title=".clawsentry.env.local"
 CS_LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+OPENAI_API_KEY = sk-proj-xxxxxxxxxxxxx
 ```
 
 ### 可选配置
@@ -120,7 +120,7 @@ CS_LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
 
 ```bash title=".clawsentry.env.local"
 CS_LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-litellm-xxx
+OPENAI_API_KEY = sk-litellm-xxx
 CS_LLM_BASE_URL=http://litellm-proxy:4000/v1
 CS_LLM_MODEL=gpt-4o  # 路由到 LiteLLM 配置的模型
 ```
@@ -224,13 +224,12 @@ CompositeAnalyzer
 
 | 配置族 | 影响路径 | 默认行为 | 什么时候设置 |
 |--------|----------|----------|--------------|
-| `CS_LLM_PROVIDER` / `CS_LLM_MODEL` / `CS_LLM_BASE_URL` | L2 `LLMAnalyzer` 与同步 L3 Agent | 不设置时回退到规则分析；同步 L3 无有效 provider 时不启用 | 想让实时决策链使用 LLM 语义/上下文审查时 |
+| `CS_LLM_PROVIDER` / `CS_LLM_MODEL` / `CS_LLM_BASE_URL` | L2 `LLMAnalyzer`、同步 L3 Agent 与 L3 advisory `llm_provider` full-review | 不设置时实时路径回退/不启用；advisory full-review 生成明确 `degraded` review | 想让实时决策链和事后 full-review 使用同一 LLM provider 时 |
 | `CS_LLM_TOKEN_BUDGET_*` | L2/L3 同步 LLM 调用预算 | 默认关闭；启用后按 provider 真实 token usage 执法 | 团队/生产环境需要 token 上限和预算事件时 |
-| `CS_L3_ADVISORY_PROVIDER_*` | L3 咨询审查的 `llm_provider` runner | 默认关闭且 dry-run；不会继承同步 LLM 配置 | 只在你要对 frozen snapshot 运行 provider-backed full-review 时 |
 | `CS_L3_ADVISORY_ASYNC_ENABLED` / `CS_L3_HEARTBEAT_REVIEW_ENABLED` | 自动冻结/排队 advisory snapshot/job | 默认关闭；打开后也不启动 scheduler、不自动跑真实 provider | 想让 high/critical evidence delta 自动留下待复盘证据时 |
 
-!!! warning "两个 provider 通道故意分开"
-    已配置 `CS_LLM_PROVIDER=openai` 只代表同步 L2/L3 可以使用该 provider；它不会让 L3 advisory job 自动联网。Advisory provider 必须单独设置 provider/model/key，并把 `CS_L3_ADVISORY_PROVIDER_DRY_RUN=false`，这样可以避免一个实时判决配置意外启动事后复盘联网流程。
+!!! warning "L3 advisory 默认复用 CS_LLM_*"
+    `clawsentry l3 full-review` 和 queued job 默认使用 `llm_provider`。只要 `CS_LLM_PROVIDER`、对应 API key、`CS_LLM_MODEL` 等共享配置有效，advisory full-review 就会走真实 provider；缺少配置时会生成 `l3_state=degraded` review，并提示补齐 `CS_LLM_*`，不会静默改跑本地 deterministic review。
 
 ## L3 审查 Agent
 
@@ -404,7 +403,7 @@ AHP_SKILLS_DIR=/etc/clawsentry/custom-skills
 
 ```bash title=".clawsentry.env.local"
 CS_LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxx
+OPENAI_API_KEY = sk-proj-xxxxxxxxxxxxx
 CS_LLM_MODEL=gpt-4o
 # CS_L3_ENABLED 保持默认 false
 ```
@@ -423,7 +422,7 @@ CS_L3_ENABLED=true
 
 ```bash title=".clawsentry.env.local"
 CS_LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-deepseek-xxxxxxxxxxxxx
+OPENAI_API_KEY = sk-deepseek-xxxxxxxxxxxxx
 CS_LLM_BASE_URL=https://api.deepseek.com/v1
 CS_LLM_MODEL=deepseek-chat
 ```

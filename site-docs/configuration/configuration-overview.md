@@ -1,199 +1,101 @@
 ---
 title: 配置概览
-description: ClawSentry 配置来源、优先级、有效配置检查与常见路径
+description: ClawSentry env-first 配置来源、页面导览、优先级和诊断入口
 ---
 
 # 配置概览
 
-ClawSentry 的配置模型现在是**严格分层**：项目策略写在可提交的 `.clawsentry.toml`，密钥和本机运行时值只来自进程/部署环境，或一次性显式传入的 env file。`clawsentry init` / `clawsentry start` 不再自动生成或加载 `.env.clawsentry`。
+ClawSentry 当前配置模型是 **env-first**：运行时只消费 `KEY=VALUE` 形式的环境变量、显式 env file、CLI 参数和内置默认值。ClawSentry 不再读取或生成项目级 section 配置；`.clawsentry.env.example` 只是可提交的 dotenv 模板，`.clawsentry.env.local` 是本机未提交的 dotenv 文件，二者都需要通过 `--env-file` 或 `CLAWSENTRY_ENV_FILE` 显式传入才会参与解析。
 
 ```bash
 clawsentry config wizard --interactive
 clawsentry config show --effective
 ```
 
-没有 TTY 或需要 CI 复现时使用确定性参数：
+没有 TTY 或需要 CI 可复现时使用确定性参数：
 
 ```bash
-clawsentry config wizard --non-interactive --framework codex --mode normal --llm-provider none --write-project-config
-clawsentry config show --effective
+clawsentry config wizard --non-interactive --framework codex --mode normal --llm-provider none --force
+clawsentry config show --effective --env-file .clawsentry.env.example
 ```
 
-`config show --effective` 是排障时最重要的命令：它会展示最终生效值、来源，并对密钥脱敏。若需要本机 secrets/runtime overrides，可显式指定：
-
-```bash
-clawsentry config show --effective --env-file .clawsentry.env.local
-clawsentry start --env-file .clawsentry.env.local
-```
+`config show --effective` 是排障第一入口：它展示最终生效值、来源标签，并对密钥脱敏。
 
 ---
 
-## 你应该先选哪条路径？ {#choose-path}
+## 先看哪个页面？ {#choose-page}
 
-| 目标 | 推荐入口 | 下一步 |
+| 你要做什么 | 应该看 | 不应该从哪里开始 |
 |---|---|---|
-| 本地体验 Gateway / Web UI | `clawsentry start --framework <name>` 或 `config wizard --interactive` | [快速开始](../getting-started/quickstart.md) |
-| 团队仓库共享安全策略 | 提交 `.clawsentry.toml`，不提交密钥 | [配置模板](templates.md) |
-| 本机密钥 / 临时端口 / provider token | shell `export ...` 或 `--env-file .clawsentry.env.local` | [环境变量参考](env-vars.md) |
-| CI / 安全评测 | CI env + `.clawsentry.toml` benchmark mode | [Benchmark 模式](../operations/benchmark-mode.md) |
-| systemd / Docker 常驻 | deployment env / `EnvironmentFile=` + `service validate --env-file` | [生产部署](../operations/deployment.md) |
+| 第一次理解配置从哪里来、谁覆盖谁 | 本页 | 环境变量长表 |
+| 复制一套可运行配置 | [配置模板](templates.md) | DetectionConfig 详表 |
+| 查某个 `CS_*` / `AHP_*` 的默认值和含义 | [环境变量索引](env-vars.md) | 策略调优 |
+| 精确理解某个检测字段、校验约束、代码位置 | [DetectionConfig 详表](detection-config.md) | 配置模板 |
+| 判断误报/漏报应该调哪些旋钮 | [策略调优方法](policy-tuning.md) | 环境变量索引 |
+| 配置 LLM provider、L2/L3 成本和降级语义 | [LLM 配置](llm-config.md) | Gateway 核心变量 |
 
 ---
 
 ## 配置来源与优先级 {#precedence}
 
-ClawSentry 会把多个来源合并成一份有效配置。优先级从高到低：
+ClawSentry 会把多个来源合成为一份有效配置。优先级从高到低：
 
 1. **CLI 参数**：例如 `clawsentry start --mode benchmark --port 9100`
-2. **进程/部署环境变量**：当前 shell、CI secret、systemd/Docker 注入的 `CS_*`
+2. **进程/部署环境变量**：当前 shell、CI secret、systemd/Docker 注入的 `CS_*` / `AHP_*`
 3. **显式 env file**：只在传入 `--env-file PATH` 或设置 `CLAWSENTRY_ENV_FILE=PATH` 时读取
-4. **项目配置 `.clawsentry.toml`**：唯一自动发现的项目配置文件；只放非密钥策略和默认值
-5. **白名单旧别名**：迁移兼容，例如 `CS_L2_BUDGET_MS`；只在新字段缺失时读取
-6. **内置默认值**
+4. **白名单旧别名**：迁移兼容，例如旧预算变量；只在规范名称缺失时读取
+5. **内置默认值**
 
-!!! important "不会自动加载 `.env.clawsentry`"
-    `.env.clawsentry` 是旧版本地便利文件名。新版本不会在 `start`、`gateway`、`stack` 或 `init` 正常流程中自动发现、自动生成或自动 source 它。若短期迁移必须复用旧文件，请显式传入 `--env-file .env.clawsentry`；命令会标记其来源并把该名称作为 legacy/migration 用法处理。
+!!! important "没有自动发现的 ClawSentry 项目配置文件"
+    `.clawsentry.env.example`、`.clawsentry.env.local`、旧 `.env.clawsentry` 都不会被正常启动流程自动加载。需要使用它们时必须显式传入 `--env-file PATH`。旧 `.env.clawsentry` 只作为迁移文件名保留；命令会标记其 legacy 来源。
 
-显式 env file 的解析是**非突变**的：解析阶段返回隔离的 key/value 与来源路径，不会直接写入 `os.environ`。需要兼容旧 runtime 组件时，启动入口只在受控 adapter 内把解析结果合成到子进程环境中。
+显式 env file 的解析是**非突变**的：解析阶段只返回隔离的 key/value 与来源路径，不直接写入 `os.environ`。启动入口会按优先级把它们合成到子进程环境中。
 
-规范化名称永远优先于旧别名。例如同时设置：
+规范名称优先于旧别名。例如同时设置：
 
 ```bash
 CS_L2_BUDGET_MS=5000      # 旧名；只作迁移兼容
 CS_L2_TIMEOUT_MS=60000    # 新名，生效
 ```
 
-最终使用 `60000`。`config show --effective` 会把这类情况以 warning 形式展示，方便迁移。
+最终使用 `60000`。`config show --effective` 会把这类情况以 warning 展示。
 
 ---
 
-## `.clawsentry.toml` 最小结构 {#toml-shape}
+## 模板文件长什么样？ {#env-template-shape}
 
-```toml title=".clawsentry.toml"
-[project]
-enabled = true
-mode = "normal"        # normal | strict | permissive | benchmark
-preset = "medium"
+`.clawsentry.env.example` 和 `.clawsentry.env.local` 都是 dotenv 格式：每行一个 `KEY=VALUE`。不要写 section、数组或嵌套表。
 
-[frameworks]
-enabled = ["codex"]    # framework enablement lives here, not in CS_FRAMEWORK/default envs
-default = "codex"
-
-[frameworks.codex]
-managed_hooks = true
-
-[llm]
-provider = ""          # openai | anthropic | 留空表示不启用外部 LLM
-api_key_env = "CS_LLM_API_KEY"  # 只引用环境变量名，不保存真实 key
-model = ""
-base_url = ""
-
-[features]
-l2 = false
-l3 = false
-enterprise = false
-
-[budgets]
-llm_token_budget_enabled = false
-llm_daily_token_budget = 0       # 启用预算时必须 > 0
-llm_token_budget_scope = "total" # total | input | output
-l2_timeout_ms = 60000
-l3_timeout_ms = 300000
-hard_timeout_ms = 600000
-
-[defer]
-bridge_enabled = true
-timeout_s = 86400
-timeout_action = "block"
-max_pending = 0
-
-[benchmark]
-auto_resolve_defer = true
-defer_action = "block"
-persist_scope = "project"
+```bash title=".clawsentry.env.example（可提交，非密钥）"
+CS_FRAMEWORK=codex
+CS_ENABLED_FRAMEWORKS=codex
+CS_MODE=normal
+CS_PRESET=medium
+CS_LLM_PROVIDER=
+CS_LLM_MODEL=
+CS_L2_ENABLED=false
+CS_L3_ENABLED=false
+CS_LLM_TOKEN_BUDGET_ENABLED=false
+CS_LLM_DAILY_TOKEN_BUDGET=0
+CS_DEFER_BRIDGE_ENABLED=true
+CS_DEFER_TIMEOUT_S=86400
+CS_DEFER_TIMEOUT_ACTION=block
 ```
 
-`.clawsentry.toml` 可提交到仓库；不要在其中写入 `CS_AUTH_TOKEN`、provider API key、OpenClaw operator token 或任何真实 secret。
-
----
-
-## 本机 env file：显式、非自动、可替换 {#explicit-env-file}
-
-如果你不想把本机密钥写进 shell profile，可以创建一个未提交的文件，例如 `.clawsentry.env.local`：
-
-```bash title=".clawsentry.env.local"
+```bash title=".clawsentry.env.local（不要提交，显式加载）"
 CS_AUTH_TOKEN=dev-only-token
-CS_LLM_PROVIDER=openai
 CS_LLM_API_KEY=sk-...
 CS_HTTP_PORT=9100
 ```
 
-然后显式使用：
+使用方式：
 
 ```bash
-clawsentry start --env-file .clawsentry.env.local
-clawsentry test-llm --env-file .clawsentry.env.local --json
-clawsentry config show --effective --env-file .clawsentry.env.local
-```
-
-进程环境变量优先于 env file，因此 CI/CD、Docker secrets、systemd `Environment=` 仍能覆盖本地文件中的值。
-
----
-
-## Fresh local start 与 auth token {#ephemeral-token}
-
-本地首次运行可以不提供 `CS_AUTH_TOKEN`：
-
-```bash
-clawsentry start --framework codex
-```
-
-没有 token 时，`start` 会生成**仅本次进程内有效**的临时 `CS_AUTH_TOKEN`，用于启动 banner 中的 Web UI URL 和子进程环境。它不会写入 `.clawsentry.toml`，也不会更新 `.clawsentry.toml`。需要固定 token 时请使用：
-
-```bash
-export CS_AUTH_TOKEN='your-dev-token'
-# 或
+clawsentry config show --effective --env-file .clawsentry.env.example
 clawsentry start --env-file .clawsentry.env.local
 ```
 
----
-
-## Framework enablement {#frameworks}
-
-框架启用状态保存在 `.clawsentry.toml [frameworks]`：
-
-```toml
-[frameworks]
-enabled = ["a3s-code", "codex", "openclaw"]
-default = "codex"
-```
-
-`CS_FRAMEWORK` 与 `CS_ENABLED_FRAMEWORKS` 现在仅用于迁移旧脚本或底层 harness 默认值；它们不是 `start`/`init` 的正常 source of truth。运行：
-
-```bash
-clawsentry integrations status
-```
-
-可查看 `.clawsentry.toml` 中启用的框架和需要人工处理的 framework-side 设置。
-
----
-
-## Token budget：按真实 token 用量执法 {#token-budget}
-
-预算配置使用 provider 返回的真实 usage，而不是硬编码美元估算。
-
-```bash
-CS_LLM_TOKEN_BUDGET_ENABLED=true
-CS_LLM_DAILY_TOKEN_BUDGET=200000
-CS_LLM_TOKEN_BUDGET_SCOPE=total
-```
-
-规则：
-
-- `enabled=false`：不执法，`llm_daily_token_budget=0` 表示未设置上限
-- `enabled=true`：`llm_daily_token_budget` 必须大于 `0`
-- provider 没有返回 usage 时，不会伪造 token；系统会记录 unknown usage，便于排查
-- `CS_LLM_DAILY_BUDGET_USD` 只作为旧配置兼容/估算展示，不再作为推荐执法路径
+如果同时需要共享模板和本机密钥，推荐把共享模板复制为本机文件再补密钥，或由部署系统把二者合并后作为一个 explicit env file 传入。
 
 ---
 
@@ -211,10 +113,23 @@ clawsentry test-llm --env-file .clawsentry.env.local --json
 clawsentry service validate --env-file /etc/clawsentry/gateway.env
 ```
 
-如果输出与你预期不一致，优先检查：
+如果输出与你预期不一致，按顺序检查：
 
-1. 是否有 CLI 参数或 shell/部署环境变量覆盖了 env file / `.clawsentry.toml`
+1. 是否有 CLI 参数或 shell/部署环境变量覆盖了 env file
 2. 是否忘记显式传入 `--env-file` 或 `CLAWSENTRY_ENV_FILE`
-3. 是否同时设置了旧名和新名
-4. 是否启用了 token budget 但 limit 仍为 `0`
-5. Gateway 是否重启以读取新的环境变量或项目配置
+3. env file 是否是 `KEY=VALUE` 格式，而不是 `[section]` 格式
+4. 是否同时设置了旧名和新名
+5. 是否启用了 token budget 但 limit 仍为 `0`
+6. Gateway 是否重启以读取新的进程环境或 env file
+
+---
+
+## 发布状态核对 {#release-status}
+
+截至 2026-04-30，本仓库核对到公开发布面已经刷新到 `v0.6.3`：
+
+- GitHub latest release：`v0.6.3 — Env-first configuration docs refresh`
+- GitHub tags：最新 tag 为 `v0.6.3`
+- PyPI：`clawsentry` 最新版本为 `0.6.3`
+
+若你看到更早版本，优先清浏览器/CDN 缓存，并确认访问的是 <https://github.com/Elroyper/ClawSentry> 与 <https://pypi.org/project/clawsentry/>。

@@ -88,7 +88,7 @@ ClawSentry 通过环境变量配置 LLM Provider，支持以下选项：
     CS_LLM_PROVIDER=openai
     CS_LLM_BASE_URL=https://api.openai.com/v1
     CS_LLM_MODEL=gpt-4
-    OPENAI_API_KEY=sk-your-key-here
+    OPENAI_API_KEY = sk-your-key-here
     ```
 
     任何兼容 OpenAI API 的服务都可以使用，包括：

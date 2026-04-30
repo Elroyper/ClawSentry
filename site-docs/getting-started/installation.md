@@ -197,7 +197,7 @@ ClawSentry — AHP unified safety supervision framework.
 | `clawsentry stop` | 停止运行中的 Gateway |
 | `clawsentry status` | 查看 Gateway 运行状态 |
 | `clawsentry init <framework>` | 初始化框架集成配置 |
-| `clawsentry config init/show/set/disable/enable` | 管理项目级 `.clawsentry.toml` 配置 |
+| `clawsentry config init/show/set/disable/enable` | 管理项目级 `.clawsentry.env.example` 配置 |
 | `clawsentry rules lint/dry-run` | 作者期规则治理：lint YAML 规则面、预演 sample events |
 | `clawsentry integrations status` | 查看多框架 readiness / 诊断状态 |
 | `clawsentry gateway` | 启动 Supervision Gateway |
@@ -227,7 +227,7 @@ collected 3226 items
 src/clawsentry/tests/test_models.py::test_valid_canonical_event PASSED
 src/clawsentry/tests/test_models.py::test_schema_version_format PASSED
 ...
-========================= 3220 passed, 6 skipped ===============
+========================= 3112 passed, 6 skipped ===============
 ```
 
 !!! success "全部通过即安装成功"

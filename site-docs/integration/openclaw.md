@@ -57,7 +57,7 @@ clawsentry --help
 
 ### 一键初始化
 
-默认初始化只生成或合并项目 `.clawsentry.toml`，不会写入密钥，也不会修改 `~/.openclaw/`：
+默认初始化只生成或合并项目 `.clawsentry.env.example`，不会写入密钥，也不会修改 `~/.openclaw/`：
 
 ```bash
 clawsentry init openclaw --auto-detect
@@ -92,29 +92,28 @@ clawsentry init openclaw --restore
 ```
 
 !!! note "恢复范围"
-    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.clawsentry.toml` 或任何显式 env file。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
+    `--restore` 只恢复 `clawsentry init openclaw --setup` 创建的备份文件，不会删除 `.clawsentry.env.example` 或任何显式 env file。如果找不到 `.bak` 文件，命令只输出 warning，不会修改 OpenClaw 配置。
 
-如只想从当前项目配置中禁用 OpenClaw，而保留其他框架和共享 token：
+如只想移除 OpenClaw managed 配置，而保留其他框架和共享 token：
 
 ```bash
 clawsentry init openclaw --uninstall
 ```
 
-`--uninstall` 会从 `.clawsentry.toml [frameworks]` 移除 `openclaw`；它不会恢复 OpenClaw 侧配置文件，也不会删除显式 env file。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
+`--uninstall` 会移除 OpenClaw 侧 managed 配置；它不会恢复你的 explicit env file。需要回退 `~/.openclaw/` 变更时，请使用上面的 `--restore`。
 
-项目策略写入 `.clawsentry.toml`，例如：
+启用 OpenClaw 的 env 写法示例：
 
-```toml
-[frameworks]
-enabled = ["openclaw"]
-default = "openclaw"
+```bash
+CS_FRAMEWORK=openclaw
+CS_ENABLED_FRAMEWORKS=openclaw
 ```
 
 本机 webhook token、认证 token 和端口覆盖放在显式 env file，例如：
 
 ```ini title=".clawsentry.env.local（不要提交）"
 OPENCLAW_WEBHOOK_TOKEN=<本机生成>
-CS_AUTH_TOKEN=<本机安全 token>
+CS_AUTH_TOKEN = <本机安全 token>
 CS_HTTP_PORT=8080
 OPENCLAW_WEBHOOK_PORT=8081
 OPENCLAW_ENFORCEMENT_ENABLED=true
@@ -148,7 +147,7 @@ clawsentry start --framework openclaw --setup-openclaw
 clawsentry start --frameworks codex,openclaw --setup-openclaw --no-watch
 ```
 
-默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.clawsentry.toml`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
+默认的 `clawsentry start --framework openclaw` 仍然是无副作用模式，只会生成或合并项目 `.clawsentry.env.example`。只有显式加上 `--setup-openclaw` 时，才会尝试修改 `~/.openclaw/openclaw.json` 与 `exec-approvals.json`。
 
 当检测到 OpenClaw 配置时，日志输出：
 

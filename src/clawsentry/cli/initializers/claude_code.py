@@ -68,12 +68,11 @@ class ClaudeCodeInitializer:
         warnings: list[str] = []
         files_created: list[Path] = []
 
-        config_path, env_vars = merge_project_framework_config(
+        _, env_vars = merge_project_framework_config(
             target_dir,
             framework=self.framework_name,
             force=force,
         )
-        files_created.append(config_path)
 
         # --- ~/.claude/settings.json (hooks) ---
         # Write hooks to settings.json (not settings.local.json) to ensure

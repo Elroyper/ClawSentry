@@ -236,7 +236,7 @@ class TestSetupOpenClawConfig:
         assert "backup" in " ".join(result.warnings).lower()
 
     # 8. test_setup_implies_auto_detect
-    def test_setup_implies_auto_detect(self, tmp_path: Path):
+    def test_setup_implies_auto_detect(self, tmp_path: Path, capsys):
         """--setup should imply --auto-detect in run_init()."""
         oc_dir = _make_openclaw_dir(tmp_path)
         oc_config = {
@@ -260,13 +260,14 @@ class TestSetupOpenClawConfig:
         assert exit_code == 0
 
         # auto_detect should have been implicitly enabled for setup, while
-        # framework enablement is stored in .clawsentry.toml and secrets are
-        # not written to a local env file by init.
-        toml_content = (tmp_path / ".clawsentry.toml").read_text()
-        assert '[frameworks]' in toml_content
-        assert 'default = "openclaw"' in toml_content
+        # framework enablement and OpenClaw operator secrets are reported as
+        # env-first values instead of being written into project files.
+        captured = capsys.readouterr()
+        assert "CS_FRAMEWORK=openclaw" in captured.out
+        assert "CS_ENABLED_FRAMEWORKS=openclaw" in captured.out
+        assert "OPENCLAW_OPERATOR_TOKEN=my-token-123" in captured.out
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
         assert not (tmp_path / ".env.clawsentry").exists()
-        assert "my-token-123" not in toml_content
 
 
 class TestSetupExecApprovalsCreation:
@@ -360,10 +361,12 @@ class TestSetupCLIIntegration:
         captured = capsys.readouterr()
         # No setup output for a3s-code
         assert "OpenClaw configuration updated" not in captured.out
-        assert (tmp_path / ".clawsentry.toml").is_file()
+        assert "CS_FRAMEWORK=a3s-code" in captured.out
+        assert "CS_ENABLED_FRAMEWORKS=a3s-code" in captured.out
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
         assert not (tmp_path / ".env.clawsentry").exists()
 
-    def test_init_codex_records_frameworks_in_toml_only(self, tmp_path: Path):
+    def test_init_codex_reports_framework_env_only(self, tmp_path: Path, capsys):
         exit_code = run_init(
             framework="codex",
             target_dir=tmp_path,
@@ -373,11 +376,11 @@ class TestSetupCLIIntegration:
         )
 
         assert exit_code == 0
-        text = (tmp_path / ".clawsentry.toml").read_text()
-        assert '[frameworks]' in text
-        assert 'enabled = ["codex"]' in text
-        assert 'default = "codex"' in text
-        assert "CS_AUTH_TOKEN" not in text
+        captured = capsys.readouterr()
+        assert "CS_FRAMEWORK=codex" in captured.out
+        assert "CS_ENABLED_FRAMEWORKS=codex" in captured.out
+        assert "CS_AUTH_TOKEN" not in captured.out
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
         assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_cli_main_restore_openclaw_dispatch(self, tmp_path: Path, capsys):

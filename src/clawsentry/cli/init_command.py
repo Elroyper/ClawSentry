@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 
 from .initializers import get_initializer
-from clawsentry.gateway.project_config import remove_project_framework
 
 
 _FRAMEWORK_ENV_KEYS: dict[str, set[str]] = {
@@ -84,10 +83,11 @@ def run_init(
             print(f"  WARNING: {w}")
         print()
 
-    print("  Files created:")
-    for f in result.files_created:
-        print(f"    {f}")
-    print()
+    if result.files_created:
+        print("  Files created:")
+        for f in result.files_created:
+            print(f"    {f}")
+        print()
 
     print("  Environment variables:")
     for key, val in result.env_vars.items():
@@ -227,8 +227,9 @@ def run_uninstall(
         warnings.extend(result.warnings)
         next_steps.extend(result.next_steps)
 
-    remove_project_framework(target_dir, framework)
-    next_steps.append(f"{framework} disabled in .clawsentry.toml [frameworks].")
+    next_steps.append(
+        f"Remove {framework} from CS_ENABLED_FRAMEWORKS/CS_FRAMEWORK in your process env or explicit env file."
+    )
 
     if quiet:
         print(f"[clawsentry] {framework} integration uninstalled.")

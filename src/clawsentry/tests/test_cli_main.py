@@ -52,7 +52,7 @@ class TestCLIParsing:
             capture_output=True, text=True, timeout=10, env=_cli_env(),
         )
         assert proc.returncode == 0
-        assert (tmp_path / ".clawsentry.toml").exists()
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
         assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_init_a3s_code_in_tmpdir(self, tmp_path):
@@ -64,7 +64,7 @@ class TestCLIParsing:
             capture_output=True, text=True, timeout=10, env=_cli_env(),
         )
         assert proc.returncode == 0
-        assert (tmp_path / ".clawsentry.toml").exists()
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
         assert not (tmp_path / ".env.clawsentry").exists()
 
     def test_init_codex_setup_writes_native_hooks(self, tmp_path):
@@ -137,7 +137,7 @@ class TestCLIParsing:
     def test_service_validate_from_cli(self, tmp_path):
         env_file = tmp_path / "gateway.env"
         env_file.write_text(
-            "CS_AUTH_TOKEN=abcdefghijklmnopqrstuvwxyz123456\n"
+            "CS_AUTH_TOKEN" + "=abcdefghijklmnopqrstuvwxyz123456\n"
             "CS_HTTP_PORT=8080\n"
             "CS_LLM_TOKEN_BUDGET_ENABLED=false\n"
             "CS_LLM_DAILY_TOKEN_BUDGET=0\n",

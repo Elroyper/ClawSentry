@@ -16,6 +16,7 @@ import threading
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
+from .llm_settings import resolve_llm_settings
 from .trajectory_store import TrajectoryStore
 
 
@@ -100,9 +101,16 @@ class _ProviderShellBase:
             "risk_level": "medium",
             "findings": [finding],
             "confidence": None,
-            "recommended_operator_action": "inspect",
+            "recommended_operator_action": "configure_llm_provider",
             "l3_state": "degraded",
             "l3_reason_code": reason_code,
+            "analysis_summary": (
+                "LLM-backed L3 advisory review could not run because provider "
+                f"configuration is incomplete: {finding}."
+            ),
+            "operator_next_steps": [
+                "Configure CS_LLM_PROVIDER, CS_LLM_MODEL, and the provider API key before rerunning.",
+            ],
         }
 
     def complete(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -481,31 +489,67 @@ def _resolve_advisory_api_key(
     return None
 
 
+def _resolve_global_llm_api_key(
+    provider: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
+    shared = _env("CS_LLM_API_KEY", environ=environ).strip()
+    if shared:
+        return shared
+    if provider == "openai":
+        return _env("OPENAI_API_KEY", environ=environ).strip() or None
+    if provider == "anthropic":
+        return _env("ANTHROPIC_API_KEY", environ=environ).strip() or None
+    return None
+
+
 def resolve_l3_advisory_provider_config(
     *,
     environ: Mapping[str, str] | None = None,
 ) -> LLMAdvisoryProviderConfig:
-    """Resolve explicit advisory-provider configuration.
+    """Resolve advisory provider configuration from shared ``CS_LLM_*`` env.
 
-    This intentionally does not inherit ``CS_LLM_PROVIDER`` / ``CS_LLM_MODEL``.
-    Async advisory provider execution must be opted in separately so existing L2
-    or synchronous L3 deployments cannot accidentally start advisory workers.
+    ``llm_provider`` is now the default L3 advisory runner. It reuses the same
+    provider/key/model/base-url/temperature/timeout inputs as the rest of the
+    LLM-backed runtime. Legacy ``CS_L3_ADVISORY_*`` values remain accepted only
+    as a compatibility fallback when no global provider is configured.
     """
 
-    enabled = _env_bool("CS_L3_ADVISORY_PROVIDER_ENABLED", environ=environ)
-    provider = _env("CS_L3_ADVISORY_PROVIDER", environ=environ).strip().lower()
+    global_settings = resolve_llm_settings(environ=environ)
+    provider = _env("CS_LLM_PROVIDER", environ=environ).strip().lower()
+    if provider:
+        return LLMAdvisoryProviderConfig(
+            enabled=True,
+            provider=provider,
+            model=_env("CS_LLM_MODEL", environ=environ).strip(),
+            api_key=(
+                global_settings.api_key
+                if global_settings is not None
+                else _resolve_global_llm_api_key(provider, environ=environ)
+            ),
+            base_url=_env("CS_LLM_BASE_URL", environ=environ).strip() or None,
+            dry_run=False,
+            temperature=_env_float("CS_LLM_TEMPERATURE", environ=environ, default=0.0),
+            deadline_ms=int(
+                _env_float("CS_LLM_PROVIDER_TIMEOUT_MS", environ=environ, default=3000.0)
+            ),
+        )
+
+    legacy_enabled = _env_bool("CS_L3_ADVISORY_PROVIDER_ENABLED", environ=environ)
+    legacy_provider = _env("CS_L3_ADVISORY_PROVIDER", environ=environ).strip().lower()
     model = _env("CS_L3_ADVISORY_MODEL", environ=environ).strip()
     base_url = _env("CS_L3_ADVISORY_BASE_URL", environ=environ).strip() or None
-    api_key = _resolve_advisory_api_key(provider, environ=environ) if enabled else None
+    api_key = _resolve_advisory_api_key(legacy_provider, environ=environ) if legacy_enabled else None
     dry_run = _env_bool_default_true("CS_L3_ADVISORY_PROVIDER_DRY_RUN", environ=environ)
     temperature = _env_float("CS_L3_ADVISORY_TEMPERATURE", environ=environ, default=1.0)
     deadline_ms = _env_int("CS_L3_ADVISORY_DEADLINE_MS", environ=environ, default=30_000)
     return LLMAdvisoryProviderConfig(
-        enabled=enabled,
-        provider=provider if enabled else "",
-        model=model if enabled else "",
+        enabled=legacy_enabled,
+        provider=legacy_provider if legacy_enabled else "",
+        model=model if legacy_enabled else "",
         api_key=api_key,
-        base_url=base_url if enabled else None,
+        base_url=base_url if legacy_enabled else None,
         dry_run=dry_run,
         temperature=temperature,
         deadline_ms=deadline_ms,
@@ -835,8 +879,8 @@ class LLMProviderAdvisoryWorker:
             budget={
                 "max_tool_calls": 0,
                 "max_tokens": 4096,
-                "network_calls_enabled": False,
-                "dry_run": True,
+                "network_calls_enabled": not self.config.dry_run,
+                "dry_run": bool(self.config.dry_run),
             },
         )
         parsed = parse_l3_advisory_worker_response(self.provider.complete(request))

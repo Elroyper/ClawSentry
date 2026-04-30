@@ -26,12 +26,11 @@ class A3SCodeInitializer:
                 "SessionOptions.ahp_transport explicitly."
             )
 
-        config_path, env_vars = merge_project_framework_config(
+        _, env_vars = merge_project_framework_config(
             target_dir,
             framework=self.framework_name,
             force=force,
         )
-        files_created.append(config_path)
 
         next_steps = [
             f"Optional local secrets: clawsentry start --env-file {LOCAL_ENV_FILE_EXAMPLE}",

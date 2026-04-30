@@ -381,7 +381,7 @@ DANGEROUS_TOOLS = {"bash", "shell", "exec", "sudo", "chmod", "chown", "kill", "p
 CS_RATE_LIMIT_PER_MINUTE=0
 
 # 禁用认证，简化调试
-# CS_AUTH_TOKEN=  (不设置)
+# CS_AUTH_TOKEN =   (不设置)
 
 # 禁用会话执法，减少干扰
 AHP_SESSION_ENFORCEMENT_ENABLED=false
@@ -400,7 +400,7 @@ OPENAI_API_KEY=ollama
 
 ```bash title=".clawsentry.env.local"
 # 启用认证
-CS_AUTH_TOKEN=staging-token-xxx
+CS_AUTH_TOKEN = staging-token-xxx
 
 # 适中的速率限制
 CS_RATE_LIMIT_PER_MINUTE=300
@@ -424,7 +424,7 @@ CS_TRAJECTORY_DB_PATH=/data/clawsentry/trajectory.db
 
 ```bash title=".clawsentry.env.local"
 # 强认证
-CS_AUTH_TOKEN=prod-high-entropy-token-64chars
+CS_AUTH_TOKEN = prod-high-entropy-token-64chars
 
 # 严格速率限制
 CS_RATE_LIMIT_PER_MINUTE=200

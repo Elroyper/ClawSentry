@@ -1,4 +1,4 @@
-"""``clawsentry config`` — manage project-level .clawsentry.toml."""
+"""``clawsentry config`` — inspect and generate env-first configuration."""
 
 from __future__ import annotations
 
@@ -10,116 +10,19 @@ from typing import Any
 from .dotenv_loader import EnvFileError, resolve_explicit_env_file
 from .initializers import FRAMEWORK_INITIALIZERS
 from clawsentry.gateway.detection_config import PRESETS
-from clawsentry.gateway.project_config import (
-    CONFIG_FILENAME,
+from clawsentry.gateway.env_config import (
+    CONFIG_FIELDS,
     canonical_env_source_for,
-    load_project_config,
+    export_instruction,
     resolve_effective_config,
+    set_env_file_value,
+    write_env_template,
 )
 
-
-def _toml_value(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (int, float)):
-        return str(value)
-    return '"' + str(value).replace('"', '\\"') + '"'
-
-
-def _as_bool(value: Any, default: bool = False) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return default
-    return str(value).strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _write_toml(
-    path: Path,
-    *,
-    enabled: bool = True,
-    preset: str = "medium",
-    mode: str = "normal",
-    llm_provider: str = "",
-    llm_api_key_env: str = "CS_LLM_API_KEY",
-    llm_model: str = "",
-    llm_base_url: str = "",
-    l2: bool = False,
-    l3: bool = False,
-    enterprise: bool = False,
-    token_budget: int = 0,
-    token_budget_enabled: bool | None = None,
-    token_budget_scope: str = "total",
-    l2_timeout_ms: float = 60_000.0,
-    l3_timeout_ms: float = 300_000.0,
-    hard_timeout_ms: float = 600_000.0,
-    defer_bridge_enabled: bool = True,
-    defer_timeout_s: float = 86_400.0,
-    defer_timeout_action: str = "block",
-    defer_max_pending: int = 0,
-    benchmark_auto_resolve: bool = True,
-    benchmark_defer_action: str = "block",
-    benchmark_persist_scope: str = "project",
-    framework: str = "",
-) -> None:
-    """Write a canonical .clawsentry.toml file."""
-    if token_budget_enabled is None:
-        token_budget_enabled = token_budget > 0
-    lines = [
-        "# ClawSentry project configuration",
-        "# Docs: https://elroyper.github.io/ClawSentry/configuration/configuration-overview/",
-        "",
-        "[project]",
-        f"enabled = {_toml_value(enabled)}",
-        f"mode = {_toml_value(mode)}",
-        f"preset = {_toml_value(preset)}",
-        "",
-        "[llm]",
-        f"provider = {_toml_value(llm_provider)}",
-        f"api_key_env = {_toml_value(llm_api_key_env)}",
-        f"model = {_toml_value(llm_model)}",
-        f"base_url = {_toml_value(llm_base_url)}",
-        "",
-        "[features]",
-        f"l2 = {_toml_value(l2)}",
-        f"l3 = {_toml_value(l3)}",
-        f"enterprise = {_toml_value(enterprise)}",
-        "",
-        "[budgets]",
-        f"llm_token_budget_enabled = {_toml_value(token_budget_enabled)}",
-        f"llm_daily_token_budget = {int(token_budget)}",
-        f"llm_token_budget_scope = {_toml_value(token_budget_scope)}",
-        f"l2_timeout_ms = {_toml_value(l2_timeout_ms)}",
-        f"l3_timeout_ms = {_toml_value(l3_timeout_ms)}",
-        f"hard_timeout_ms = {_toml_value(hard_timeout_ms)}",
-        "",
-        "[defer]",
-        f"bridge_enabled = {_toml_value(defer_bridge_enabled)}",
-        f"timeout_s = {_toml_value(defer_timeout_s)}",
-        f"timeout_action = {_toml_value(defer_timeout_action)}",
-        f"max_pending = {int(defer_max_pending)}",
-        "",
-        "[benchmark]",
-        f"auto_resolve_defer = {_toml_value(benchmark_auto_resolve)}",
-        f"defer_action = {_toml_value(benchmark_defer_action)}",
-        f"persist_scope = {_toml_value(benchmark_persist_scope)}",
-        "",
-        "# [overrides]",
-        "# threshold_critical = 2.2",
-    ]
-    if framework:
-        lines.extend(
-            [
-                "",
-                "[frameworks]",
-                f"enabled = [{_toml_value(framework)}]",
-                f"default = {_toml_value(framework)}",
-                "",
-                f"[frameworks.{framework}]",
-                "enabled = true",
-            ]
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+ENV_TEMPLATE_NAME = ".clawsentry.env.example"
+LOCAL_ENV_TEMPLATE_NAME = ".clawsentry.env.local"
+_VALID_MODES = {"normal", "strict", "permissive", "benchmark"}
+_VALID_PROVIDERS = {"", "none", "openai", "anthropic"}
 
 
 def run_config_init(
@@ -127,12 +30,15 @@ def run_config_init(
     target_dir: Path,
     preset: str = "medium",
     force: bool = False,
+    output: Path | None = None,
 ) -> None:
-    toml_path = target_dir / CONFIG_FILENAME
-    if toml_path.exists() and not force:
-        raise FileExistsError(f"{toml_path} already exists. Use --force to overwrite.")
-    _write_toml(toml_path, preset=preset)
-    print(f"Created {toml_path} (preset: {preset})")
+    """Write a safe env example template; never writes project TOML."""
+    if preset not in PRESETS:
+        raise ValueError(f"Unknown preset: {preset!r}. Available: {sorted(PRESETS.keys())}")
+    path = output or (target_dir / ENV_TEMPLATE_NAME)
+    write_env_template(path, preset=preset, force=force)
+    print(f"Created env-first template {path} (preset: {preset})")
+    print(f"Copy to {LOCAL_ENV_TEMPLATE_NAME} for local secrets, then pass --env-file explicitly.")
 
 
 def run_config_show(
@@ -141,96 +47,101 @@ def run_config_show(
     effective: bool = False,
     env_file: Path | None = None,
 ) -> None:
-    if effective:
-        try:
-            parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
-        except EnvFileError as exc:
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(2) from exc
-        eff = resolve_effective_config(
-            target_dir,
-            environ=os.environ,
-            env_file_values=parsed.values,
-            env_file_provenance=parsed,
-        )
-        print("Effective ClawSentry configuration:")
-        for key, value, source in eff.rows():
-            detail = eff.source_detail_for(key)
-            if source == "process-env":
-                env_name = canonical_env_source_for(key)
-                source = f"process-env:{env_name or detail or ''}".rstrip(":")
-            elif source == "env-file":
-                source = f"env-file:{detail}" if detail else "env-file"
-            elif source == "project":
-                source = detail or "project"
-            elif source == "legacy-env":
-                source = f"legacy-env:{detail}" if detail else "legacy-env"
-            print(f"  {key}: {value} (source={source})")
-        for warning in parsed.warnings:
-            eff.warnings.append(warning)
-        if eff.warnings:
-            print("Warnings:")
-            for warning in eff.warnings:
-                print(f"  - {warning}")
+    _ = target_dir
+    try:
+        parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
+    except EnvFileError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
+    eff = resolve_effective_config(environ=os.environ, env_file=parsed)
+    title = "Effective ClawSentry env-first configuration:" if effective else "ClawSentry env-first defaults/effective environment:"
+    print(title)
+    for key, value, source in eff.rows():
+        field_env = canonical_env_source_for(key)
+        detail = eff.source_detail_for(key)
+        source_label = source
+        if source == "process-env":
+            source_label = f"process-env:{detail or field_env or ''}".rstrip(":")
+        elif source == "env-file":
+            source_label = f"env-file:{detail}" if detail else "env-file"
+        elif source == "cli":
+            source_label = f"cli:{detail}" if detail else "cli"
+        elif source == "deprecated-env-alias":
+            source_label = f"deprecated-env-alias:{detail}" if detail else source
+        env_suffix = f" env={field_env}" if field_env else ""
+        print(f"  {key}: {value} (source={source_label}{env_suffix})")
+    for warning in parsed.warnings:
+        eff.warnings.append(warning)
+    if eff.warnings:
+        print("Warnings:")
+        for warning in eff.warnings:
+            print(f"  - {warning}")
+    print("No project TOML is read. Env-file loading is explicit only.")
+
+
+def _config_key_to_env(key_or_preset: str, value: str | None) -> tuple[str, str]:
+    if value is None and key_or_preset in PRESETS:
+        return "CS_PRESET", key_or_preset
+    if value is None:
+        raise ValueError("value is required unless setting a preset")
+    if key_or_preset.startswith("CS_") or key_or_preset in {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}:
+        return key_or_preset, value
+    mapping = {field.key: field.env_var for field in CONFIG_FIELDS if field.env_var}
+    env_key = mapping.get(key_or_preset)
+    if not env_key:
+        raise ValueError(f"Unknown config key: {key_or_preset}")
+    return env_key, value
+
+
+def run_config_set(
+    *,
+    target_dir: Path,
+    preset: str | None = None,
+    key: str | None = None,
+    value: str | None = None,
+    env_file: Path | None = None,
+    output: Path | None = None,
+) -> None:
+    """Print an export instruction by default, or update an explicit env file."""
+    _ = target_dir
+    if key is None:
+        if preset not in PRESETS:
+            raise ValueError(f"Unknown preset: {preset!r}. Available: {sorted(PRESETS.keys())}")
+        env_key, env_value = "CS_PRESET", str(preset)
+    else:
+        env_key, env_value = _config_key_to_env(key, value)
+    target = env_file or output
+    if target is None:
+        print("No env file target supplied; no files were changed.")
+        print(export_instruction(env_key, env_value))
+        print("To persist intentionally, rerun with --env-file PATH or --output PATH.")
         return
-
-    cfg = load_project_config(target_dir)
-    print(f"  enabled: {cfg.enabled}")
-    print(f"  mode:    {cfg.mode}")
-    print(f"  preset:  {cfg.preset}")
-    if cfg.overrides:
-        print(f"  overrides: {cfg.overrides}")
-    dc = cfg.to_detection_config()
-    print(f"  threshold_critical: {dc.threshold_critical}")
-    print(f"  threshold_high:     {dc.threshold_high}")
-    print(f"  threshold_medium:   {dc.threshold_medium}")
-    print(f"  l2_timeout_ms:      {dc.l2_budget_ms}")
-    print(f"  token_budget:       {dc.llm_daily_token_budget if dc.llm_token_budget_enabled else 'disabled'}")
-
-
-def _as_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _as_float(value: Any, default: float) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+    set_env_file_value(target, env_key, env_value)
+    print(f"Updated {env_key} in explicit env file {target}")
 
 
 def _print_wizard_header(target_dir: Path) -> None:
     print("+--------------------------------------------+")
-    print("| ClawSentry Setup                           |")
-    print("| Interactive project configuration guide    |")
+    print("| ClawSentry Env-First Setup                 |")
+    print("| Interactive env/template configuration     |")
     print("+--------------------------------------------+")
-    print(f"Target: {target_dir / CONFIG_FILENAME}")
+    print(f"Target template: {target_dir / ENV_TEMPLATE_NAME}")
     print()
 
 
 def _print_wizard_boundary_notes() -> None:
-    """Explain which wizard choices are actually written and runtime-effective."""
     print("Configuration boundary:")
-    print("  - Writes only runtime-effective .clawsentry.toml fields approved for project config.")
+    print("  - Writes only env template values; project TOML is not read or written.")
     print("  - API key values are env-only; keep secrets in process env or explicit --env-file.")
-    print("  - Runtime precedence: CLI > process env > explicit env-file > TOML > legacy aliases > defaults.")
+    print("  - Runtime precedence: CLI > process env > explicit env-file > defaults.")
     print("  - features.l3 requests L3; actual runtime use still requires provider support.")
     print("  - L3 routing/eager profiles, advisory automation, anti-bypass, DEFER, and timeouts")
     print("    stay in env/docs or advanced templates unless a dedicated wizard exposes them.")
-    print("  - Verify final sources with `clawsentry config show --effective`.")
+    print("  - Verify final sources with `clawsentry config show --effective --env-file PATH`.")
     print()
 
 
-def _prompt_choice(
-    *,
-    step: str,
-    label: str,
-    choices: list[str],
-    default: str,
-) -> str:
+def _prompt_choice(*, step: str, label: str, choices: list[str], default: str) -> str:
     choice_text = ", ".join(f"{index}) {choice}" for index, choice in enumerate(choices, start=1))
     while True:
         raw = input(f"{step} {label} [{choice_text}] (default: {default}): ").strip()
@@ -293,35 +204,15 @@ def _interactive_wizard_values(
 ) -> dict[str, Any]:
     _print_wizard_header(target_dir)
     _print_wizard_boundary_notes()
-    print("Step 1/5 - Select the agent framework.")
     framework_choices = sorted(FRAMEWORK_INITIALIZERS.keys())
-    provider_default = "" if llm_provider == "none" else llm_provider
     provider_choices = ["none", "openai", "anthropic"]
-    if provider_default in {"", "none"}:
-        provider_prompt_default = "none"
-    else:
-        provider_prompt_default = provider_default
-
-    selected_framework = _prompt_choice(
-        step="Step 1/5",
-        label="Agent framework",
-        choices=framework_choices,
-        default=framework if framework in framework_choices else "codex",
-    )
+    provider_default = "none" if llm_provider in {"", "none"} else llm_provider
+    print("Step 1/5 - Select the agent framework.")
+    selected_framework = _prompt_choice(step="Step 1/5", label="Agent framework", choices=framework_choices, default=framework if framework in framework_choices else "codex")
     print("Step 2/5 - Choose the security mode.")
-    selected_mode = _prompt_choice(
-        step="Step 2/5",
-        label="Security mode",
-        choices=["normal", "strict", "permissive", "benchmark"],
-        default=mode,
-    )
+    selected_mode = _prompt_choice(step="Step 2/5", label="Security mode", choices=sorted(_VALID_MODES), default=mode)
     print("Step 3/5 - Configure optional LLM analysis.")
-    selected_provider = _prompt_choice(
-        step="Step 3/5",
-        label="LLM provider for L2/L3",
-        choices=provider_choices,
-        default=provider_prompt_default,
-    )
+    selected_provider = _prompt_choice(step="Step 3/5", label="LLM provider for L2/L3", choices=provider_choices, default=provider_default)
     if selected_provider == "none":
         selected_provider = ""
         selected_model = ""
@@ -331,34 +222,14 @@ def _interactive_wizard_values(
         print("Step 4/5 - Choose deeper review features.")
         print("  No LLM provider selected; L2 and L3 review are disabled.")
     else:
-        selected_model = _prompt_text(
-            step="Step 3/5",
-            label="LLM model",
-            default=llm_model,
-        )
-        selected_base_url = _prompt_text(
-            step="Step 3/5",
-            label="OpenAI-compatible base URL",
-            default=llm_base_url,
-        )
+        selected_model = _prompt_text(step="Step 3/5", label="LLM model", default=llm_model)
+        selected_base_url = _prompt_text(step="Step 3/5", label="OpenAI-compatible base URL", default=llm_base_url)
         print("Step 4/5 - Choose deeper review features.")
         print("  L2/L3 can improve semantic detection, but they add model cost and latency.")
-        selected_l2 = _prompt_bool(
-            step="Step 4/5",
-            label="Enable L2 semantic analysis",
-            default=True if l2 is None else bool(l2),
-        )
-        selected_l3 = _prompt_bool(
-            step="Step 4/5",
-            label="Enable L3 advisory review",
-            default=bool(l3),
-        )
+        selected_l2 = _prompt_bool(step="Step 4/5", label="Enable L2 semantic analysis", default=True if l2 is None else bool(l2))
+        selected_l3 = _prompt_bool(step="Step 4/5", label="Enable L3 advisory review", default=bool(l3))
     print("Step 5/5 - Set budget guardrails.")
-    selected_token_budget = _prompt_int(
-        step="Step 5/5",
-        label="Daily LLM token budget, 0 disables budget enforcement",
-        default=int(token_budget),
-    )
+    selected_token_budget = _prompt_int(step="Step 5/5", label="Daily LLM token budget, 0 disables budget enforcement", default=int(token_budget))
     print()
     return {
         "framework": selected_framework,
@@ -370,149 +241,6 @@ def _interactive_wizard_values(
         "l3": selected_l3,
         "token_budget": selected_token_budget,
     }
-
-
-def _config_write_kwargs(cfg: Any) -> dict[str, Any]:
-    """Return full ``_write_toml`` kwargs so small edits preserve other sections."""
-    return {
-        "enabled": bool(cfg.enabled),
-        "preset": str(cfg.preset),
-        "mode": str(cfg.mode),
-        "llm_provider": str(cfg.llm.get("provider", "")),
-        "llm_api_key_env": str(cfg.llm.get("api_key_env", "CS_LLM_API_KEY")),
-        "llm_model": str(cfg.llm.get("model", "")),
-        "llm_base_url": str(cfg.llm.get("base_url", "")),
-        "l2": _as_bool(cfg.features.get("l2", False)),
-        "l3": _as_bool(cfg.features.get("l3", False)),
-        "enterprise": _as_bool(cfg.features.get("enterprise", False)),
-        "token_budget": _as_int(cfg.budgets.get("llm_daily_token_budget", 0), 0),
-        "token_budget_enabled": _as_bool(cfg.budgets.get("llm_token_budget_enabled", False)),
-        "token_budget_scope": str(cfg.budgets.get("llm_token_budget_scope", "total")),
-        "l2_timeout_ms": _as_float(cfg.budgets.get("l2_timeout_ms", 60_000.0), 60_000.0),
-        "l3_timeout_ms": _as_float(cfg.budgets.get("l3_timeout_ms", 300_000.0), 300_000.0),
-        "hard_timeout_ms": _as_float(cfg.budgets.get("hard_timeout_ms", 600_000.0), 600_000.0),
-        "defer_bridge_enabled": _as_bool(cfg.defer.get("bridge_enabled", True), True),
-        "defer_timeout_s": _as_float(cfg.defer.get("timeout_s", 86_400.0), 86_400.0),
-        "defer_timeout_action": str(cfg.defer.get("timeout_action", "block")),
-        "defer_max_pending": _as_int(cfg.defer.get("max_pending", 0), 0),
-        "benchmark_auto_resolve": _as_bool(cfg.benchmark.get("auto_resolve_defer", True), True),
-        "benchmark_defer_action": str(cfg.benchmark.get("defer_action", "block")),
-        "benchmark_persist_scope": str(cfg.benchmark.get("persist_scope", "project")),
-    }
-
-
-_FIELD_TYPES: dict[str, type] = {
-    "project.enabled": bool,
-    "project.mode": str,
-    "project.preset": str,
-    "llm.provider": str,
-    "llm.api_key_env": str,
-    "llm.model": str,
-    "llm.base_url": str,
-    "features.l2": bool,
-    "features.l3": bool,
-    "features.enterprise": bool,
-    "budgets.llm_token_budget_enabled": bool,
-    "budgets.llm_daily_token_budget": int,
-    "budgets.llm_token_budget_scope": str,
-    "budgets.l2_timeout_ms": float,
-    "budgets.l3_timeout_ms": float,
-    "budgets.hard_timeout_ms": float,
-    "defer.bridge_enabled": bool,
-    "defer.timeout_s": float,
-    "defer.timeout_action": str,
-    "defer.max_pending": int,
-    "benchmark.auto_resolve_defer": bool,
-    "benchmark.defer_action": str,
-    "benchmark.persist_scope": str,
-}
-
-_WRITE_KEY_MAP: dict[str, str] = {
-    "project.enabled": "enabled",
-    "project.mode": "mode",
-    "project.preset": "preset",
-    "llm.provider": "llm_provider",
-    "llm.api_key_env": "llm_api_key_env",
-    "llm.model": "llm_model",
-    "llm.base_url": "llm_base_url",
-    "features.l2": "l2",
-    "features.l3": "l3",
-    "features.enterprise": "enterprise",
-    "budgets.llm_token_budget_enabled": "token_budget_enabled",
-    "budgets.llm_daily_token_budget": "token_budget",
-    "budgets.llm_token_budget_scope": "token_budget_scope",
-    "budgets.l2_timeout_ms": "l2_timeout_ms",
-    "budgets.l3_timeout_ms": "l3_timeout_ms",
-    "budgets.hard_timeout_ms": "hard_timeout_ms",
-    "defer.bridge_enabled": "defer_bridge_enabled",
-    "defer.timeout_s": "defer_timeout_s",
-    "defer.timeout_action": "defer_timeout_action",
-    "defer.max_pending": "defer_max_pending",
-    "benchmark.auto_resolve_defer": "benchmark_auto_resolve",
-    "benchmark.defer_action": "benchmark_defer_action",
-    "benchmark.persist_scope": "benchmark_persist_scope",
-}
-
-
-def _coerce_config_value(key: str, value: str) -> Any:
-    target_type = _FIELD_TYPES.get(key, str)
-    if target_type is bool:
-        normalized = value.strip().lower()
-        if normalized not in {"1", "0", "true", "false", "yes", "no", "on", "off"}:
-            raise ValueError(f"{key} must be a boolean")
-        return _as_bool(normalized)
-    if target_type is int:
-        return int(value)
-    if target_type is float:
-        return float(value)
-    return value
-
-
-def _set_nested(config: dict[str, Any], dotted_key: str, value: str) -> None:
-    section, _, name = dotted_key.partition(".")
-    if not section or not name:
-        raise ValueError("Config key must be section.field, e.g. project.mode")
-    if dotted_key not in _FIELD_TYPES:
-        raise ValueError(f"Unknown config key: {dotted_key}")
-    config.setdefault(section, {})[name] = _coerce_config_value(dotted_key, value)
-
-
-def run_config_set(
-    *,
-    target_dir: Path,
-    preset: str | None = None,
-    key: str | None = None,
-    value: str | None = None,
-) -> None:
-    """Set preset (legacy form) or a canonical section.field key."""
-    cfg = load_project_config(target_dir)
-    if key is None:
-        if preset not in PRESETS:
-            raise ValueError(f"Unknown preset: {preset!r}. Available: {sorted(PRESETS.keys())}")
-        kwargs = _config_write_kwargs(cfg)
-        kwargs["preset"] = str(preset)
-        _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
-        print(f"Updated preset to: {preset}")
-        return
-
-    if value is None:
-        raise ValueError("value is required when key is provided")
-    if key == "project.mode" and value not in {"normal", "strict", "permissive", "benchmark"}:
-        raise ValueError("project.mode must be normal, strict, permissive, or benchmark")
-    current = {
-        "project": {"enabled": cfg.enabled, "mode": cfg.mode, "preset": cfg.preset},
-        "llm": dict(cfg.llm),
-        "features": dict(cfg.features),
-        "budgets": dict(cfg.budgets),
-        "defer": dict(cfg.defer),
-        "benchmark": dict(cfg.benchmark),
-    }
-    _set_nested(current, key, value)
-    section_name, _, field_name = key.partition(".")
-    kwargs = _config_write_kwargs(cfg)
-    kwargs[_WRITE_KEY_MAP[key]] = current[section_name][field_name]
-    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
-    print(f"Updated {key} to: {value}")
 
 
 def run_config_wizard(
@@ -529,8 +257,8 @@ def run_config_wizard(
     l3: bool = False,
     token_budget: int = 0,
     force: bool = False,
+    output: Path | None = None,
 ) -> None:
-    """Guided setup. Non-interactive mode is deterministic for CI/wrappers."""
     stdin_is_tty = bool(getattr(sys.stdin, "isatty", lambda: False)())
     use_interactive = False
     if not non_interactive:
@@ -546,12 +274,14 @@ def run_config_wizard(
         else:
             print("Interactive wizard is not available in this terminal; using supplied/default values.")
 
-    if mode not in {"normal", "strict", "permissive", "benchmark"}:
+    if mode not in _VALID_MODES:
         raise ValueError("mode must be normal, strict, permissive, or benchmark")
+    if llm_provider not in _VALID_PROVIDERS:
+        raise ValueError("llm_provider must be openai, anthropic, none, or empty")
     if llm_provider == "none":
         llm_provider = ""
-    if llm_provider and llm_provider not in {"openai", "anthropic"}:
-        raise ValueError("llm_provider must be openai, anthropic, none, or empty")
+    if framework not in FRAMEWORK_INITIALIZERS:
+        framework = "codex"
 
     if use_interactive:
         values = _interactive_wizard_values(
@@ -578,39 +308,34 @@ def run_config_wizard(
         l2 = False
         l3 = False
     l2_enabled = bool(llm_provider) if l2 is None else bool(l2)
-    toml_path = target_dir / CONFIG_FILENAME
-    if toml_path.exists() and not force:
-        raise FileExistsError(f"{toml_path} already exists. Use --force to overwrite.")
-    _write_toml(
-        toml_path,
+    path = output or (target_dir / ENV_TEMPLATE_NAME)
+    write_env_template(
+        path,
+        framework=framework,
         mode=mode,
         llm_provider=llm_provider,
         llm_model=llm_model,
         llm_base_url=llm_base_url,
         l2=l2_enabled,
-        l3=l3,
+        l3=bool(l3),
         token_budget=token_budget,
-        framework=framework,
+        force=force,
     )
-    print(f"Wrote ClawSentry project config ({mode} mode).")
+    print(f"Wrote ClawSentry env template {path} ({mode} mode).")
     if llm_provider:
-        print("LLM API key is read from CS_LLM_API_KEY; secrets were not written to config.")
-    print("Framework integration is selected for the next command; this wizard does not install hooks.")
-    print("Next: run `clawsentry start --open-browser`.")
-    print("Next: run `clawsentry config show --effective` to verify resolved values.")
+        print("LLM API key is read from CS_LLM_API_KEY; secrets were not written to the template.")
+    print("Framework integration is represented by CS_FRAMEWORK/CS_ENABLED_FRAMEWORKS; this wizard does not install hooks.")
+    print("Next: pass the template explicitly with `clawsentry start --env-file PATH` if needed.")
+    print("Next: run `clawsentry config show --effective --env-file PATH` to verify resolved values.")
 
 
 def run_config_disable(*, target_dir: Path) -> None:
-    cfg = load_project_config(target_dir)
-    kwargs = _config_write_kwargs(cfg)
-    kwargs["enabled"] = False
-    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
-    print("ClawSentry monitoring disabled for this project.")
+    _ = target_dir
+    print("No files were changed. To disable for one process, set:")
+    print("export CS_PROJECT_ENABLED=false")
 
 
 def run_config_enable(*, target_dir: Path) -> None:
-    cfg = load_project_config(target_dir)
-    kwargs = _config_write_kwargs(cfg)
-    kwargs["enabled"] = True
-    _write_toml(target_dir / CONFIG_FILENAME, **kwargs)
-    print("ClawSentry monitoring enabled for this project.")
+    _ = target_dir
+    print("No files were changed. To enable for one process, set:")
+    print("export CS_PROJECT_ENABLED=true")

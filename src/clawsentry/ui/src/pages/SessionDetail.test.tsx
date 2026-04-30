@@ -174,8 +174,13 @@ describe('SessionDetail', () => {
     vi.mocked(api.sessionReplayPage).mockResolvedValue(makeReplayPageResponse() as never)
     vi.mocked(api.requestL3FullReview).mockResolvedValue({
       snapshot: { snapshot_id: 'snap-full-review' },
-      job: { job_id: 'job-full-review', job_state: 'completed' },
-      review: { review_id: 'review-full-review', l3_state: 'completed', advisory_only: true },
+      job: { job_id: 'job-full-review', job_state: 'completed', runner: 'llm_provider' },
+      review: {
+        review_id: 'review-full-review',
+        l3_state: 'completed',
+        advisory_only: true,
+        review_runner: 'llm_provider',
+      },
       advisory_only: true,
       canonical_decision_mutated: false,
     } as never)
@@ -374,33 +379,44 @@ describe('SessionDetail', () => {
     expect(timelineContainer).toHaveAttribute('data-height', '220')
   })
 
-  it('lets operators request a deterministic L3 full review from session detail', async () => {
+  it('lets operators request an LLM provider full review from session detail by default', async () => {
     renderSessionDetail()
+
+    const runnerSelect = await screen.findByRole('combobox', { name: 'Full-review runner' })
+    expect(runnerSelect).toHaveValue('llm_provider')
+    expect(within(runnerSelect).queryByRole('option', { name: 'Fake LLM' })).not.toBeInTheDocument()
 
     const button = await screen.findByRole('button', { name: 'Request L3 full review' })
     fireEvent.click(button)
 
     expect(api.requestL3FullReview).toHaveBeenCalledWith('sess-123', {
-      runner: 'deterministic_local',
+      runner: 'llm_provider',
       run: true,
     })
-    expect(await screen.findByRole('status')).toHaveTextContent('Full review completed (Deterministic local): review-full-review')
+    expect(await screen.findByRole('status')).toHaveTextContent('Full review completed (LLM provider): review-full-review')
     expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
   })
 
   it('supports queue-only full review requests with alternate runner selection', async () => {
+    vi.mocked(api.requestL3FullReview).mockResolvedValueOnce({
+      snapshot: { snapshot_id: 'snap-full-review' },
+      job: { job_id: 'job-full-review', job_state: 'queued', runner: 'deterministic_local' },
+      review: null,
+      advisory_only: true,
+      canonical_decision_mutated: false,
+    } as never)
     renderSessionDetail()
 
     const runnerSelect = await screen.findByRole('combobox', { name: 'Full-review runner' })
-    fireEvent.change(runnerSelect, { target: { value: 'llm_provider' } })
+    fireEvent.change(runnerSelect, { target: { value: 'deterministic_local' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Queue only (do not run now)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Request L3 full review' }))
 
     expect(api.requestL3FullReview).toHaveBeenCalledWith('sess-123', {
-      runner: 'llm_provider',
+      runner: 'deterministic_local',
       run: false,
     })
-    expect(await screen.findByRole('status')).toHaveTextContent('Full review queued (LLM provider): job-full-review')
+    expect(await screen.findByRole('status')).toHaveTextContent('Full review queued (Deterministic local): job-full-review')
     expect(screen.getByText(/canonical decision unchanged/i)).toBeInTheDocument()
   })
 

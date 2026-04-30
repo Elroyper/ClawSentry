@@ -38,7 +38,7 @@ clawsentry init codex
 `init codex` 会：
 
 1. 自动检测 Codex session 目录
-2. 更新 `.clawsentry.toml` 项目配置
+2. 输出 `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` env 建议
 3. 提示监控模式使用方法
 
 如需同时安装 ClawSentry 管理的 Codex native hooks（保留已有用户 / OMX hooks），显式运行：
@@ -182,9 +182,9 @@ Codex 配置。维护者开发期间也必须遵守这一点：不要把 ClawSen
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `CS_CODEX_SESSION_DIR` | *(空)* | Codex 会话 JSONL 目录；显式设置时直接启用 Watcher |
-| `CS_CODEX_WATCH_ENABLED` | `false` | 运行时覆盖；正常启用 Codex 请使用 `.clawsentry.toml [frameworks]`，未设置 `CS_CODEX_SESSION_DIR` 时允许 Gateway 从 `$CODEX_HOME/sessions` 自动探测 |
+| `CS_CODEX_WATCH_ENABLED` | `false` | 运行时覆盖；正常启用 Codex 请使用 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS`，未设置 `CS_CODEX_SESSION_DIR` 时允许 Gateway 从 `$CODEX_HOME/sessions` 自动探测 |
 | `CS_CODEX_WATCH_POLL_INTERVAL` | `1.0` | 轮询间隔（秒）。降低值提高实时性，增加 I/O 开销 |
-| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` |
 
 ---
 
@@ -198,7 +198,7 @@ clawsentry start --framework codex
 
 此命令会依次执行：
 
-1. 读取 `.clawsentry.toml` 中的 Codex 框架策略；缺失时可按 `--framework codex` 生成/合并项目策略
+1. 读取 `.clawsentry.env.example` 中的 Codex 框架策略；缺失时可按 `--framework codex` 生成/合并项目策略
 2. 合成 CLI、进程环境、显式 env file 与项目策略
 3. 在后台启动 Gateway
 4. 等待 health check 通过
@@ -216,7 +216,7 @@ clawsentry start --framework codex
 clawsentry init codex --uninstall
 ```
 
-此命令只会从当前项目 `.clawsentry.toml [frameworks]` 中移除 `codex` 启用标记；不会删除显式 env file、其他框架配置或轮换共享 `CS_AUTH_TOKEN`。
+此命令只会从当前 explicit env / deployment env 中移除 `codex` 启用标记；不会删除显式 env file、其他框架配置或轮换共享 `CS_AUTH_TOKEN`。
 
 ---
 
@@ -291,12 +291,12 @@ Codex 事件也可通过 HTTP API 直接提交评估：
 | `CS_AUTH_TOKEN` | *(空)* | Bearer Token 认证（**强烈推荐设置**） |
 | `CS_HTTP_HOST` | `127.0.0.1` | Gateway HTTP 监听地址 |
 | `CS_HTTP_PORT` | `8080` | Gateway HTTP 监听端口 |
-| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `.clawsentry.toml [frameworks]` |
+| `CS_FRAMEWORK` | *(空)* | 旧版迁移字段；正常启用请使用 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` |
 | `CS_CODEX_SESSION_DIR` | `$CODEX_HOME/sessions` | Codex session 日志目录（自动检测，一般无需手动设置） |
 | `CS_TRAJECTORY_DB_PATH` | `/tmp/clawsentry-trajectory.db` | SQLite 轨迹数据库路径 |
 
 !!! warning "认证必须启用"
-    `CS_AUTH_TOKEN` 不设置时，`/ahp/codex` 端点对任何请求开放。在生产环境中请务必通过部署环境或显式 `--env-file .clawsentry.env.local` 设置认证 Token；不要把 token 写入 `.clawsentry.toml`。
+    `CS_AUTH_TOKEN` 不设置时，`/ahp/codex` 端点对任何请求开放。在生产环境中请务必通过部署环境或显式 `--env-file .clawsentry.env.local` 设置认证 Token；不要把 token 写入 `.clawsentry.env.example`。
 
 ---
 
@@ -344,7 +344,7 @@ curl -N http://127.0.0.1:8080/report/stream
 
 ## Doctor 诊断
 
-`clawsentry doctor` 包含 Codex 专属的配置检查。当 `.clawsentry.toml [frameworks]` 启用 Codex（或旧版迁移 env 仍设置 `CS_FRAMEWORK=codex`）时，会额外验证：
+`clawsentry doctor` 包含 Codex 专属的配置检查。当 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` 启用 Codex（或旧版迁移 env 仍设置 `CS_FRAMEWORK=codex`）时，会额外验证：
 
 ```bash
 clawsentry start --env-file .clawsentry.env.local
@@ -381,7 +381,7 @@ Codex 配置检查项：
 
 | 检查 | 条件 | 结果 |
 |------|------|------|
-| `CODEX_CONFIG` | `.clawsentry.toml [frameworks]` 启用 Codex 且 `CS_AUTH_TOKEN` 已设置 | PASS |
+| `CODEX_CONFIG` | `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` 启用 Codex 且 `CS_AUTH_TOKEN` 已设置 | PASS |
 | `CODEX_CONFIG` | Codex 已启用但 `CS_AUTH_TOKEN` 未设置 | WARN |
 | `CODEX_CONFIG` | Codex 未启用 | PASS（跳过检查） |
 | `CODEX_NATIVE_HOOKS` | `[features].codex_hooks = true`，且 ClawSentry managed `PreToolUse(Bash)` 为同步、其他 managed native hooks 为 `--async` | PASS |

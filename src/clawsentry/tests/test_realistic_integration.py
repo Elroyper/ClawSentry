@@ -1185,19 +1185,16 @@ class TestFailOpenOnGatewayUnreachable:
 
 
 # ===================================================================
-# Part 8: Project config (.clawsentry.toml) enabled flag in harness
+# Part 8: Env-driven enabled flag in harness
 # ===================================================================
 
 
-class TestProjectConfigInHarness:
-    """Test that harness respects .clawsentry.toml enabled flag."""
+class TestEnvConfigInHarness:
+    """Test that harness respects env-driven enabled flag."""
 
     @pytest.mark.asyncio
-    async def test_disabled_project_allows_all_native_hook(self, tmp_path):
-        """When .clawsentry.toml has enabled=false, native hook should allow everything."""
-        toml = tmp_path / ".clawsentry.toml"
-        toml.write_text('[project]\nenabled = false\n')
-
+    async def test_disabled_env_allows_all_native_hook(self, monkeypatch):
+        monkeypatch.setenv("CS_PROJECT_ENABLED", "false")
         adapter = A3SCodeAdapter(
             uds_path="/tmp/clawsentry-nonexistent.sock",
             source_framework="claude-code",
@@ -1205,47 +1202,31 @@ class TestProjectConfigInHarness:
             max_rpc_retries=0,
         )
         harness = A3SGatewayHarness(adapter)
-
-        # Clear cache to ensure fresh read
-        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
-        _project_config_cache.clear()
-
         response = await harness.dispatch_async({
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "rm -rf /"},
             "session_id": "test",
-            "cwd": str(tmp_path),
+            "cwd": "/tmp",
         })
-        assert response is None  # None = allow for Claude Code hooks
+        assert response is None
 
     @pytest.mark.asyncio
-    async def test_disabled_project_allows_all_jsonrpc(self, tmp_path):
-        """When .clawsentry.toml has enabled=false, JSON-RPC should also allow."""
-        toml = tmp_path / ".clawsentry.toml"
-        toml.write_text('[project]\nenabled = false\n')
-
+    async def test_disabled_env_allows_all_jsonrpc(self, monkeypatch):
+        monkeypatch.setenv("CS_PROJECT_ENABLED", "false")
         adapter = A3SCodeAdapter(
             uds_path="/tmp/clawsentry-nonexistent.sock",
             default_deadline_ms=500,
             max_rpc_retries=0,
         )
         harness = A3SGatewayHarness(adapter)
-
-        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
-        _project_config_cache.clear()
-
         response = await harness.dispatch_async({
             "jsonrpc": "2.0",
             "id": 1,
             "method": "ahp/event",
             "params": {
                 "event_type": "pre_tool_use",
-                "payload": {
-                    "tool": "Bash",
-                    "command": "rm -rf /",
-                    "cwd": str(tmp_path),
-                },
+                "payload": {"tool": "Bash", "command": "rm -rf /", "cwd": "/tmp"},
             },
         })
         assert response is not None
@@ -1254,11 +1235,8 @@ class TestProjectConfigInHarness:
         assert "disabled" in result.get("reason", "").lower()
 
     @pytest.mark.asyncio
-    async def test_enabled_project_proceeds_normally(self, tmp_path):
-        """When .clawsentry.toml has enabled=true, harness should proceed to Gateway."""
-        toml = tmp_path / ".clawsentry.toml"
-        toml.write_text('[project]\npreset = "strict"\n')
-
+    async def test_enabled_env_proceeds_normally(self, monkeypatch):
+        monkeypatch.setenv("CS_PROJECT_ENABLED", "true")
         adapter = A3SCodeAdapter(
             uds_path="/tmp/clawsentry-nonexistent.sock",
             source_framework="claude-code",
@@ -1266,23 +1244,17 @@ class TestProjectConfigInHarness:
             max_rpc_retries=0,
         )
         harness = A3SGatewayHarness(adapter)
-
-        from clawsentry.adapters.a3s_gateway_harness import _project_config_cache
-        _project_config_cache.clear()
-
-        # Gateway unreachable → fail-open → None
         response = await harness.dispatch_async({
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "ls"},
             "session_id": "test",
-            "cwd": str(tmp_path),
+            "cwd": "/tmp",
         })
-        assert response is None  # fail-open when gateway unreachable
+        assert response is None
 
     @pytest.mark.asyncio
-    async def test_no_cwd_skips_project_check(self):
-        """When no cwd is provided, project config check should be skipped."""
+    async def test_no_cwd_still_uses_env_only(self):
         adapter = A3SCodeAdapter(
             uds_path="/tmp/clawsentry-nonexistent.sock",
             source_framework="claude-code",
@@ -1290,12 +1262,10 @@ class TestProjectConfigInHarness:
             max_rpc_retries=0,
         )
         harness = A3SGatewayHarness(adapter)
-
-        # No cwd → skip project config → proceed to gateway → fail-open
         response = await harness.dispatch_async({
             "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": "ls"},
             "session_id": "test",
         })
-        assert response is None  # fail-open
+        assert response is None

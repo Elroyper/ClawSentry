@@ -401,3 +401,69 @@ def test_report_docs_do_not_publish_stale_window_or_score_contracts() -> None:
         "## GET /report/session/{id}/post-action", 1
     )[1].split("## GET /report/session/{id}/enforcement", 1)[0]
     assert "decision_path_io" in post_action_section
+
+def test_clawsentry_config_docs_use_dotenv_templates_not_section_configs() -> None:
+    """User-facing ClawSentry config docs must match the env-file parser."""
+
+    docs = [
+        REPO_ROOT / "site-docs" / "configuration" / "configuration-overview.md",
+        REPO_ROOT / "site-docs" / "configuration" / "templates.md",
+        REPO_ROOT / "site-docs" / "configuration" / "detection-config.md",
+        REPO_ROOT / "site-docs" / "configuration" / "env-vars.md",
+        REPO_ROOT / "site-docs" / "getting-started" / "quickstart.md",
+        REPO_ROOT / "site-docs" / "cli" / "index.md",
+        REPO_ROOT / "site-docs" / "integration" / "claude-code.md",
+        REPO_ROOT / "site-docs" / "integration" / "openclaw.md",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in docs)
+
+    stale_terms = [
+        "```env-template",
+        ".clawsentry.env.example [frameworks]",
+        "唯一会自动发现",
+        "唯一自动发现",
+        "自动发现的项目配置",
+        "ProjectConfig dataclass + .clawsentry.env.example 加载",
+        "pyproject.env-template",
+        "config.env-template",
+        "env-templatelib",
+    ]
+    for term in stale_terms:
+        assert term not in combined
+
+    # The copy-paste template page should be dotenv, with reusable feature blocks.
+    templates = (REPO_ROOT / "site-docs" / "configuration" / "templates.md").read_text(
+        encoding="utf-8"
+    )
+    for term in [
+        "CS_ANTI_BYPASS_GUARD_ENABLED=true",
+        "CS_ANTI_BYPASS_EXACT_REPEAT_ACTION=block",
+        "CS_DEFER_BRIDGE_ENABLED=true",
+        "CS_POST_ACTION_FINDING_ACTION=broadcast",
+        "CS_MODE=benchmark",
+    ]:
+        assert term in templates
+
+
+def test_release_docs_use_real_toml_paths_and_current_public_status() -> None:
+    release_doc_paths = [
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "CHANGELOG.md",
+        REPO_ROOT / "docs" / "validation" / "v0.6.3-env-first-config-docs-release-2026-04-30.md",
+        REPO_ROOT / "docs" / "management" / "RELEASE_CHECKLIST.md",
+        REPO_ROOT / "docs" / "management" / "REPO_WORKFLOW.md",
+    ]
+    release_docs = "\n".join(
+        path.read_text(encoding="utf-8") for path in release_doc_paths if path.exists()
+    )
+
+    if (REPO_ROOT / "docs" / "management").exists():
+        assert "workspace baseline: v0.6.3 released" in release_docs
+    else:
+        assert "What's New in v0.6.3" in release_docs
+    assert "0.6.3" in release_docs
+    assert "https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.3" in release_docs
+    assert "https://pypi.org/project/clawsentry/" in release_docs
+    assert "pyproject.env-template" not in release_docs
+    assert "config.env-template" not in release_docs
+    assert "pyproject.toml" in release_docs

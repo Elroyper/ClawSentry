@@ -54,7 +54,7 @@ def _jobs_response() -> _JsonResponse:
     )
 
 
-def test_build_full_review_payload_defaults_to_single_deterministic_run() -> None:
+def test_build_full_review_payload_omits_runner_by_default() -> None:
     payload = build_full_review_payload(
         trigger_event_id=None,
         trigger_detail=None,
@@ -62,7 +62,7 @@ def test_build_full_review_payload_defaults_to_single_deterministic_run() -> Non
         to_record_id=42,
         max_records=100,
         max_tool_calls=0,
-        runner="deterministic_local",
+        runner=None,
         queue_only=False,
     )
 
@@ -72,9 +72,23 @@ def test_build_full_review_payload_defaults_to_single_deterministic_run() -> Non
         "to_record_id": 42,
         "max_records": 100,
         "max_tool_calls": 0,
-        "runner": "deterministic_local",
         "run": True,
     }
+
+
+def test_build_full_review_payload_preserves_explicit_local_runner() -> None:
+    payload = build_full_review_payload(
+        trigger_event_id=None,
+        trigger_detail=None,
+        from_record_id=None,
+        to_record_id=None,
+        max_records=100,
+        max_tool_calls=0,
+        runner="deterministic_local",
+        queue_only=False,
+    )
+
+    assert payload["runner"] == "deterministic_local"
 
 
 def test_loopback_l3_requests_bypass_proxy_handler(monkeypatch) -> None:
@@ -115,7 +129,7 @@ def test_loopback_l3_requests_bypass_proxy_handler(monkeypatch) -> None:
         to_record_id=None,
         max_records=100,
         max_tool_calls=0,
-        runner="deterministic_local",
+        runner=None,
         queue_only=False,
         json_mode=True,
         timeout=12.5,
@@ -132,7 +146,7 @@ def test_loopback_l3_requests_bypass_proxy_handler(monkeypatch) -> None:
     assert run_l3_jobs_run_next(
         gateway_url="http://[::1]:8080",
         token=None,
-        runner="deterministic_local",
+        runner="llm_provider",
         session_id=None,
         dry_run=True,
         json_mode=True,
@@ -174,7 +188,7 @@ def test_non_loopback_l3_requests_keep_default_proxy_behavior(monkeypatch) -> No
         to_record_id=None,
         max_records=100,
         max_tool_calls=0,
-        runner="deterministic_local",
+        runner=None,
         queue_only=False,
         json_mode=True,
         timeout=12.5,
@@ -225,7 +239,7 @@ def test_run_l3_full_review_posts_to_gateway(monkeypatch, capsys) -> None:
         to_record_id=7,
         max_records=100,
         max_tool_calls=0,
-        runner="deterministic_local",
+        runner=None,
         queue_only=False,
         json_mode=True,
         timeout=12.5,
@@ -237,6 +251,7 @@ def test_run_l3_full_review_posts_to_gateway(monkeypatch, capsys) -> None:
     assert captured["body"]["trigger_event_id"] == "op-1"
     assert captured["body"]["to_record_id"] == 7
     assert captured["body"]["run"] is True
+    assert "runner" not in captured["body"]
     assert captured["timeout"] == 12.5
     assert json.loads(capsys.readouterr().out)["review"]["review_id"] == "rev-1"
 
@@ -264,7 +279,7 @@ def test_run_l3_full_review_renders_summary(monkeypatch, capsys) -> None:
         to_record_id=None,
         max_records=100,
         max_tool_calls=0,
-        runner="deterministic_local",
+        runner=None,
         queue_only=True,
         json_mode=False,
         timeout=10.0,
@@ -347,7 +362,7 @@ def test_run_l3_jobs_run_next_and_drain_post_bounded_payload(monkeypatch, capsys
     assert run_l3_jobs_drain(
         gateway_url="http://gw",
         token=None,
-        runner="fake_llm",
+        runner="llm_provider",
         session_id=None,
         max_jobs=2,
         dry_run=True,
@@ -358,6 +373,6 @@ def test_run_l3_jobs_run_next_and_drain_post_bounded_payload(monkeypatch, capsys
     assert captured[0]["url"] == "http://gw/report/l3-advisory/jobs/run-next"
     assert captured[0]["body"] == {"runner": "deterministic_local", "session_id": "sess-1", "dry_run": True}
     assert captured[1]["url"] == "http://gw/report/l3-advisory/jobs/drain"
-    assert captured[1]["body"] == {"runner": "fake_llm", "session_id": None, "max_jobs": 2, "dry_run": True}
+    assert captured[1]["body"] == {"runner": "llm_provider", "session_id": None, "max_jobs": 2, "dry_run": True}
     out = capsys.readouterr().out
     assert "canonical_decision_mutated: False" in out

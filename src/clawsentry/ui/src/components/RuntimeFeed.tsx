@@ -396,6 +396,11 @@ function RuntimeSummary({ event, language }: { event: SSERuntimeEvent; language:
           <div className="text-secondary runtime-event-detail">
             {language === 'zh' ? '仅咨询，来自快照' : 'Advisory only from snapshot'} <span className="mono">{event.snapshot_id}</span>
           </div>
+          {event.l3_reason_code && (
+            <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
+              {language === 'zh' ? 'Provider/配置' : 'Provider/config'}: <span className="mono">{appendReadableLabel('l3ReasonCode', event.l3_reason_code, language)}</span>
+            </div>
+          )}
           {event.analysis_summary && (
             <div className="text-secondary runtime-event-detail runtime-event-detail-compact">
               {event.analysis_summary}

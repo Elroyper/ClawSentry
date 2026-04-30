@@ -22,7 +22,7 @@ AHP (Agent Harness Protocol) reference implementation — a unified security sup
 - **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
 - **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
 - **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **3220 public regression tests** with release-time CI/build evidence
+- **3112 public regression tests** with release-time CI/build evidence
 
 ## Installation
 
@@ -34,11 +34,12 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.6.2
+## What's New in v0.6.3
 
-- **Kimi CLI native-hook support**: `clawsentry init kimi-cli --setup` installs marker-managed Kimi `[[hooks]]` for strong `PreToolUse` / prompt deny and broad async observation.
-- **Kimi capability boundary**: `PreToolUse` can block dangerous tool calls, `UserPromptSubmit` can block unsafe prompts before model submission, and post/session/subagent/compact/notification hooks provide audit observation.
-- **Honest capability boundaries**: Kimi support is native allow/block hooks, not `a3s-code` AHP transport parity; native `modify` and true `defer` remain unsupported/degraded.
+- **Env-first configuration docs**: configuration reference pages now consistently use copy-pasteable dotenv parameters instead of stale project TOML instructions.
+- **Simplified reading path**: Environment Variables is the parameter catalog, Detection Pipeline Configuration is the runtime layer map, and Policy Tuning is the scenario tuning guide.
+- **Ready-to-use template blocks**: templates now include L1, L2, strict L3, anti-bypass observe/review/enforce, DEFER, trajectory, D4, benchmark, and production blocks.
+- **Release freshness guardrails**: public docs/tests now catch stale TOML wording, accidental `.env-template` paths, and out-of-date release status before publication.
 
 ## Quick Start
 
@@ -74,7 +75,7 @@ Manual login uses the same `CS_AUTH_TOKEN` from the startup environment, explici
 
 Press Ctrl+C to gracefully shutdown.
 
-`clawsentry init <framework>` updates `.clawsentry.toml [frameworks]` by
+`clawsentry init <framework>` updates `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS` by
 default and does not write secrets. Framework enablement is stored in project
 config; local tokens and provider keys belong in process/deployment env or an
 explicit `--env-file` such as `.clawsentry.env.local`.
@@ -114,7 +115,7 @@ clawsentry init openclaw --uninstall     # env only; use --restore for OpenClaw-
 #### a3s-code
 
 ```bash
-clawsentry init a3s-code           # update .clawsentry.toml [frameworks]
+clawsentry init a3s-code           # update CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS
 clawsentry gateway                 # start gateway (default :8080)
 clawsentry watch                   # tail live decisions in your terminal
 ```
@@ -127,7 +128,7 @@ does not auto-load it.
 #### OpenClaw
 
 ```bash
-clawsentry init openclaw           # update .clawsentry.toml [frameworks] only
+clawsentry init openclaw           # update CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS only
 clawsentry init openclaw --setup   # opt-in: patch OpenClaw settings
 clawsentry gateway                 # start gateway (default :8080)
 open http://localhost:8080/ui      # open web dashboard

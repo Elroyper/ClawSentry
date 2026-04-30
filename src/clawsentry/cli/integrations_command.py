@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
-from clawsentry.gateway.project_config import read_project_frameworks
+from clawsentry.gateway.env_config import parse_enabled_frameworks
 
 
 FRAMEWORK_CAPABILITIES: dict[str, dict[str, str]] = {
@@ -437,7 +437,7 @@ def collect_integration_status(
     env_file_present: bool = False,
 ) -> dict[str, object]:
     values = dict(env_values or {})
-    enabled, legacy_default = read_project_frameworks(target_dir)
+    enabled, legacy_default = parse_enabled_frameworks(values)
     enabled_framework_details = {
         framework: dict(FRAMEWORK_CAPABILITIES[framework])
         for framework in enabled
@@ -471,6 +471,7 @@ def collect_integration_status(
     payload = {
         "env_file": "(explicit only)",
         "env_exists": env_file_present,
+        "default_framework": legacy_default,
         "legacy_default": legacy_default,
         "enabled_frameworks": enabled,
         "framework_capabilities": FRAMEWORK_CAPABILITIES,
@@ -566,7 +567,7 @@ def run_integrations_status(
     print(f"Env file: {payload['env_file']}")
     print(f"Env exists: {'yes' if payload['env_exists'] else 'no'}")
     print(f"Enabled frameworks: {enabled_text}")
-    print(f"Legacy default: {payload['legacy_default'] or '(none)'}")
+    print(f"Default framework: {payload['default_framework'] or '(none)'}")
     print(
         "Codex watcher: "
         f"{'enabled' if payload['codex_watcher_enabled'] else 'disabled'}"

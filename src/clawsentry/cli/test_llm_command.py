@@ -54,14 +54,12 @@ def _env_bool_from(runtime_env: dict[str, str], name: str, default: bool = False
 
 
 def _resolve_runtime_env(env_file: Path | None = None) -> dict[str, str]:
-    """Resolve process, explicit env-file, and project config into an isolated runtime env."""
+    """Resolve process env and an explicitly selected env-file into an isolated runtime env."""
     from .dotenv_loader import apply_env_file_to_legacy_environ, resolve_explicit_env_file
-    from ..gateway.project_config import apply_project_config_to_environ
 
     runtime_env = dict(os.environ)
     parsed = resolve_explicit_env_file(cli_env_file=env_file, environ=os.environ)
     apply_env_file_to_legacy_environ(parsed, environ=runtime_env)
-    apply_project_config_to_environ(Path.cwd(), environ=runtime_env)
     return runtime_env
 
 

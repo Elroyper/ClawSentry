@@ -388,12 +388,7 @@ async def run_stack(args: argparse.Namespace) -> None:
         cooldown_seconds=_enf_cooldown,
     )
 
-    # Make .clawsentry.toml runtime-effective while preserving env precedence.
-    from .project_config import apply_project_config_to_environ
-
-    apply_project_config_to_environ(Path.cwd())
-
-    # Build detection config from project-backed canonical CS_ environment variables.
+    # Build detection config from canonical CS_ environment variables.
     detection_config = build_detection_config_from_env()
 
     # Build gateway first, then configure LLM analyzer with trajectory store

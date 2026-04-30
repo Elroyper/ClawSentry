@@ -1,49 +1,72 @@
-# Changelog
+# 更新日志
 
 本文件记录 ClawSentry 各版本的重要变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
-## [Unreleased]
+## [未发布]
 
-暂无。
+### 待办
+
+- 下一轮用户反馈与回归验证后补充。
+
+## [0.6.3] — 2026-04-30
+
+### 改进
+
+- **配置参考 env-first 收口** — 配置概览、模板、环境变量、检测管线、策略调优、CLI、Quickstart、集成与运维页面统一为 `CS_*` / `AHP_*` dotenv 参数口径，移除正常 runtime 路径仍使用项目 TOML 的过时说法。
+- **阅读路径去重** — 明确“环境变量”是参数目录，“检测管线配置”是 L1/L2/L3 runtime 层级图，“策略调优”是按场景取舍的调参指南，减少多个页面看不出差别的问题。
+- **可复制模板块补齐** — 配置模板新增/整理 L1、L2、严格 L3、Anti-bypass observe/review/enforce、DEFER、post-action / trajectory、D4 频率、benchmark 与生产部署块，可直接复制到部署环境或显式 env-file。
+- **公开发布面刷新** — README、PyPI README、包内 README、在线文档与发布状态页更新到 v0.6.3，公开仓库 release 不再停留在早期口径。
+
+### 修复
+
+- 修复配置文档中的 env-template 路径误写、错误代码块语言和 fake section header 等 stale wording。
+- 修复 `init --setup` 相关测试仍断言 `.clawsentry.toml` framework blocks 的旧契约，改为验证 env-first 输出与不落盘 secret/config。
+
+### 测试与验证
+
+- Python 完整回归：`python -m pytest src/clawsentry/tests/ -q --tb=short` → `3113 passed, 5 skipped`。
+- Web UI 回归：`npm test -- --run` → `53 passed`。
+- 文档构建：`mkdocs build --strict` PASS。
+- Docs/config contract：新增 stale TOML/env-template/release freshness 回归，防止配置参考再次漂移。
 
 ## [0.6.2] — 2026-04-29
 
-### Added
+### 新增
 
-- **Kimi CLI first-class native-hook support** — Added a `kimi-cli` adapter, harness dispatch path, initializer, readiness reporting, tests, and public integration docs. Kimi `PreToolUse` and `UserPromptSubmit` map Gateway deny decisions to Kimi `hookSpecificOutput.permissionDecision=deny`, while post/session/subagent/compact/notification hooks provide async observation.
-- **Safe Kimi config management** — `clawsentry init kimi-cli --setup` writes marker-managed `[[hooks]]` entries to `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml`, preserves non-ClawSentry user hooks, and `--uninstall` removes only managed entries.
+- **Kimi CLI 一等 native-hook 支持** — 新增 `kimi-cli` adapter、harness 分发路径、initializer、readiness 报告、测试与公开集成文档。Kimi `PreToolUse` 和 `UserPromptSubmit` 会把 Gateway deny 决策映射为 Kimi `hookSpecificOutput.permissionDecision=deny`，post/session/subagent/compact/notification hooks 提供异步观测。
+- **安全的 Kimi 配置管理** — `clawsentry init kimi-cli --setup` 会向 `$KIMI_SHARE_DIR/config.toml` 或 `~/.kimi/config.toml` 写入 marker-managed `[[hooks]]` 条目，保留非 ClawSentry 用户 hooks；`--uninstall` 只移除受管条目。
 
-### Changed
+### 改进
 
-- **Explicit Kimi capability boundaries** — Kimi native hooks are documented as native allow/block support, not `a3s-code` AHP transport parity. Native `modify` and true `defer` are reported as unsupported/degraded instead of advertised.
-- **Six-framework documentation coverage** — README, PyPI README, quickstart, CLI docs, FAQ, compatibility matrix, recent feature coverage, and online docs now include Kimi CLI alongside a3s-code, Claude Code, Codex, Gemini CLI, and OpenClaw.
+- **Kimi 能力边界显式化** — Kimi native hooks 现在明确为 native allow/block 支持，不宣称具备 `a3s-code` AHP transport 对等能力。Native `modify` 与真实 `defer` 会报告为 unsupported/degraded，而不是被宣传为已支持。
+- **六框架文档覆盖** — README、PyPI README、quickstart、CLI 文档、FAQ、兼容矩阵、recent feature coverage 与在线文档现在都把 Kimi CLI 与 a3s-code、Claude Code、Codex、Gemini CLI、OpenClaw 并列说明。
 
-### Tests
+### 测试与验证
 
-- Kimi focused regression: `python -m pytest src/clawsentry/tests/test_kimi_adapter.py` → `11 passed`; `python -m pytest src/clawsentry/tests/test_kimi_harness.py` → `4 passed`; `python -m pytest src/clawsentry/tests/test_kimi_initializer.py` → `5 passed`.
-- Start/status regression including Kimi readiness: `python -m pytest src/clawsentry/tests/test_integrations_command.py src/clawsentry/tests/test_start_command.py` → `73 passed`.
-- Full Python regression: `python -m pytest src/clawsentry/tests/ -q --tb=short` → dev repo `3221 passed, 5 skipped`; public repo `3220 passed, 6 skipped`.
-- Docs build: `mkdocs build --strict` PASS.
-- Real Kimi CLI E2E over VPN no-key `kimi-k2.5` endpoint: prompt allow, prompt deny, safe Shell allow + `PostToolUse`, dangerous Shell deny at `PreToolUse`, and marker-hook uninstall verified.
+- Kimi 聚焦回归：`python -m pytest src/clawsentry/tests/test_kimi_adapter.py` → `11 passed`；`python -m pytest src/clawsentry/tests/test_kimi_harness.py` → `4 passed`；`python -m pytest src/clawsentry/tests/test_kimi_initializer.py` → `5 passed`。
+- 包含 Kimi 就绪状态的 start/status 回归：`python -m pytest src/clawsentry/tests/test_integrations_command.py src/clawsentry/tests/test_start_command.py` → `73 passed`。
+- Python 完整回归：`python -m pytest src/clawsentry/tests/ -q --tb=short` → 开发仓库 `3221 passed, 5 skipped`；公开仓库 `3220 passed, 6 skipped`。
+- 文档构建：`mkdocs build --strict` PASS。
+- VPN no-key `kimi-k2.5` endpoint 下的真实 Kimi CLI E2E：prompt 放行、prompt 拒绝、安全 Shell 放行 + `PostToolUse`、危险 Shell 在 `PreToolUse` 阶段拒绝，以及 marker-hook uninstall 均已验证。
 
 ## [0.6.1] — 2026-04-29
 
-### Changed
+### 改进
 
-- **Strict configuration-source split** — `.clawsentry.toml` is now the only auto-discovered project configuration file. Local secrets/runtime values come from process/deployment environment or explicit `--env-file` / `CLAWSENTRY_ENV_FILE`; `.env.clawsentry` is legacy/migration-only and is never generated or auto-loaded in normal `init` / `start` flows.
-- **Framework enablement moved to TOML** — framework state is stored under `.clawsentry.toml [frameworks]`; `CS_FRAMEWORK` and `CS_ENABLED_FRAMEWORKS` are retained only for migration/legacy harness defaults.
-- **Explicit env-file provenance** — env-file parsing is non-mutating and reports isolated values plus source labels; effective resolution follows `CLI > process env > explicit env-file > .clawsentry.toml > legacy aliases > defaults`.
-- **Fresh local start UX** — `clawsentry start` generates an ephemeral in-memory `CS_AUTH_TOKEN` when no token is provided, without writing secrets to disk; `start --no-watch` now prints a copyable `clawsentry watch --token ...` command for ephemeral-token sessions.
-- **Readiness UX alignment** — `start` and `integrations status` readiness checks now use the effective process-env + explicit-env-file view, avoiding false “not configured” warnings when runtime values come from shell/deployment env.
+- **配置来源严格拆分** — `.clawsentry.toml` 现在是唯一会自动发现的项目配置文件。本地 secret/runtime 值来自 process/deployment environment，或显式 `--env-file` / `CLAWSENTRY_ENV_FILE`；`.env.clawsentry` 仅用于 legacy/migration，不会在正常 `init` / `start` 流程中生成或自动加载。
+- **框架启用状态迁移到 TOML** — framework 状态存储在 `.clawsentry.toml [frameworks]`；`CS_FRAMEWORK` 与 `CS_ENABLED_FRAMEWORKS` 仅保留用于 migration/legacy harness defaults。
+- **env-file 来源显式化** — env-file 解析不修改进程环境，并报告隔离值与来源标签；最终解析顺序为 `CLI > process env > explicit env-file > .clawsentry.toml > legacy aliases > defaults`。
+- **本地 fresh start UX** — 未提供 token 时，`clawsentry start` 会生成临时内存态 `CS_AUTH_TOKEN`，不会把 secret 写入磁盘；对 ephemeral-token session，`start --no-watch` 现在会打印可复制的 `clawsentry watch --token ...` 命令。
+- **Readiness UX 对齐** — `start` 与 `integrations status` readiness 检查现在使用 effective process-env + explicit-env-file 视图，避免 runtime 值来自 shell/deployment env 时误报 “not configured”。
 
-### Documentation
+### 文档
 
-- Rewrote configuration overview, env-vars, templates, CLI, quickstart, deployment, troubleshooting, integration pages, README copy, and related online docs for the new `.clawsentry.toml` + explicit env-file model.
-- Added production configuration layering guidance, env-file migration troubleshooting, `[frameworks]` blocks in copyable TOML templates, and clearer a3s-code / ephemeral-token notes.
+- 围绕新的 `.clawsentry.toml` + explicit env-file 模型，重写配置概览、env-vars、templates、CLI、quickstart、deployment、troubleshooting、integration pages、README 文案与相关在线文档。
+- 新增生产配置分层指引、env-file 迁移排障说明、可复制 TOML templates 中的 `[frameworks]` blocks，以及更清晰的 a3s-code / ephemeral-token 说明。
 
-### Tests
+### 测试与验证
 
-- Added regression coverage for explicit env-file L3 behavior in `clawsentry test-llm`, non-mutating env-file parsing, project/env precedence, TOML framework enablement, readiness from process env, and no `.env.clawsentry` generation in init/start flows.
+- 新增回归覆盖：`clawsentry test-llm` 中的 explicit env-file L3 行为、非变异 env-file 解析、project/env 优先级、TOML framework enablement、来自 process env 的 readiness，以及 init/start 流程不生成 `.env.clawsentry`。
 
 ## [0.6.0] — 2026-04-29
 
@@ -69,12 +92,12 @@
 
 ### 测试与验证
 
-- Python full regression：dev repo `3251 passed, 5 skipped`; public repo `3250 passed, 6 skipped`。
-- Real-provider L3 E2E（显式启用）：`CS_L3_RUN_REAL_E2E=true python -m pytest src/clawsentry/tests/test_l3_real_provider_e2e.py -q` → `1 passed`。
-- Mandatory setup/docs/L3 contract suites：`529 passed`。
-- Gateway / advisory / Codex E2E focused suites：`171 passed` + `19 passed` + `10 passed` + `6 passed, 1 skipped` + `7 passed` + `4 passed`。
-- Docs API inventory + strict docs build：PASS。
-- Secret scan for new real-provider E2E fixture/template: PASS（no real API key/token patterns）。
+- Python 完整回归：开发仓库 `3251 passed, 5 skipped`；公开仓库 `3250 passed, 6 skipped`。
+- 真实 provider L3 E2E（显式启用）：`CS_L3_RUN_REAL_E2E=true python -m pytest src/clawsentry/tests/test_l3_real_provider_e2e.py -q` → `1 passed`。
+- 必跑 setup/docs/L3 contract 套件：`529 passed`。
+- Gateway / advisory / Codex E2E 聚焦套件：`171 passed` + `19 passed` + `10 passed` + `6 passed, 1 skipped` + `7 passed` + `4 passed`。
+- Docs API 清单 + 严格文档构建：PASS。
+- 新增真实 provider E2E fixture/template 的敏感信息扫描：PASS（未发现真实 API key/token 模式）。
 
 ## [0.5.14] — 2026-04-28
 
@@ -96,15 +119,15 @@
 
 ### 测试与验证
 
-- Anti-bypass focused regression：`14 passed`。
-- Focused guard/config/gateway regression：`256 passed`。
-- Full Python regression：dev repo `3239 passed, 4 skipped`; public repo `3238 passed, 5 skipped`。
-- Full Web UI regression：`53 passed`；Vite build PASS。
-- Docs API inventory + strict docs build：PASS。
-- Package build：PASS（setuptools license deprecation warnings only）。
-- Focused guard/config/gateway regression：`256 passed`。
-- Architect review：APPROVED；Security review：APPROVED。
-- Architect review：APPROVED；Security review：APPROVED。
+- Anti-bypass 聚焦回归：`14 passed`。
+- guard/config/gateway 聚焦回归：`256 passed`。
+- Python 完整回归：开发仓库 `3239 passed, 4 skipped`；公开仓库 `3238 passed, 5 skipped`。
+- Web UI 完整回归：`53 passed`；Vite 构建 PASS。
+- Docs API 清单 + 严格文档构建：PASS。
+- 包构建：PASS（仅 setuptools license deprecation warnings）。
+- guard/config/gateway 聚焦回归：`256 passed`。
+- 架构审查：已通过；安全审查：已通过。
+- 架构审查：已通过；安全审查：已通过。
 
 ## [0.5.13] — 2026-04-27
 
@@ -129,11 +152,11 @@
 
 ### 测试与验证
 
-- Focused post-action / config / gateway / docs contract regression：`366 passed`。
-- Web UI Sessions regression：`3 passed`。
-- Web UI build：PASS。
-- Docs API inventory：PASS。
-- Full release verification：`3225 passed, 4 skipped` Python regression、`53 passed` Web UI regression、docs strict build 与 package build PASS；详见 `docs/validation/v0.5.13-post-action-enterprise-release-2026-04-27.md`。
+- post-action / config / gateway / docs contract 聚焦回归：`366 passed`。
+- Web UI Sessions 回归：`3 passed`。
+- Web UI 构建：PASS。
+- Docs API 清单：PASS。
+- 完整发布验证：`3225 passed, 4 skipped` Python 回归、`53 passed` Web UI 回归、严格文档构建与包构建 PASS；详见 `docs/validation/v0.5.13-post-action-enterprise-release-2026-04-27.md`。
 
 ## [0.5.12] — 2026-04-27
 
@@ -162,10 +185,10 @@
 
 ### 测试与验证
 
-- Python full regression：dev repo `python -m pytest src/clawsentry/tests/ -q --tb=short` → `3196 passed, 4 skipped`；public repo expected `3189 passed, 11 skipped` after benchmark-only tests skip.
-- Focused release regression：`python -m pytest src/clawsentry/tests/test_llm_factory.py src/clawsentry/tests/test_config_command.py src/clawsentry/tests/test_benchmark_wrapper_contract.py src/clawsentry/tests/test_public_docs_contract.py -q` → `51 passed`。
-- Gateway core regression：`python -m pytest src/clawsentry/tests/test_gateway.py::TestGatewayCore -q` → `55 passed`。
-- Focused docs/config/benchmark/LLM checks：`31 passed`；Gateway metric contract checks：`4 passed`。
+- Python 完整回归：开发仓库 `python -m pytest src/clawsentry/tests/ -q --tb=short` → `3196 passed, 4 skipped`；公开仓库预期 `3189 passed, 11 skipped` benchmark-only 测试跳过后。
+- 发布聚焦回归：`python -m pytest src/clawsentry/tests/test_llm_factory.py src/clawsentry/tests/test_config_command.py src/clawsentry/tests/test_benchmark_wrapper_contract.py src/clawsentry/tests/test_public_docs_contract.py -q` → `51 passed`。
+- Gateway core 回归：`python -m pytest src/clawsentry/tests/test_gateway.py::TestGatewayCore -q` → `55 passed`。
+- docs/config/benchmark/LLM 聚焦检查：`31 passed`；Gateway metric contract 检查：`4 passed`。
 - `python scripts/docs_api_inventory.py validate` → PASS。
 - `mkdocs build --strict` → PASS。
 - `git diff --check` → PASS。
@@ -179,11 +202,11 @@
 
 ### 测试与验证
 
-- Python full regression：`conda run -n a3s_code python -m pytest src/clawsentry/tests/ -q --tb=short` → dev repo `3183 passed, 4 skipped`; public repo `3180 passed, 7 skipped`。
-- Focused regression：`python -m pytest demostation_projects/tests/test_a3s_demo_recording.py src/clawsentry/tests/test_ui_build_contract.py -q --tb=short` → `11 passed`。
-- Public docs/version contract：`python -m pytest src/clawsentry/tests/test_public_docs_contract.py -q --tb=short` → `10 passed`。
-- Web UI regression：`npm test -- --run` → `53 passed`。
-- Web UI build：`npm run build` → PASS。
+- Python 完整回归：`conda run -n a3s_code python -m pytest src/clawsentry/tests/ -q --tb=short` → 开发仓库 `3183 passed, 4 skipped`；公开仓库 `3180 passed, 7 skipped`。
+- 聚焦回归：`python -m pytest demostation_projects/tests/test_a3s_demo_recording.py src/clawsentry/tests/test_ui_build_contract.py -q --tb=short` → `11 passed`。
+- 公开文档/版本合同：`python -m pytest src/clawsentry/tests/test_public_docs_contract.py -q --tb=short` → `10 passed`。
+- Web UI 回归：`npm test -- --run` → `53 passed`。
+- Web UI 构建：`npm run build` → PASS。
 
 ## [0.5.10] — 2026-04-26
 
@@ -203,12 +226,12 @@
 ### 测试与验证
 
 - Web UI 回归：`50 passed`。
-- Focused Python regression：`263 passed`。
-- TypeScript diagnostics：PASS。
-- Web UI build：PASS。
+- Python 聚焦回归：`263 passed`。
+- TypeScript 诊断：PASS。
+- Web UI 构建：PASS。
 - `git diff --check`：PASS。
-- Architect verification：APPROVED。
-- 浏览器截图：Dashboard / Sessions / Session Detail desktop + mobile captured under `output/playwright/clawsentry-l3-ux/`。
+- 架构验证：已通过。
+- 浏览器截图：Dashboard / Sessions / Session Detail desktop + mobile 截图保存在 `output/playwright/clawsentry-l3-ux/`。
 
 ## [0.5.9] — 2026-04-26
 
@@ -227,15 +250,15 @@
 
 ### 测试与验证
 
-- Python full regression：dev repo `3177 passed, 4 skipped`。
+- Python 完整回归：开发仓库 `3177 passed, 4 skipped`。
 - Web UI 回归：`50 passed`。
-- Web UI build：PASS。
-- Focused UI static/build contract：`10 passed`。
+- Web UI 构建：PASS。
+- UI static/build contract 聚焦回归：`10 passed`。
 - `python -m ruff check <changed Python files>`：PASS。
 - `python -m compileall`：PASS。
 - `python scripts/docs_api_inventory.py validate`：PASS。
 - `mkdocs build --strict`：PASS。
-- `python -m build`：PASS（setuptools license deprecation warnings only）。
+- `python -m build`：PASS（仅 setuptools license deprecation warnings）。
 
 ## [0.5.8] — 2026-04-26
 
@@ -253,13 +276,13 @@
 
 ### 测试与验证
 
-- Python full regression：dev repo `3173 passed, 4 skipped`；public repo `3170 passed, 7 skipped`。
-- Focused UX/config/benchmark/service regression：`175 passed`。
+- Python 完整回归：开发仓库 `3173 passed, 4 skipped`；公开仓库 `3170 passed, 7 skipped`。
+- UX/config/benchmark/service 聚焦回归：`175 passed`。
 - `python -m ruff check <changed Python files>`：PASS。
 - `python -m compileall`：PASS。
 - `python scripts/docs_api_inventory.py validate`：PASS。
 - `mkdocs build --strict`：PASS。
-- `python -m build`：PASS（setuptools license deprecation warnings only）。
+- `python -m build`：PASS（仅 setuptools license deprecation warnings）。
 - `git diff --check`：PASS。
 
 ## [0.5.7] — 2026-04-25
@@ -278,9 +301,9 @@
 
 ### 测试与验证
 
-- Python full regression：`3135 passed, 4 skipped`。
+- Python 完整回归：`3135 passed, 4 skipped`。
 - Web UI 回归：`49 passed`。
-- Web UI build：PASS。
+- Web UI 构建：PASS。
 - `python scripts/docs_api_inventory.py validate`：PASS。
 - `mkdocs build --strict`：PASS。
 - `git diff --check`：PASS。
@@ -302,7 +325,7 @@
 
 ### 测试与验证
 
-- Python full regression：`3126 passed, 4 skipped`。
+- Python 完整回归：`3126 passed, 4 skipped`。
 - `mkdocs build --strict`：PASS。
 - Gemini CLI 真实 provider smoke：`gemini-2.5-flash` + Gemini relay 证明真实 `BeforeTool` deny；Kimi/OpenAI-compatible endpoint 不宣称为 Gemini CLI 直连支持。
 - **UI 浏览器验证 fixture 补齐企业 DEFER 场景样本** — `build_runtime_replay_events` 新增 openclaw `defer_pending` rollout 命令样本，并补充契约测试，确保弹窗接入所需关键字段持续可用。
@@ -317,7 +340,7 @@
 
 ### 测试与验证
 
-- Focused backend / CLI / watch / UI / docs 验证记录见 `docs/validation/l3-advisory-phase3-heartbeat-drain-2026-04-23.md`。
+- backend / CLI / watch / UI / docs 聚焦验证记录见 `docs/validation/l3-advisory-phase3-heartbeat-drain-2026-04-23.md`。
 
 ## [0.5.4] — 2026-04-23
 
@@ -332,9 +355,9 @@
 ### 测试与验证
 
 - Python 回归：开发仓库 `3057 passed, 4 skipped`；公开仓库 `3054 passed, 7 skipped`
-- Focused AHP action expansion / gateway / watch 回归：`374 passed`
+- AHP action expansion / gateway / watch 聚焦回归：`374 passed`
 - Web UI 回归：`40 passed`
-- Web UI build：PASS
+- Web UI 构建：PASS
 - `mkdocs build --strict`：PASS
 - `git diff --check`：PASS
 
@@ -379,9 +402,9 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `3020 passed, 4 skipped`
-- Focused L3 advisory provider path 回归：`36 passed, 169 deselected`
-- Real-provider smoke gate：默认 `1 skipped`
-- Real-provider smoke：`openai/kimi-k2.5` completed，证据 `docs/validation/l3-advisory-provider-real-smoke-2026-04-21.md`
+- L3 advisory provider path 聚焦回归：`36 passed, 169 deselected`
+- 真实 provider smoke gate：默认 `1 skipped`
+- 真实 provider smoke：`openai/kimi-k2.5` 已完成，证据 `docs/validation/l3-advisory-provider-real-smoke-2026-04-21.md`
 - `mkdocs build --strict`：PASS
 
 ## [0.5.1] — 2026-04-21
@@ -410,7 +433,7 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2962 passed, 3 skipped`
-- Focused AHP v2.3 compatibility / bridge / analysis 回归：`590 passed`
+- AHP v2.3 compatibility / bridge / analysis 聚焦回归：`590 passed`
 
 ## [0.4.8] — 2026-04-17
 
@@ -423,7 +446,7 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2891 passed, 3 skipped`
-- Focused UI build contract：`4 passed`
+- UI build contract 聚焦回归：`4 passed`
 - `npm run build` (`src/clawsentry/ui`)：PASS
 - `mkdocs build --strict`：PASS
 - `python -m build`：PASS
@@ -444,9 +467,9 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2888 passed, 3 skipped`
-- Focused L3 trigger config 回归：`5 passed`
-- Focused detection / project / trigger / risk 回归：`609 passed`
-- Focused agent / gateway 回归：`173 passed`
+- L3 trigger config 聚焦回归：`5 passed`
+- detection / project / trigger / risk 聚焦回归：`609 passed`
+- agent / gateway 聚焦回归：`173 passed`
 - `mkdocs build --strict`：PASS
 - `python -m build`：PASS
 
@@ -486,8 +509,8 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2883 passed, 3 skipped`
-- Focused enterprise / LLM 配置回归：`40 passed`
-- Reporting regression subset：`18 passed, 123 deselected`
+- enterprise / LLM 配置聚焦回归：`40 passed`
+- Reporting 回归子集：`18 passed, 123 deselected`
 - `mkdocs build --strict`：PASS
 
 ## [0.4.4] — 2026-04-15
@@ -504,7 +527,7 @@
 ### 测试与验证
 
 - Python 回归：完整测试 `2812 passed, 3 skipped`
-- Focused rules / docs / L3 回归：`100 passed`
+- rules / docs / L3 聚焦回归：`100 passed`
 - 扩展安全回归：`440 passed`
 - `mkdocs build --strict`：PASS
 
@@ -542,7 +565,7 @@
 
 - Python 回归：完整测试 `2691 passed, 3 skipped`
 - `mkdocs build --strict`：PASS
-- L3 focused 回归：`416 passed`
+- L3 聚焦回归：`416 passed`
 - L3 trigger 单测：`340 passed`
 
 ---
@@ -563,7 +586,7 @@
 
 - Python 回归：完整测试 `2464 passed, 3 skipped`
 - `mkdocs build --strict`：PASS
-- L3 focused 回归：`249 passed`
+- L3 聚焦回归：`249 passed`
 - L3 trigger 单测：`113 passed`
 
 ---
@@ -585,7 +608,7 @@
 
 - Python 回归：完整测试 `2331 passed, 3 skipped`
 - `mkdocs build --strict`：PASS
-- focused start/integrations 回归：`65 passed`
+- start/integrations 聚焦回归：`65 passed`
 
 ## [0.3.9] — 2026-04-09
 
@@ -887,9 +910,9 @@
 - **`clawsentry stop` / `clawsentry status`**：PID 文件管理，一键停止/查询 Gateway 状态
 - **`clawsentry start --open-browser`**：启动后自动打开 Web UI
 
-#### Codex Session Watcher
+#### Codex 会话监视器
 
-- **Codex Session Watcher**：零侵入实时监控 Codex session JSONL 日志，自动发现 `$CODEX_HOME/sessions/` 下活跃 session 文件，tail 新行 → CodexAdapter 归一化 → Gateway 评估 → SSE 广播
+- **Codex 会话监视器**：零侵入实时监控 Codex session JSONL 日志，自动发现 `$CODEX_HOME/sessions/` 下活跃 session 文件，tail 新行 → CodexAdapter 归一化 → Gateway 评估 → SSE 广播
 - **`CS_CODEX_WATCH_POLL_INTERVAL` / `CS_CODEX_WATCH_ENABLED`**：可调 watcher 行为的环境变量
 
 ### 修复
@@ -1249,7 +1272,7 @@
 - `clawsentry watch`：SSE 实时监控
 - `.env` 文件自动加载（dotenv_loader）
 
-#### REST API
+#### REST API 接口
 - `POST /ahp` — OpenClaw Webhook 决策端点
 - `POST /ahp/a3s` — a3s-code HTTP Transport
 - `POST /ahp/resolve` — DEFER 决策代理 (allow-once/deny)
@@ -1264,7 +1287,7 @@
 - `GET /report/alerts` — 告警列表 + 过滤
 - `POST /report/alerts/{id}/acknowledge` — 确认告警
 
-#### L3 Skills
+#### L3 技能
 - 6 个内置审查技能：shell-audit / credential-audit / code-review / file-system-audit / network-audit / general-review
 - 自定义 Skills 支持 (`AHP_SKILLS_DIR` 环境变量)
 - Skills Schema：enabled / priority 字段 + 双语 system_prompt + 扩展 triggers
@@ -1320,3 +1343,5 @@
 [0.2.1]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.1.0
+
+[0.6.3]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.3

@@ -10,11 +10,10 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .init_command import run_init
 from .integrations_command import collect_integration_status
 from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
-from .initializers.base import ENV_FILE_NAME, read_env_file
-from clawsentry.gateway.project_config import read_project_frameworks
+from .initializers.base import read_env_file
+from clawsentry.gateway.env_config import config_to_child_env, parse_enabled_frameworks
 
 
 _PID_FILE = Path("/tmp/clawsentry-gateway.pid")
@@ -82,19 +81,11 @@ def detect_framework(
     claude_home: Path | None = None,
     gemini_home: Path | None = None,
     kimi_home: Path | None = None,
+    env_values: dict[str, str] | None = None,
 ) -> str | None:
-    """Auto-detect which framework is configured.
-
-    Returns ``"openclaw"``, ``"a3s-code"``, ``"codex"``, ``"claude-code"``,
-    ``kimi-cli`` or ``None``.  Framework project state is read from ``.clawsentry.toml``.
-
-    Monitoring integrations must be **explicitly enabled**. This function only
-    treats project config (``.clawsentry.toml``) and explicit environment
-    variables as opt-in signals. It deliberately avoids silently activating
-    monitoring based on home-directory heuristics (e.g. ``~/.codex/sessions``,
-    ``~/.claude/settings.json``, ``~/.openclaw/openclaw.json``).
-    """
-    enabled, default = read_project_frameworks(Path.cwd())
+    """Auto-detect which framework is explicitly configured via env or project markers."""
+    values = env_values or dict(os.environ)
+    enabled, default = parse_enabled_frameworks(values)
     if default in _SUPPORTED_FRAMEWORKS:
         return default
     for item in enabled:
@@ -108,42 +99,42 @@ def detect_framework(
         return "a3s-code"
 
     # Codex: opt-in only when explicitly enabled.
-    explicit_codex_session_dir = os.environ.get("CS_CODEX_SESSION_DIR", "").strip()
+    explicit_codex_session_dir = values.get("CS_CODEX_SESSION_DIR", "").strip()
     if explicit_codex_session_dir:
         candidate = Path(explicit_codex_session_dir)
         if (candidate).is_dir():
             return "codex"
 
-    codex_opt_in = os.environ.get("CS_CODEX_WATCH_ENABLED", "").lower() in ("1", "true", "yes")
+    codex_opt_in = values.get("CS_CODEX_WATCH_ENABLED", "").lower() in ("1", "true", "yes")
     if codex_opt_in:
         effective_codex_home = codex_home or Path(
-            os.environ.get("CODEX_HOME", Path.home() / ".codex")
+            values.get("CODEX_HOME") or os.environ.get("CODEX_HOME", Path.home() / ".codex")
         )
         if (effective_codex_home / "sessions").is_dir():
             return "codex"
 
-    kimi_opt_in = os.environ.get("CS_KIMI_HOOKS_ENABLED", "").lower() in (
+    kimi_opt_in = values.get("CS_KIMI_HOOKS_ENABLED", "").lower() in (
         "1",
         "true",
         "yes",
         "on",
     )
     if kimi_opt_in:
-        explicit_config = os.environ.get("CS_KIMI_CONFIG_PATH", "").strip()
+        explicit_config = values.get("CS_KIMI_CONFIG_PATH", "").strip()
         if explicit_config and Path(explicit_config).expanduser().is_file():
             return "kimi-cli"
-        effective_kimi_home = kimi_home or Path(os.environ.get("KIMI_SHARE_DIR", str(Path.home() / ".kimi")))
+        effective_kimi_home = kimi_home or Path(values.get("KIMI_SHARE_DIR") or os.environ.get("KIMI_SHARE_DIR", str(Path.home() / ".kimi")))
         if (effective_kimi_home / "config.toml").is_file():
             return "kimi-cli"
 
-    gemini_opt_in = os.environ.get("CS_GEMINI_HOOKS_ENABLED", "").lower() in (
+    gemini_opt_in = values.get("CS_GEMINI_HOOKS_ENABLED", "").lower() in (
         "1",
         "true",
         "yes",
         "on",
     )
     if gemini_opt_in:
-        explicit_settings = os.environ.get("CS_GEMINI_SETTINGS_PATH", "").strip()
+        explicit_settings = values.get("CS_GEMINI_SETTINGS_PATH", "").strip()
         if explicit_settings and Path(explicit_settings).expanduser().is_file():
             return "gemini-cli"
         effective_gemini_home = gemini_home or Path.cwd() / ".gemini"
@@ -160,28 +151,9 @@ def ensure_init(
     openclaw_home: Path | None = None,
     setup_openclaw: bool = False,
 ) -> bool:
-    """Run init if .clawsentry.toml does not enable framework. Returns True if init was run.
-
-    Raises:
-        RuntimeError: If initialization fails.
-    """
-    enabled, _default = read_project_frameworks(target_dir)
-    if framework in enabled:
-        return False
-
-    exit_code = run_init(
-        framework=framework,
-        target_dir=target_dir,
-        force=False,
-        auto_detect=(framework == "openclaw"),
-        setup=(framework == "openclaw" and setup_openclaw),
-        dry_run=False,
-        openclaw_home=openclaw_home,
-        quiet=True,
-    )
-    if exit_code != 0:
-        raise RuntimeError(f"Failed to initialize {framework} configuration")
-    return True
+    """Env-first start has no project-config auto-init side effect."""
+    _ = (framework, target_dir, openclaw_home, setup_openclaw)
+    return False
 
 
 def ensure_integrations(
@@ -191,29 +163,9 @@ def ensure_integrations(
     openclaw_home: Path | None = None,
     setup_openclaw: bool = False,
 ) -> list[str]:
-    """Ensure requested frameworks are present in project TOML config."""
-    existing, _default = read_project_frameworks(target_dir)
-    initialized: list[str] = []
-
-    for framework in frameworks:
-        if framework in existing:
-            continue
-        exit_code = run_init(
-            framework=framework,
-            target_dir=target_dir,
-            force=False,
-            auto_detect=(framework == "openclaw"),
-            setup=(framework == "openclaw" and setup_openclaw),
-            dry_run=False,
-            openclaw_home=openclaw_home,
-            quiet=True,
-        )
-        if exit_code != 0:
-            raise RuntimeError(f"Failed to initialize {framework} configuration")
-        initialized.append(framework)
-        existing, _default = read_project_frameworks(target_dir)
-
-    return initialized
+    """Env-first start does not create project config as a side effect."""
+    _ = (frameworks, target_dir, openclaw_home, setup_openclaw)
+    return []
 
 
 def ensure_openclaw_setup(
@@ -331,13 +283,12 @@ def _print_framework_readiness(
 def _print_effective_config_summary(target_dir: Path, *, env_file_values: dict[str, str] | None = None, parsed_env_file=None) -> None:
     """Render a compact non-secret config summary for startup UX."""
     try:
-        from ..gateway.project_config import resolve_effective_config
+        from ..gateway.env_config import resolve_effective_config
 
         eff = resolve_effective_config(
-            target_dir,
             environ=os.environ,
+            env_file=parsed_env_file,
             env_file_values=env_file_values or {},
-            env_file_provenance=parsed_env_file,
         )
     except Exception:
         return
@@ -444,7 +395,7 @@ def run_start(
         return
     effective_env = overlay_env_file(os.environ, parsed_env)
 
-    # 1. Auto-init if needed
+    # 1. Env-first start has no project config auto-init side effect.
     requested_frameworks = enabled_frameworks or [framework]
     initialized = ensure_integrations(
         frameworks=requested_frameworks,
@@ -454,11 +405,11 @@ def run_start(
     )
     did_init = bool(initialized)
 
-    # 2. Determine active frameworks from explicit args / .clawsentry.toml.
-    project_frameworks, project_default = read_project_frameworks(target_dir)
-    active_frameworks = enabled_frameworks or project_frameworks or [framework]
-    if not framework and project_default:
-        framework = project_default
+    # 2. Determine active frameworks from explicit args / env/default.
+    env_frameworks, env_default = parse_enabled_frameworks(effective_env)
+    active_frameworks = enabled_frameworks or env_frameworks or [framework]
+    if not framework and env_default:
+        framework = env_default
     openclaw_setup_result = None
     if setup_openclaw and "openclaw" in active_frameworks:
         openclaw_setup_result = ensure_openclaw_setup(openclaw_home=openclaw_home)
@@ -549,8 +500,15 @@ def run_start(
     print()
 
     # 5. Launch gateway
-    child_env = dict(parsed_env.values)
-    child_env.update(os.environ)
+    cli_overrides = {
+        "frameworks.default": framework,
+        "frameworks.enabled": active_frameworks,
+    }
+    child_env = config_to_child_env(
+        environ=os.environ,
+        env_file=parsed_env,
+        cli_overrides=cli_overrides,
+    )
     child_env["CS_AUTH_TOKEN"] = token
     proc = launch_gateway(host=host, port=port, log_path=log_path, extra_env=child_env)
     _write_pid_file(_PID_FILE, proc.pid)

@@ -237,19 +237,26 @@ def test_l3_advisory_provider_config_defaults_to_disabled() -> None:
     assert config.dry_run is True
 
 
-def test_l3_advisory_provider_config_requires_explicit_advisory_env() -> None:
+def test_l3_advisory_provider_config_inherits_global_openai_settings() -> None:
     config = resolve_l3_advisory_provider_config(
         environ={
             "CS_LLM_PROVIDER": "openai",
             "CS_LLM_MODEL": "gpt-shared",
+            "CS_LLM_BASE_URL": "https://llm.example/v1",
+            "CS_LLM_TEMPERATURE": "0.2",
+            "CS_LLM_PROVIDER_TIMEOUT_MS": "45000",
             "OPENAI_API_KEY": "sk-shared",
         }
     )
 
-    assert config.enabled is False
-    assert config.provider == ""
-    assert config.model == ""
-    assert config.api_key is None
+    assert config.enabled is True
+    assert config.provider == "openai"
+    assert config.model == "gpt-shared"
+    assert config.api_key == "sk-shared"
+    assert config.base_url == "https://llm.example/v1"
+    assert config.temperature == 0.2
+    assert config.deadline_ms == 45000
+    assert config.dry_run is False
 
 
 def test_l3_advisory_provider_config_resolves_explicit_openai_key() -> None:

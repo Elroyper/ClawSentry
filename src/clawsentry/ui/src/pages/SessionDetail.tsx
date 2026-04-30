@@ -77,7 +77,7 @@ const WINDOW_OPTIONS: Array<{ label: string; value: number | null }> = [
   { label: 'All', value: null },
   { label: 'Recent 1h', value: RECENT_WINDOW_SECONDS },
 ]
-const FULL_REVIEW_RUNNERS = ['deterministic_local', 'fake_llm', 'llm_provider'] as const
+const FULL_REVIEW_RUNNERS = ['llm_provider', 'deterministic_local'] as const
 type FullReviewRunner = typeof FULL_REVIEW_RUNNERS[number]
 
 function parseWindowSeconds(value: string | null): number | null {
@@ -313,7 +313,7 @@ export default function SessionDetail() {
   const [fullReviewStatus, setFullReviewStatus] = useState<string | null>(null)
   const [fullReviewError, setFullReviewError] = useState<string | null>(null)
   const [fullReviewRunning, setFullReviewRunning] = useState(false)
-  const [fullReviewRunner, setFullReviewRunner] = useState<FullReviewRunner>('deterministic_local')
+  const [fullReviewRunner, setFullReviewRunner] = useState<FullReviewRunner>('llm_provider')
   const [fullReviewQueueOnly, setFullReviewQueueOnly] = useState(false)
 
   useEffect(() => {
@@ -404,9 +404,16 @@ export default function SessionDetail() {
         runner: fullReviewRunner,
         run: !fullReviewQueueOnly,
       })
-      const runnerLabel = formatRunnerLabel(fullReviewRunner, language)
+      const responseRunner = result.review?.review_runner
+        || result.review?.worker_backend
+        || ('runner' in result.job ? result.job.runner : null)
+        || fullReviewRunner
+      const runnerLabel = formatRunnerLabel(responseRunner, language)
       const reviewId = result.review?.review_id
       const state = result.review?.l3_state || result.job?.job_state || 'queued'
+      const degradedDetail = result.review?.l3_state === 'degraded' && result.review?.l3_reason_code
+        ? ` Provider/config issue: ${formatOperatorLabel('l3ReasonCode', result.review.l3_reason_code, language)}.`
+        : ''
       if (fullReviewQueueOnly) {
         setFullReviewStatus(
           `Full review queued (${runnerLabel}): ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
@@ -414,7 +421,7 @@ export default function SessionDetail() {
       } else {
         setFullReviewStatus(
           reviewId
-            ? `Full review ${state} (${runnerLabel}): ${reviewId}. Canonical decision unchanged.`
+            ? `Full review ${state} (${runnerLabel}): ${reviewId}. Canonical decision unchanged.${degradedDetail}`
             : `Full review queued (${runnerLabel}): ${result.job?.job_id || 'job pending'}. Canonical decision unchanged.`,
         )
       }

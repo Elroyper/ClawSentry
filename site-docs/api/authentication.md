@@ -18,13 +18,13 @@ HTTP API 端点（`/ahp`、`/ahp/a3s`、`/ahp/resolve`、`/report/*`）默认使
 通过环境变量设置认证令牌：
 
 ```bash
-export CS_AUTH_TOKEN="your-secure-token-at-least-32-chars"
+export CS_AUTH_TOKEN = "your-secure-token-at-least-32-chars"
 ```
 
 或在显式 env file 中配置，并在启动时传入 `--env-file`：
 
 ```ini title=".clawsentry.env.local"
-CS_AUTH_TOKEN=your-secure-token-at-least-32-chars
+CS_AUTH_TOKEN = your-secure-token-at-least-32-chars
 ```
 
 ```bash

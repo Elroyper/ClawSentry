@@ -57,7 +57,7 @@ class GeminiCLIInitializer:
         settings_path = _gemini_settings_path(target_dir, gemini_home=gemini_home)
         warnings: list[str] = []
 
-        config_path, env_vars = merge_project_framework_config(
+        _, env_vars = merge_project_framework_config(
             target_dir,
             framework=self.framework_name,
             force=force,
@@ -72,7 +72,7 @@ class GeminiCLIInitializer:
             "gemini --prompt 'say hello'                    # use Gemini CLI in this project",
         ]
         return InitResult(
-            files_created=[config_path],
+            files_created=[],
             env_vars=env_vars,
             next_steps=next_steps,
             warnings=warnings,

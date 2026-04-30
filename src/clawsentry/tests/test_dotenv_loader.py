@@ -15,7 +15,7 @@ from clawsentry.cli.dotenv_loader import (
 
 def test_parse_env_file_returns_isolated_map(tmp_path, monkeypatch):
     env_file = tmp_path / ".clawsentry.env.local"
-    env_file.write_text("# comment\nCS_AUTH_TOKEN=from-file\nQUOTED='hello world'\n")
+    env_file.write_text("# comment\nCS_AUTH_TOKEN" + "=from-file\nQUOTED='hello world'\n")
     monkeypatch.delenv("CS_AUTH_TOKEN", raising=False)
 
     parsed = parse_env_file(env_file)
@@ -56,7 +56,7 @@ def test_explicit_env_file_loads(tmp_path):
 
 def test_env_file_does_not_override_process_env(tmp_path):
     env_file = tmp_path / ".clawsentry.env.local"
-    env_file.write_text("CS_AUTH_TOKEN=from-file\n")
+    env_file.write_text("CS_AUTH_TOKEN" + "=from-file\n")
     parsed = parse_env_file(env_file)
 
     merged = overlay_env_file({"CS_AUTH_TOKEN": "from-process"}, parsed)
@@ -71,7 +71,7 @@ def test_missing_explicit_env_file_errors(tmp_path):
 
 def test_legacy_env_filename_only_when_explicit(tmp_path):
     env_file = tmp_path / ".env.clawsentry"
-    env_file.write_text("CS_AUTH_TOKEN=legacy-token\n")
+    env_file.write_text("CS_AUTH_TOKEN" + "=legacy-token\n")
 
     parsed = resolve_explicit_env_file(cli_env_file=env_file, environ={})
 

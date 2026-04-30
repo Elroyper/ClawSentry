@@ -777,13 +777,6 @@ def _payload_complexity(self, payload) -> bool:
 | `CS_L3_MULTI_TURN` | 运行模式开关；`false` 强制单轮 | `true`（L3 启用时） |
 | `CS_L3_ADVISORY_ASYNC_ENABLED` | 在 high/critical decision 或 high+ trajectory alert 后自动创建 frozen advisory snapshot；当前不启动真实 review scheduler | `false` |
 | `CS_L3_HEARTBEAT_REVIEW_ENABLED` | 预留 heartbeat/idle 聚合后的 advisory snapshot review 开关；不启用 timer-only full review | `false` |
-| `CS_L3_ADVISORY_PROVIDER_ENABLED` | 显式启用 advisory provider worker；未启用/缺 key/缺 model/不支持 provider，或 dry-run 未关闭时都会安全降级为 advisory `degraded` | `false` |
-| `CS_L3_ADVISORY_PROVIDER` | advisory provider shell，支持 `openai` / `anthropic`，不继承 `CS_LLM_PROVIDER` | — |
-| `CS_L3_ADVISORY_MODEL` | advisory worker model 标签，不继承 `CS_LLM_MODEL` | — |
-| `CS_L3_ADVISORY_BASE_URL` | advisory worker 的 OpenAI-compatible endpoint；仅在显式启用 provider 且关闭 dry-run 时使用 | — |
-| `CS_L3_ADVISORY_PROVIDER_DRY_RUN` | advisory provider worker dry-run 安全闸门；只有显式 `false` 才允许桥接真实 LLM provider | `true` |
-| `CS_L3_ADVISORY_TEMPERATURE` | advisory provider 独立 temperature；部分 OpenAI-compatible 端点要求 `1` | `1.0` |
-| `CS_L3_ADVISORY_DEADLINE_MS` | advisory provider 单次 completion deadline（毫秒） | `30000` |
 | `CS_L3_ADVISORY_RUN_REAL_SMOKE` | 测试套件里的真实 provider readiness gate；未显式启用时真实网络调用默认跳过 | `false` |
 | `CS_L3_ADVISORY_SMOKE_STRIP_PROXY_ENV` | 手动 readiness check 默认剥离 proxy 环境变量，避免 SOCKS proxy 缺依赖污染 provider client | `true` |
 | `CS_LLM_PROVIDER` | LLM 提供商 (L3 必须) | — |
@@ -815,7 +808,7 @@ clawsentry gateway
 同步 L3 审查 Agent 与 operator-triggered advisory review 是两条不同路径：
 
 - 本页说明同步决策路径里的 L3 Agent。
-- [L3 咨询审查](l3-advisory.md) 说明 frozen snapshot、advisory job、advisory review、`clawsentry l3 full-review`、Web UI full-review 按钮和 provider safety gates。
+- [L3 咨询审查](l3-advisory.md) 说明 frozen snapshot、advisory job、advisory review、`clawsentry l3 full-review`、Web UI full-review 按钮，以及默认继承 `CS_LLM_*` 的 provider-backed full-review。
 
 Advisory review 始终保持 `advisory_only=true`，full-review 响应会返回 `canonical_decision_mutated=false`。
 

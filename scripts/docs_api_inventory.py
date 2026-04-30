@@ -572,7 +572,7 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
             "actual_tier_distribution": {"L1": 23, "L2": 2},
             "l3_advisory": {
                 "latest_review": {"review_id": "l3adv-001", "snapshot_id": "l3snap-001", "l3_state": "completed", "advisory_only": True},
-                "latest_job": {"job_id": "l3job-001", "job_state": "completed", "runner": "deterministic_local"},
+                "latest_job": {"job_id": "l3job-001", "job_state": "completed", "runner": "llm_provider"},
             },
             "decision_path_io": {
                 "record_path": {"calls": 25},
@@ -661,7 +661,7 @@ def _apply_curated_examples(entry: dict[str, Any]) -> None:
         }
     elif path.startswith("/report/l3-advisory/") or "/l3-advisory/" in path:
         if method != "GET":
-            entry["request_example"] = {"session_id": "sess-001", "runner": "deterministic_local", "queue_only": False}
+            entry["request_example"] = {"session_id": "sess-001", "runner": "llm_provider", "queue_only": False}
         entry["response_example"] = {
             "advisory_only": True,
             "canonical_decision_mutated": False,
@@ -1023,7 +1023,7 @@ def write_openapi() -> None:
         "openapi": "3.1.0",
         "info": {
             "title": "ClawSentry Public API Reference",
-            "version": "0.5.7",
+            "version": "0.6.3",
             "description": "Docs-owned OpenAPI artifact generated from route inventory plus curated semantic metadata. It does not change runtime API behavior.",
         },
         "servers": [

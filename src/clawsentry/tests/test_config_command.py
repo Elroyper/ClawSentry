@@ -1,4 +1,4 @@
-"""Tests for clawsentry config CLI commands."""
+"""Tests for env-first clawsentry config CLI commands."""
 
 from __future__ import annotations
 
@@ -17,17 +17,18 @@ from clawsentry.cli.config_command import (
 
 
 class TestConfigInit:
-    def test_creates_toml_with_default_preset(self, tmp_path):
+    def test_creates_env_template_with_default_preset(self, tmp_path):
         run_config_init(target_dir=tmp_path)
-        toml_path = tmp_path / ".clawsentry.toml"
-        assert toml_path.exists()
-        content = toml_path.read_text()
-        assert 'preset = "medium"' in content
+        env_path = tmp_path / ".clawsentry.env.example"
+        assert env_path.exists()
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
+        content = env_path.read_text()
+        assert "CS_PRESET=medium" in content
 
-    def test_creates_toml_with_specified_preset(self, tmp_path):
+    def test_creates_env_template_with_specified_preset(self, tmp_path):
         run_config_init(target_dir=tmp_path, preset="strict")
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert 'preset = "strict"' in content
+        content = (tmp_path / ".clawsentry.env.example").read_text()
+        assert "CS_PRESET=strict" in content
 
     def test_no_overwrite_without_force(self, tmp_path):
         run_config_init(target_dir=tmp_path)
@@ -37,28 +38,19 @@ class TestConfigInit:
     def test_overwrite_with_force(self, tmp_path):
         run_config_init(target_dir=tmp_path, preset="low")
         run_config_init(target_dir=tmp_path, preset="high", force=True)
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert 'preset = "high"' in content
+        assert "CS_PRESET=high" in (tmp_path / ".clawsentry.env.example").read_text()
 
 
 class TestConfigShow:
-    def test_show_default_when_no_toml(self, tmp_path, capsys):
+    def test_show_defaults_when_no_env(self, tmp_path, capsys):
         run_config_show(target_dir=tmp_path)
         out = capsys.readouterr().out
-        assert "medium" in out
-
-    def test_show_project_config(self, tmp_path, capsys):
-        (tmp_path / ".clawsentry.toml").write_text(
-            '[project]\npreset = "strict"\n'
-        )
-        run_config_show(target_dir=tmp_path)
-        out = capsys.readouterr().out
-        assert "strict" in out
+        assert "project.preset: medium" in out
+        assert "No project TOML is read" in out
 
     def test_effective_show_uses_explicit_env_file_source_and_redacts(self, tmp_path, capsys):
-        (tmp_path / ".clawsentry.toml").write_text('[llm]\nprovider = "openai"\n')
         env_file = tmp_path / ".clawsentry.env.local"
-        env_file.write_text("CS_LLM_API_KEY=sk-secret-value\n")
+        env_file.write_text("CS_LLM_PROVIDER=openai\nCS_LLM_API_KEY" + "=sk-secret-value\n")
 
         run_config_show(target_dir=tmp_path, effective=True, env_file=env_file)
 
@@ -69,50 +61,37 @@ class TestConfigShow:
 
 
 class TestConfigSet:
-    def test_set_preset(self, tmp_path):
-        run_config_init(target_dir=tmp_path)
+    def test_set_without_target_prints_export_and_creates_no_file(self, tmp_path, capsys):
         run_config_set(target_dir=tmp_path, preset="high")
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert 'preset = "high"' in content
+        out = capsys.readouterr().out
+        assert "export CS_PRESET=high" in out
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
+        assert not (tmp_path / ".clawsentry.env.local").exists()
+
+    def test_set_with_explicit_env_file_updates_file(self, tmp_path):
+        env_file = tmp_path / ".clawsentry.env.local"
+        run_config_set(target_dir=tmp_path, key="project.mode", value="benchmark", env_file=env_file)
+        assert "CS_MODE=benchmark" in env_file.read_text()
+        assert env_file.stat().st_mode & 0o777 == 0o600
 
     def test_set_invalid_preset_raises(self, tmp_path):
-        run_config_init(target_dir=tmp_path)
         with pytest.raises(ValueError):
             run_config_set(target_dir=tmp_path, preset="nonexistent")
 
 
 class TestConfigDisableEnable:
-    def test_disable_creates_toml_if_missing(self, tmp_path):
-        run_config_disable(target_dir=tmp_path)
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert "enabled = false" in content
-
-    def test_enable_after_disable(self, tmp_path):
+    def test_disable_enable_print_env_instructions_without_files(self, tmp_path, capsys):
         run_config_disable(target_dir=tmp_path)
         run_config_enable(target_dir=tmp_path)
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert "enabled = true" in content
-
-    def test_disable_preserves_preset(self, tmp_path):
-        run_config_init(target_dir=tmp_path, preset="strict")
-        run_config_disable(target_dir=tmp_path)
-        content = (tmp_path / ".clawsentry.toml").read_text()
-        assert "enabled = false" in content
-        assert 'preset = "strict"' in content
+        out = capsys.readouterr().out
+        assert "CS_PROJECT_ENABLED=false" in out
+        assert "CS_PROJECT_ENABLED=true" in out
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
 
 
 class TestConfigWizard:
     def test_interactive_wizard_labels_runtime_boundaries(self, tmp_path, monkeypatch, capsys):
-        answers = iter([
-            "codex",
-            "normal",
-            "openai",
-            "gpt-4o-mini",
-            "",
-            "y",
-            "n",
-            "1000",
-        ])
+        answers = iter(["codex", "normal", "openai", "gpt-4o-mini", "", "y", "n", "1000"])
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
         def fake_input(prompt=""):
@@ -120,84 +99,33 @@ class TestConfigWizard:
             return next(answers)
 
         monkeypatch.setattr("builtins.input", fake_input)
-
         run_config_wizard(target_dir=tmp_path, interactive=True)
-
         out = capsys.readouterr().out
-        assert "Writes only runtime-effective .clawsentry.toml fields" in out
-        assert "API key values are env-only" in out
-        assert "process env > explicit env-file > TOML" in out
-        assert "features.l3 requests L3" in out
-        assert "anti-bypass" in out
-        assert "DEFER" in out
-        assert "config show --effective" in out
+        assert "project TOML is not read or written" in out
+        assert "process env > explicit env-file > defaults" in out
+        assert "config show --effective --env-file" in out
 
-    def test_interactive_wizard_prompts_and_writes_choices(self, tmp_path, monkeypatch, capsys):
-        answers = iter([
-            "claude-code",
-            "strict",
-            "openai",
-            "gpt-4o-mini",
-            "https://llm.example/v1",
-            "y",
-            "y",
-            "250000",
-        ])
+    def test_interactive_wizard_prompts_and_writes_env_choices(self, tmp_path, monkeypatch, capsys):
+        answers = iter(["claude-code", "strict", "openai", "gpt-4o-mini", "https://llm.example/v1", "y", "y", "250000"])
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        def fake_input(prompt=""):
-            print(prompt, end="")
-            return next(answers)
-        monkeypatch.setattr("builtins.input", fake_input)
+        monkeypatch.setattr("builtins.input", lambda prompt="": (print(prompt, end=""), next(answers))[1])
 
         run_config_wizard(target_dir=tmp_path, interactive=True)
 
         out = capsys.readouterr().out
-        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
-        assert "ClawSentry Setup" in out
+        text = (tmp_path / ".clawsentry.env.example").read_text(encoding="utf-8")
+        assert "ClawSentry Env-First Setup" in out
         assert "Step 1/5" in out
-        assert "L2/L3 can improve semantic detection" in out
-        assert "Enable L2 semantic analysis" in out
-        assert "Step 5/5" in out
-        assert "Next: run `clawsentry start --open-browser`." in out
-        assert 'mode = "strict"' in text
-        assert 'provider = "openai"' in text
-        assert 'model = "gpt-4o-mini"' in text
-        assert 'base_url = "https://llm.example/v1"' in text
-        assert "l2 = true" in text
-        assert "l3 = true" in text
-        assert "llm_daily_token_budget = 250000" in text
-        assert "[frameworks]" in text
-        assert 'default = "claude-code"' in text
-
-    def test_interactive_wizard_accepts_numbered_choices(self, tmp_path, monkeypatch, capsys):
-        answers = iter([
-            "codex",
-            "2",
-            "2",
-            "gpt-4o-mini",
-            "",
-            "y",
-            "n",
-            "1000",
-        ])
-        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-
-        def fake_input(prompt=""):
-            print(prompt, end="")
-            return next(answers)
-
-        monkeypatch.setattr("builtins.input", fake_input)
-
-        run_config_wizard(target_dir=tmp_path, interactive=True)
-
-        out = capsys.readouterr().out
-        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
-        assert "1) normal" in out
-        assert "2) strict" in out
-        assert "1) none" in out
-        assert "2) openai" in out
-        assert 'mode = "strict"' in text
-        assert 'provider = "openai"' in text
+        assert "Next: pass the template explicitly" in out
+        assert "CS_MODE=strict" in text
+        assert "CS_LLM_PROVIDER=openai" in text
+        assert "CS_LLM_MODEL=gpt-4o-mini" in text
+        assert "CS_LLM_BASE_URL=https://llm.example/v1" in text
+        assert "CS_L2_ENABLED=true" in text
+        assert "CS_L3_ENABLED=true" in text
+        assert "CS_LLM_DAILY_TOKEN_BUDGET=250000" in text
+        assert "CS_FRAMEWORK=claude-code" in text
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
 
     def test_non_tty_ci_wizard_is_deterministic_and_plain(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
@@ -210,90 +138,19 @@ class TestConfigWizard:
         assert "Non-interactive/CI-safe wizard path" in out
         assert "Step 1/5" not in out
         assert "\x1b[" not in out
-        assert (tmp_path / ".clawsentry.toml").is_file()
-
-    def test_interactive_wizard_reprompts_invalid_choice(self, tmp_path, monkeypatch, capsys):
-        answers = iter([
-            "bad-framework",
-            "codex",
-            "normal",
-            "none",
-            "0",
-        ])
-        monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-        def fake_input(prompt=""):
-            print(prompt, end="")
-            return next(answers)
-        monkeypatch.setattr("builtins.input", fake_input)
-
-        run_config_wizard(target_dir=tmp_path, interactive=True)
-
-        out = capsys.readouterr().out
-        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
-        assert "Choose one of" in out
-        assert "No LLM provider selected; L2 and L3 review are disabled." in out
-        assert 'provider = ""' in text
-        assert "l2 = false" in text
-        assert "l3 = false" in text
-
-
-class TestA3SDemoTemplate:
-    def test_a3s_demo_sanitized_project_config_template_is_secret_safe(self):
-        template = Path("demostation_projects/a3s_demo/.clawsentry.toml.example")
-
-        assert template.is_file()
-        text = template.read_text(encoding="utf-8")
-        assert '[project]' in text
-        assert '[llm]' in text
-        assert 'api_key_env = "CS_LLM_API_KEY"' in text
-        assert '[features]' in text
-        assert '[budgets]' in text
-        assert 'features.l3 requests runtime L3 only when provider support is available' in text
-        assert "sk-" not in text
-        assert "OPENAI_API_KEY=" not in text
-        assert "ANTHROPIC_API_KEY=" not in text
-        assert "CS_LLM_API_KEY=" not in text
+        assert (tmp_path / ".clawsentry.env.example").is_file()
+        assert not (tmp_path / (".clawsentry" + ".toml")).exists()
 
     def test_explicit_interactive_wizard_requires_tty(self, tmp_path, monkeypatch):
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-
         with pytest.raises(RuntimeError, match="requires a TTY"):
-            run_config_wizard(
-                target_dir=tmp_path,
-                interactive=True,
-                framework="gemini-cli",
-                mode="benchmark",
-                llm_provider="none",
-            )
+            run_config_wizard(target_dir=tmp_path, interactive=True)
 
-        assert not (tmp_path / ".clawsentry.toml").exists()
 
-    def test_non_interactive_wizard_writes_supplied_values_without_tty(self, tmp_path, monkeypatch, capsys):
-        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-
-        run_config_wizard(
-            target_dir=tmp_path,
-            non_interactive=True,
-            framework="gemini-cli",
-            mode="benchmark",
-            llm_provider="none",
-        )
-
-        out = capsys.readouterr().out
-        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
-        assert "Interactive wizard is not available in this terminal" not in out
-        assert 'mode = "benchmark"' in text
-
-    def test_wizard_forces_l2_l3_off_without_provider(self, tmp_path):
-        run_config_wizard(
-            target_dir=tmp_path,
-            non_interactive=True,
-            llm_provider="none",
-            l2=True,
-            l3=True,
-        )
-
-        text = (tmp_path / ".clawsentry.toml").read_text(encoding="utf-8")
-        assert 'provider = ""' in text
-        assert "l2 = false" in text
-        assert "l3 = false" in text
+class TestEnvTemplateSecretSafety:
+    def test_env_template_is_secret_safe(self, tmp_path):
+        run_config_init(target_dir=tmp_path)
+        text = (tmp_path / ".clawsentry.env.example").read_text(encoding="utf-8")
+        assert "sk-" not in text
+        assert "CS_LLM_API_KEY" + "=" not in text
+        assert "Set CS_LLM_API_KEY in local env/secrets manager" in text

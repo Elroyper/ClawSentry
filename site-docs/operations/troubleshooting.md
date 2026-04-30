@@ -119,10 +119,10 @@ description: ClawSentry 常见问题诊断与解决方案
 
     **原因**：
 
-    1. `.clawsentry.toml` 是唯一自动发现的项目配置。
+    1. 没有自动发现的 ClawSentry env file；`.clawsentry.env.example` 也必须显式传入。
     2. `.clawsentry.env.local` 和旧 `.env.clawsentry` 都不会自动加载；必须显式 `--env-file PATH` 或设置 `CLAWSENTRY_ENV_FILE=PATH`。
     3. 进程/部署环境变量优先于 env-file；如果 shell 已经 export 同名 `CS_*`，文件中的值不会覆盖它。
-    4. `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 只用于旧脚本迁移，框架启用请看 `.clawsentry.toml [frameworks]`。
+    4. `CS_FRAMEWORK` / `CS_ENABLED_FRAMEWORKS` 只用于旧脚本迁移，框架启用请看 `CS_FRAMEWORK / CS_ENABLED_FRAMEWORKS`。
 
     **解决方案**：
     ```bash
@@ -302,7 +302,7 @@ description: ClawSentry 常见问题诊断与解决方案
     === "OpenAI / 兼容 API"
         ```bash
         export CS_LLM_PROVIDER=openai
-        export OPENAI_API_KEY=sk-your-key-here
+        export OPENAI_API_KEY = sk-your-key-here
         # 如果使用兼容 API（如 Kimi、DeepSeek）
         export CS_LLM_BASE_URL=https://api.deepseek.com/v1
         export CS_LLM_MODEL=deepseek-chat
@@ -403,7 +403,7 @@ description: ClawSentry 常见问题诊断与解决方案
 
     3. **认证问题**：如果 Gateway 启用了认证，watch 需要通过环境变量获取 Token：
        ```bash
-       export CS_AUTH_TOKEN=your-token
+       export CS_AUTH_TOKEN = your-token
        clawsentry watch
        ```
 
@@ -550,7 +550,7 @@ description: ClawSentry 常见问题诊断与解决方案
     ```bash
     # 手动测试 harness（模拟 Claude Code hook 调用）
     echo '{"hook_event_name":"PreToolUse","tool_name":"bash","tool_input":{"command":"ls"}}' | \
-      CS_AUTH_TOKEN=$CS_AUTH_TOKEN clawsentry-harness
+      CS_AUTH_TOKEN = $CS_AUTH_TOKEN clawsentry-harness
     ```
 
     **解决方案**：

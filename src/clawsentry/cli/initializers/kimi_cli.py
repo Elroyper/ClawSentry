@@ -42,7 +42,7 @@ class KimiCLIInitializer:
         kimi_home: Path | None = None,
         **_kwargs: object,
     ) -> InitResult:
-        config_path, env_vars = merge_project_framework_config(
+        _, env_vars = merge_project_framework_config(
             target_dir,
             framework=self.framework_name,
             force=force,
@@ -61,7 +61,7 @@ class KimiCLIInitializer:
             "kimi --help                                  # use Kimi CLI with native hooks enabled",
         ]
         return InitResult(
-            files_created=[config_path],
+            files_created=[],
             env_vars=env_vars,
             next_steps=next_steps,
             warnings=[],

@@ -19,7 +19,6 @@ try:
     from .gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output
     from .kimi_adapter import KimiAdapter, decision_to_kimi_hook_output
     from ..gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict
-    from ..gateway.project_config import load_project_config, ProjectConfig
 except ImportError:
     # Support direct script execution:
     # python src/clawsentry/adapters/a3s_gateway_harness.py
@@ -33,32 +32,16 @@ except ImportError:
     from clawsentry.adapters.gemini_adapter import GeminiAdapter, decision_to_gemini_hook_output  # type: ignore[no-redef]
     from clawsentry.adapters.kimi_adapter import KimiAdapter, decision_to_kimi_hook_output  # type: ignore[no-redef]
     from clawsentry.gateway.models import AdapterEffectResult, CanonicalDecision, DecisionVerdict  # type: ignore[no-redef]
-    from clawsentry.gateway.project_config import load_project_config, ProjectConfig  # type: ignore[no-redef]
 
 import time as _time
 from pathlib import Path as _Path
 
 logger = logging.getLogger("a3s-gateway-harness")
 
-# ---------------------------------------------------------------------------
-# Project config cache (.clawsentry.toml) — avoid re-reading TOML on every
-# tool call.  Keyed by cwd string, with a 60-second TTL.
-# ---------------------------------------------------------------------------
 
-_project_config_cache: dict[str, tuple[float, ProjectConfig]] = {}
-_PROJECT_CONFIG_TTL = 60.0  # seconds
-
-
-def _get_project_config(cwd: str) -> ProjectConfig:
-    """Load project config with 60s TTL cache."""
-    now = _time.monotonic()
-    cached = _project_config_cache.get(cwd)
-    if cached and (now - cached[0]) < _PROJECT_CONFIG_TTL:
-        return cached[1]
-    cfg = load_project_config(_Path(cwd))
-    _project_config_cache[cwd] = (now, cfg)
-    return cfg
-
+def _monitoring_disabled_by_env() -> bool:
+    raw = os.environ.get("CS_PROJECT_ENABLED", os.environ.get("CS_ENABLED", "true"))
+    return str(raw).strip().lower() in {"0", "false", "no", "off"}
 
 _EVENT_TO_HOOK: dict[str, str] = {
     "pre_action": "PreToolUse",
@@ -525,17 +508,13 @@ class A3SGatewayHarness:
         )
 
         try:
-            # Check project config from payload cwd (covers JSON-RPC path)
-            cwd = payload.get("cwd") or payload.get("working_directory", "")
-            if cwd:
-                project_cfg = _get_project_config(cwd)
-                if not project_cfg.enabled:
-                    return {
-                        "action": "continue",
-                        "decision": "allow",
-                        "reason": "project monitoring disabled via .clawsentry.toml",
-                        "metadata": {"source": "clawsentry-gateway-harness"},
-                    }
+            if _monitoring_disabled_by_env():
+                return {
+                    "action": "continue",
+                    "decision": "allow",
+                    "reason": "monitoring disabled by env",
+                    "metadata": {"source": "clawsentry-gateway-harness"},
+                }
 
             hook_type = _EVENT_TO_HOOK.get(event_type_raw)
             if hook_type is None:
@@ -891,24 +870,12 @@ class A3SGatewayHarness:
             native_framework == "claude-code" and "hook_event_name" in msg
         )
 
-        # Check project config (.clawsentry.toml)
-        cwd = msg.get("cwd") or msg.get("working_directory", "")
         project_meta: dict[str, Any] = {}
-        if cwd:
-            project_cfg = _get_project_config(cwd)
-            if not project_cfg.enabled:
-                _diag(f"project disabled via .clawsentry.toml at {cwd}")
-                if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
-                    return None  # exit 0 = allow
-                return {"result": {"action": "continue", "reason": "project monitoring disabled"}}
-            # Attach preset info for Gateway to use
-            if project_cfg.preset != "medium" or project_cfg.overrides:
-                params["_project_preset"] = project_cfg.preset
-                params["_project_overrides"] = project_cfg.overrides
-                if project_cfg.preset != "medium":
-                    project_meta["project_preset"] = project_cfg.preset
-                if project_cfg.overrides:
-                    project_meta["project_overrides"] = project_cfg.overrides
+        if _monitoring_disabled_by_env():
+            _diag("monitoring disabled by CS_PROJECT_ENABLED/CS_ENABLED")
+            if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
+                return None  # exit 0 = allow
+            return {"result": {"action": "continue", "reason": "monitoring disabled by env"}}
 
         if self.async_mode:
             # Dispatch in background — don't block the hook

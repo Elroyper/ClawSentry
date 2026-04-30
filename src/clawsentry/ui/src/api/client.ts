@@ -117,7 +117,7 @@ export const api = {
   requestL3FullReview: (
     id: string,
     body?: {
-      runner?: 'deterministic_local' | 'fake_llm' | 'llm_provider' | string
+      runner?: 'llm_provider' | 'deterministic_local' | string
       run?: boolean
       trigger_event_id?: string
       trigger_detail?: string

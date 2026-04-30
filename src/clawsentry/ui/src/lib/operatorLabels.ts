@@ -48,10 +48,10 @@ const LABELS: LabelMap = {
     pause: { en: 'Pause', zh: '暂停' },
     none: { en: 'None', zh: '无需操作' },
     monitor: { en: 'Monitor', zh: '观察' },
+    configure_llm_provider: { en: 'Configure LLM provider', zh: '配置 LLM 提供商' },
   },
   runner: {
     deterministic_local: { en: 'Deterministic local', zh: '本地确定性复核' },
-    fake_llm: { en: 'Fake LLM', zh: '模拟 LLM' },
     llm_provider: { en: 'LLM provider', zh: 'LLM 提供商' },
     demo_fixture: { en: 'Demo fixture', zh: '演示数据' },
   },
@@ -116,7 +116,9 @@ export function l3AdvisoryJobHint(jobState?: string | null, language: OperatorLa
     case 'failed':
       return language === 'zh' ? 'Worker 失败；检查咨询任务证据' : 'worker failed; inspect advisory job evidence'
     case 'degraded':
-      return language === 'zh' ? '复核降级；检查保留证据边界' : 'review degraded; inspect retained evidence boundary'
+      return language === 'zh'
+        ? '复核降级；检查 LLM provider 配置和保留证据边界'
+        : 'review degraded; check LLM provider configuration and retained evidence boundary'
     default:
       return null
   }
