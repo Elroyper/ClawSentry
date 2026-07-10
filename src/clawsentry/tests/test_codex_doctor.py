@@ -76,7 +76,7 @@ class TestDoctorCodexCheck:
         assert "trusted" in result.message
         assert "PreToolUse(Bash)" in result.message
         assert "PreToolUse(Bash): sync" in result.detail
-        assert "PreToolUse(apply_patch|Edit|Write|mcp__.*): async" in result.detail
+        assert "PreToolUse(apply_patch|Edit|Write|mcp__.*): sync" in result.detail
         assert "PermissionRequest(Bash): sync" in result.detail
         assert "PermissionRequest(apply_patch|Edit|Write|mcp__.*): sync" in result.detail
         assert "PostToolUse(Bash): async" in result.detail
@@ -136,6 +136,24 @@ class TestDoctorCodexCheck:
 
         assert result.status == "WARN"
         assert "PreToolUse(Bash)" in result.detail
+        assert "synchronous" in result.detail
+
+    def test_codex_native_hooks_warn_when_pretool_non_bash_is_async(self, tmp_path, monkeypatch):
+        codex_home = tmp_path / ".codex"
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home)
+        hooks_path = codex_home / "hooks.json"
+        payload = json.loads(hooks_path.read_text(encoding="utf-8"))
+        payload["hooks"]["PreToolUse"][1]["hooks"][0]["command"] = (
+            "clawsentry harness --framework codex --async"
+        )
+        hooks_path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setenv("CS_FRAMEWORK", "codex")
+        monkeypatch.setenv("CODEX_HOME", str(codex_home))
+
+        result = check_codex_native_hooks()
+
+        assert result.status == "WARN"
+        assert "PreToolUse(apply_patch|Edit|Write|mcp__.*)" in result.detail
         assert "synchronous" in result.detail
 
     def test_codex_native_hooks_warn_when_non_pre_event_is_sync(self, tmp_path, monkeypatch):

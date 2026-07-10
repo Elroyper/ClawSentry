@@ -1,6 +1,6 @@
 """Tests for shared low-level risk signal helpers."""
 
-from clawsentry.gateway.risk_signals import (
+from clawsentry.gateway.analysis.risk_signals import (
     build_archive_command_signals,
     has_decode_pipe_exec_command,
     has_eval_decode_command,
@@ -11,7 +11,7 @@ from clawsentry.gateway.risk_signals import (
     has_variable_exec_trigger_command,
     has_variable_expansion_command,
 )
-from clawsentry.gateway.command_normalization import matches_shell_command_token
+from clawsentry.gateway.runtime.command_normalization import matches_shell_command_token
 
 
 def test_build_archive_command_signals_detects_sensitive_material_packaging():

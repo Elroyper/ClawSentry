@@ -6,8 +6,10 @@ agent_message, session_meta, session_end) into CanonicalEvent.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from ..gateway.models import (
@@ -21,6 +23,8 @@ from .a3s_adapter import infer_content_origin
 from .event_id import generate_event_id
 
 logger = logging.getLogger(__name__)
+
+_TRANSCRIPT_LOOKBACK_BYTES = 2_000_000
 
 # Codex hook_type → EventType mapping
 _HOOK_TYPE_MAP: dict[str, EventType] = {
@@ -170,6 +174,9 @@ class CodexAdapter:
         tool_name = raw_tool_name.lower() if isinstance(raw_tool_name, str) else None
         tool_input = message.get("tool_input")
         arguments = dict(tool_input) if isinstance(tool_input, dict) else {}
+        arguments = _merge_transcript_function_call_workdir(message, arguments)
+        if "workdir" in arguments and "working_directory" not in arguments:
+            arguments["working_directory"] = arguments["workdir"]
 
         unified_payload: dict[str, Any] = {
             key: value
@@ -182,9 +189,22 @@ class CodexAdapter:
             unified_payload["raw_tool_name"] = raw_tool_name
         if arguments:
             unified_payload["arguments"] = arguments
-            for key in ("command", "file_path", "path", "target", "target_path"):
+            for key in (
+                "command",
+                "file_path",
+                "path",
+                "target",
+                "target_path",
+                "working_directory",
+                "workdir",
+                "work_dir",
+            ):
                 if key in arguments and key not in unified_payload:
                     unified_payload[key] = arguments[key]
+
+        # Add tool_response → output field alias mapping
+        if "tool_response" in unified_payload and "output" not in unified_payload:
+            unified_payload["output"] = unified_payload["tool_response"]
 
         command_str = str(arguments.get("command", "")) if arguments else ""
         risk_hints = extract_risk_hints(tool_name, command_str)
@@ -255,3 +275,70 @@ class CodexAdapter:
             event_subtype=subtype,
             framework_meta=FrameworkMeta(normalization=norm_meta),
         )
+
+
+def _merge_transcript_function_call_workdir(
+    message: dict[str, Any],
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    if any(key in arguments for key in ("workdir", "working_directory", "work_dir")):
+        return arguments
+    transcript_args = _load_transcript_function_call_arguments(
+        message.get("transcript_path"),
+        message.get("tool_use_id"),
+    )
+    if not transcript_args:
+        return arguments
+    merged = dict(arguments)
+    for key in ("workdir", "working_directory", "work_dir"):
+        value = transcript_args.get(key)
+        if isinstance(value, str) and value.strip():
+            merged[key] = value
+            break
+    return merged
+
+
+def _load_transcript_function_call_arguments(
+    transcript_path: object,
+    tool_use_id: object,
+) -> dict[str, Any]:
+    if not isinstance(transcript_path, str) or not transcript_path.strip():
+        return {}
+    if not isinstance(tool_use_id, str) or not tool_use_id.strip():
+        return {}
+    try:
+        path = Path(transcript_path)
+        stat = path.stat()
+        if not path.is_file():
+            return {}
+        with path.open("rb") as handle:
+            if stat.st_size > _TRANSCRIPT_LOOKBACK_BYTES:
+                handle.seek(stat.st_size - _TRANSCRIPT_LOOKBACK_BYTES)
+                handle.readline()
+            data = handle.read().decode("utf-8", "ignore")
+    except OSError:
+        return {}
+
+    for line in reversed(data.splitlines()):
+        if tool_use_id not in line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        payload = record.get("payload") if isinstance(record, dict) else None
+        if not isinstance(payload, dict) or payload.get("type") != "function_call":
+            continue
+        if payload.get("call_id") != tool_use_id and payload.get("id") != tool_use_id:
+            continue
+        raw_arguments = payload.get("arguments")
+        if isinstance(raw_arguments, dict):
+            return raw_arguments
+        if not isinstance(raw_arguments, str) or not raw_arguments.strip():
+            return {}
+        try:
+            parsed = json.loads(raw_arguments)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}

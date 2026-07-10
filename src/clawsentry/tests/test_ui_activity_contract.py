@@ -1,12 +1,89 @@
+import re
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 UI_ROOT = REPO_ROOT / "src" / "clawsentry" / "ui" / "src"
+CSS_IMPORT_RE = re.compile(
+    r"""
+    ^@import\s+
+    (?:
+        (?P<quote>["'])(?P<quoted_path>\./styles/[^"']+)(?P=quote)
+        |
+        url\(\s*
+        (?:
+            (?P<url_quote>["'])(?P<url_quoted_path>\./styles/[^"']+)(?P=url_quote)
+            |
+            (?P<url_path>\./styles/[^)\s]+)
+        )
+        \s*\)
+    )
+    (?:\s+[^;]+)?;
+    \s*$
+    """,
+    re.VERBOSE,
+)
 
 
 def _read_ui_file(relative_path: str) -> str:
     return (UI_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _css_import_path(line: str) -> str | None:
+    match = CSS_IMPORT_RE.match(line)
+    if not match:
+        return None
+    return (
+        match.group("quoted_path")
+        or match.group("url_quoted_path")
+        or match.group("url_path")
+    )
+
+
+def _read_ui_styles_from_entry(entry: Path, seen: set[Path] | None = None) -> str:
+    resolved_entry = entry.resolve()
+    seen = seen or set()
+    if resolved_entry in seen:
+        raise AssertionError(f"Circular CSS import detected: {entry}")
+    seen.add(resolved_entry)
+
+    chunks: list[str] = []
+    for line in entry.read_text(encoding="utf-8").splitlines():
+        import_path = _css_import_path(line)
+        if import_path is None:
+            chunks.append(line)
+            continue
+        chunks.append(_read_ui_styles_from_entry(entry.parent / import_path, seen))
+    return "\n".join(chunks)
+
+
+def _read_ui_styles() -> str:
+    return _read_ui_styles_from_entry(UI_ROOT / "styles.css")
+
+
+def test_css_import_reader_accepts_common_local_import_forms(tmp_path: Path) -> None:
+    css_dir = tmp_path / "styles"
+    css_dir.mkdir()
+    (css_dir / "foundation.css").write_text(".foundation { color: red; }", encoding="utf-8")
+    (css_dir / "shell.css").write_text(".shell { color: blue; }", encoding="utf-8")
+
+    entry = tmp_path / "styles.css"
+    entry.write_text(
+        "\n".join(
+            [
+                "@import './styles/foundation.css';",
+                '@import url("./styles/shell.css") layer(shell);',
+            ],
+        ),
+        encoding="utf-8",
+    )
+
+    assert _read_ui_styles_from_entry(entry) == "\n".join(
+        [
+            ".foundation { color: red; }",
+            ".shell { color: blue; }",
+        ],
+    )
 
 
 def test_dashboard_feed_subscribes_to_runtime_activity_events() -> None:
@@ -104,7 +181,7 @@ def test_defer_panel_uses_explicit_defer_lifecycle_events() -> None:
 
 def test_alerts_page_uses_backend_aligned_severity_taxonomy() -> None:
     source = _read_ui_file("pages/Alerts.tsx")
-    styles = (REPO_ROOT / "src" / "clawsentry" / "ui" / "src" / "styles.css").read_text(encoding="utf-8")
+    styles = _read_ui_styles()
 
     assert '<option value="low">Low</option>' in source
     assert '<option value="medium">Medium</option>' in source

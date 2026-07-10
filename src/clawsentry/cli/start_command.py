@@ -19,7 +19,7 @@ from .dotenv_loader import (
     resolve_explicit_env_file,
 )
 from .initializers.base import read_env_file
-from clawsentry.gateway.env_config import config_to_child_env, parse_enabled_frameworks
+from clawsentry.gateway.config.env_config import config_to_child_env, parse_enabled_frameworks
 
 
 _PID_FILE = Path("/tmp/clawsentry-gateway.pid")

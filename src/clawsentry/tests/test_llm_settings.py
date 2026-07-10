@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from unittest import mock
 
-from clawsentry.gateway.llm_settings import LLMSettings, resolve_llm_settings
+from clawsentry.gateway.config.llm_settings import LLMSettings, resolve_llm_settings
 
 
 def _clean_env() -> dict[str, str]:
@@ -16,6 +16,11 @@ def _clean_env() -> dict[str, str]:
         "CS_LLM_BASE_URL": "",
         "CS_LLM_TEMPERATURE": "",
         "CS_LLM_PROVIDER_TIMEOUT_MS": "",
+        "CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS": "",
+        "CS_LLM_PROVIDER_RETRY_STATUSES": "",
+        "CS_LLM_PROVIDER_RETRY_BACKOFF_MS": "",
+        "CS_LLM_PROVIDER_RETRY_JITTER_MS": "",
+        "CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS": "",
         "CS_LLM_MAX_TOKENS": "",
         "CS_L3_MAX_TOKENS": "",
         "CS_LLM_API_KEY_ENV": "",
@@ -102,6 +107,27 @@ class TestResolveLlmSettings:
 
         assert settings is not None
         assert settings.l3_max_tokens == 2048
+
+    def test_resolves_provider_retry_overrides(self):
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-shared-key",
+            "CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS": "2",
+            "CS_LLM_PROVIDER_RETRY_STATUSES": "502,503",
+            "CS_LLM_PROVIDER_RETRY_BACKOFF_MS": "15000",
+            "CS_LLM_PROVIDER_RETRY_JITTER_MS": "5000",
+            "CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS": "90000",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            settings = resolve_llm_settings()
+
+        assert settings is not None
+        assert settings.provider_retry_max_attempts == 2
+        assert settings.provider_retry_statuses == (502, 503)
+        assert settings.provider_retry_backoff_ms == 15000
+        assert settings.provider_retry_jitter_ms == 5000
+        assert settings.provider_retry_min_remaining_ms == 90000
 
     def test_legacy_openai_key_is_still_supported(self):
         env = {

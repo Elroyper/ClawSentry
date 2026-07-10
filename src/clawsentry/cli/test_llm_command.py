@@ -80,6 +80,7 @@ def _resolve_runtime_env(env_file: Path | None = None) -> dict[str, str]:
 def _build_provider_from_env(runtime_env: dict[str, str]):
     """Build LLM provider from a resolved runtime env."""
     from ..gateway.llm_provider import LLMProviderConfig, AnthropicProvider, OpenAIProvider
+    from ..gateway.llm_settings import resolve_provider_retry_config_kwargs
 
     provider_name = runtime_env.get("CS_LLM_PROVIDER", "").strip().lower()
     if not provider_name:
@@ -93,6 +94,7 @@ def _build_provider_from_env(runtime_env: dict[str, str]):
 
     model = runtime_env.get("CS_LLM_MODEL", "").strip() or ""
     base_url = runtime_env.get("CS_LLM_BASE_URL", "").strip() or None
+    retry_kwargs = resolve_provider_retry_config_kwargs(environ=runtime_env)
 
     if provider_name == "anthropic":
         api_key = (runtime_env.get("CS_LLM_API_KEY", "").strip()
@@ -100,7 +102,12 @@ def _build_provider_from_env(runtime_env: dict[str, str]):
         if not api_key:
             return None, "CS_LLM_PROVIDER=anthropic but no API key found (ANTHROPIC_API_KEY or CS_LLM_API_KEY)."
         effective_model = model or AnthropicProvider.DEFAULT_MODEL
-        config = LLMProviderConfig(api_key=api_key, model=model, base_url=base_url)
+        config = LLMProviderConfig(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            **retry_kwargs,
+        )
         provider = AnthropicProvider(config)
 
     elif provider_name == "openai":
@@ -109,7 +116,12 @@ def _build_provider_from_env(runtime_env: dict[str, str]):
         if not api_key:
             return None, "CS_LLM_PROVIDER=openai but no API key found (OPENAI_API_KEY or CS_LLM_API_KEY)."
         effective_model = model or OpenAIProvider.DEFAULT_MODEL
-        config = LLMProviderConfig(api_key=api_key, model=model, base_url=base_url)
+        config = LLMProviderConfig(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            **retry_kwargs,
+        )
         provider = OpenAIProvider(config)
 
     else:

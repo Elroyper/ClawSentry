@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 
-from clawsentry.gateway.l3_advisory_worker import (
+from clawsentry.gateway.l3.advisory_worker import (
     LLMAdvisoryProviderConfig,
     LLMProviderBridgeAdvisoryProvider,
 )
-from clawsentry.gateway.llm_provider import LLMProviderConfig, OpenAIProvider
+from clawsentry.gateway.llm.provider import LLMProviderConfig, OpenAIProvider
 
 
 def _worker_request() -> dict[str, object]:

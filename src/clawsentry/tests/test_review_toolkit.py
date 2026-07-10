@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from clawsentry.gateway.review_toolkit import (
+from clawsentry.gateway.review.toolkit import (
     ReadOnlyToolkit,
     ToolCallBudgetExhausted,
 )
@@ -223,7 +223,7 @@ class TestReadFile:
 
 class TestReadTrajectory:
     def test_trajectory_store_replay_page_returns_cursor(self, tmp_path: Path) -> None:
-        from clawsentry.gateway.trajectory_store import TrajectoryStore
+        from clawsentry.gateway.storage.trajectory_store import TrajectoryStore
 
         store = TrajectoryStore(db_path=str(tmp_path / "trajectory.db"))
         for idx in range(3):

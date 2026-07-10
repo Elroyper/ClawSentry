@@ -305,7 +305,7 @@ _CODEX_HOOK_ASYNC_COMMAND = "clawsentry harness --framework codex --async"
 _CODEX_NON_BASH_TOOL_MATCHER = "apply_patch|Edit|Write|mcp__.*"
 _CODEX_REQUIRED_HOOK_SHAPES: tuple[tuple[str, str | None, str, str], ...] = (
     ("PreToolUse", "Bash", _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
-    ("PreToolUse", _CODEX_NON_BASH_TOOL_MATCHER, _CODEX_HOOK_ASYNC_COMMAND, "--async"),
+    ("PreToolUse", _CODEX_NON_BASH_TOOL_MATCHER, _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
     ("PermissionRequest", "Bash", _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
     ("PermissionRequest", _CODEX_NON_BASH_TOOL_MATCHER, _CODEX_HOOK_SYNC_COMMAND, "synchronous"),
     ("PostToolUse", "Bash", _CODEX_HOOK_ASYNC_COMMAND, "--async"),
@@ -479,7 +479,9 @@ def check_codex_native_hooks() -> DoctorCheck:
             "PASS",
             (
                 f"Codex native hooks installed: {hooks_path}; "
-                "managed entries are trusted; PreToolUse(Bash) and PermissionRequest(Bash) sync + advisory hooks async."
+                "managed entries are trusted; PreToolUse(Bash) and "
+                "PreToolUse(apply_patch|Edit|Write|mcp__.*) are sync; "
+                "PermissionRequest is sync; advisory hooks are async."
             ),
             detail=shape_detail,
         )

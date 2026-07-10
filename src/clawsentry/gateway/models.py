@@ -84,6 +84,12 @@ class SessionScopeSource(str, enum.Enum):
     OPERATOR = "operator"
     PROJECT_TEMPLATE = "project_template"
     LLM_INDUCED = "llm_induced"
+    USER = "user"
+    TASK_AUTHOR = "task_author"
+    RUNNER = "runner"
+    VERIFIER = "verifier"
+    API = "api"
+    REQUEST = "request"
 
 
 class SessionScopeVerdict(str, enum.Enum):
@@ -176,6 +182,7 @@ class ClassifiedBy(str, enum.Enum):
 DECISION_EFFECTS_VERSION = "cs.decision_effects.v1"
 ADAPTER_EFFECT_RESULT_VERSION = "cs.adapter_effect_result.v1"
 SESSION_SCOPE_VERSION = "cs.session_scope.v1"
+TASK_ARTIFACT_MANIFEST_VERSION = "clawsentry.task_artifact_manifest.v1"
 ACTION_EFFECT_VERSION = "cs.action_effect.v1"
 DENIED_EFFECT_VERSION = "cs.denied_effect.v1"
 AGENT_SAFETY_FEEDBACK_VERSION = "clawsentry.agent_safety_feedback.v1"
@@ -280,6 +287,136 @@ class SessionScopeTaskRules(BaseModel):
     queued_tool_permission_groups: list[str] = Field(default_factory=list)
 
 
+class SessionScopeTaskArtifactRule(BaseModel):
+    """Role-aware task artifact boundary attached to a session scope profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_role: Literal["task_data", "task_output"]
+    path_role: Optional[str] = None
+    workspace_relation: Optional[str] = None
+    allowed_effects: list[
+        Literal["filesystem.read", "filesystem.enumerate", "filesystem.write"]
+    ] = Field(default_factory=list)
+    match_type: Literal["exact", "prefix", "glob"] = "exact"
+    paths: list[str] = Field(default_factory=list)
+    source: str = Field(..., min_length=1)
+    source_tier: Literal["risk_adjusting", "audit_only", "legacy_compat"] = "audit_only"
+    confidence: Literal["low", "medium", "high"] = "low"
+    artifact_trust_confirmed: bool = False
+    case_id: Optional[str] = None
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_artifact_rule(self) -> "SessionScopeTaskArtifactRule":
+        if not self.paths:
+            raise ValueError("task artifact rule must include at least one path")
+        normalized_effects = set(self.allowed_effects)
+        if self.artifact_role == "task_data":
+            invalid = normalized_effects - {"filesystem.read", "filesystem.enumerate"}
+            if invalid:
+                raise ValueError("task_data artifacts only allow read/enumerate effects")
+            if not normalized_effects:
+                self.allowed_effects = ["filesystem.read", "filesystem.enumerate"]
+            if self.path_role is None:
+                self.path_role = "benchmark_task_data_read"
+            if self.workspace_relation is None:
+                self.workspace_relation = "benchmark_task_data"
+        elif self.artifact_role == "task_output":
+            invalid = normalized_effects - {
+                "filesystem.read",
+                "filesystem.enumerate",
+                "filesystem.write",
+            }
+            if invalid:
+                raise ValueError("task_output artifacts only allow filesystem read/enumerate/write effects")
+            if not normalized_effects:
+                self.allowed_effects = ["filesystem.write"]
+            if self.path_role is None:
+                self.path_role = "benchmark_task_output"
+            if self.workspace_relation is None:
+                self.workspace_relation = "task_output_artifact"
+        return self
+
+
+class TaskArtifactManifestPathEntry(BaseModel):
+    """One externally declared task artifact path rule."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rule_id: str = Field(..., min_length=1)
+    artifact_role: Literal["task_data", "task_output"]
+    path: str = Field(..., min_length=1)
+    match_type: Literal["exact", "prefix", "glob"] = "exact"
+    allowed_effects: list[
+        Literal["filesystem.read", "filesystem.enumerate", "filesystem.write"]
+    ] = Field(default_factory=list)
+    confidence: Literal["low", "medium", "high"] = "high"
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_entry_effects(self) -> "TaskArtifactManifestPathEntry":
+        effects = set(self.allowed_effects)
+        if self.artifact_role == "task_data":
+            invalid = effects - {"filesystem.read", "filesystem.enumerate"}
+            if invalid:
+                raise ValueError("task_data manifest entries only allow read/enumerate effects")
+            if not effects:
+                self.allowed_effects = ["filesystem.read", "filesystem.enumerate"]
+        else:
+            invalid = effects - {"filesystem.write"}
+            if invalid:
+                raise ValueError("task_output manifest entries only allow filesystem.write")
+            if not effects:
+                self.allowed_effects = ["filesystem.write"]
+        return self
+
+
+class TaskArtifactManifest(BaseModel):
+    """Public task I/O boundary manifest converted into SessionScopeProfile rules."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    schema_: str = Field(default=TASK_ARTIFACT_MANIFEST_VERSION, alias="schema")
+    manifest_id: str = Field(..., min_length=1)
+    task_id: str = Field(..., min_length=1)
+    task_instance_id: Optional[str] = None
+    profile_id: Optional[str] = None
+    declared_by: Optional[str] = None
+    declaration_source: Literal["user", "task_author", "operator", "project_template", "runner", "verifier"] = "user"
+    source_family: str = "explicit_task_artifact_manifest"
+    confirmed: bool = False
+    dry_run: bool = True
+    workspace_root_ref: Optional[str] = None
+    workspace_root_hash: Optional[str] = None
+    task_cwd: Optional[str] = None
+    task_cwd_hash: Optional[str] = None
+    path_base: Literal["workspace_root", "task_cwd", "absolute_only"] = "absolute_only"
+    task_data_paths: list[str] = Field(default_factory=list)
+    task_output_paths: list[str] = Field(default_factory=list)
+    path_entries: list[TaskArtifactManifestPathEntry] = Field(default_factory=list)
+    canonicalization_policy: Optional[str] = None
+    symlink_policy: Optional[str] = None
+    confidence: Literal["low", "medium", "high"] = "high"
+    evidence_ref: Optional[str] = None
+    evidence_sha256: Optional[str] = None
+    expires_at: Optional[str] = None
+    source_metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("schema_")
+    @classmethod
+    def validate_manifest_schema(cls, v: str) -> str:
+        if v != TASK_ARTIFACT_MANIFEST_VERSION:
+            raise ValueError(f"schema must be '{TASK_ARTIFACT_MANIFEST_VERSION}', got '{v}'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_manifest_paths(self) -> "TaskArtifactManifest":
+        if not (self.task_data_paths or self.task_output_paths or self.path_entries):
+            raise ValueError("task artifact manifest must declare at least one path")
+        return self
+
+
 class ActionEffectTarget(BaseModel):
     """Redacted target evidence for a normalized action effect."""
 
@@ -288,7 +425,38 @@ class ActionEffectTarget(BaseModel):
     kind: str = "path"
     path_hash: Optional[str] = None
     path_role: Optional[str] = None
+    io_direction: Optional[Literal["source", "target"]] = None
     workspace_relation: Optional[str] = None
+    artifact_role: Optional[str] = None
+    artifact_candidate_role: Optional[str] = None
+    artifact_source: Optional[str] = None
+    artifact_source_tier: Optional[str] = None
+    artifact_confidence: Optional[str] = None
+    artifact_trust_confirmed: Optional[bool] = None
+    artifact_risk_adjusting: Optional[bool] = None
+    artifact_profile_id: Optional[str] = None
+    artifact_profile_hash: Optional[str] = None
+    artifact_case_id: Optional[str] = None
+    artifact_match_type: Optional[str] = None
+    artifact_source_metadata: Optional[dict[str, Any]] = None
+    artifact_source_module: Optional[str] = None
+    artifact_deny_reason: Optional[str] = None
+    effective_artifact_source: Optional[str] = None
+    profile_candidate_present: Optional[bool] = None
+    profile_candidate_source_tier: Optional[str] = None
+    profile_candidate_confidence: Optional[str] = None
+    profile_candidate_deny_reason: Optional[str] = None
+    profile_shadowed_by_scope_task: Optional[bool] = None
+    scope_task_fallback_used: Optional[bool] = None
+    scope_task_io_preserved: Optional[bool] = None
+    scope_task_fallback_blocked_by_redline_reason: Optional[str] = None
+    scope_input_channel: Optional[str] = None
+    scope_manifest_id: Optional[str] = None
+    scope_manifest_schema: Optional[str] = None
+    scope_manifest_hash: Optional[str] = None
+    derived_scope_profile_hash: Optional[str] = None
+    scope_declaration_source: Optional[str] = None
+    scope_declaration_confirmed: Optional[bool] = None
 
 
 class ActionEffectEnvelope(BaseModel):
@@ -301,6 +469,9 @@ class ActionEffectEnvelope(BaseModel):
     tool_name: Optional[str] = None
     canonical_argv_hash: Optional[str] = None
     raw_payload_hash: Optional[str] = None
+    sources: list[ActionEffectTarget] = Field(default_factory=list)
+    canonical_source_hashes: list[str] = Field(default_factory=list)
+    write_channel: Optional[str] = None
     targets: list[ActionEffectTarget] = Field(default_factory=list)
     interpreters: list[str] = Field(default_factory=list)
     wrapper_chain: list[str] = Field(default_factory=list)
@@ -323,6 +494,9 @@ class ActionEffectEnvelope(BaseModel):
             "tool_name": self.tool_name,
             "canonical_argv_hash": self.canonical_argv_hash,
             "raw_payload_hash": self.raw_payload_hash,
+            "sources": [source.model_dump(mode="json", exclude_none=True) for source in self.sources],
+            "canonical_source_hashes": list(self.canonical_source_hashes),
+            "write_channel": self.write_channel,
             "targets": [target.model_dump(mode="json", exclude_none=True) for target in self.targets],
             "interpreters": list(self.interpreters),
             "wrapper_chain": list(self.wrapper_chain),
@@ -467,6 +641,7 @@ class SessionScopeProfile(BaseModel):
     dry_run: bool = True
     base_rules: SessionScopeBaseRules = Field(default_factory=SessionScopeBaseRules)
     task_rules: SessionScopeTaskRules = Field(default_factory=SessionScopeTaskRules)
+    task_artifacts: list[SessionScopeTaskArtifactRule] = Field(default_factory=list)
     provenance: SessionScopeProvenance = Field(default_factory=SessionScopeProvenance)
 
     @field_validator("scope_version")
@@ -1118,6 +1293,7 @@ class FirstUseSkillPackageReview(BaseModel):
     deterministic_findings_preserved: bool = True
     role_results: list[dict[str, Any]] = Field(default_factory=list)
     final_findings: list[dict[str, Any]] = Field(default_factory=list)
+    semantic_dimension_review: list[dict[str, Any]] = Field(default_factory=list)
     evidence_capsule: dict[str, Any] = Field(default_factory=dict)
     degraded: bool = False
     degradation_reason: Optional[str] = None
@@ -1337,6 +1513,14 @@ class ContextualClearanceBinding(BaseModel):
     script_or_content_hash: Optional[str] = None
     input_path_hashes: list[str] = Field(default_factory=list)
     output_path_hashes: list[str] = Field(default_factory=list)
+    artifact_roles: list[str] = Field(default_factory=list)
+    artifact_candidate_roles: list[str] = Field(default_factory=list)
+    artifact_sources: list[str] = Field(default_factory=list)
+    artifact_source_families: list[str] = Field(default_factory=list)
+    artifact_source_tiers: list[str] = Field(default_factory=list)
+    artifact_profile_hashes: list[str] = Field(default_factory=list)
+    artifact_case_ids: list[str] = Field(default_factory=list)
+    artifact_match_types: list[str] = Field(default_factory=list)
 
 
 class ContextualReviewClearance(BaseModel):
@@ -1413,10 +1597,13 @@ class RiskSnapshot(BaseModel):
             "SC-4",
             "SC-5",
             "SC-6",
-            "SC-7",
             "SC-8",
+            "unresolved_analysis_escalate",
         ):
-            raise ValueError(f"short_circuit_rule must be SC-1..SC-8, got '{v}'")
+            raise ValueError(
+                "short_circuit_rule must be one of SC-1..SC-6, SC-8, "
+                f"unresolved_analysis_escalate, got '{v}'"
+            )
         return v
 
     @field_validator("classified_at")
@@ -1503,7 +1690,7 @@ class SyncDecisionRequest(BaseModel):
     """
     rpc_version: str = Field(default=RPC_VERSION)
     request_id: str = Field(..., min_length=1)
-    deadline_ms: int = Field(..., gt=0, le=600000)  # Hard upper limit 10m; L3 may need multi-minute provider calls.
+    deadline_ms: int = Field(..., gt=0, le=900000)  # Hard upper limit 15m; FSPR/L2/L3 retries may need multi-minute provider calls.
     decision_tier: DecisionTier
     event: CanonicalEvent
     context: Optional[DecisionContext] = None

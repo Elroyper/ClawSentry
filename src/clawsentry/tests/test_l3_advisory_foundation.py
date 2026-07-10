@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from clawsentry.gateway.trajectory_store import TrajectoryStore
+from clawsentry.gateway.storage.trajectory_store import TrajectoryStore
 
 
 def _record(

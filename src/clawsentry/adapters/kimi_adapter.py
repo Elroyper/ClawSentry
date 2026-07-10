@@ -157,6 +157,10 @@ class KimiAdapter:
             if text_key in message and text_key not in unified_payload:
                 unified_payload[text_key] = message[text_key]
 
+        # Map tool_output to output for compatibility with post-action analysis
+        if "tool_output" in unified_payload and "output" not in unified_payload:
+            unified_payload["output"] = unified_payload["tool_output"]
+
         command_str = str(arguments.get("command", "")) if arguments else ""
         risk_hints = extract_risk_hints(tool_name, command_str)
 
@@ -251,17 +255,18 @@ def decision_to_kimi_hook_output(
     while JSON stdout containing ``hookSpecificOutput.permissionDecision=deny``
     blocks.  Native modify/defer semantics are not available in phase 1.  A
     ClawSentry ``defer`` is represented as a Kimi deny; ``modify`` fails open
-    because there is no Kimi native rewrite contract.
+    because there is no Kimi native rewrite contract. Gateway fallback policies
+    fail open to avoid turning monitor transport failures into agent denials.
     """
     action = result.get("action", "continue")
     metadata = result.get("metadata", {}) if isinstance(result.get("metadata"), dict) else {}
-    policy_id = str(metadata.get("policy_id", ""))
-    if policy_id.startswith("fallback-"):
-        return None
 
     if action in {"continue", "allow", "modify"}:
         return None
     if action not in {"block", "defer"}:
+        return None
+    policy_id = metadata.get("policy_id")
+    if isinstance(policy_id, str) and policy_id.startswith("fallback-"):
         return None
     if hook_event_name in _KIMI_ADVISORY_EVENTS:
         return None

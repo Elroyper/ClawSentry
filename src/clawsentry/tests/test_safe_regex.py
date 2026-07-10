@@ -1,5 +1,5 @@
 import pytest
-from clawsentry.gateway.safe_regex import compile_safe_regex, has_nested_repetition
+from clawsentry.gateway.rules.safe_regex import compile_safe_regex, has_nested_repetition
 
 
 class TestNestedRepetitionDetection:

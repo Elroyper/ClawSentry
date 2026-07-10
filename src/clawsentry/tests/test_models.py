@@ -578,11 +578,20 @@ class TestSyncDecisionRequest:
         )
         assert req.rpc_version == "bad"
 
+    def test_deadline_accepts_extended_hard_limit(self):
+        req = SyncDecisionRequest(
+            request_id="req-001",
+            deadline_ms=900000,
+            decision_tier=DecisionTier.L1,
+            event=CanonicalEvent(**_minimal_event()),
+        )
+        assert req.deadline_ms == 900000
+
     def test_deadline_exceeds_hard_limit(self):
         with pytest.raises(ValidationError):
             SyncDecisionRequest(
                 request_id="req-001",
-                deadline_ms=600001,
+                deadline_ms=900001,
                 decision_tier=DecisionTier.L1,
                 event=CanonicalEvent(**_minimal_event()),
             )

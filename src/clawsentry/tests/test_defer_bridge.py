@@ -23,7 +23,7 @@ from clawsentry.gateway.models import (
     RPC_VERSION,
     utc_now_iso,
 )
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
 from clawsentry.gateway.server import SupervisionGateway
 
 

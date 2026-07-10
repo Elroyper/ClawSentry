@@ -329,7 +329,10 @@ class A3SCodeAdapter:
 
         Implements retry logic per 04 section 11.2 and local fallback per 11.3.
         """
-        self.last_decision_response_metadata = {}
+        self.last_decision_response_metadata = {
+            "gateway_transport": "pending",
+            "gateway_attempts": 0,
+        }
         effective_deadline = deadline_ms or self.default_deadline_ms
         request_id = f"a3s-{event.event_id}-{int(time.monotonic() * 1000)}"
         deadline_start = time.monotonic()
@@ -354,6 +357,7 @@ class A3SCodeAdapter:
         # Retry loop per 04 section 11.2
         last_error: Optional[Exception] = None
         for attempt in range(1 + self.max_rpc_retries):
+            self.last_decision_response_metadata["gateway_attempts"] = attempt + 1
             elapsed_ms = (time.monotonic() - deadline_start) * 1000
             remaining_ms = effective_deadline - elapsed_ms
 
@@ -369,31 +373,57 @@ class A3SCodeAdapter:
                 if "result" in response:
                     result = response["result"]
                     if result.get("rpc_status") == "ok":
-                        self.last_decision_response_metadata = {
+                        response_metadata = {
+                            "gateway_transport": "uds",
+                            "gateway_attempts": attempt + 1,
+                        }
+                        response_metadata.update({
                             key: result[key]
                             for key in (
                                 "agent_safety_feedback",
                                 "agent_advisory_feedback",
                             )
                             if result.get(key) is not None
-                        }
+                        })
+                        self.last_decision_response_metadata = response_metadata
                         return CanonicalDecision(**result["decision"])
                     # RPC returned error
                     error_data = result
                 elif "error" in response:
                     error_data = response["error"].get("data", {})
                     if error_data.get("retry_eligible") and attempt < self.max_rpc_retries:
+                        self.last_decision_response_metadata.update({
+                            "gateway_transport": "rpc_error_retry",
+                            "gateway_error": str(error_data.get("rpc_error_code") or "unknown"),
+                        })
                         continue
                     if "fallback_decision" in error_data and error_data["fallback_decision"]:
+                        self.last_decision_response_metadata.update({
+                            "gateway_transport": "rpc_fallback",
+                            "gateway_error": str(error_data.get("rpc_error_code") or "unknown"),
+                        })
                         return CanonicalDecision(**error_data["fallback_decision"])
                 break
             except Exception as e:
                 last_error = e
+                self.last_decision_response_metadata.update({
+                    "gateway_transport": "fallback_local",
+                    "gateway_error": type(e).__name__,
+                    "gateway_error_detail": str(e)[:240],
+                })
                 logger.warning(f"Gateway request failed (attempt {attempt + 1}): {e}")
                 continue
 
         # All retries exhausted or gateway unreachable: local fallback
         logger.warning(f"Falling back to local decision for event {event.event_id}")
+        if last_error is not None:
+            self.last_decision_response_metadata.update({
+                "gateway_transport": "fallback_local",
+                "gateway_error": type(last_error).__name__,
+                "gateway_error_detail": str(last_error)[:240],
+            })
+        else:
+            self.last_decision_response_metadata.setdefault("gateway_transport", "fallback_local")
         has_high_danger = bool(
             set(event.risk_hints) & {"destructive_pattern", "shell_execution"}
         )

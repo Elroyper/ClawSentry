@@ -6,7 +6,7 @@ import asyncio
 
 import pytest
 
-from clawsentry.gateway.defer_manager import DeferManager
+from clawsentry.gateway.policy.defer_manager import DeferManager
 
 
 class TestDeferManager:

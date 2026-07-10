@@ -7,8 +7,8 @@ from clawsentry.gateway.models import (
     EventType,
     SessionScopeProfile,
 )
-from clawsentry.gateway.session_scope import evaluate_session_scope
-from clawsentry.gateway.tool_permissions import (
+from clawsentry.gateway.policy.session_scope import evaluate_session_scope
+from clawsentry.gateway.policy.tool_permissions import (
     parse_tool_permission_group_overrides,
     resolve_tool_permission,
 )

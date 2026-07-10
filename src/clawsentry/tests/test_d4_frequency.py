@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import pytest
 
-from clawsentry.gateway.detection_config import (
+from clawsentry.gateway.config.detection_config import (
     DetectionConfig,
     build_detection_config_from_env,
 )
-from clawsentry.gateway.risk_snapshot import SessionRiskTracker
+from clawsentry.gateway.analysis.risk_snapshot import SessionRiskTracker
 
 
 # ---------------------------------------------------------------------------
@@ -319,3 +319,69 @@ class TestD4FreqMemory:
         t.record_high_risk_event("sess-3")
         # sess-1 should have been evicted
         assert t._get_frequency_d4("sess-1", now=now + 1.0) == 0
+
+
+# ---------------------------------------------------------------------------
+# Accumulation sliding-window decay (Phase C)
+# ---------------------------------------------------------------------------
+
+
+class TestAccumulationWindowDecay:
+    """Finite d4_high_risk_window_s lets old high-risk events decay out of D4."""
+
+    def test_unbounded_window_is_monotonic(self) -> None:
+        t = SessionRiskTracker(d4_high_risk_window_s=None)
+        base = 1000.0
+        for i in range(5):
+            t.record_high_risk_event("s", now=base + i)
+        # No decay regardless of how far in the future we read.
+        assert t.get_d4("s", now=base + 1_000_000.0) == 2
+
+    def test_events_older_than_window_stop_counting(self) -> None:
+        t = SessionRiskTracker(d4_high_risk_window_s=300.0)
+        base = 1000.0
+        for i in range(5):
+            t.record_high_risk_event("s", now=base + i)
+        # Fresh: 5 events inside the window → accumulation d4 == 2.
+        assert t.get_d4("s", now=base + 5.0) == 2
+        # After the window fully passes, every event has decayed → d4 == 0.
+        assert t.get_d4("s", now=base + 5.0 + 301.0) == 0
+
+    def test_partial_decay_lowers_but_does_not_zero(self) -> None:
+        t = SessionRiskTracker(
+            d4_high_risk_window_s=300.0,
+            d4_high_threshold=5,
+            d4_mid_threshold=2,
+        )
+        base = 1000.0
+        # Two early events, then three late events 400s later.
+        for i in range(2):
+            t.record_high_risk_event("s", now=base + i)
+        for i in range(3):
+            t.record_high_risk_event("s", now=base + 400.0 + i)
+        # Read shortly after the late burst: only the 3 late events remain in
+        # window (the 2 early ones decayed) → count 3 → mid but not high.
+        assert t.get_d4("s", now=base + 405.0) == 1
+
+    def test_benchmark_mode_enables_finite_window_by_default(self) -> None:
+        cfg = DetectionConfig(mode="benchmark")
+        assert cfg.d4_high_risk_window_s == 300.0
+        t = SessionRiskTracker(d4_high_risk_window_s=cfg.d4_high_risk_window_s)
+        base = 1000.0
+        for i in range(5):
+            t.record_high_risk_event("s", now=base + i)
+        assert t.get_d4("s", now=base + 5.0, config=cfg) == 2
+        assert t.get_d4("s", now=base + 5.0 + 301.0, config=cfg) == 0
+
+    def test_normal_mode_leaves_window_unbounded(self) -> None:
+        cfg = DetectionConfig()
+        assert cfg.d4_high_risk_window_s is None
+
+    def test_config_window_overrides_instance_default(self) -> None:
+        # Instance built unbounded, but a per-request finite-window config wins.
+        t = SessionRiskTracker(d4_high_risk_window_s=None)
+        cfg = DetectionConfig(d4_high_risk_window_s=300.0)
+        base = 1000.0
+        for i in range(5):
+            t.record_high_risk_event("s", now=base + i)
+        assert t.get_d4("s", now=base + 5.0 + 301.0, config=cfg) == 0

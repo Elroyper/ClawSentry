@@ -25,8 +25,10 @@ VALIDITY_MD_PATH = API_DOCS_DIR / "validity-report.md"
 REPORT_SCHEMA_VERSION = "clawsentry-api-validity.v1"
 
 SOURCE_FILES = {
-    "gateway": REPO_ROOT / "src" / "clawsentry" / "gateway" / "server.py",
-    "stack": REPO_ROOT / "src" / "clawsentry" / "gateway" / "stack.py",
+    "gateway": REPO_ROOT / "src" / "clawsentry" / "gateway" / "http" / "app.py",
+    "gateway-l3": REPO_ROOT / "src" / "clawsentry" / "gateway" / "l3" / "advisory_service.py",
+    "gateway-ui": REPO_ROOT / "src" / "clawsentry" / "gateway" / "http" / "ui_routes.py",
+    "stack": REPO_ROOT / "src" / "clawsentry" / "gateway" / "runtime" / "stack.py",
     "openclaw-webhook": REPO_ROOT / "src" / "clawsentry" / "adapters" / "openclaw_webhook_receiver.py",
 }
 
@@ -874,7 +876,7 @@ def extract_source_route_locations() -> dict[tuple[str, str, str], str]:
         lines = path.read_text(encoding="utf-8").splitlines()
         rel_path = path.relative_to(REPO_ROOT).as_posix()
         for lineno, line in enumerate(lines, start=1):
-            if service == "gateway":
+            if service in {"gateway", "gateway-l3", "gateway-ui"}:
                 for method, route in patterns["gateway"].findall(line):
                     route_service = "gateway"
                     if route.startswith("/enterprise/"):
@@ -1458,6 +1460,10 @@ def render_validity_markdown(report: dict[str, Any]) -> str:
             )
         )
     lines.extend([
+        "",
+        "## API 维护说明",
+        "",
+        "后端路由拆分后，维护 API 文档时应从 `scripts/docs_api_inventory.py` 的源码扫描结果生成 coverage、OpenAPI 和有效性报告，避免手写源码行号漂移。",
         "",
         "## 复跑命令",
         "",

@@ -19,11 +19,11 @@ from clawsentry.gateway.models import (
     RPC_VERSION,
     utc_now_iso,
 )
-from clawsentry.gateway.policy_engine import L1PolicyEngine
-from clawsentry.gateway.post_action_analyzer import PostActionAnalyzer
-from clawsentry.gateway.semantic_analyzer import RuleBasedAnalyzer
+from clawsentry.gateway.policy.engine import L1PolicyEngine
+from clawsentry.gateway.analysis.post_action_analyzer import PostActionAnalyzer
+from clawsentry.gateway.analysis.semantic_analyzer import RuleBasedAnalyzer
 from clawsentry.gateway.server import SupervisionGateway
-from clawsentry.gateway.trajectory_analyzer import TrajectoryAnalyzer
+from clawsentry.gateway.analysis.trajectory_analyzer import TrajectoryAnalyzer
 
 
 def _evt(tool_name=None, payload=None, **kw):
@@ -470,7 +470,7 @@ class TestD6OpenClawMessageKeys:
     """M-1: D6 must extract text from OpenClaw message-specific keys."""
 
     def test_message_key_triggers_d6(self):
-        from clawsentry.gateway.risk_snapshot import _extract_text_for_d6
+        from clawsentry.gateway.analysis.risk_snapshot import _extract_text_for_d6
 
         event = _evt(
             event_type="pre_prompt",
@@ -480,7 +480,7 @@ class TestD6OpenClawMessageKeys:
         assert "ignore previous instructions" in text
 
     def test_transcript_key_triggers_d6(self):
-        from clawsentry.gateway.risk_snapshot import _extract_text_for_d6
+        from clawsentry.gateway.analysis.risk_snapshot import _extract_text_for_d6
 
         event = _evt(
             event_type="pre_prompt",
@@ -490,7 +490,7 @@ class TestD6OpenClawMessageKeys:
         assert "override all safety rules" in text
 
     def test_user_message_key_triggers_d6(self):
-        from clawsentry.gateway.risk_snapshot import _extract_text_for_d6
+        from clawsentry.gateway.analysis.risk_snapshot import _extract_text_for_d6
 
         event = _evt(
             event_type="pre_prompt",
@@ -500,7 +500,7 @@ class TestD6OpenClawMessageKeys:
         assert "DAN mode" in text
 
     def test_command_key_still_works(self):
-        from clawsentry.gateway.risk_snapshot import _extract_text_for_d6
+        from clawsentry.gateway.analysis.risk_snapshot import _extract_text_for_d6
 
         event = _evt(
             event_type="pre_action",

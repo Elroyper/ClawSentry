@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from clawsentry.gateway.detection_config import build_detection_config_from_env, from_preset
+from clawsentry.gateway.config.detection_config import build_detection_config_from_env, from_preset
 
 
 def test_cs_preset_strict_drives_runtime_detection_config(monkeypatch):

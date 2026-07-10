@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from .dotenv_loader import EnvFileError, overlay_env_file, resolve_explicit_env_file
-from clawsentry.gateway.env_config import parse_enabled_frameworks
+from clawsentry.gateway.config.env_config import parse_enabled_frameworks
 
 
 FRAMEWORK_CAPABILITIES: dict[str, dict[str, str]] = {

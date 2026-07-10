@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from clawsentry.gateway.models import RiskLevel
-from clawsentry.gateway.pattern_evolution import (
+from clawsentry.gateway.rules.pattern_evolution import (
     PROMOTION_THRESHOLDS,
     EvolvedPattern,
     EvolvedPatternStore,
@@ -16,7 +16,7 @@ from clawsentry.gateway.pattern_evolution import (
     compute_confidence,
     promote_pattern,
 )
-from clawsentry.gateway.pattern_matcher import AttackPattern, PatternMatcher, load_patterns
+from clawsentry.gateway.rules.pattern_matcher import AttackPattern, PatternMatcher, load_patterns
 
 
 class TestEvolvedPattern:
@@ -438,7 +438,7 @@ class TestGatewayEvolutionIntegration:
 
     @pytest.fixture
     def gateway_with_evolution(self, tmp_path):
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway
         evolved_path = os.path.join(str(tmp_path), "evolved.yaml")
         cfg = DetectionConfig(evolving_enabled=True, evolved_patterns_path=evolved_path)
@@ -447,7 +447,7 @@ class TestGatewayEvolutionIntegration:
 
     @pytest.fixture
     def gateway_without_evolution(self):
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway
         cfg = DetectionConfig(evolving_enabled=False)
         gw = SupervisionGateway(detection_config=cfg)
@@ -467,7 +467,7 @@ class TestPatternsAPIEndpoint:
 
     @pytest.fixture
     def app_with_evolution(self, tmp_path):
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway, create_http_app
         evolved_path = os.path.join(str(tmp_path), "evolved.yaml")
         cfg = DetectionConfig(evolving_enabled=True, evolved_patterns_path=evolved_path)
@@ -531,7 +531,7 @@ class TestPatternsAPIEndpoint:
     @pytest.mark.asyncio
     async def test_confirm_403_when_disabled(self, tmp_path):
         from httpx import AsyncClient, ASGITransport
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway, create_http_app
         cfg = DetectionConfig(evolving_enabled=False)
         gw = SupervisionGateway(detection_config=cfg)
@@ -547,7 +547,7 @@ class TestConfigFlowIntegration:
     """Verify evolved_patterns_path flows through stack → policy_engine → PatternMatcher."""
 
     def test_evolved_path_reaches_pattern_matcher(self, tmp_path):
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway
         evolved_path = os.path.join(str(tmp_path), "evolved.yaml")
         cfg = DetectionConfig(evolving_enabled=True, evolved_patterns_path=evolved_path)
@@ -556,7 +556,7 @@ class TestConfigFlowIntegration:
         assert matcher._evolved_path == evolved_path
 
     def test_evolved_path_none_when_disabled(self):
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway
         cfg = DetectionConfig(evolving_enabled=False)
         gw = SupervisionGateway(detection_config=cfg)
@@ -572,7 +572,7 @@ class TestEvictionPriority:
 
     def test_deprecated_evicted_before_candidate(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import (
+        from clawsentry.gateway.rules.pattern_evolution import (
             EvolvedPattern,
             EvolvedPatternStore,
             PatternStatus,
@@ -599,7 +599,7 @@ class TestEvictionPriority:
     def test_no_evictable_returns_false(self, tmp_path):
         """M3: 全为 STABLE/EXPERIMENTAL 时无法驱逐 → 返回 False。"""
         import os
-        from clawsentry.gateway.pattern_evolution import (
+        from clawsentry.gateway.rules.pattern_evolution import (
             EvolvedPattern,
             EvolvedPatternStore,
             PatternStatus,
@@ -624,7 +624,7 @@ class TestStableIdempotent:
 
     def test_stable_stays_stable_on_confirm(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import (
+        from clawsentry.gateway.rules.pattern_evolution import (
             EvolvedPattern,
             EvolvedPatternStore,
             PatternEvolutionManager,
@@ -650,7 +650,7 @@ class TestConfidenceBoundaryValues:
     """H1: compute_confidence 边界值覆盖。"""
 
     def test_zero_total_no_division_error(self):
-        from clawsentry.gateway.pattern_evolution import compute_confidence
+        from clawsentry.gateway.rules.pattern_evolution import compute_confidence
 
         score = compute_confidence(
             confirmed_count=0, false_positive_count=0,
@@ -660,21 +660,21 @@ class TestConfidenceBoundaryValues:
         assert score <= 1.0
 
     def test_recency_boundary_7_days(self):
-        from clawsentry.gateway.pattern_evolution import compute_confidence
+        from clawsentry.gateway.rules.pattern_evolution import compute_confidence
 
         score_7 = compute_confidence(5, 0, 5, 1, 7)   # 正好 7 天 → 高时效
         score_8 = compute_confidence(5, 0, 5, 1, 8)   # 8 天 → 衰减
         assert score_7 > score_8
 
     def test_framework_count_zero_branch(self):
-        from clawsentry.gateway.pattern_evolution import compute_confidence
+        from clawsentry.gateway.rules.pattern_evolution import compute_confidence
 
         score_0fw = compute_confidence(5, 0, 5, 0, 1)  # 0 框架
         score_2fw = compute_confidence(5, 0, 5, 2, 1)  # 2 框架
         assert score_2fw > score_0fw
 
     def test_all_max_values(self):
-        from clawsentry.gateway.pattern_evolution import compute_confidence
+        from clawsentry.gateway.rules.pattern_evolution import compute_confidence
 
         score = compute_confidence(100, 0, 100, 5, 0)
         assert 0.9 <= score <= 1.0  # 所有因子最优
@@ -685,7 +685,7 @@ class TestInferCategoryBranches:
 
     def test_asi01_goal_hijack(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -699,7 +699,7 @@ class TestInferCategoryBranches:
 
     def test_asi02_exfiltration(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -713,7 +713,7 @@ class TestInferCategoryBranches:
 
     def test_asi03_privilege_abuse(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -727,7 +727,7 @@ class TestInferCategoryBranches:
 
     def test_asi04_supply_chain(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -741,7 +741,7 @@ class TestInferCategoryBranches:
 
     def test_asi05_code_execution(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -755,7 +755,7 @@ class TestInferCategoryBranches:
 
     def test_keyword_fallback_sudo(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -770,7 +770,7 @@ class TestInferCategoryBranches:
 
     def test_keyword_fallback_curl(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -785,7 +785,7 @@ class TestInferCategoryBranches:
 
     def test_keyword_fallback_eval(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -800,7 +800,7 @@ class TestInferCategoryBranches:
 
     def test_unknown_fallback(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
         from clawsentry.gateway.models import RiskLevel
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -820,7 +820,7 @@ class TestPatternsAPIErrorPaths:
     @pytest.fixture
     def app_with_evolution(self, tmp_path):
         import os
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         from clawsentry.gateway.server import SupervisionGateway, create_http_app
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
@@ -880,7 +880,7 @@ class TestListPatternsWhenDisabled:
 
     def test_manager_list_returns_empty_when_disabled(self, tmp_path):
         import os
-        from clawsentry.gateway.pattern_evolution import PatternEvolutionManager
+        from clawsentry.gateway.rules.pattern_evolution import PatternEvolutionManager
 
         store_path = os.path.join(str(tmp_path), "evolved.yaml")
         mgr = PatternEvolutionManager(store_path=store_path, enabled=False)
@@ -891,14 +891,14 @@ class TestHotReloadCompositeAnalyzer:
     """H-2: hot-reload must traverse CompositeAnalyzer to find PatternMatcher."""
 
     def test_reload_through_composite_analyzer(self):
-        from clawsentry.gateway.semantic_analyzer import RuleBasedAnalyzer, CompositeAnalyzer
+        from clawsentry.gateway.analysis.semantic_analyzer import RuleBasedAnalyzer, CompositeAnalyzer
         from clawsentry.gateway.server import _find_and_reload_pattern_matcher
         rba = RuleBasedAnalyzer()
         composite = CompositeAnalyzer([rba])
         assert _find_and_reload_pattern_matcher(composite) is True
 
     def test_reload_direct_rule_based_analyzer(self):
-        from clawsentry.gateway.semantic_analyzer import RuleBasedAnalyzer
+        from clawsentry.gateway.analysis.semantic_analyzer import RuleBasedAnalyzer
         from clawsentry.gateway.server import _find_and_reload_pattern_matcher
         rba = RuleBasedAnalyzer()
         assert _find_and_reload_pattern_matcher(rba) is True
@@ -947,7 +947,7 @@ class TestEvolvingPathValidation:
 # ---------------------------------------------------------------------------
 
 import re as _re
-from clawsentry.gateway.pattern_evolution import _sanitize_for_regex
+from clawsentry.gateway.rules.pattern_evolution import _sanitize_for_regex
 
 
 class TestSanitizeForRegex:

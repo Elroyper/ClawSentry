@@ -1,0 +1,572 @@
+/* Source range: styles.css lines 5154-5724 */
+
+.command-status-panel .hero-panel-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(143, 165, 191, 0.86);
+  font-family: var(--font-mono);
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+
+.command-status-panel .hero-panel-body strong {
+  color: #ffffff;
+  font-size: 1.42rem;
+}
+
+.command-status-panel .hero-panel-detail {
+  color: rgba(143, 165, 191, 0.78);
+}
+
+.command-status-panel .hero-panel-link {
+  color: var(--soc-cyan);
+  text-decoration: none;
+}
+
+.command-status-panel .hero-panel-link:hover {
+  text-decoration: underline;
+}
+
+.command-status-panel .hero-panel-budget-warning {
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.operator-priority-guide,
+.metric-card,
+.section-card,
+.framework-panel,
+.workspace-card,
+.priority-session-row,
+.llm-usage-section,
+.operations-stream {
+  border-color: rgba(139, 184, 255, 0.15);
+  background:
+    linear-gradient(180deg, rgba(13, 28, 48, 0.76), rgba(8, 18, 32, 0.68)),
+    radial-gradient(circle at top right, rgba(94, 165, 255, 0.08), transparent 34%);
+  color: var(--soc-ink);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(18px);
+}
+
+.operator-priority-guide {
+  grid-template-columns: minmax(240px, 0.52fr) minmax(0, 1.48fr);
+  padding: 24px;
+  border-radius: 28px;
+  background:
+    linear-gradient(135deg, rgba(13, 28, 48, 0.82), rgba(23, 20, 39, 0.68)),
+    radial-gradient(circle at top left, rgba(247, 198, 107, 0.13), transparent 30%);
+}
+
+.operator-priority-copy p,
+.operator-priority-step p,
+.priority-session-meta,
+.framework-panel p,
+.workspace-root,
+.workspace-stats,
+.metric-subtext {
+  color: rgba(203, 213, 225, 0.68);
+}
+
+.operator-priority-step {
+  border-color: rgba(139, 184, 255, 0.13);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.operator-priority-step:hover {
+  border-color: rgba(94, 234, 212, 0.28);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.18);
+}
+
+.operator-priority-step span,
+.section-kicker,
+.eyebrow {
+  color: var(--soc-cyan);
+}
+
+.operator-priority-step strong,
+.section-card-header h2,
+.section-card-header h3,
+.framework-panel h3,
+.workspace-card h3,
+.priority-session-row strong,
+.metric-value {
+  color: var(--soc-ink);
+}
+
+.dashboard-region-operational,
+.dashboard-region-inspection {
+  padding: 22px;
+  border: 1px solid rgba(139, 184, 255, 0.08);
+  border-radius: 32px;
+}
+
+.dashboard-region-operational {
+  background:
+    linear-gradient(135deg, rgba(94, 165, 255, 0.1), rgba(94, 234, 212, 0.04)),
+    linear-gradient(180deg, rgba(2, 7, 19, 0.16), rgba(2, 7, 19, 0));
+}
+
+.dashboard-region-inspection {
+  background:
+    linear-gradient(135deg, rgba(247, 198, 107, 0.09), rgba(251, 113, 133, 0.045)),
+    linear-gradient(180deg, rgba(2, 7, 19, 0.14), rgba(2, 7, 19, 0));
+}
+
+.metric-grid {
+  gap: 16px;
+}
+
+.metric-card {
+  min-height: 140px;
+  border-radius: 24px;
+}
+
+.metric-card::after {
+  background: linear-gradient(135deg, rgba(94, 165, 255, 0.13), transparent);
+}
+
+.metric-label {
+  color: rgba(143, 165, 191, 0.84);
+}
+
+.metric-icon {
+  color: rgba(94, 234, 212, 0.74);
+}
+
+.section-link {
+  color: var(--soc-cyan);
+}
+
+.framework-panel,
+.workspace-card,
+.priority-session-row {
+  border-radius: 20px;
+}
+
+.framework-workspace-row,
+.priority-session-row,
+.hero-brief-link {
+  color: inherit;
+}
+
+.priority-session-row:hover,
+.session-card-row:hover,
+.framework-panel:hover,
+.workspace-card:hover {
+  border-color: rgba(94, 234, 212, 0.24);
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.24);
+}
+
+:root[lang="zh-CN"] .command-deck-hero h1 {
+  max-width: 10.6ch;
+  font-size: clamp(2.7rem, 4.55vw, 4.72rem);
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+}
+
+:root[lang="zh-CN"] .command-deck-hero .hero-copy,
+:root[lang="zh-CN"] .operator-priority-copy p,
+:root[lang="zh-CN"] .operator-priority-step p,
+:root[lang="zh-CN"] .command-brief-card p {
+  line-height: 1.86;
+}
+
+:root[lang="zh-CN"] .command-brief-card .hero-brief-label,
+:root[lang="zh-CN"] .section-kicker,
+:root[lang="zh-CN"] .hero-panel-label,
+:root[lang="zh-CN"] .sidebar-nav-label {
+  letter-spacing: 0.08em;
+}
+
+:root[data-theme="dark"] .command-deck-hero,
+:root[data-theme="dark"] .command-status-panel,
+:root[data-theme="dark"] .operator-priority-guide,
+:root[data-theme="dark"] .metric-card:nth-child(n),
+:root[data-theme="dark"] .section-card,
+:root[data-theme="dark"] .framework-panel,
+:root[data-theme="dark"] .workspace-card,
+:root[data-theme="dark"] .priority-session-row,
+:root[data-theme="dark"] .llm-usage-section,
+:root[data-theme="dark"] .operations-stream {
+  color: var(--soc-ink);
+}
+
+@media (max-width: 1380px) {
+  .command-deck-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.74fr);
+  }
+
+  .command-map {
+    display: none;
+  }
+
+  .command-deck-hero .hero-brief-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .command-deck-hero,
+  .dashboard-grid-primary,
+  .dashboard-grid-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-priority-guide {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .main-content {
+    margin-left: 0;
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .page-content {
+    padding: 20px;
+  }
+
+  .command-deck-hero {
+    min-height: auto;
+    padding: 24px;
+    border-radius: 30px;
+  }
+
+  .command-deck-hero h1,
+  :root[lang="zh-CN"] .command-deck-hero h1 {
+    max-width: 12ch;
+    font-size: clamp(2.35rem, 10vw, 3.75rem);
+  }
+
+  .command-status-panel .hero-panel-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .command-deck-hero .hero-brief-grid,
+  .operator-priority-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-region-operational,
+  .dashboard-region-inspection {
+    padding: 14px;
+  }
+
+  .topbar {
+    gap: 12px;
+    padding: 14px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::after,
+  .command-deck-hero::after {
+    animation: none;
+  }
+}
+
+/* Item 25 viewport polish: fix first-fold density and higher-specificity legacy overrides. */
+.topbar {
+  gap: 18px;
+}
+
+.topbar-heading {
+  min-width: 170px;
+}
+
+.topbar-title {
+  white-space: nowrap;
+}
+
+.command-deck-hero .command-brief-card {
+  border-color: rgba(139, 184, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(13, 28, 48, 0.82), rgba(8, 18, 32, 0.68)),
+    radial-gradient(circle at top right, rgba(94, 165, 255, 0.13), transparent 36%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.065), 0 18px 42px rgba(0, 0, 0, 0.18);
+}
+
+.command-deck-hero .command-brief-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (max-width: 1380px) {
+  .command-deck-hero {
+    min-height: 480px;
+    padding: 30px 28px;
+  }
+
+  .command-deck-hero h1 {
+    max-width: 10.8ch;
+    font-size: clamp(2.28rem, 3.7vw, 3.48rem);
+    line-height: 1.02;
+    letter-spacing: -0.036em;
+  }
+
+  .command-deck-hero .hero-copy {
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+
+  .command-deck-hero .hero-chip-row {
+    margin-top: 16px;
+  }
+
+  .command-deck-hero .hero-brief-grid {
+    margin-top: 16px;
+  }
+
+  .command-deck-hero .command-brief-card {
+    min-height: 96px;
+    padding: 12px;
+  }
+
+  .command-deck-hero .command-brief-card strong {
+    margin-top: 2px;
+    font-size: 0.96rem;
+  }
+
+  .command-deck-hero .command-brief-card p {
+    margin-top: 2px;
+    -webkit-line-clamp: 1;
+  }
+
+  .command-status-panel {
+    padding: 20px;
+  }
+
+  .command-status-panel .hero-panel-body > div {
+    min-height: 90px;
+    padding: 13px;
+  }
+
+  .command-status-panel .hero-panel-body strong {
+    font-size: 1.24rem;
+  }
+}
+
+:root[lang="zh-CN"] .topbar-title {
+  letter-spacing: 0.01em;
+}
+
+/* Light theme keeps the same SOC art direction but softens contrast instead of
+   dropping bright white modules into the dark command shell. */
+:root[data-theme="light"] {
+  --soc-bg-0: #e8eef7;
+  --soc-bg-1: #dbe6f2;
+  --soc-bg-2: #cfddea;
+  --soc-ink: #102033;
+  --soc-muted: #5d7189;
+  --soc-line: rgba(31, 69, 112, 0.16);
+  --soc-line-strong: rgba(21, 94, 232, 0.22);
+  --soc-panel: rgba(232, 240, 249, 0.78);
+  --soc-panel-raised: rgba(218, 231, 244, 0.84);
+  --soc-shadow: 0 28px 72px rgba(15, 35, 65, 0.16);
+}
+
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(circle at 16% 7%, rgba(21, 94, 232, 0.16), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(15, 147, 184, 0.12), transparent 25%),
+    radial-gradient(circle at 70% 88%, rgba(122, 92, 255, 0.08), transparent 26%),
+    linear-gradient(135deg, #dfe8f3 0%, #eaf0f7 44%, #d7e3ef 100%);
+  color: var(--soc-ink);
+}
+
+:root[data-theme="light"] body::before {
+  opacity: 0.2;
+  background:
+    linear-gradient(rgba(21, 94, 232, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(21, 94, 232, 0.045) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(15, 23, 42, 0.09) 0 1px, transparent 1px 100%);
+}
+
+:root[data-theme="light"] .sidebar {
+  background:
+    linear-gradient(180deg, rgba(218, 230, 244, 0.9), rgba(202, 218, 234, 0.86)),
+    radial-gradient(circle at 24% 8%, rgba(21, 94, 232, 0.16), transparent 28%),
+    radial-gradient(circle at 94% 36%, rgba(15, 147, 184, 0.10), transparent 28%);
+  border-right-color: rgba(31, 69, 112, 0.15);
+  box-shadow: 26px 0 72px rgba(15, 35, 65, 0.12);
+}
+
+:root[data-theme="light"] .topbar {
+  background: rgba(221, 232, 244, 0.72);
+  border-bottom-color: rgba(31, 69, 112, 0.13);
+  box-shadow: 0 18px 48px rgba(15, 35, 65, 0.08);
+}
+
+:root[data-theme="light"] .sidebar-header,
+:root[data-theme="light"] .sidebar-footer,
+:root[data-theme="light"] .command-deck-hero,
+:root[data-theme="light"] .command-status-panel,
+:root[data-theme="light"] .command-deck-hero .command-brief-card,
+:root[data-theme="light"] .operator-priority-guide,
+:root[data-theme="light"] .metric-card,
+:root[data-theme="light"] .section-card,
+:root[data-theme="light"] .framework-panel,
+:root[data-theme="light"] .workspace-card,
+:root[data-theme="light"] .priority-session-row,
+:root[data-theme="light"] .llm-usage-section,
+:root[data-theme="light"] .operations-stream {
+  border-color: rgba(31, 69, 112, 0.16);
+  background:
+    linear-gradient(180deg, rgba(226, 236, 247, 0.8), rgba(207, 222, 238, 0.72)),
+    radial-gradient(circle at top right, rgba(21, 94, 232, 0.075), transparent 34%);
+  color: var(--soc-ink);
+  box-shadow: 0 22px 56px rgba(15, 35, 65, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+:root[data-theme="light"] .command-deck-hero {
+  background:
+    linear-gradient(120deg, rgba(219, 232, 247, 0.9), rgba(203, 220, 238, 0.8) 46%, rgba(214, 227, 241, 0.76)),
+    radial-gradient(circle at 14% 16%, rgba(21, 94, 232, 0.18), transparent 29%),
+    radial-gradient(circle at 76% 18%, rgba(15, 147, 184, 0.11), transparent 26%),
+    radial-gradient(circle at 74% 86%, rgba(201, 150, 61, 0.09), transparent 30%);
+}
+
+:root[data-theme="light"] .command-deck-hero h1,
+:root[data-theme="light"] .command-status-panel .hero-panel-body strong,
+:root[data-theme="light"] .command-brief-card strong,
+:root[data-theme="light"] .topbar-title,
+:root[data-theme="light"] .sidebar-logo,
+:root[data-theme="light"] .operator-priority-step strong,
+:root[data-theme="light"] .section-card-header h2,
+:root[data-theme="light"] .section-card-header h3,
+:root[data-theme="light"] .metric-value {
+  color: #102033;
+  text-shadow: none;
+}
+
+:root[data-theme="light"] .command-deck-hero .hero-copy,
+:root[data-theme="light"] .command-brief-card p,
+:root[data-theme="light"] .operator-priority-copy p,
+:root[data-theme="light"] .operator-priority-step p,
+:root[data-theme="light"] .priority-session-meta,
+:root[data-theme="light"] .framework-panel p,
+:root[data-theme="light"] .workspace-root,
+:root[data-theme="light"] .workspace-stats,
+:root[data-theme="light"] .metric-subtext {
+  color: rgba(55, 72, 93, 0.78);
+}
+
+:root[data-theme="light"] .nav-link {
+  color: rgba(35, 52, 73, 0.74);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-theme="light"] .nav-link:hover,
+:root[data-theme="light"] .nav-link.active {
+  color: #102033;
+  background:
+    linear-gradient(135deg, rgba(21, 94, 232, 0.14), rgba(15, 147, 184, 0.07)),
+    rgba(232, 240, 249, 0.72);
+}
+
+:root[data-theme="light"] .preference-toggle,
+:root[data-theme="light"] .framework-chip {
+  background: rgba(220, 232, 245, 0.74);
+  border-color: rgba(31, 69, 112, 0.16);
+  color: rgba(35, 52, 73, 0.78);
+}
+
+/* Ralph WebUI SOC completion: extend the accepted command-deck language
+   beyond Dashboard without changing page behavior. */
+.workbench-hero,
+.session-hero,
+.sessions-shell .sessions-toolbar {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(139, 184, 255, 0.18);
+  border-radius: 32px;
+  background:
+    linear-gradient(120deg, rgba(10, 23, 42, 0.9), rgba(6, 18, 34, 0.78) 48%, rgba(8, 20, 37, 0.72)),
+    radial-gradient(circle at 16% 18%, rgba(94, 165, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 86% 24%, rgba(94, 234, 212, 0.1), transparent 28%);
+  box-shadow: var(--soc-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.workbench-hero::before,
+.session-hero::before,
+.sessions-shell .sessions-toolbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(94, 165, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(94, 165, 255, 0.055) 1px, transparent 1px);
+  background-size: 68px 68px;
+  opacity: 0.62;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at 38% 42%, black, transparent 78%);
+}
+
+.workbench-hero > *,
+.session-hero > *,
+.sessions-shell .sessions-toolbar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workbench-hero h1,
+.session-hero h1,
+.sessions-filter-heading {
+  color: var(--soc-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  text-shadow: 0 0 34px rgba(94, 165, 255, 0.12);
+}
+
+.workbench-hero-text,
+.session-hero .hero-copy,
+.sessions-shell .toolbar-subtitle {
+  color: rgba(218, 231, 247, 0.74);
+}
+
+.workbench-section,
+.sessions-shell .sessions-region,
+.session-analysis-surface,
+.session-context-surface {
+  border: 1px solid rgba(139, 184, 255, 0.14);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(13, 28, 48, 0.72), rgba(8, 18, 32, 0.64)),
+    radial-gradient(circle at top right, rgba(94, 165, 255, 0.075), transparent 34%);
+  box-shadow: 0 22px 62px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(18px);
+}
+
+.workbench-summary-card,
+.operator-card,
+.session-analysis-stat,
+.session-context-card,
+.session-analysis-summary-card,
+.advisory-review-card,
+.chart-card,
+.sessions-shell .framework-overview-card,
+.sessions-shell .framework-section,
+.sessions-shell .workspace-section,
+.sessions-shell .session-card-row,
+.operations-stream-row,
+.operations-stream-brief,
+.operations-stream-controls,
+.operations-stream-buffer {
+  border-color: rgba(139, 184, 255, 0.13);
+  background:
+    linear-gradient(180deg, rgba(15, 31, 53, 0.74), rgba(8, 18, 32, 0.66)),
+    radial-gradient(circle at top right, rgba(94, 165, 255, 0.075), transparent 34%);
+  color: var(--soc-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}

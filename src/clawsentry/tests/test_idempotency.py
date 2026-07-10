@@ -9,7 +9,7 @@ import time
 import threading
 import pytest
 
-from clawsentry.gateway.idempotency import IdempotencyCache
+from clawsentry.gateway.storage.idempotency import IdempotencyCache
 
 
 class TestIdempotencyCache:

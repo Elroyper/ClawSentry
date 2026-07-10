@@ -1,7 +1,7 @@
 """Tests for text_utils — Unicode normalization + invisible char utilities."""
 
 import pytest
-from clawsentry.gateway.text_utils import (
+from clawsentry.gateway.runtime.text_utils import (
     INVISIBLE_CODEPOINTS,
     normalize_text,
     count_invisible_chars,

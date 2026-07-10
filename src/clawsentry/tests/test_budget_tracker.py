@@ -20,8 +20,8 @@ from unittest.mock import patch
 
 import pytest
 
-from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
-from clawsentry.gateway.detection_config import (
+from clawsentry.gateway.telemetry.metrics import LLMBudgetTracker, MetricsCollector
+from clawsentry.gateway.config.detection_config import (
     DetectionConfig,
     build_detection_config_from_env,
 )

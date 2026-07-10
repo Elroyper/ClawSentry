@@ -10,7 +10,7 @@ from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
 
-from clawsentry.gateway.rule_governance import (
+from clawsentry.gateway.rules.rule_governance import (
     RuleDryRunReport,
     RuleGovernanceReport,
     dry_run_rule_governance,

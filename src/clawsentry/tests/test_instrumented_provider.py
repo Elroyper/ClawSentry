@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from clawsentry.gateway.llm_provider import (
+from clawsentry.gateway.llm.provider import (
     AnthropicProvider,
     InstrumentedProvider,
     LLMProvider,
@@ -27,7 +27,7 @@ from clawsentry.gateway.llm_provider import (
     LLMUsage,
     OpenAIProvider,
 )
-from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
+from clawsentry.gateway.telemetry.metrics import LLMBudgetTracker, MetricsCollector
 
 
 # ===========================================================================
@@ -220,6 +220,29 @@ class TestInstrumentedProvider:
         asyncio.run(ip.complete("sys", "user", timeout_ms=3000, max_tokens=1024))
         inner.complete.assert_awaited_once_with("sys", "user", 3000, 1024)
 
+    def test_complete_forwards_response_format_when_requested(self):
+        inner = self._make_inner()
+        metrics = self._make_metrics()
+        ip = InstrumentedProvider(inner, metrics, tier="L2")
+
+        response_format = {"type": "json_object"}
+        asyncio.run(
+            ip.complete(
+                "sys",
+                "user",
+                timeout_ms=3000,
+                response_format=response_format,
+            )
+        )
+
+        inner.complete.assert_awaited_once_with(
+            "sys",
+            "user",
+            3000,
+            256,
+            response_format=response_format,
+        )
+
     # --- Metrics recording on success ---
 
     def test_metrics_recorded_on_success(self):
@@ -379,7 +402,7 @@ class TestBuildAnalyzerMetricsParam:
     """build_analyzer_from_env() accepts optional metrics parameter."""
 
     def test_signature_accepts_metrics(self):
-        from clawsentry.gateway.llm_factory import build_analyzer_from_env
+        from clawsentry.gateway.llm.factory import build_analyzer_from_env
         sig = inspect.signature(build_analyzer_from_env)
         assert "metrics" in sig.parameters
         param = sig.parameters["metrics"]
@@ -389,8 +412,8 @@ class TestBuildAnalyzerMetricsParam:
         """When metrics is provided, L2 provider is wrapped with InstrumentedProvider."""
         import os
         from unittest.mock import patch as _patch
-        from clawsentry.gateway.llm_factory import build_analyzer_from_env
-        from clawsentry.gateway.semantic_analyzer import CompositeAnalyzer, LLMAnalyzer
+        from clawsentry.gateway.llm.factory import build_analyzer_from_env
+        from clawsentry.gateway.analysis.semantic_analyzer import CompositeAnalyzer, LLMAnalyzer
 
         env = {
             "CS_LLM_PROVIDER": "openai",
@@ -414,7 +437,7 @@ class TestBuildAnalyzerMetricsParam:
         """When metrics is None (default), provider is NOT wrapped."""
         import os
         from unittest.mock import patch as _patch
-        from clawsentry.gateway.llm_factory import build_analyzer_from_env
+        from clawsentry.gateway.llm.factory import build_analyzer_from_env
 
         env = {
             "CS_LLM_PROVIDER": "openai",
@@ -436,10 +459,10 @@ class TestBuildAnalyzerMetricsParam:
         import os
         from pathlib import Path
         from unittest.mock import patch as _patch
-        from clawsentry.gateway.llm_factory import build_analyzer_from_env
-        from clawsentry.gateway.semantic_analyzer import CompositeAnalyzer
+        from clawsentry.gateway.llm.factory import build_analyzer_from_env
+        from clawsentry.gateway.analysis.semantic_analyzer import CompositeAnalyzer
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             "CS_LLM_PROVIDER": "openai",

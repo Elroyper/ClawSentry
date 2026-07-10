@@ -10,15 +10,15 @@ from unittest.mock import patch
 
 import pytest
 
-from clawsentry.gateway.session_enforcement import (
+from clawsentry.gateway.policy.session_enforcement import (
     EnforcementAction,
     EnforcementState,
     SessionEnforcement,
     SessionEnforcementPolicy,
 )
 from clawsentry.gateway.models import DecisionTier, RiskLevel, SkillRegistryRecord
-from clawsentry.gateway.detection_config import DetectionConfig
-from clawsentry.gateway.semantic_analyzer import L2Result
+from clawsentry.gateway.config.detection_config import DetectionConfig
+from clawsentry.gateway.analysis.semantic_analyzer import L2Result
 from clawsentry.gateway.server import SupervisionGateway
 
 
@@ -111,7 +111,7 @@ class TestSessionEnforcementUnit:
     def test_eviction(self):
         policy = SessionEnforcementPolicy(enabled=True, threshold=1)
         # Reduce max for test
-        import clawsentry.gateway.session_enforcement as mod
+        import clawsentry.gateway.policy.session_enforcement as mod
         original = mod._MAX_TRACKED_SESSIONS
         mod._MAX_TRACKED_SESSIONS = 3
         try:

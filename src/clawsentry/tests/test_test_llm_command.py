@@ -18,7 +18,7 @@ from clawsentry.cli.test_llm_command import (
     run_test_llm,
 )
 from clawsentry.gateway.models import RiskLevel
-from clawsentry.gateway.semantic_analyzer import L2Result
+from clawsentry.gateway.analysis.semantic_analyzer import L2Result
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +35,11 @@ _LLM_ENV_KEYS = [
     "CS_L3_ENABLED",
     "CS_L3_MULTI_TURN",
     "CS_LLM_MAX_TOKENS",
+    "CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS",
+    "CS_LLM_PROVIDER_RETRY_STATUSES",
+    "CS_LLM_PROVIDER_RETRY_BACKOFF_MS",
+    "CS_LLM_PROVIDER_RETRY_JITTER_MS",
+    "CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS",
 ]
 
 
@@ -81,6 +86,25 @@ class TestBuildProvider:
         provider, info = _build_provider()
         assert provider is not None
         assert info["provider"] == "openai"
+
+    def test_explicit_openai_uses_provider_retry_env(self, monkeypatch):
+        monkeypatch.setenv("CS_LLM_PROVIDER", "openai")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key-1234567890abcdef")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS", "2")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_STATUSES", "502,503,504")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_BACKOFF_MS", "15000")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_JITTER_MS", "5000")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS", "90000")
+
+        provider, info = _build_provider()
+
+        assert provider is not None
+        assert info["provider"] == "openai"
+        assert provider._config.retry_max_attempts == 2
+        assert provider._config.retry_statuses == (502, 503, 504)
+        assert provider._config.retry_backoff_ms == 15000
+        assert provider._config.retry_jitter_ms == 5000
+        assert provider._config.retry_min_remaining_ms == 90000
 
     def test_missing_api_key_anthropic(self, monkeypatch):
         monkeypatch.setenv("CS_LLM_PROVIDER", "anthropic")
@@ -189,7 +213,7 @@ class TestL2Probe:
                     confidence=0.95,
                 )
 
-        monkeypatch.setattr("clawsentry.gateway.semantic_analyzer.LLMAnalyzer", FakeAnalyzer)
+        monkeypatch.setattr("clawsentry.gateway.analysis.semantic_analyzer.LLMAnalyzer", FakeAnalyzer)
 
         provider = MagicMock()
         ok, _, _ = asyncio.run(_test_l2(provider, timeout_ms=30000, max_tokens=1024))
@@ -211,7 +235,7 @@ class TestL2Probe:
                     confidence=0.95,
                 )
 
-        monkeypatch.setattr("clawsentry.gateway.semantic_analyzer.LLMAnalyzer", FakeAnalyzer)
+        monkeypatch.setattr("clawsentry.gateway.analysis.semantic_analyzer.LLMAnalyzer", FakeAnalyzer)
 
         provider = MagicMock()
         ok, _, _ = asyncio.run(_test_l2(provider))
@@ -228,7 +252,7 @@ class TestL2Probe:
             )
 
         monkeypatch.setattr(
-            "clawsentry.gateway.semantic_analyzer.LLMAnalyzer.analyze",
+            "clawsentry.gateway.analysis.semantic_analyzer.LLMAnalyzer.analyze",
             fake_analyze,
         )
 
@@ -286,7 +310,7 @@ class TestL3Probe:
                 )
 
         monkeypatch.setenv("CS_L3_ENABLED", "true")
-        monkeypatch.setattr("clawsentry.gateway.agent_analyzer.AgentAnalyzer", FakeAgent)
+        monkeypatch.setattr("clawsentry.gateway.analysis.agent_analyzer.AgentAnalyzer", FakeAgent)
 
         provider = MagicMock()
         ok, _, detail = asyncio.run(_test_l3(provider))
@@ -311,7 +335,7 @@ class TestL3Probe:
             )
 
         monkeypatch.setattr(
-            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            "clawsentry.gateway.analysis.agent_analyzer.AgentAnalyzer.analyze",
             fake_analyze,
         )
 
@@ -337,7 +361,7 @@ class TestL3Probe:
             )
 
         monkeypatch.setattr(
-            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            "clawsentry.gateway.analysis.agent_analyzer.AgentAnalyzer.analyze",
             fake_analyze,
         )
 
@@ -364,7 +388,7 @@ class TestL3Probe:
             )
 
         monkeypatch.setattr(
-            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            "clawsentry.gateway.analysis.agent_analyzer.AgentAnalyzer.analyze",
             fake_analyze,
         )
 
@@ -393,7 +417,7 @@ class TestL3Probe:
             )
 
         monkeypatch.setattr(
-            "clawsentry.gateway.agent_analyzer.AgentAnalyzer.analyze",
+            "clawsentry.gateway.analysis.agent_analyzer.AgentAnalyzer.analyze",
             fake_analyze,
         )
 

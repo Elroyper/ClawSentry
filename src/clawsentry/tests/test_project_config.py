@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from clawsentry.gateway.detection_config import DetectionConfig, PRESETS, build_detection_config_from_env, from_preset
-from clawsentry.gateway.env_config import parse_enabled_frameworks, resolve_effective_config
+from clawsentry.gateway.config.detection_config import DetectionConfig, PRESETS, build_detection_config_from_env, from_preset
+from clawsentry.gateway.config.env_config import parse_enabled_frameworks, resolve_effective_config
 
 
 class TestPresets:

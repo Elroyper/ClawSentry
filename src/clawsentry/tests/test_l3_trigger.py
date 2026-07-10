@@ -1,7 +1,7 @@
 """Tests for L3TriggerPolicy."""
 
-from clawsentry.gateway.command_normalization import matches_shell_command_token
-from clawsentry.gateway.l3_trigger import L3TriggerPolicy
+from clawsentry.gateway.runtime.command_normalization import matches_shell_command_token
+from clawsentry.gateway.l3.trigger import L3TriggerPolicy
 from clawsentry.gateway.models import (
     CanonicalEvent,
     DecisionContext,
@@ -6765,6 +6765,38 @@ def test_secret_harvest_followed_by_python_dash_c_print_subprocess_check_output_
             _history(tool_name="read_file", payload={"path": "/app/.env"}, risk_hints=["credential_access"]),
             _history(tool_name="read_file", payload={"path": "/home/user/.ssh/id_rsa"}, risk_hints=["credential_access"]),
         ],
+    )
+
+    assert reason is None
+
+
+def test_triggers_on_l2_escalation_requested():
+    policy = L3TriggerPolicy()
+    ctx = DecisionContext(session_risk_summary={"l2_escalation_requested": True})
+
+    metadata = policy.trigger_metadata(
+        _evt(tool_name="read_file"),
+        ctx,
+        _snap(RiskLevel.LOW),
+        [],
+    )
+
+    assert metadata == {
+        "trigger_reason": "l2_escalation_requested",
+        "trigger_detail": "l2_uncertain",
+        "source_metadata": {},
+    }
+
+
+def test_l2_escalation_requested_false_does_not_trigger():
+    policy = L3TriggerPolicy()
+    ctx = DecisionContext(session_risk_summary={"l2_escalation_requested": False})
+
+    reason = policy.trigger_reason(
+        _evt(tool_name="read_file"),
+        ctx,
+        _snap(RiskLevel.LOW),
+        [],
     )
 
     assert reason is None

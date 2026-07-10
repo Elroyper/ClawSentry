@@ -909,6 +909,44 @@ def test_skill_trust_register_dir_writes_registry_and_runtime_metadata(
     assert metadata_payload["preflight_actions"][0]["blocked_skills"] == ["search-accommodation"]
 
 
+def test_skill_trust_register_dir_writes_fspr_replay_when_requested(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    skills_dir = tmp_path / "skills"
+    _write_skill(skills_dir / "docs-reader", name="docs-reader")
+    registry = tmp_path / "skill-registry.json"
+    metadata = tmp_path / "skill-trust-raw.json"
+    replay = tmp_path / "fspr_review_replay.md"
+    monkeypatch.setenv("CS_FSPR_REVIEW_REPLAY_PATH", str(replay))
+
+    _run_cli([
+        "skill-trust",
+        "register-dir",
+        "--skills-dir",
+        str(skills_dir),
+        "--registry",
+        str(registry),
+        "--metadata",
+        str(metadata),
+        "--allowed-runtime-parent",
+        "/workspace/.codex/skills",
+        "--json",
+    ])
+    capsys.readouterr()
+
+    text = replay.read_text(encoding="utf-8")
+    assert "### FSPR Call 1: skill_trust_register_dir" in text
+    assert "- role: skill_trust_register_dir" in text
+    assert "#### Prompt" in text
+    assert "#### Response" in text
+    assert str(skills_dir) in text
+    assert str(metadata) in text
+    assert '"record_count": 1' in text
+    assert '"allowed_runtime_parents"' in text
+
+
 def test_skill_trust_register_dir_records_new_skill_transitions(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -940,6 +978,45 @@ def test_skill_trust_register_dir_records_new_skill_transitions(
     assert sorted(event["canonical_skill_id"] for event in payload["transition_events"]) == sorted(
         row["canonical_skill_id"] for row in payload["records"]
     )
+
+
+def test_skill_trust_register_dir_allows_clean_document_workflow_guidance(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    skills_dir = tmp_path / "skills"
+    skill_root = _write_skill(
+        skills_dir / "pptx",
+        name="pptx",
+        body=(
+            "Prefer scripts/thumbnail.py for thumbnails when a quick preview is needed.\n"
+            "Use canonical slide dimensions from the input deck when preserving layout.\n"
+            "If multiple layouts are present, keep the source priority order.\n"
+        ),
+    )
+    (skill_root / "scripts").mkdir()
+    (skill_root / "scripts" / "thumbnail.py").write_text("print('ok')\n", encoding="utf-8")
+    registry = tmp_path / "skill-registry.json"
+    metadata = tmp_path / "skill-trust-raw.json"
+
+    _run_cli([
+        "skill-trust",
+        "register-dir",
+        "--skills-dir",
+        str(skills_dir),
+        "--registry",
+        str(registry),
+        "--metadata",
+        str(metadata),
+        "--json",
+    ])
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    record = payload["records"][0]
+    assert record["canonical_name"] == "pptx"
+    assert record["list_state"] == "allowlist"
+    assert record["status"] in {"trusted", "clean_admission_report"}
+    assert record["source"]["admission_risk"] == "low"
 
 
 def test_skill_trust_register_dir_records_benchmark_runtime_mirrors(

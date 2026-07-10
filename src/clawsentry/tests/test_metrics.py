@@ -16,7 +16,7 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from clawsentry.gateway.metrics import LLMBudgetTracker, MetricsCollector
+from clawsentry.gateway.telemetry.metrics import LLMBudgetTracker, MetricsCollector
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
 from clawsentry.gateway.models import RPC_VERSION
 
@@ -65,7 +65,7 @@ class TestMetricsNoOp:
     """MetricsCollector must be fully functional (no-op) without prometheus_client."""
 
     def test_noop_when_disabled(self):
-        from clawsentry.gateway.metrics import MetricsCollector
+        from clawsentry.gateway.telemetry.metrics import MetricsCollector
         mc = MetricsCollector(enabled=False)
         assert mc.enabled is False
         # All methods should be safe to call
@@ -86,7 +86,7 @@ class TestMetricsNoOp:
 
     def test_noop_when_prometheus_unavailable(self):
         """Simulate prometheus_client not installed."""
-        from clawsentry.gateway import metrics as metrics_mod
+        from clawsentry.gateway.telemetry import metrics as metrics_mod
         original_flag = metrics_mod._PROMETHEUS_AVAILABLE
         try:
             metrics_mod._PROMETHEUS_AVAILABLE = False
@@ -114,7 +114,7 @@ class TestMetricsEnabled:
     """MetricsCollector with prometheus_client available and enabled."""
 
     def _make_collector(self) -> "MetricsCollector":
-        from clawsentry.gateway.metrics import MetricsCollector
+        from clawsentry.gateway.telemetry.metrics import MetricsCollector
         return MetricsCollector(enabled=True)
 
     def test_enabled_flag(self):
@@ -351,25 +351,25 @@ class TestCostEstimation:
     """Module-level _estimate_cost function."""
 
     def test_anthropic_cost(self):
-        from clawsentry.gateway.metrics import _estimate_cost
+        from clawsentry.gateway.telemetry.metrics import _estimate_cost
         cost = _estimate_cost("anthropic", 1_000_000, 1_000_000)
         # anthropic: $3/M input + $15/M output = $18
         assert cost == pytest.approx(18.0, rel=0.01)
 
     def test_openai_cost(self):
-        from clawsentry.gateway.metrics import _estimate_cost
+        from clawsentry.gateway.telemetry.metrics import _estimate_cost
         cost = _estimate_cost("openai", 1_000_000, 1_000_000)
         # openai: $2.5/M input + $10/M output = $12.5
         assert cost == pytest.approx(12.5, rel=0.01)
 
     def test_unknown_provider_cost(self):
-        from clawsentry.gateway.metrics import _estimate_cost
+        from clawsentry.gateway.telemetry.metrics import _estimate_cost
         cost = _estimate_cost("unknown-provider", 1000, 500)
         # fallback: $5/M input + $15/M output
         assert cost > 0
 
     def test_zero_tokens(self):
-        from clawsentry.gateway.metrics import _estimate_cost
+        from clawsentry.gateway.telemetry.metrics import _estimate_cost
         cost = _estimate_cost("anthropic", 0, 0)
         assert cost == 0.0
 

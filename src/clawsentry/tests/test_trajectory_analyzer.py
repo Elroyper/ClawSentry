@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from clawsentry.gateway.trajectory_analyzer import (
+from clawsentry.gateway.analysis.trajectory_analyzer import (
     AttackSequence,
     TrajectoryAnalyzer,
     TrajectoryMatch,

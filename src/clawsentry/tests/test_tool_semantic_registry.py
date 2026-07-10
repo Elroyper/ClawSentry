@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from clawsentry.gateway.tool_permissions import resolve_tool_permission
-from clawsentry.gateway.tool_semantic_registry import (
+from clawsentry.gateway.policy.tool_permissions import resolve_tool_permission
+from clawsentry.gateway.policy.tool_semantic_registry import (
     ToolSemanticRegistry,
     derive_tool_semantics,
 )

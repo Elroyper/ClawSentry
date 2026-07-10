@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from clawsentry.gateway.models import CanonicalEvent, EventType
-from clawsentry.gateway.review_skills import SkillRegistry
+from clawsentry.gateway.review.skills import SkillRegistry
 
 
 def _evt(tool_name=None, payload=None, risk_hints=None) -> CanonicalEvent:

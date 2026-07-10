@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from clawsentry.cli.dotenv_loader import parse_env_file, resolve_explicit_env_file
-from clawsentry.gateway.env_config import (
+from clawsentry.gateway.config.env_config import (
     config_to_child_env,
     parse_enabled_frameworks,
     resolve_effective_config,
@@ -392,6 +392,29 @@ def test_scope_profile_file_deprecated_alias_resolves_from_env_file(tmp_path):
     assert effective.values["scope.profile_file"] == "scope-from-file.json"
     assert effective.sources["scope.profile_file"] == "deprecated-env-file-alias"
     assert effective.source_detail_for("scope.profile_file") == f"{env_file}:1"
+
+
+def test_scope_profile_json_resolves_from_process_env():
+    effective = resolve_effective_config(
+        environ={"CS_SESSION_SCOPE_PROFILE_JSON": '{"scope_version":"cs.session_scope.v1"}'},
+    )
+
+    assert effective.values["scope.profile_json"] == '{"scope_version":"cs.session_scope.v1"}'
+    assert effective.sources["scope.profile_json"] == "process-env"
+
+
+def test_scope_manifest_env_vars_resolve_from_process_env():
+    effective = resolve_effective_config(
+        environ={
+            "CS_SESSION_SCOPE_MANIFEST_JSON": '{"schema":"clawsentry.task_artifact_manifest.v1"}',
+            "CS_SESSION_SCOPE_MANIFEST_FILE": "scope-manifest.json",
+        },
+    )
+
+    assert effective.values["scope.manifest_json"] == '{"schema":"clawsentry.task_artifact_manifest.v1"}'
+    assert effective.sources["scope.manifest_json"] == "process-env"
+    assert effective.values["scope.manifest_file"] == "scope-manifest.json"
+    assert effective.sources["scope.manifest_file"] == "process-env"
 
 
 def test_frameworks_parse_from_env_without_toml(tmp_path):

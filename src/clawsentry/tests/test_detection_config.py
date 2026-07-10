@@ -21,9 +21,10 @@ from unittest.mock import patch
 
 import pytest
 
-from clawsentry.gateway.detection_config import (
+from clawsentry.gateway.config.detection_config import (
     DetectionConfig,
     build_detection_config_from_env,
+    build_detection_config_with_preset,
 )
 from clawsentry.gateway.models import (
     CanonicalEvent,
@@ -34,15 +35,15 @@ from clawsentry.gateway.models import (
     RiskDimensions,
     RiskLevel,
 )
-from clawsentry.gateway.risk_snapshot import (
+from clawsentry.gateway.analysis.risk_snapshot import (
     SessionRiskTracker,
     _composite_score_v2,
     _score_to_risk_level_v2,
     compute_risk_snapshot,
 )
-from clawsentry.gateway.policy_engine import L1PolicyEngine
-from clawsentry.gateway.semantic_analyzer import RuleBasedAnalyzer
-from clawsentry.gateway.post_action_analyzer import PostActionAnalyzer
+from clawsentry.gateway.policy.engine import L1PolicyEngine
+from clawsentry.gateway.analysis.semantic_analyzer import RuleBasedAnalyzer
+from clawsentry.gateway.analysis.post_action_analyzer import PostActionAnalyzer
 
 
 # =========================================================================
@@ -148,6 +149,42 @@ class TestBuildFromEnv:
         with patch.dict(os.environ, {}, clear=True):
             c = build_detection_config_from_env()
         assert c == DetectionConfig()
+
+    def test_benchmark_mode_defaults_keep_key_domain_l2_auto_enabled(self):
+        with patch.dict(os.environ, {"CS_MODE": "benchmark"}, clear=True):
+            c = build_detection_config_from_env()
+
+        assert c.mode == "benchmark"
+        assert c.benchmark_l2_auto_enabled is False
+        assert c.benchmark_medium_l2_auto_enabled is False
+        assert c.benchmark_key_domain_l2_auto_enabled is True
+
+    def test_direct_benchmark_config_defaults_keep_key_domain_l2_auto_enabled(self):
+        c = DetectionConfig(mode="benchmark")
+
+        assert c.benchmark_l2_auto_enabled is False
+        assert c.benchmark_medium_l2_auto_enabled is False
+        assert c.benchmark_key_domain_l2_auto_enabled is True
+
+    def test_benchmark_key_domain_l2_auto_can_be_explicitly_disabled(self):
+        env = {
+            "CS_MODE": "benchmark",
+            "CS_BENCHMARK_KEY_DOMAIN_L2_AUTO_ENABLED": "false",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            c = build_detection_config_from_env()
+
+        assert c.mode == "benchmark"
+        assert c.benchmark_key_domain_l2_auto_enabled is False
+
+    def test_benchmark_preset_defaults_keep_key_domain_l2_auto_enabled(self):
+        with patch.dict(os.environ, {}, clear=True):
+            c = build_detection_config_with_preset("medium", {"mode": "benchmark"})
+
+        assert c.mode == "benchmark"
+        assert c.benchmark_l2_auto_enabled is False
+        assert c.benchmark_medium_l2_auto_enabled is False
+        assert c.benchmark_key_domain_l2_auto_enabled is True
 
     def test_float_parsing(self):
         env = {"CS_THRESHOLD_CRITICAL": "3.5", "CS_D6_INJECTION_MULTIPLIER": "0.8"}
@@ -334,6 +371,8 @@ class TestBuildFromEnv:
             "CS_L3_ADVISORY_ASYNC_ENABLED": "true",
             "CS_L3_HEARTBEAT_REVIEW_ENABLED": "true",
             "CS_BENCHMARK_L2_AUTO_ENABLED": "true",
+            "CS_BENCHMARK_MEDIUM_L2_AUTO_ENABLED": "true",
+            "CS_BENCHMARK_KEY_DOMAIN_L2_AUTO_ENABLED": "true",
             "CS_CAPABILITY_NARROWING_ENABLED": "true",
             "CS_CAPABILITY_NARROWING_TRIGGER_RISK": "critical",
             "CS_CAPABILITY_NARROWING_ALLOWED_TOOL_PERMISSION_GROUPS": "read_only,write",
@@ -378,6 +417,8 @@ class TestBuildFromEnv:
         assert c.l3_advisory_async_enabled is True
         assert c.l3_heartbeat_review_enabled is True
         assert c.benchmark_l2_auto_enabled is True
+        assert c.benchmark_medium_l2_auto_enabled is True
+        assert c.benchmark_key_domain_l2_auto_enabled is True
         assert c.capability_narrowing_enabled is True
         assert c.capability_narrowing_trigger_risk == "critical"
         assert c.capability_narrowing_allowed_tool_permission_groups == ("read_only", "write")
@@ -415,7 +456,7 @@ class TestBuildFromEnv:
             "CS_CAPABILITY_NARROWING_GREYLIST_ACTION": "escalate",
         }
         with patch.dict(os.environ, env, clear=True):
-            with caplog.at_level("WARNING", logger="clawsentry.gateway.detection_config"):
+            with caplog.at_level("WARNING", logger="clawsentry.gateway.config.detection_config"):
                 c = build_detection_config_from_env()
 
         assert c.capability_narrowing_trigger_risk == "high"
@@ -1015,7 +1056,7 @@ class TestEvolvingEnabledWarning:
     def test_unrecognized_value_logs_warning(self, monkeypatch, caplog):
         import logging
         monkeypatch.setenv("CS_EVOLVING_ENABLED", "maybe")
-        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.config.detection_config"):
             config = build_detection_config_from_env()
         assert config.evolving_enabled is False
         assert any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)
@@ -1023,7 +1064,7 @@ class TestEvolvingEnabledWarning:
     def test_valid_true_no_warning(self, monkeypatch, caplog):
         import logging
         monkeypatch.setenv("CS_EVOLVING_ENABLED", "true")
-        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.config.detection_config"):
             config = build_detection_config_from_env()
         assert config.evolving_enabled is True
         assert not any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)
@@ -1031,7 +1072,7 @@ class TestEvolvingEnabledWarning:
     def test_empty_string_no_warning(self, monkeypatch, caplog):
         import logging
         monkeypatch.setenv("CS_EVOLVING_ENABLED", "")
-        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.detection_config"):
+        with caplog.at_level(logging.WARNING, logger="clawsentry.gateway.config.detection_config"):
             config = build_detection_config_from_env()
         assert config.evolving_enabled is False
         assert not any("CS_EVOLVING_ENABLED" in r.message for r in caplog.records)
@@ -1091,6 +1132,6 @@ class TestDeferBridgeConfig:
         assert cfg.defer_bridge_enabled is False
 
     def test_defer_bridge_enabled_low_preset_false(self):
-        from clawsentry.gateway.detection_config import from_preset
+        from clawsentry.gateway.config.detection_config import from_preset
         cfg = from_preset("low")
         assert cfg.defer_bridge_enabled is False

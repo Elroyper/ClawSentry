@@ -37,7 +37,8 @@ def test_tomllib_imports_fall_back_to_tomli() -> None:
         sys.meta_path.insert(0, BlockTomllib())
 
         from clawsentry.cli.initializers import codex
-        from clawsentry.gateway import first_use_skill_review, review_toolkit
+        from clawsentry.gateway import first_use_skill_review
+        from clawsentry.gateway.review import toolkit as review_toolkit
 
         assert codex.tomllib.loads("x") == {"fallback": True}
         assert review_toolkit.tomllib.loads("x") == {"fallback": True}

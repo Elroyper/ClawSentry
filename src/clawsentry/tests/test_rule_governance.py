@@ -4,7 +4,7 @@ import json
 import textwrap
 from pathlib import Path
 
-from clawsentry.gateway.rule_governance import dry_run_rule_governance, load_rule_governance
+from clawsentry.gateway.rules.rule_governance import dry_run_rule_governance, load_rule_governance
 
 
 def _write_text(path: Path, body: str) -> None:

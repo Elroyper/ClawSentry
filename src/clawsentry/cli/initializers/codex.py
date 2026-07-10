@@ -21,7 +21,7 @@ _CODEX_HOOK_EVENTS: tuple[tuple[str, str | None, str], ...] = (
     ("SessionStart", "startup|resume|clear", "ClawSentry Codex session monitor"),
     ("UserPromptSubmit", None, "ClawSentry prompt review"),
     ("PreToolUse", "Bash", "ClawSentry Bash preflight"),
-    ("PreToolUse", _CODEX_NON_BASH_TOOL_MATCHER, "ClawSentry tool preflight observer"),
+    ("PreToolUse", _CODEX_NON_BASH_TOOL_MATCHER, "ClawSentry tool preflight"),
     ("PermissionRequest", "Bash", "ClawSentry approval gate"),
     ("PermissionRequest", _CODEX_NON_BASH_TOOL_MATCHER, "ClawSentry approval gate"),
     ("PostToolUse", "Bash", "ClawSentry tool review"),
@@ -569,10 +569,7 @@ def _build_codex_hook_entry(
 ) -> dict[str, Any]:
     command = (
         _CODEX_HOOK_COMMAND_SYNC
-        if (
-            (event_name == "PreToolUse" and matcher == "Bash")
-            or event_name == "PermissionRequest"
-        )
+        if event_name in {"PreToolUse", "PermissionRequest"}
         else _CODEX_HOOK_COMMAND_ASYNC
     )
     entry: dict[str, Any] = {

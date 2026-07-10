@@ -10,8 +10,8 @@ import time
 
 import pytest
 
-from clawsentry.gateway.agent_analyzer import AgentAnalyzer
-from clawsentry.gateway.l3_runtime import build_l3_runtime_info
+from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
+from clawsentry.gateway.l3.runtime import build_l3_runtime_info
 from clawsentry.gateway.models import (
     CanonicalEvent,
     ContentEvidenceEnvelope,
@@ -29,9 +29,10 @@ from clawsentry.gateway.models import (
     ReviewRoutingIntent,
     SessionScopeBaseRules,
     SessionScopeProfile,
+    SessionScopeTaskArtifactRule,
     SkillTrustContext,
 )
-from clawsentry.gateway.risk_snapshot import (
+from clawsentry.gateway.analysis.risk_snapshot import (
     SessionRiskTracker,
     compute_risk_snapshot,
     _composite_score_v2,
@@ -42,9 +43,9 @@ from clawsentry.gateway.risk_snapshot import (
     _score_d3,
     _score_d5,
 )
-from clawsentry.gateway.policy_engine import L1PolicyEngine, make_fallback_decision
-from clawsentry.gateway.semantic_analyzer import L2Result
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.policy.engine import L1PolicyEngine, make_fallback_decision
+from clawsentry.gateway.analysis.semantic_analyzer import L2Result
+from clawsentry.gateway.config.detection_config import DetectionConfig
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +159,17 @@ def test_fspr_suspicious_normal_generates_l3_audit_routing_intent():
 def test_fspr_summary_is_audit_only_without_package_review():
     context = DecisionContext(
         skill_trust=SkillTrustContext(
+            registry_status="matched",
+            canonical_skill_id="skill:budget-helper",
+            presented_name="budget-helper",
+            admission_risk="low",
+            trust_list_state="allowlist",
+            runtime_path_status="verified_source",
+            runtime_content_status="content_verified",
+            metadata_source="gateway_owned_metadata",
+            metadata_record_id="sha256:record",
+            runtime_evidence_kind="shell_skill_path",
+            policy_fingerprint="sha256:policy",
             fspr_review_summary={
                 "schema": "clawsentry.fspr_review_summary.v1",
                 "enabled": True,
@@ -183,6 +195,15 @@ def test_fspr_summary_is_audit_only_without_package_review():
     assert summary_findings
     assert all(item["decision_affecting"] is False for item in summary_findings)
     assert all(intent.source != "fspr_package_review" for intent in snapshot.routing_intents)
+    summary = summary_findings[0]
+    assert summary["metadata_source"] == "gateway_owned_metadata"
+    assert summary["metadata_record_id"] == "sha256:record"
+    assert summary["runtime_path_status"] == "verified_source"
+    assert summary["runtime_content_status"] == "content_verified"
+    assert summary["runtime_evidence_kind"] == "shell_skill_path"
+    assert summary["policy_fingerprint"] == "sha256:policy"
+    assert summary["trust_list_state"] == "allowlist"
+    assert summary["admission_risk"] == "low"
 
 
 def test_password_zip_creation_has_dedicated_rule_and_blocks_benchmark():
@@ -633,6 +654,18 @@ class TestD1:
     def test_bash_safe_command(self):
         assert _score_d1(_evt(tool_name="bash", payload={"command": "ls -la"})) == 2
 
+    def test_bash_absolute_system_executable_is_not_itself_system_path_access(self):
+        assert _score_d1(_evt(
+            tool_name="bash",
+            payload={"command": "/usr/bin/touch /root/compression_report.json"},
+        )) == 2
+
+    def test_bash_absolute_system_executable_with_sensitive_argument_stays_high(self):
+        assert _score_d1(_evt(
+            tool_name="bash",
+            payload={"command": "/usr/bin/touch /etc/passwd"},
+        )) == 3
+
     def test_bash_dangerous_command(self):
         assert _score_d1(_evt(tool_name="bash", payload={"command": "rm -rf /"})) == 3
 
@@ -658,6 +691,12 @@ class TestD2:
     def test_credential_path(self):
         assert _score_d2(_evt(payload={"path": "/home/user/.ssh/id_rsa"})) == 2
         assert _score_d2(_evt(payload={"path": "server.pem"})) == 2
+        assert _score_d2(_evt(payload={"path": "api_token.txt"})) == 2
+
+    def test_dotted_module_member_is_not_credential_path(self):
+        assert _score_d2(_evt(payload={"path": "tokenize.tokenize"})) == 0
+        assert _score_d2(_evt(payload={"path": "passwordless.txt"})) == 0
+        assert _score_d2(_evt(payload={"path": "notid_rsa.txt"})) == 0
 
     def test_extended_credential_path_alignment(self):
         assert _score_d2(_evt(payload={"path": "/secure/client.keystore"})) == 2
@@ -676,6 +715,17 @@ class TestD2:
 
     def test_command_path_extraction(self):
         evt = _evt(tool_name="bash", payload={"command": "cat /etc/hosts"})
+        assert _score_d2(evt) == 3
+
+    def test_command_path_extraction_ignores_absolute_system_executable_token(self):
+        evt = _evt(
+            tool_name="bash",
+            payload={"command": "/usr/bin/touch /root/compression_report.json"},
+        )
+        assert _score_d2(evt) == 0
+
+    def test_command_path_extraction_keeps_sensitive_argument_after_absolute_executable(self):
+        evt = _evt(tool_name="bash", payload={"command": "/usr/bin/touch /etc/passwd"})
         assert _score_d2(evt) == 3
 
 
@@ -1108,6 +1158,70 @@ class TestL1PolicyEngine:
         assert intent.decision_affecting is False
         assert decision.decision in {DecisionVerdict.ALLOW, DecisionVerdict.DEFER}
 
+    def test_read_content_source_authority_override_benchmark_is_decision_affecting(self):
+        engine = L1PolicyEngine(config=DetectionConfig(mode="benchmark"))
+        evt = _evt(tool_name="Read", payload={"file_path": "/app/data/reviewed_note.md"})
+
+        decision, snap, _tier = engine.evaluate(
+            evt,
+            _content_evidence_ctx("read_content_source_authority_override", kind="read_content"),
+        )
+
+        assert "read_content_source_authority_override" in snap.rule_hits
+        intent = next(item for item in snap.routing_intents if item.source == "content_evidence")
+        assert intent.policy_action == "defer"
+        assert intent.decision_affecting is True
+        assert decision.decision in {DecisionVerdict.DEFER, DecisionVerdict.BLOCK}
+
+    def test_read_content_static_path_set_incomplete_benchmark_is_decision_affecting(self):
+        engine = L1PolicyEngine(config=DetectionConfig(mode="benchmark"))
+        evt = _evt(tool_name="bash", payload={"command": "python3 - <<'PY'\n...\nPY"})
+
+        decision, snap, _tier = engine.evaluate(
+            evt,
+            _content_evidence_ctx("read_content_static_path_set_incomplete", kind="read_content"),
+        )
+
+        assert "read_content_static_path_set_incomplete" in snap.rule_hits
+        intent = next(item for item in snap.routing_intents if item.source == "content_evidence")
+        assert intent.policy_action == "defer"
+        assert intent.decision_affecting is True
+        assert decision.decision in {DecisionVerdict.DEFER, DecisionVerdict.BLOCK}
+
+    def test_scope_allow_does_not_relax_decision_affecting_read_content_evidence(self):
+        engine = L1PolicyEngine(config=DetectionConfig(mode="benchmark"))
+        evt = _evt("bash", {"command": "cat /app/data/addendum.md"})
+        context = _content_evidence_ctx(
+            "read_content_source_authority_override",
+            kind="read_content",
+        ).model_copy(update={
+            "session_scope_profile": SessionScopeProfile(
+                profile_id="task-data-profile",
+                confirmed=True,
+                dry_run=False,
+                task_artifacts=[
+                    SessionScopeTaskArtifactRule(
+                        artifact_role="task_data",
+                        paths=["/app/data"],
+                        match_type="prefix",
+                        allowed_effects=["filesystem.read", "filesystem.enumerate"],
+                        source="project_template",
+                        source_tier="risk_adjusting",
+                        confidence="high",
+                        artifact_trust_confirmed=True,
+                    ),
+                ],
+            )
+        })
+
+        decision, snap, _tier = engine.evaluate(evt, context)
+
+        assert "read_content_source_authority_override" in snap.rule_hits
+        assert decision.decision == DecisionVerdict.DEFER
+        assert decision.policy_id != "session-scope"
+        assert decision.scope_evaluation is not None
+        assert "scope_allow:task_data_readonly" in decision.scope_evaluation.reason_codes
+
     def test_policy_matrix_read_content_modes_are_stable(self):
         evt = _evt(tool_name="Read", payload={"file_path": "README.md"})
         expected = {
@@ -1127,6 +1241,29 @@ class TestL1PolicyEngine:
             assert intent.recommended_tier == tier
             assert intent.routing_affecting is routing_affecting
             assert intent.decision_affecting is decision_affecting
+
+    @pytest.mark.parametrize(
+        "rule_id",
+        [
+            "read_content_oversize",
+            "read_content_unsupported_binary",
+            "read_content_visible_slice_incomplete",
+        ],
+    )
+    def test_read_content_size_or_binary_status_is_not_decision_affecting_by_itself(self, rule_id):
+        evt = _evt(tool_name="bash", payload={"command": "cat /app/data/large.csv > /dev/null"})
+
+        decision, snap, _tier = L1PolicyEngine(config=DetectionConfig(mode="benchmark")).evaluate(
+            evt,
+            _content_evidence_ctx(rule_id, kind="read_content"),
+        )
+
+        assert rule_id in snap.rule_hits
+        assert not any(
+            intent.source == "content_evidence" and intent.decision_affecting
+            for intent in snap.routing_intents
+        )
+        assert decision.decision != DecisionVerdict.BLOCK
 
     def test_post_action_always_allow(self):
         engine = L1PolicyEngine()
@@ -1271,7 +1408,10 @@ class TestL1PolicyEngine:
                 raise AssertionError("benchmark automatic L2 should be disabled")
 
         engine = L1PolicyEngine(analyzer=ExplodingAnalyzer())
-        evt = _evt(tool_name="bash", payload={"command": "echo hello"})
+        evt = _evt(
+            tool_name="bash",
+            payload={"command": "python scripts/process.py", "cwd": "/workspace/project"},
+        )
 
         decision, snapshot, tier = engine.evaluate(
             evt,
@@ -1288,7 +1428,7 @@ class TestL1PolicyEngine:
             "mode": "benchmark",
         }
 
-    def test_benchmark_mode_can_explicitly_enable_automatic_l2(self):
+    def test_benchmark_mode_legacy_flag_can_enable_medium_and_key_domain_automatic_l2(self):
         class SpyAnalyzer:
             analyzer_id = "benchmark-l2"
 
@@ -1306,16 +1446,228 @@ class TestL1PolicyEngine:
 
         analyzer = SpyAnalyzer()
         engine = L1PolicyEngine(analyzer=analyzer)
-        evt = _evt(tool_name="bash", payload={"command": "echo hello"})
+        evt = _evt(
+            tool_name="bash",
+            payload={"command": "python scripts/process.py", "cwd": "/workspace/project"},
+        )
+
+        key_domain_evt = _evt(
+            tool_name="read_file",
+            payload={"path": "/workspace/project/token-notes.md"},
+        )
 
         _decision, _snapshot, tier = engine.evaluate(
             evt,
             _ctx(AgentTrustLevel.STANDARD),
             config=DetectionConfig(mode="benchmark", benchmark_l2_auto_enabled=True),
         )
+        _key_decision, _key_snapshot, key_tier = engine.evaluate(
+            key_domain_evt,
+            _ctx(AgentTrustLevel.PRIVILEGED),
+            config=DetectionConfig(mode="benchmark", benchmark_l2_auto_enabled=True),
+        )
 
         assert analyzer.called is True
         assert tier == DecisionTier.L2
+        assert key_tier == DecisionTier.L2
+
+    def test_benchmark_split_auto_l2_keeps_medium_l1_but_routes_key_domain(self):
+        class SpyAnalyzer:
+            analyzer_id = "benchmark-l2"
+
+            def __init__(self):
+                self.calls = 0
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                self.calls += 1
+                return L2Result(
+                    target_level=l1_snapshot.risk_level,
+                    reasons=["benchmark split l2 enabled"],
+                    confidence=0.5,
+                    analyzer_id=self.analyzer_id,
+                )
+
+        analyzer = SpyAnalyzer()
+        engine = L1PolicyEngine(
+            analyzer=analyzer,
+            config=DetectionConfig(
+                mode="benchmark",
+                benchmark_medium_l2_auto_enabled=False,
+                benchmark_key_domain_l2_auto_enabled=True,
+            ),
+        )
+        medium_evt = _evt(
+            tool_name="bash",
+            payload={"command": "python scripts/process.py", "cwd": "/workspace/project"},
+        )
+        medium_key_domain_evt = _evt(
+            tool_name="bash",
+            payload={"command": "cat /workspace/project/token-notes.md", "cwd": "/workspace/project"},
+        )
+        key_domain_evt = _evt(
+            tool_name="read_file",
+            payload={"path": "/workspace/project/token-notes.md"},
+        )
+
+        _medium_decision, medium_snapshot, medium_tier = engine.evaluate(
+            medium_evt,
+            _ctx(AgentTrustLevel.STANDARD),
+        )
+        _key_decision, key_snapshot, key_tier = engine.evaluate(
+            key_domain_evt,
+            _ctx(AgentTrustLevel.PRIVILEGED),
+        )
+        _medium_key_decision, medium_key_snapshot, medium_key_tier = engine.evaluate(
+            medium_key_domain_evt,
+            _ctx(AgentTrustLevel.STANDARD),
+        )
+
+        assert medium_tier == DecisionTier.L1
+        assert medium_snapshot.l2_l3_summary == {
+            "disabled_reason": "benchmark_auto_l2_disabled",
+            "would_trigger": "medium_pre_action",
+            "mode": "benchmark",
+        }
+        assert key_tier == DecisionTier.L2
+        assert key_snapshot.l2_l3_summary["status"] == "completed"
+        assert key_snapshot.l2_l3_summary["analyzer_id"] == "benchmark-l2"
+        assert medium_key_tier == DecisionTier.L2
+        assert medium_key_snapshot.l2_l3_summary["status"] == "completed"
+        assert medium_key_snapshot.l2_l3_summary["analyzer_id"] == "benchmark-l2"
+        assert analyzer.calls == 2
+
+    @pytest.mark.parametrize(
+        "command,expected_role,expected_relation",
+        [
+            ("cat /workspace/project/README.md", "workspace_file", "inside_workspace"),
+            ("ls /workspace/project", "workspace_directory", "inside_workspace"),
+            ("cat /app/data/task.json", "benchmark_task_data_read", "benchmark_task_data"),
+            ("pwd", "capability_probe", "process_environment"),
+        ],
+    )
+    def test_benchmark_auto_l2_preserves_safe_readonly_l1_fast_path(
+        self,
+        command,
+        expected_role,
+        expected_relation,
+    ):
+        class ExplodingAnalyzer:
+            analyzer_id = "must-not-run"
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                raise AssertionError("safe read-only fast path should not run L2")
+
+        engine = L1PolicyEngine(
+            analyzer=ExplodingAnalyzer(),
+            config=DetectionConfig(
+                mode="benchmark",
+                benchmark_medium_l2_auto_enabled=False,
+                benchmark_key_domain_l2_auto_enabled=True,
+                d4_high_threshold=3,
+            ),
+        )
+        for _ in range(3):
+            engine.session_tracker.record_high_risk_event("sess-readonly")
+        evt = _evt(
+            tool_name="bash",
+            payload={"command": command, "cwd": "/workspace/project"},
+            session_id="sess-readonly",
+        )
+
+        decision, snapshot, tier = engine.evaluate(
+            evt,
+            _ctx(AgentTrustLevel.STANDARD),
+        )
+
+        assert tier == DecisionTier.L1
+        assert decision.decision == DecisionVerdict.ALLOW
+        assert snapshot.risk_level == RiskLevel.MEDIUM
+        assert snapshot.l2_l3_summary == {
+            "status": "readonly_fast_path",
+            "skipped_trigger": "medium_pre_action",
+            "actual_tier": DecisionTier.L1.value,
+        }
+        assert snapshot.effect_summary["effects"]
+        assert set(snapshot.effect_summary["effects"]).issubset({
+            "filesystem.read",
+            "filesystem.enumerate",
+            "environment.probe",
+        })
+        assert any(
+            target.get("path_role") == expected_role
+            and target.get("workspace_relation") == expected_relation
+            for target in snapshot.effect_summary["targets"]
+        )
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cat /workspace/project/.env",
+            "cat /app/data/hidden_oracle/answer.txt",
+            "find /workspace/project -exec cat {} \\;",
+            "cat ../outside.txt",
+        ],
+    )
+    def test_benchmark_auto_l2_readonly_fast_path_rejects_sensitive_targets(
+        self,
+        command,
+    ):
+        class SpyAnalyzer:
+            analyzer_id = "benchmark-l2"
+
+            def __init__(self):
+                self.called = False
+
+            async def analyze(self, event, context, l1_snapshot, budget_ms):
+                self.called = True
+                return L2Result(
+                    target_level=l1_snapshot.risk_level,
+                    reasons=["not a safe read-only fast path"],
+                    confidence=0.5,
+                    analyzer_id=self.analyzer_id,
+                )
+
+        analyzer = SpyAnalyzer()
+        engine = L1PolicyEngine(
+            analyzer=analyzer,
+            config=DetectionConfig(
+                mode="benchmark",
+                benchmark_l2_auto_enabled=True,
+                d4_high_threshold=3,
+            ),
+        )
+        for _ in range(3):
+            engine.session_tracker.record_high_risk_event("sess-sensitive-read")
+        evt = _evt(
+            tool_name="bash",
+            payload={"command": command, "cwd": "/workspace/project"},
+            session_id="sess-sensitive-read",
+        )
+
+        decision, snapshot, tier = engine.evaluate(
+            evt,
+            _ctx(AgentTrustLevel.STANDARD),
+        )
+
+        assert snapshot.l2_l3_summary.get("status") != "readonly_fast_path"
+        if analyzer.called:
+            assert tier == DecisionTier.L2
+            # A sensitive target may reach L2 either through the normal contextual
+            # route ("completed") or, when a CLI wrapper hides the read semantics
+            # so only wrapper_chain_unresolved surfaces, through the unresolved-
+            # analysis escalation. Either way the L2 analyzer keeps the risk and
+            # the action must not be allowed onto the fast path.
+            assert snapshot.l2_l3_summary["status"] in {
+                "completed",
+                "contextual_review_failed_closed",
+            }
+            if snapshot.l2_l3_summary["status"] == "completed":
+                assert snapshot.l2_l3_summary["analyzer_id"] == "benchmark-l2"
+            else:
+                assert decision.decision == DecisionVerdict.BLOCK
+        else:
+            assert tier == DecisionTier.L1
+            assert decision.decision == DecisionVerdict.BLOCK
 
     def test_requested_l3_tier_returns_l3_actual_tier(self):
         class L3Analyzer:
@@ -1957,7 +2309,7 @@ class TestL2ExceptionFallback:
             async def analyze(self, event, context, l1_snapshot, budget_ms):
                 await asyncio.sleep(999)
 
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         config = DetectionConfig(l2_budget_ms=50)  # 50ms timeout
         engine = L1PolicyEngine(analyzer=SlowAnalyzer(), config=config)
         event = _evt(
@@ -2015,7 +2367,7 @@ class TestDangerousToolsConsistency:
     """M3: mount should be in DANGEROUS_TOOLS."""
 
     def test_mount_in_dangerous_tools(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         assert "mount" in DANGEROUS_TOOLS
 
 
@@ -2118,7 +2470,7 @@ class TestL2AsyncContextPath:
         import asyncio
         from unittest.mock import AsyncMock
 
-        from clawsentry.gateway.semantic_analyzer import L2Result
+        from clawsentry.gateway.analysis.semantic_analyzer import L2Result
 
         mock_analyzer = AsyncMock()
         mock_analyzer.analyzer_id = "mock-l2"
@@ -2146,7 +2498,7 @@ class TestL2AsyncContextPath:
         """When no running event loop exists, L2 analysis uses asyncio.run directly."""
         from unittest.mock import AsyncMock
 
-        from clawsentry.gateway.semantic_analyzer import L2Result
+        from clawsentry.gateway.analysis.semantic_analyzer import L2Result
 
         mock_analyzer = AsyncMock()
         mock_analyzer.analyzer_id = "mock-l2"
@@ -2181,38 +2533,38 @@ class TestDangerousToolsExpanded:
     """DANGEROUS_TOOLS expanded to 50+ cross-platform entries."""
 
     def test_count_at_least_50(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         assert len(DANGEROUS_TOOLS) >= 50, (
             f"Expected >= 50 entries in DANGEROUS_TOOLS, got {len(DANGEROUS_TOOLS)}"
         )
 
     def test_shells_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("bash", "sh", "zsh", "ksh", "dash", "powershell", "cmd"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
     def test_privilege_tools_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("sudo", "su", "pkexec", "doas", "runas"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
     def test_macos_tools_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("launchctl", "diskutil", "pmset", "dscl", "security", "codesign"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
     def test_windows_tools_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("wmic", "reg", "schtasks", "netsh", "icacls", "diskpart", "msiexec", "rundll32"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
     def test_network_tools_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("nc", "ncat", "netcat", "socat", "telnet", "ssh", "ftp"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
     def test_persistence_tools_present(self):
-        from clawsentry.gateway.risk_snapshot import DANGEROUS_TOOLS
+        from clawsentry.gateway.analysis.risk_snapshot import DANGEROUS_TOOLS
         for tool in ("cron", "crontab", "systemctl"):
             assert tool in DANGEROUS_TOOLS, f"{tool!r} missing from DANGEROUS_TOOLS"
 
@@ -2273,7 +2625,7 @@ class TestD3NewHighDangerPatterns:
         # Should not return 3 due to iptables flush pattern specifically
         # (may still be 2 from unknown command fallback, but NOT due to the flush pattern)
         # We only assert it doesn't trigger the flush pattern by checking no HIGH_DANGER match
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("iptables -A INPUT -p tcp --dport 80 -j ACCEPT")
 
     def test_ufw_disable(self):
@@ -2347,7 +2699,7 @@ class TestD3PotentialDestructivePatterns:
 
     def test_launchctl_load_not_matched(self):
         """launchctl load (not unload/disable) should not trigger d3=2 via this pattern."""
-        from clawsentry.gateway.risk_snapshot import _D3_POTENTIAL_DESTRUCTIVE_PATTERNS
+        from clawsentry.gateway.analysis.risk_snapshot import _D3_POTENTIAL_DESTRUCTIVE_PATTERNS
         cmd = "launchctl load /Library/LaunchDaemons/com.example.plist"
         for pat in _D3_POTENTIAL_DESTRUCTIVE_PATTERNS:
             assert not pat.search(cmd), f"Pattern {pat.pattern!r} unexpectedly matched launchctl load"
@@ -2361,50 +2713,50 @@ class TestReviewD1Sync:
     """R-10: Verify expanded DANGEROUS_TOOLS score D1=3."""
 
     def test_netcat_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="netcat")
         assert _score_d1(evt) == 3
 
     def test_powershell_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="powershell")
         assert _score_d1(evt) == 3
 
     def test_wmic_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="wmic")
         assert _score_d1(evt) == 3
 
     def test_socat_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="socat")
         assert _score_d1(evt) == 3
 
     def test_crontab_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="crontab")
         assert _score_d1(evt) == 3
 
     def test_systemctl_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="systemctl")
         assert _score_d1(evt) == 3
 
     def test_schtasks_scores_d1_3(self):
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="schtasks")
         assert _score_d1(evt) == 3
 
     def test_bash_still_analyzed_not_just_d1_3(self):
         """bash is in DANGEROUS_TOOLS but should still go through command analysis."""
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         # bash with safe command should be D1=2 (not blindly D1=3)
         evt = _evt(tool_name="bash", payload={"command": "ls -la"})
         assert _score_d1(evt) == 2
 
     def test_shell_still_analyzed_not_just_d1_3(self):
         """shell is in DANGEROUS_TOOLS but should still go through command analysis."""
-        from clawsentry.gateway.risk_snapshot import _score_d1
+        from clawsentry.gateway.analysis.risk_snapshot import _score_d1
         evt = _evt(tool_name="shell", payload={"command": "echo hello"})
         assert _score_d1(evt) == 2
 
@@ -2418,49 +2770,49 @@ class TestReviewD3FalsePositives:
 
     # R-11: dd pattern — require device target
     def test_dd_date_format_no_fp(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("echo dd-mm-yyyy")
 
     def test_dd_variable_no_fp(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("DD=data; echo $DD")
 
     def test_dd_with_device_target_detects(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("dd if=/dev/zero of=/dev/sda bs=1M")
 
     def test_dd_with_dev_null_output(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("dd if=backup.img of=/dev/sdb")
 
     # R-12: rm -f /var/log/ — only match recursive
     def test_rm_f_log_rotation_no_fp(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("rm -f /var/log/nginx/access.log.1")
 
     def test_rm_f_single_log_no_fp(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("rm -f /var/log/auth.log")
 
     def test_rm_rf_var_log_still_detects(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("rm -rf /var/log/")
 
     def test_rm_rf_var_log_alternate_flag_order(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("rm -fr /var/log/")
 
     # R-13: iptables -Z (counter reset) is not dangerous
     def test_iptables_zero_counters_no_d3_3(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert not _has_dangerous_command_pattern("iptables -Z")
 
     def test_iptables_flush_still_detects(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("iptables -F")
 
     def test_iptables_delete_chains_still_detects(self):
-        from clawsentry.gateway.risk_snapshot import _has_dangerous_command_pattern
+        from clawsentry.gateway.analysis.risk_snapshot import _has_dangerous_command_pattern
         assert _has_dangerous_command_pattern("iptables -X")
 
 
@@ -2574,6 +2926,45 @@ class TestScopePhase1RiskBaseline:
         assert decision.decision == DecisionVerdict.BLOCK
         assert snapshot.taint_flow_summary is not None
         assert "remote_fetch_to_interpreter" in snapshot.taint_flow_summary["rule_ids"]
+
+    def test_python_startup_task_data_sitecustomize_blocks_benchmark(self):
+        engine = L1PolicyEngine(config=DetectionConfig(mode="benchmark"))
+        event = _evt(
+            tool_name="bash",
+            payload={"command": "python3 -m json.tool /root/answer.json", "cwd": "/root"},
+        )
+        context = DecisionContext(
+            agent_trust_level=AgentTrustLevel.STANDARD,
+            session_scope_profile=SessionScopeProfile(
+                profile_id="scope-python-startup-hook",
+                source="project_template",
+                confirmed=True,
+                dry_run=False,
+                task_artifacts=[
+                    SessionScopeTaskArtifactRule(
+                        artifact_role="task_data",
+                        paths=["/root/sitecustomize.py"],
+                        source="runner_dockerfile",
+                        source_tier="audit_only",
+                        confidence="medium",
+                        artifact_trust_confirmed=False,
+                        match_type="exact",
+                        allowed_effects=["filesystem.read", "filesystem.enumerate"],
+                        case_id="case-python-startup-hook",
+                    )
+                ],
+            ),
+        )
+
+        decision, snapshot, _tier = engine.evaluate(event, context)
+
+        assert "python_implicit_sitecustomize" in snapshot.rule_hits
+        assert decision.decision == DecisionVerdict.BLOCK
+        assert decision.policy_id != "session-scope"
+        assert snapshot.effect_summary is not None
+        assert {"command.exec", "filesystem.read"}.issubset(
+            set(snapshot.effect_summary["effects"])
+        )
 
     def test_persistence_entrypoint_write_has_structured_taint_summary(self):
         engine = L1PolicyEngine()
@@ -2814,7 +3205,7 @@ class TestScopePhase1RiskBaseline:
         assert "spreadsheet_downstream_payload" in snapshot.rule_hits
 
     def test_spreadsheet_taint_rule_does_not_match_benchmark_rd_labels(self):
-        from clawsentry.gateway import risk_snapshot
+        from clawsentry.gateway.analysis import risk_snapshot
 
         assert "RD" not in risk_snapshot._TAINT_SPREADSHEET_HIDDEN_OR_CACHE.pattern
 

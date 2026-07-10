@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from clawsentry.gateway.defer_manager import DeferManager
+from clawsentry.gateway.policy.defer_manager import DeferManager
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
 from clawsentry.gateway.stack import add_resolve_endpoint, _build_openclaw_runtime
 

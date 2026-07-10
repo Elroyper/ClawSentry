@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from clawsentry.gateway.l3_advisory_worker import (
+from clawsentry.gateway.l3.advisory_worker import (
     FakeLLMAdvisoryWorker,
     FakeProviderAdvisoryWorker,
     LLMProviderBridgeAdvisoryProvider,
@@ -19,7 +19,7 @@ from clawsentry.gateway.l3_advisory_worker import (
     resolve_l3_advisory_provider_config,
     run_l3_advisory_worker_job,
 )
-from clawsentry.gateway.trajectory_store import TrajectoryStore
+from clawsentry.gateway.storage.trajectory_store import TrajectoryStore
 from clawsentry.tests.test_l3_advisory_foundation import _record
 
 
@@ -309,6 +309,31 @@ def test_provider_builder_preserves_explicit_dry_run_disable() -> None:
     assert isinstance(provider, LLMProviderBridgeAdvisoryProvider)
     assert provider.config.dry_run is False
     assert provider.config.temperature == 1.0
+
+
+def test_provider_builder_uses_global_provider_retry_env(monkeypatch) -> None:
+    monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_STATUSES", "502,503,504")
+    monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_BACKOFF_MS", "15000")
+    monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_JITTER_MS", "5000")
+    monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS", "90000")
+
+    provider = build_l3_advisory_provider(
+        LLMAdvisoryProviderConfig(
+            enabled=True,
+            provider="openai",
+            model="gpt-advisory",
+            api_key="sk-test",
+            dry_run=False,
+        )
+    )
+
+    assert isinstance(provider, LLMProviderBridgeAdvisoryProvider)
+    assert provider.provider._config.retry_max_attempts == 2
+    assert provider.provider._config.retry_statuses == (502, 503, 504)
+    assert provider.provider._config.retry_backoff_ms == 15000
+    assert provider.provider._config.retry_jitter_ms == 5000
+    assert provider.provider._config.retry_min_remaining_ms == 90000
 
 
 def test_llm_provider_worker_degrades_when_provider_disabled() -> None:

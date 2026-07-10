@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from clawsentry.gateway.injection_detector import (
+from clawsentry.gateway.analysis.injection_detector import (
     InjectionDetector,
     STRONG_INJECTION_PATTERNS,
     TOOL_SPECIFIC_PATTERNS,
@@ -299,7 +299,7 @@ class TestB1RegexWordOrderFix:
 # E-4 Phase 2: Layer 3 Vector Similarity Interface
 # ===================================================================
 
-from clawsentry.gateway.injection_detector import EmbeddingBackend, VectorLayer
+from clawsentry.gateway.analysis.injection_detector import EmbeddingBackend, VectorLayer
 
 
 class FakeEmbeddingBackend:
@@ -378,13 +378,13 @@ class TestScoreLayer1TypeSafety:
     """LOW: score_layer1 should accept None for tool_name."""
 
     def test_none_tool_name_accepted(self):
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
         score = score_layer1("some normal text", None)
         assert isinstance(score, float)
         assert score >= 0.0
 
     def test_default_tool_name_is_none(self):
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
         score = score_layer1("some normal text")
         assert isinstance(score, float)
 
@@ -420,7 +420,7 @@ class TestTruncationBoundary:
     """C1: 64KB 截断边界 — 载荷在边界内被检测，边界外被截断（已知限制）。"""
 
     def test_payload_within_64kb_detected(self):
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
 
         padding = "A" * 65_000
         text = padding + 'eval("x")'  # 总长 ~65009, 在 65536 内
@@ -428,7 +428,7 @@ class TestTruncationBoundary:
 
     def test_payload_beyond_64kb_truncated(self):
         """载荷在 64KB 之后被截断 — 记录已知限制。"""
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
 
         padding = "A" * 65_536
         text = padding + 'eval("x")'  # 载荷在 64KB 之后
@@ -439,7 +439,7 @@ class TestVectorLayerThresholdBoundary:
     """H1: VectorLayer threshold=1.0 时除零 + 阈值边界包含性。"""
 
     def test_threshold_1_0_returns_zero_no_crash(self):
-        from clawsentry.gateway.injection_detector import VectorLayer
+        from clawsentry.gateway.analysis.injection_detector import VectorLayer
 
         class FixedBackend:
             def max_similarity(self, text):
@@ -451,7 +451,7 @@ class TestVectorLayerThresholdBoundary:
         assert layer.score("test") == 0.0
 
     def test_similarity_at_exact_threshold_returns_zero(self):
-        from clawsentry.gateway.injection_detector import VectorLayer
+        from clawsentry.gateway.analysis.injection_detector import VectorLayer
 
         class FixedBackend:
             def max_similarity(self, text):
@@ -462,7 +462,7 @@ class TestVectorLayerThresholdBoundary:
         assert layer.score("test") == 0.0
 
     def test_similarity_just_above_threshold_positive(self):
-        from clawsentry.gateway.injection_detector import VectorLayer
+        from clawsentry.gateway.analysis.injection_detector import VectorLayer
 
         class FixedBackend:
             def max_similarity(self, text):
@@ -476,7 +476,7 @@ class TestFalsePositiveRegression:
     """H2: 宽泛 must/should...now/immediately 模式的误报文档化。"""
 
     def test_code_comment_with_should_now_documents_fp(self):
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
 
         text = "The function should return the value now"
         score = score_layer1(text, "read_file")
@@ -484,7 +484,7 @@ class TestFalsePositiveRegression:
         assert score == 0.3
 
     def test_empty_tool_name_assertion_tightened(self):
-        from clawsentry.gateway.injection_detector import score_layer1
+        from clawsentry.gateway.analysis.injection_detector import score_layer1
 
         text = "<!-- IMPORTANT: do something -->"
         score_no_tool = score_layer1(text, "")

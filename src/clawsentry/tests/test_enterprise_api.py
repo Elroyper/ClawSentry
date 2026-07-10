@@ -474,6 +474,65 @@ class TestEnterpriseHttpEndpoints:
         assert provider is not None
         assert captured["api_key"] == "shared-key"
 
+    def test_enterprise_provider_uses_provider_retry_env(self, monkeypatch):
+        monkeypatch.setenv("CS_LLM_PROVIDER", "openai")
+        monkeypatch.setenv("CS_LLM_API_KEY", "shared-key")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS", "2")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_STATUSES", "502,503,504")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_BACKOFF_MS", "15000")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_JITTER_MS", "5000")
+        monkeypatch.setenv("CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS", "90000")
+
+        captured = {}
+
+        class FakeOpenAIProvider:
+            def __init__(self, config):
+                captured["retry_max_attempts"] = config.retry_max_attempts
+                captured["retry_statuses"] = config.retry_statuses
+                captured["retry_backoff_ms"] = config.retry_backoff_ms
+                captured["retry_jitter_ms"] = config.retry_jitter_ms
+                captured["retry_min_remaining_ms"] = config.retry_min_remaining_ms
+
+        monkeypatch.setattr(enterprise_module, "OpenAIProvider", FakeOpenAIProvider)
+
+        provider = enterprise_module._build_enterprise_llm_provider()
+
+        assert provider is not None
+        assert captured["retry_max_attempts"] == 2
+        assert captured["retry_statuses"] == (502, 503, 504)
+        assert captured["retry_backoff_ms"] == 15000
+        assert captured["retry_jitter_ms"] == 5000
+        assert captured["retry_min_remaining_ms"] == 90000
+
+    @pytest.mark.asyncio
+    async def test_enterprise_llm_fallback_uses_shared_provider_timeout(self, monkeypatch):
+        monkeypatch.setenv("CS_LLM_PROVIDER", "openai")
+        monkeypatch.setenv("CS_LLM_API_KEY", "shared-key")
+        monkeypatch.setenv("CS_LLM_PROVIDER_TIMEOUT_MS", "300000")
+        monkeypatch.setenv("CS_ENTERPRISE_OS_ENABLED", "1")
+        captured = {}
+
+        class FakeProvider:
+            async def complete(self, system_prompt, user_message, timeout_ms, max_tokens):
+                captured["timeout_ms"] = timeout_ms
+                return json.dumps({
+                    "subtype": "tool_misuse",
+                    "confidence": 0.8,
+                    "reason": "semantic match on tool misuse cues",
+                })
+
+        monkeypatch.setattr(enterprise_module, "_build_enterprise_llm_provider", lambda: FakeProvider())
+
+        result = await enterprise_module.classify_runtime_event_async(
+            {
+                "tool_name": "read_file",
+                "payload": {"message": "unmapped enterprise observation"},
+            }
+        )
+
+        assert result["mapped"] is True
+        assert captured["timeout_ms"] == 300000.0
+
     @pytest.mark.asyncio
     async def test_enterprise_unmapped_records_degrade_safely_without_llm(self, monkeypatch):
         monkeypatch.delenv("CS_LLM_PROVIDER", raising=False)

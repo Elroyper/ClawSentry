@@ -26,7 +26,7 @@ import pytest_asyncio
 
 from clawsentry.adapters.a3s_adapter import A3SCodeAdapter, InProcessA3SAdapter
 from clawsentry.adapters.a3s_gateway_harness import A3SGatewayHarness
-from clawsentry.gateway.codex_watcher import CodexSessionWatcher, parse_codex_jsonl_line
+from clawsentry.gateway.runtime.codex_watcher import CodexSessionWatcher, parse_codex_jsonl_line
 from clawsentry.gateway.server import SupervisionGateway, create_http_app, start_uds_server
 
 

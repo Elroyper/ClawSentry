@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import json
+import sys
 from unittest.mock import AsyncMock
 
 import pytest
@@ -106,8 +109,33 @@ class TestKimiNativeHookDispatch:
             }
         }
 
+    def test_run_stdio_exits_2_for_kimi_pretool_block(self, monkeypatch, capsys):
+        adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="kimi-cli")
+        adapter.request_decision = AsyncMock(
+            return_value=self._decision(
+                DecisionVerdict.BLOCK,
+                reason="dangerous command",
+                risk_level=RiskLevel.CRITICAL,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+        msg = {
+            "session_id": "sess-stdio-block-kimi",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Shell",
+            "tool_input": {"command": "rm -rf /"},
+        }
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(msg) + "\n"))
+
+        with pytest.raises(SystemExit) as exc_info:
+            harness.run_stdio()
+
+        assert exc_info.value.code == 2
+        stdout = capsys.readouterr().out.strip()
+        assert json.loads(stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
     @pytest.mark.asyncio
-    async def test_fallback_policy_fails_open(self):
+    async def test_fallback_fail_closed_pretool_fails_open(self):
         adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="kimi-cli")
         adapter.request_decision = AsyncMock(
             return_value=self._decision(
@@ -130,7 +158,7 @@ class TestKimiNativeHookDispatch:
         assert response is None
 
     @pytest.mark.asyncio
-    async def test_defer_outputs_deny_and_records_degraded_effect(self):
+    async def test_defer_outputs_deny_and_records_enforced_effect(self):
         adapter = A3SCodeAdapter(uds_path="/tmp/nonexistent.sock", source_framework="kimi-cli")
         recorder = _GatewayRecorder()
         adapter._gateway = recorder
@@ -163,5 +191,5 @@ class TestKimiNativeHookDispatch:
         assert recorder.effects
         effect = recorder.effects[0]
         assert effect.framework == "kimi-cli"
-        assert effect.degraded
-        assert effect.degrade_reason == "kimi_native_hooks_do_not_support_modify_or_defer_effects"
+        assert not effect.degraded
+        assert effect.degrade_reason is None

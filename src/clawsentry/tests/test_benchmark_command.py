@@ -15,7 +15,7 @@ from clawsentry.cli.benchmark_command import (
     run_benchmark_enable,
     run_benchmark_run,
 )
-from clawsentry.gateway.detection_config import build_detection_config_from_env
+from clawsentry.gateway.config.detection_config import build_detection_config_from_env
 
 
 def _count_clawsentry_hook_entries(hooks_path: Path) -> int:
@@ -34,10 +34,14 @@ def test_benchmark_env_declares_explicit_no_human_mode() -> None:
     assert "CS_MODE=benchmark" in text
     assert "CS_BENCHMARK_PROFILE=guarded" in text
     assert "CS_BENCHMARK_AUTO_RESOLVE_DEFER=true" in text
+    assert "CS_BENCHMARK_L2_AUTO_ENABLED=false" in text
+    assert "CS_BENCHMARK_MEDIUM_L2_AUTO_ENABLED=false" in text
+    assert "CS_BENCHMARK_KEY_DOMAIN_L2_AUTO_ENABLED=true" in text
     assert "CS_DEFER_BRIDGE_ENABLED=false" in text
     assert "CS_DEFER_TIMEOUT_ACTION=block" in text
     assert "CS_DEFER_TIMEOUT_S=1" in text
     assert "CS_FRAMEWORK=codex" in text
+    assert "CS_CODEX_PRETOOL_SYNC_ALL=true" in text
     env = dict(line.split("=", 1) for line in text.splitlines() if line and not line.startswith("#"))
     with pytest.MonkeyPatch.context() as mp:
         for key, value in env.items():
@@ -69,6 +73,12 @@ def test_benchmark_enable_is_idempotent_for_codex_temp_home(tmp_path: Path) -> N
     config = tomllib.loads(config_text)
     assert len(config["hooks"]["state"]) == 11
     assert _count_clawsentry_hook_entries(codex_home / "hooks.json") == 11
+    hooks = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))["hooks"]
+    non_bash_pretool = next(
+        entry for entry in hooks["PreToolUse"]
+        if entry.get("matcher") == "apply_patch|Edit|Write|mcp__.*"
+    )
+    assert non_bash_pretool["hooks"][0]["command"] == "clawsentry harness --framework codex"
 
 
 def test_benchmark_enable_rejects_active_user_codex_home(tmp_path: Path) -> None:
@@ -103,8 +113,9 @@ def test_benchmark_disable_removes_benchmark_env_and_codex_hooks(tmp_path: Path)
     assert config.get("hooks", {}).get("state", {}) == {}
 
 
-def test_benchmark_run_uses_temp_codex_home_and_passes_env(tmp_path: Path) -> None:
+def test_benchmark_run_uses_temp_codex_home_and_passes_env(tmp_path: Path, monkeypatch) -> None:
     marker = tmp_path / "marker.txt"
+    monkeypatch.setenv("CS_BENCHMARK_L2_AUTO_ENABLED", "true")
 
     assert run_benchmark_run(
         target_dir=tmp_path,
@@ -115,14 +126,22 @@ def test_benchmark_run_uses_temp_codex_home_and_passes_env(tmp_path: Path) -> No
             "-c",
             (
                 "import os, pathlib; "
-                f"pathlib.Path({str(marker)!r}).write_text(os.environ['CS_MODE'] + '|' + os.environ['CODEX_HOME'])"
+                f"pathlib.Path({str(marker)!r}).write_text("
+                "os.environ['CS_MODE'] + '|' + "
+                "os.environ['CODEX_HOME'] + '|' + "
+                "os.environ['CS_BENCHMARK_L2_AUTO_ENABLED'] + '|' + "
+                "os.environ['CS_BENCHMARK_MEDIUM_L2_AUTO_ENABLED'] + '|' + "
+                "os.environ['CS_BENCHMARK_KEY_DOMAIN_L2_AUTO_ENABLED'])"
             ),
         ],
     ) == 0
 
-    mode, codex_home = marker.read_text(encoding="utf-8").split("|", 1)
+    mode, codex_home, legacy_l2, medium_l2, key_domain_l2 = marker.read_text(encoding="utf-8").split("|", 4)
     assert mode == "benchmark"
     assert codex_home != str(Path.home() / ".codex")
+    assert legacy_l2 == "false"
+    assert medium_l2 == "false"
+    assert key_domain_l2 == "true"
 
 
 def test_benchmark_run_cleans_temp_env_by_default(tmp_path: Path) -> None:

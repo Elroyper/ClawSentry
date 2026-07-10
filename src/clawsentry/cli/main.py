@@ -212,8 +212,14 @@ def _build_parser() -> argparse.ArgumentParser:
     scope_validate.add_argument(
         "--profile",
         type=Path,
-        required=True,
+        default=None,
         help="Path to a SessionScopeProfile JSON file.",
+    )
+    scope_validate.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="Path to a clawsentry.task_artifact_manifest.v1 JSON file.",
     )
     scope_validate.add_argument(
         "--json",
@@ -221,15 +227,43 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Emit machine-readable JSON.",
     )
+    scope_convert = scope_sub.add_parser(
+        "convert",
+        help="Convert a task artifact manifest into a SessionScopeProfile JSON file.",
+    )
+    scope_convert.add_argument(
+        "--manifest",
+        type=Path,
+        required=True,
+        help="Path to a clawsentry.task_artifact_manifest.v1 JSON file.",
+    )
+    scope_convert.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Optional output path for the converted SessionScopeProfile JSON.",
+    )
+    scope_convert.add_argument(
+        "--json",
+        action="store_true",
+        default=False,
+        help="Emit machine-readable JSON.",
+    )
     scope_preview = scope_sub.add_parser(
         "preview",
-        help="Preview a session scope profile against one canonical event.",
+        help="Preview a session scope profile or manifest against one canonical event.",
     )
     scope_preview.add_argument(
         "--profile",
         type=Path,
-        required=True,
+        default=None,
         help="Path to a SessionScopeProfile JSON file.",
+    )
+    scope_preview.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help="Path to a clawsentry.task_artifact_manifest.v1 JSON file.",
     )
     scope_preview.add_argument(
         "--event",
@@ -922,17 +956,26 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     elif args.command == "scope":
-        from .scope_command import run_scope_preview, run_scope_validate
+        from .scope_command import run_scope_convert, run_scope_preview, run_scope_validate
 
         if args.scope_command == "validate":
             code = run_scope_validate(
                 profile_path=args.profile,
+                manifest_path=args.manifest,
+                json_mode=args.json,
+            )
+            sys.exit(code)
+        if args.scope_command == "convert":
+            code = run_scope_convert(
+                manifest_path=args.manifest,
+                out_path=args.out,
                 json_mode=args.json,
             )
             sys.exit(code)
         if args.scope_command == "preview":
             code = run_scope_preview(
                 profile_path=args.profile,
+                manifest_path=args.manifest,
                 event_path=args.event,
                 confirm=args.confirm,
                 json_mode=args.json,

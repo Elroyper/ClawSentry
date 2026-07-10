@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from unittest import mock
 
-from clawsentry.gateway.llm_factory import build_analyzer_from_env
-from clawsentry.gateway.llm_provider import OpenAIProvider, AnthropicProvider
-from clawsentry.gateway.semantic_analyzer import (
+from clawsentry.gateway.llm.factory import build_analyzer_from_env
+from clawsentry.gateway.llm.provider import OpenAIProvider, AnthropicProvider
+from clawsentry.gateway.analysis.semantic_analyzer import (
     CompositeAnalyzer,
     LLMAnalyzer,
     RuleBasedAnalyzer,
@@ -23,6 +23,11 @@ def _clean_env():
         "CS_LLM_BASE_URL",
         "CS_LLM_TEMPERATURE",
         "CS_LLM_PROVIDER_TIMEOUT_MS",
+        "CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS",
+        "CS_LLM_PROVIDER_RETRY_STATUSES",
+        "CS_LLM_PROVIDER_RETRY_BACKOFF_MS",
+        "CS_LLM_PROVIDER_RETRY_JITTER_MS",
+        "CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS",
         "CS_LLM_MAX_TOKENS",
         "CS_L3_MAX_TOKENS",
         "CS_L3_ENABLED",
@@ -119,6 +124,30 @@ class TestBuildAnalyzerFromEnv:
         assert l2._config.provider_timeout_ms == 20000.0
         assert l2._config.max_tokens == 10000
 
+    def test_openai_provider_uses_retry_env(self):
+        env = {
+            **_clean_env(),
+            "CS_LLM_PROVIDER": "openai",
+            "CS_LLM_API_KEY": "sk-shared-key-123",
+            "CS_LLM_PROVIDER_RETRY_MAX_ATTEMPTS": "2",
+            "CS_LLM_PROVIDER_RETRY_STATUSES": "502,503,504",
+            "CS_LLM_PROVIDER_RETRY_BACKOFF_MS": "15000",
+            "CS_LLM_PROVIDER_RETRY_JITTER_MS": "5000",
+            "CS_LLM_PROVIDER_RETRY_MIN_REMAINING_MS": "90000",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            result = build_analyzer_from_env()
+
+        assert isinstance(result, CompositeAnalyzer)
+        l2 = result._analyzers[1]
+        assert isinstance(l2, LLMAnalyzer)
+        provider_config = l2._provider._config
+        assert provider_config.retry_max_attempts == 2
+        assert provider_config.retry_statuses == (502, 503, 504)
+        assert provider_config.retry_backoff_ms == 15000
+        assert provider_config.retry_jitter_ms == 5000
+        assert provider_config.retry_min_remaining_ms == 90000
+
     def test_openai_provider_uses_l2_max_tokens_env(self):
         env = {
             **_clean_env(),
@@ -211,7 +240,7 @@ class TestBuildAnalyzerFromEnv:
         """CS_L3_ENABLED=true nests L2 aggregate under an outer L2->L3 composite."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -239,7 +268,7 @@ class TestBuildAnalyzerFromEnv:
         """CS_L3_MULTI_TURN=false keeps factory-built L3 in MVP mode."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -265,7 +294,7 @@ class TestBuildAnalyzerFromEnv:
         """CS_L3_MAX_TOKENS configures every L3 provider call budget."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -289,7 +318,7 @@ class TestBuildAnalyzerFromEnv:
         """Unexpected CS_L3_MULTI_TURN values should not silently force single-turn."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -313,7 +342,7 @@ class TestBuildAnalyzerFromEnv:
         """Factory-built L3 should pass SessionRegistry into ReadOnlyToolkit."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),
@@ -361,7 +390,7 @@ class TestBuildAnalyzerFromEnv:
         """CS_LLM_L3_ENABLED should behave like CS_L3_ENABLED for the unified settings layer."""
         from pathlib import Path
         from clawsentry.gateway.server import TrajectoryStore
-        from clawsentry.gateway.agent_analyzer import AgentAnalyzer
+        from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer
 
         env = {
             **_clean_env(),

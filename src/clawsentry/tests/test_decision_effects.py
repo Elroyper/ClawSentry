@@ -19,7 +19,7 @@ from clawsentry.gateway.models import (
     decision_effects_for_trajectory,
 )
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
-from clawsentry.gateway.trajectory_store import TrajectoryStore
+from clawsentry.gateway.storage.trajectory_store import TrajectoryStore
 
 
 def _session_effect(**overrides) -> DecisionEffects:

@@ -23,7 +23,7 @@ from typing import Any
 from clawsentry.adapters.a3s_adapter import A3SCodeAdapter
 from clawsentry.adapters.a3s_gateway_harness import A3SGatewayHarness
 from clawsentry.adapters.openclaw_gateway_client import OpenClawGatewayClient
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
 from clawsentry.gateway.models import (
     AgentTrustLevel,
     CanonicalEvent,

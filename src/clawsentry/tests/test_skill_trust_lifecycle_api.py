@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from clawsentry.gateway import server as gateway_server
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
 from clawsentry.gateway.server import SupervisionGateway, create_http_app
 
 

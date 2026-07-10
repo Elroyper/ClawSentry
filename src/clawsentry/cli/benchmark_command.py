@@ -25,7 +25,7 @@ _BENCHMARK_NON_BASH_TOOL_MATCHER = "apply_patch|Edit|Write|mcp__.*"
 
 
 def _render_hook_command(event_name: str, matcher: str | None) -> str:
-    if (event_name == "PreToolUse" and matcher == "Bash") or event_name == "PermissionRequest":
+    if event_name in {"PreToolUse", "PermissionRequest"}:
         return _BENCHMARK_HOOK_COMMAND_SYNC
     return _BENCHMARK_HOOK_COMMAND_ASYNC
 
@@ -63,10 +63,14 @@ def render_benchmark_env(
             "CS_MODE=benchmark",
             f"CS_BENCHMARK_PROFILE={mode}",
             "CS_BENCHMARK_AUTO_RESOLVE_DEFER=true",
+            "CS_BENCHMARK_L2_AUTO_ENABLED=false",
+            "CS_BENCHMARK_MEDIUM_L2_AUTO_ENABLED=false",
+            "CS_BENCHMARK_KEY_DOMAIN_L2_AUTO_ENABLED=true",
             "CS_DEFER_BRIDGE_ENABLED=false",
             "CS_DEFER_TIMEOUT_ACTION=block",
             "CS_DEFER_TIMEOUT_S=1",
             "CS_FRAMEWORK=codex",
+            "CS_CODEX_PRETOOL_SYNC_ALL=true",
             "",
         ]
     )
@@ -89,7 +93,7 @@ def _benchmark_hooks_payload() -> dict[str, object]:
         ("SessionStart", "startup|resume|clear", "ClawSentry Codex session monitor"),
         ("UserPromptSubmit", None, "ClawSentry prompt review"),
         ("PreToolUse", "Bash", "ClawSentry Bash preflight"),
-        ("PreToolUse", _BENCHMARK_NON_BASH_TOOL_MATCHER, "ClawSentry tool preflight observer"),
+        ("PreToolUse", _BENCHMARK_NON_BASH_TOOL_MATCHER, "ClawSentry tool preflight"),
         ("PermissionRequest", "Bash", "ClawSentry approval gate"),
         ("PermissionRequest", _BENCHMARK_NON_BASH_TOOL_MATCHER, "ClawSentry approval gate"),
         ("PostToolUse", "Bash", "ClawSentry tool review"),

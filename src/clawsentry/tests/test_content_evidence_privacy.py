@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from clawsentry.gateway.content_evidence import strip_content_bodies
+from clawsentry.gateway.analysis.content_evidence import strip_content_bodies
 from clawsentry.gateway.models import ContentEvidenceEnvelope, ContentEvidenceItem
 from clawsentry.gateway.server import _l3_trace_for_persistence
 
@@ -67,3 +67,20 @@ def test_l3_trace_debug_persist_switch_can_keep_raw_turn_bodies():
 
     assert persisted["turns"][0]["response_raw"] == "debug response body"
     assert persisted["turns"][0]["tool_result"]["content"] == "debug tool body"
+
+
+def test_l3_trace_persistence_keeps_analysis_accounting_keys():
+    accounting = [
+        {"analyzer_id": "rule-based", "ran": True, "adopted": False},
+        {"analyzer_id": "agent-reviewer", "ran": True, "adopted": True},
+    ]
+    trace = {
+        "turns": [{"response_raw": "raw", "tool_result": {"content": "raw"}}],
+        "analysis_accounting": accounting,
+        "trace_source": "agent-reviewer",
+    }
+
+    persisted = _l3_trace_for_persistence(trace, redact_final_findings=True)
+
+    assert persisted["analysis_accounting"] == accounting
+    assert persisted["trace_source"] == "agent-reviewer"

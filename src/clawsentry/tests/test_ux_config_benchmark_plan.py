@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from clawsentry.cli.config_command import run_config_init, run_config_set
-from clawsentry.gateway.env_config import resolve_effective_config
+from clawsentry.gateway.config.env_config import resolve_effective_config
 
 
 def test_env_template_contains_runtime_effective_sections(tmp_path):

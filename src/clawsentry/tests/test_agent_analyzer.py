@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from clawsentry.gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
-from clawsentry.gateway.l3_trigger import L3TriggerPolicy
+from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
+from clawsentry.gateway.l3.trigger import L3TriggerPolicy
 from clawsentry.gateway.models import (
     CanonicalEvent,
     ClassifiedBy,
@@ -23,8 +23,8 @@ from clawsentry.gateway.models import (
     SkillTrustContext,
     FirstUseScanState,
 )
-from clawsentry.gateway.review_skills import SkillRegistry
-from clawsentry.gateway.review_toolkit import ReadOnlyToolkit, ToolCallBudgetExhausted
+from clawsentry.gateway.review.skills import SkillRegistry
+from clawsentry.gateway.review.toolkit import ReadOnlyToolkit, ToolCallBudgetExhausted
 
 
 from .conftest import StubTrajectoryStore as _BaseStubStore
@@ -209,11 +209,11 @@ def test_mvp_returns_llm_result_when_trigger_matches(tmp_path: Path):
     assert "credential access looks suspicious" in result.reasons
 
 
-def test_direct_agent_analyzer_payload_over_budget_falls_back_without_provider_call(tmp_path: Path):
+def test_direct_agent_analyzer_payload_over_budget_still_calls_provider_with_summary_mode(tmp_path: Path):
     provider = MagicMock()
     provider.provider_id = "mock-llm"
     provider.complete = AsyncMock(
-        return_value='{"risk_level": "critical", "findings": ["provider reached"], "confidence": 0.9}'
+        return_value='{"risk_level": "high", "findings": ["provider reached"], "confidence": 0.9}'
     )
     toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
     registry = SkillRegistry(_skills_dir(tmp_path))
@@ -241,16 +241,15 @@ def test_direct_agent_analyzer_payload_over_budget_falls_back_without_provider_c
         )
     )
 
-    provider.complete.assert_not_called()
-    assert result.target_level == RiskLevel.MEDIUM
-    assert result.confidence == 0.0
-    assert result.decision_tier == DecisionTier.L1
-    assert "analysis_budget_exceeded" in result.reasons
+    provider.complete.assert_awaited_once()
+    assert result.target_level == RiskLevel.HIGH
+    assert result.confidence == 0.9
+    assert result.decision_tier == DecisionTier.L3
     assert result.trace is not None
-    assert result.trace["analysis_budget_exceeded"] is True
-    assert result.trace["degraded"] is True
-    assert result.trace["degradation_reason"] == "analysis_budget_exceeded"
-    assert result.trace["l3_reason_code"] == "analysis_budget_exceeded"
+    assert result.trace["payload_summary_mode"] is True
+    assert result.trace["max_payload_length"] == 4096
+    assert result.trace.get("degraded") is not True
+    assert "analysis_budget_exceeded" not in result.reasons
 
 
 def test_agent_analyzer_initial_prompt_is_redacted_bounded_and_delimiter_safe(tmp_path: Path):
@@ -1845,6 +1844,77 @@ def test_parse_markdown_wrapped_json(tmp_path: Path):
     assert result.target_level == RiskLevel.HIGH
     assert "credential leak" in result.reasons
     assert result.trace["degraded"] is False
+
+
+def test_parse_final_response_extracts_json_from_reasoning_prefix(tmp_path: Path):
+    """Reasoning-model style response: prose followed by the JSON verdict."""
+    reasoning_wrapped_response = (
+        "Let me think through this carefully. The command reads a credential "
+        "file which is concerning given the risk hints provided.\n\n"
+        '{"risk_level": "high", "findings": ["credential leak"], "confidence": 0.85}'
+    )
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    provider.complete = AsyncMock(return_value=reasoning_wrapped_response)
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=False),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "cat token"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            5000,
+        )
+    )
+    assert result.confidence == 0.85
+    assert result.target_level == RiskLevel.HIGH
+    assert "credential leak" in result.reasons
+    assert result.trace["degraded"] is False
+
+
+def test_parse_tool_call_response_extracts_json_from_reasoning_prefix(tmp_path: Path):
+    """Multi-turn: reasoning prefix before the {"tool_call": ...} JSON."""
+    provider = MagicMock()
+    provider.provider_id = "mock-llm"
+    reasoning_wrapped_tool_call = (
+        "I should inspect the referenced file before deciding.\n\n"
+        '{"thought": "checking file contents", '
+        '"tool_call": {"name": "read_file", "arguments": {"relative_path": "token.txt"}}, "done": false}'
+    )
+    final_response = '{"risk_level": "low", "findings": ["benign after review"], "confidence": 0.8}'
+    provider.complete = AsyncMock(side_effect=[reasoning_wrapped_tool_call, final_response])
+    (tmp_path / "token.txt").write_text("not-a-secret", encoding="utf-8")
+    toolkit = ReadOnlyToolkit(tmp_path, StubTrajectoryStore())
+    registry = SkillRegistry(_skills_dir(tmp_path))
+    analyzer = AgentAnalyzer(
+        provider=provider,
+        toolkit=toolkit,
+        skill_registry=registry,
+        trigger_policy=L3TriggerPolicy(),
+        config=AgentAnalyzerConfig(enable_multi_turn=True, max_reasoning_turns=4),
+    )
+
+    result = asyncio.run(
+        analyzer.analyze(
+            _evt(tool_name="bash", payload={"command": "cat token"},
+                 risk_hints=["credential_exfiltration"]),
+            DecisionContext(session_risk_summary={"l3_escalate": True}),
+            _snap(RiskLevel.MEDIUM),
+            5000,
+        )
+    )
+    assert result.confidence == 0.8
+    assert "benign after review" in result.reasons
+    assert provider.complete.call_count == 2
 
 
 def test_parse_invalid_json_degrades_with_parse_failed_reason(tmp_path: Path):

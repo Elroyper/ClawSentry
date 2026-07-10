@@ -18,7 +18,7 @@ from clawsentry.gateway.models import (
     RiskLevel,
     SkillRegistryRecord,
 )
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
 from clawsentry.gateway.server import SupervisionGateway, start_uds_server
 from clawsentry.adapters.a3s_gateway_harness import (
     A3SGatewayHarness,
@@ -65,6 +65,33 @@ def test_codex_runtime_refs_preserve_multi_ref_order():
 
     assert [ref.ref_ordinal for ref in refs] == [0, 1]
     assert [ref.name for ref in refs] == ["first-skill", "second-skill"]
+
+
+def test_codex_runtime_refs_do_not_treat_activate_skill_name_as_skill_by_default():
+    refs = _codex_runtime_skill_refs_from_payload(
+        {
+            "tool_name": "activate_skill",
+            "arguments": {"name": "search-accommodation"},
+        },
+        known_skill_names={"search-accommodation"},
+    )
+
+    assert refs == []
+
+
+def test_gemini_runtime_refs_can_treat_activate_skill_name_as_native_skill_call():
+    refs = _codex_runtime_skill_refs_from_payload(
+        {
+            "tool_name": "activate_skill",
+            "arguments": {"name": "search-accommodation"},
+        },
+        known_skill_names={"search-accommodation"},
+        allow_activate_skill_name=True,
+    )
+
+    assert len(refs) == 1
+    assert refs[0].name == "search-accommodation"
+    assert refs[0].evidence_kind == "native_skill_call"
 
 
 def test_codex_runtime_refs_ignore_comments_and_heredocs():
@@ -123,6 +150,104 @@ def test_codex_runtime_refs_resolve_cd_relative_skill_execution():
     assert ref.runtime_path == "/tmp/workspace/.codex/skills/search-accommodation/scripts/run.py"
     assert ref.evidence_kind == "shell_skill_path"
     assert ref.confidence == "high"
+
+
+@pytest.mark.parametrize(
+    ("framework_dir", "expected_root"),
+    [
+        (".gemini", "/workspace/.gemini/skills/pptx"),
+        (".claude", "/workspace/.claude/skills/pptx"),
+        (".codex", "/workspace/.codex/skills/pptx"),
+    ],
+)
+def test_codex_runtime_refs_resolve_framework_relative_skill_paths_with_cwd(
+    framework_dir: str,
+    expected_root: str,
+):
+    refs = _codex_runtime_skill_refs_from_payload(
+        {
+            "arguments": {
+                "cwd": "/workspace",
+                "command": (
+                    f"python3 {framework_dir}/skills/pptx/scripts/thumbnail.py "
+                    "Q4_financial_report.pptx report-thumbnails --cols 4"
+                ),
+            }
+        },
+        known_skill_names={"pptx"},
+    )
+
+    assert len(refs) == 1
+    ref = refs[0]
+    assert ref.name == "pptx"
+    assert ref.runtime_root == expected_root
+    assert ref.runtime_path == f"{expected_root}/scripts/thumbnail.py"
+    assert ref.observed_runtime_root_path_hash
+    assert ref.evidence_kind == "shell_skill_path"
+    assert ref.confidence == "high"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python3 .gemini/skills/pptx/../evil/scripts/run.py",
+        "python3 $HOME/.gemini/skills/pptx/scripts/run.py",
+        "python3 $(pwd)/.gemini/skills/pptx/scripts/run.py",
+        "cd $HOME/.gemini/skills/pptx && python3 scripts/run.py",
+        "bash -c 'python3 .gemini/skills/pptx/scripts/run.py'",
+        "# python3 .gemini/skills/pptx/scripts/run.py\npython3 safe.py",
+        "cat <<'EOF'\npython3 .gemini/skills/pptx/scripts/run.py\nEOF",
+    ],
+)
+def test_codex_runtime_refs_do_not_upgrade_unsafe_or_non_executed_relative_paths(
+    command: str,
+):
+    refs = _codex_runtime_skill_refs_from_payload(
+        {"arguments": {"cwd": "/workspace", "command": command}},
+        known_skill_names={"pptx"},
+    )
+
+    assert all(ref.runtime_root is None for ref in refs)
+    assert all(ref.confidence == "low" for ref in refs)
+
+
+def test_codex_runtime_refs_emit_low_trust_ref_for_dynamic_cd_skill_root():
+    refs = _codex_runtime_skill_refs_from_payload(
+        {
+            "arguments": {
+                "cwd": "/workspace",
+                "command": "cd $HOME/.gemini/skills/pptx && python3 scripts/run.py",
+            }
+        },
+        known_skill_names={"pptx"},
+    )
+
+    assert [(ref.name, ref.evidence_kind, ref.confidence, ref.runtime_root) for ref in refs] == [
+        ("pptx", "dynamic_execution", "low", None)
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"prompt": "For context, mention .gemini/skills/pptx/scripts/thumbnail.py in the answer."},
+        {"arguments": {"instruction": "Do not execute .gemini/skills/pptx/scripts/thumbnail.py."}},
+        {"arguments": {"message": "The document references .claude/skills/pptx/SKILL.md."}},
+    ],
+)
+def test_codex_runtime_refs_do_not_upgrade_prompt_only_skill_paths(payload: dict[str, object]):
+    payload.setdefault("arguments", {})
+    if isinstance(payload["arguments"], dict):
+        payload["arguments"].setdefault("cwd", "/workspace")
+
+    refs = _codex_runtime_skill_refs_from_payload(
+        payload,
+        known_skill_names={"pptx"},
+    )
+
+    assert all(ref.evidence_kind != "shell_skill_path" for ref in refs)
+    assert all(ref.runtime_root is None for ref in refs)
+    assert all(ref.confidence == "low" for ref in refs)
 
 
 def _skill_record(name: str) -> SkillRegistryRecord:
@@ -1652,7 +1777,77 @@ class TestNativeHookFormat:
         assert raw["provenance_label_conflict"] is True
 
     @pytest.mark.asyncio
-    async def test_gemini_invoke_agent_prompt_with_poisoned_skill_is_denied_by_gateway(
+    async def test_gemini_activate_skill_name_enriches_skill_trust(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        from unittest.mock import AsyncMock
+
+        skill_root = tmp_path / ".gemini" / "skills" / "search-accommodation"
+        (skill_root / "scripts").mkdir(parents=True)
+        (skill_root / "SKILL.md").write_text(
+            "---\nname: search-accommodation\n---\nUse the singular alias.\n",
+            encoding="utf-8",
+        )
+        runtime_dir = tmp_path / ".clawsentry"
+        runtime_dir.mkdir()
+        (runtime_dir / "skill-trust-runtime.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "clawsentry.skill_trust_bundle.v1",
+                    "framework": "gemini-cli",
+                    "raw_metadata_by_skill": {
+                        "search-accommodation": {
+                            "presented_name": "search-accommodation",
+                            "canonical_skill_id": "skill:search-accommodation",
+                            "canonical_name": "search-accommodation",
+                            "framework": "gemini-cli",
+                            "skill_root_path": str(skill_root),
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("CS_SKILL_TRUST_METADATA_PATH", raising=False)
+
+        adapter = A3SCodeAdapter(
+            uds_path="/tmp/nonexistent.sock",
+            source_framework="gemini-cli",
+        )
+        adapter.request_decision = AsyncMock(
+            return_value=CanonicalDecision(
+                decision=DecisionVerdict.ALLOW,
+                reason="captured",
+                policy_id="test-policy",
+                risk_level=RiskLevel.LOW,
+                decision_source=DecisionSource.POLICY,
+                final=True,
+            )
+        )
+        harness = A3SGatewayHarness(adapter)
+
+        response = await harness.dispatch_async(
+            {
+                "session_id": "sess-gemini-activate-skill",
+                "hook_event_name": "BeforeTool",
+                "tool_name": "activate_skill",
+                "tool_input": {"name": "search-accommodation"},
+                "cwd": str(tmp_path),
+            }
+        )
+
+        assert response is None
+        event = adapter.request_decision.await_args.args[0]
+        raw = event.payload["_clawsentry_meta"]["skill_trust_raw"]
+        assert raw["presented_name"] == "search-accommodation"
+        refs = event.payload["_clawsentry_meta"]["_gateway_observed"]["runtime_skill_refs"]
+        assert refs[0]["name"] == "search-accommodation"
+        assert refs[0]["evidence_kind"] == "native_skill_call"
+
+    @pytest.mark.asyncio
+    async def test_gemini_invoke_agent_prompt_with_poisoned_skill_is_audited_without_runtime_trust(
         self,
         tmp_path,
         monkeypatch,
@@ -1712,7 +1907,7 @@ class TestNativeHookFormat:
             )
             harness = A3SGatewayHarness(adapter)
 
-            response = await harness.dispatch_async(
+            result = await harness._handle_gemini_native_hook(
                 {
                     "session_id": "sess-gemini-delegate-deny",
                     "hook_event_name": "BeforeTool",
@@ -1730,10 +1925,11 @@ class TestNativeHookFormat:
             server.close()
             await server.wait_closed()
 
-        assert response is not None
-        assert response["decision"] == "deny"
-        assert "(risk: high)" in response["reason"]
-        assert "runtime_path_disallowed" in response["reason"]
+        assert result["action"] == "continue"
+        assert result["decision"] == "allow"
+        assert result["metadata"]["risk_level"] == "medium"
+        assert "runtime_path_fragment_unverified" in result["reason"]
+        assert "runtime_path_disallowed" not in result["reason"]
 
     @pytest.mark.asyncio
     async def test_gemini_generated_script_with_poisoned_skill_path_is_denied_by_gateway(

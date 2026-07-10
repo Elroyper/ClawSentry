@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from clawsentry.gateway.codex_watcher import (
+from clawsentry.gateway.runtime.codex_watcher import (
     CodexSessionWatcher,
     parse_codex_jsonl_line,
 )

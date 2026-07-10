@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from clawsentry.gateway.detection_config import DetectionConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
 
 from clawsentry.devtools.ui_validation_fixture import (
     build_browser_validation_gateway,
@@ -73,7 +73,7 @@ async def test_seed_gateway_for_browser_validation_primes_runtime_feed_replay() 
 async def test_seed_gateway_for_browser_validation_avoids_l2_fallback_warning(caplog) -> None:
     gateway = build_browser_validation_gateway(trajectory_db_path=":memory:")
 
-    with caplog.at_level("WARNING", logger="clawsentry.gateway.policy_engine"):
+    with caplog.at_level("WARNING", logger="clawsentry.gateway.policy.engine"):
         await seed_gateway_for_browser_validation(gateway)
 
     assert "L2 analysis failed; falling back to L1" not in caplog.text

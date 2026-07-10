@@ -97,6 +97,37 @@ class TestCodexInitializerHooks:
             for entry in hooks["PostToolUse"]
         )
 
+    def test_setup_codex_hooks_makes_all_pretool_hooks_sync_by_default(self, tmp_path):
+        codex_home = tmp_path / ".codex"
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home, dry_run=False)
+
+        payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        pretool = payload["hooks"]["PreToolUse"]
+        non_bash = next(
+            entry for entry in pretool
+            if entry.get("matcher") == "apply_patch|Edit|Write|mcp__.*"
+        )
+
+        assert non_bash["hooks"][0]["command"] == "clawsentry harness --framework codex"
+
+    def test_setup_codex_hooks_keeps_non_bash_pretool_sync_even_if_env_is_false(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        monkeypatch.setenv("CS_CODEX_PRETOOL_SYNC_ALL", "false")
+        codex_home = tmp_path / ".codex"
+        CodexInitializer().setup_codex_hooks(codex_home=codex_home, dry_run=False)
+
+        payload = json.loads((codex_home / "hooks.json").read_text(encoding="utf-8"))
+        pretool = payload["hooks"]["PreToolUse"]
+        non_bash = next(
+            entry for entry in pretool
+            if entry.get("matcher") == "apply_patch|Edit|Write|mcp__.*"
+        )
+
+        assert non_bash["hooks"][0]["command"] == "clawsentry harness --framework codex"
+
     def test_uninstall_removes_only_clawsentry_hooks_from_temp_home(self, tmp_path):
         codex_home = tmp_path / ".codex"
         init = CodexInitializer()

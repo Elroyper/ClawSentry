@@ -324,14 +324,14 @@ clawsentry watch
 |---------|-------------------|-------------------------|-------------------------|-----------------|----------|
 | `a3s-code` | Explicit SDK transport + `clawsentry-harness` | Yes | Yes | Agent code must wire `SessionOptions.ahp_transport` | High |
 | `openclaw` | WebSocket approvals + webhook receiver | Yes | Yes | `~/.openclaw/` must be configured for gateway exec + callbacks | Medium-high |
-| `codex` | Session JSONL watcher + managed native hooks | Managed `PreToolUse(Bash)` preflight response path + `PermissionRequest(Bash|apply_patch|Edit|Write|mcp__.*)` approval gate when started through `clawsentry start --framework codex` | Yes, including async compact observation | Session logs / `$CODEX_HOME/hooks.json` managed entries must be reachable | Medium-high |
+| `codex` | Session JSONL watcher + managed native hooks | Managed `PreToolUse(Bash|apply_patch|Edit|Write|mcp__.*)` preflight response path + `PermissionRequest(Bash|apply_patch|Edit|Write|mcp__.*)` approval gate when started through `clawsentry start --framework codex` | Yes, including async compact observation | Session logs / `$CODEX_HOME/hooks.json` managed entries must be reachable | Medium-high |
 | `gemini-cli` | Gemini CLI native command hooks | Yes; `BeforeTool` can deny shell commands | Yes, with post-tool caveat | Project `.gemini/settings.json` managed hooks; global home only with explicit `--gemini-home` | Medium-high (`real_beforetool_block_supported`) |
 | `kimi-cli` | Kimi CLI native `[[hooks]]` | Yes; `PreToolUse` / prompt deny via Kimi permission decision | Yes, observation-only for post/session/subagent/compact/notification | `$KIMI_SHARE_DIR/config.toml` or `~/.kimi/config.toml` marker-managed hooks | Medium-high (`native_hook_allow_block_supported`) |
 | `claude-code` | Host hooks + `clawsentry-harness` | Yes | Yes | `~/.claude/settings.json` hooks must remain installed | Medium |
 
 Operational boundary notes:
 
-- `codex` now gets managed native hooks by default through `clawsentry start --framework codex`, without replacing user or third-party hooks. The startup banner prints `clawsentry init codex --uninstall` for removal. The synchronous response surface is intentionally narrow: `PreToolUse(Bash)` sends a deny response when Gateway returns block/defer, and `PermissionRequest(Bash|apply_patch|Edit|Write|mcp__.*)` can allow/deny approval requests; non-Bash `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart(startup|resume|clear)`, `PreCompact`, and `PostCompact` stay async advisory/observational.
+- `codex` now gets managed native hooks by default through `clawsentry start --framework codex`, without replacing user or third-party hooks. The startup banner prints `clawsentry init codex --uninstall` for removal. `PreToolUse(Bash|apply_patch|Edit|Write|mcp__.*)` is synchronous so pre-use gates such as FSPR can block before the tool runs. `PermissionRequest(Bash|apply_patch|Edit|Write|mcp__.*)` can allow/deny approval requests; `PostToolUse`, `UserPromptSubmit`, `Stop`, `SessionStart(startup|resume|clear)`, `PreCompact`, and `PostCompact` stay async advisory/observational.
 - `gemini-cli` uses Gemini native command hooks via `clawsentry init gemini-cli --setup`, defaulting to project-local `.gemini/settings.json`. Shell-tool events are canonicalized before policy evaluation. Do not treat Kimi/OpenAI-compatible endpoints as directly supported by Gemini CLI.
 - Gemini managed hook commands redirect diagnostics away from stderr and fail open if the harness process itself cannot start, because Gemini can interpret plain stderr text as hook output.
 - `kimi-cli` uses Kimi native `[[hooks]]` through `clawsentry init kimi-cli --setup`. It can block dangerous tool calls through `PreToolUse`, block prompts through `UserPromptSubmit`, and record safe Shell plus lifecycle observation events. Native tool-input rewrite and true `defer` parity with `a3s-code` are not supported; those effects are reported as degraded/unsupported in adapter reporting.
@@ -439,25 +439,29 @@ Tech stack: React 18 + TypeScript + Vite + recharts + lucide-react
 src/clawsentry/
 |-- gateway/                           # Core supervision engine
 |   |-- models.py                      # Unified data models (CanonicalEvent/Decision/RiskSnapshot)
-|   |-- server.py                      # FastAPI HTTP + UDS + Auth + SSE + static files
-|   |-- stack.py                       # One-click start: Gateway + OpenClaw runtime + DEFER
-|   |-- policy_engine.py               # L1 rules + L2 Analyzer integration
-|   |-- risk_snapshot.py               # D1-D6 six-dimensional risk assessment
-|   |-- injection_detector.py          # D6 injection detection (weak/strong patterns + canary)
-|   |-- post_action_analyzer.py        # Post-action security fence (exfil/injection/obfuscation)
-|   |-- trajectory_analyzer.py         # Multi-step attack sequence detection (5 sequences)
-|   |-- pattern_matcher.py             # Attack pattern matching engine (25 OWASP ASI patterns)
-|   |-- pattern_evolution.py           # Self-evolving pattern repository (E-5)
-|   |-- detection_config.py            # DetectionConfig (17 tunable CS_* env vars)
-|   |-- semantic_analyzer.py           # L2 pluggable semantic (Protocol + 3 implementations)
-|   |-- llm_provider.py                # LLM Provider base (Anthropic/OpenAI)
-|   |-- llm_factory.py                 # Environment-driven analyzer builder
-|   |-- agent_analyzer.py              # L3 review Agent (multi-turn default + legacy single-turn fallback)
-|   |-- review_toolkit.py              # L3 ReadOnlyToolkit (7 read-only tools incl. transcript/session risk)
-|   |-- review_skills.py               # L3 SkillRegistry (YAML load/select)
-|   |-- l3_trigger.py                  # L3 trigger policy (explicit trigger reasons)
-|   |-- idempotency.py                 # Request idempotency cache
-|   +-- skills/                        # 6 built-in review domain skills (YAML)
+|   |-- server.py                      # Public Gateway facade + entry compatibility
+|   |-- stack.py                       # Thin wrapper for python -m clawsentry.gateway.stack
+|   |-- first_use_skill_review.py      # Public FSPR facade with compatibility exports
+|   |-- __init__.py                    # Lazy legacy aliases for moved gateway modules
+|   |-- analysis/                      # L1/L2/L3 analyzers, D1-D6 risk, content evidence
+|   |-- config/                        # Detection/env/project/LLM settings
+|   |-- core/                          # SupervisionGateway core JSON-RPC flow
+|   |-- effects/                       # Action/effect normalization
+|   |-- enterprise/                    # Enterprise health/config surface
+|   |-- fspr/                          # First-use skill package review internals
+|   |-- http/                          # FastAPI app, HTTP routes, static UI routes
+|   |-- l3/                            # L3 trigger/runtime/advisory worker
+|   |-- llm/                           # Provider interfaces and analyzer factory
+|   |-- policy/                        # Policy engine, defer/session scope/enforcement
+|   |-- reporting/                     # Reporting service helpers
+|   |-- review/                        # L3 read-only toolkit and review skill registry
+|   |-- rules/                         # Pattern matching/evolution/governance/safe regex
+|   |-- runtime/                       # Stack runtime, watcher, command/text utilities
+|   |-- storage/                       # Trajectory/session/alert/idempotency stores
+|   |-- telemetry/                     # Metrics and EventBus/SSE event plumbing
+|   |-- transport/                     # UDS/transport runners
+|   |-- trust/                         # Skill Trust runtime/lifecycle APIs
+|   +-- skills/                        # Built-in review domain skills (YAML)
 |-- adapters/                          # Framework adapters
 |   |-- a3s_adapter.py                 # a3s-code Hook -> CanonicalEvent normalization
 |   |-- a3s_gateway_harness.py         # a3s-code stdio bridge (JSON-RPC 2.0)
@@ -481,6 +485,10 @@ src/clawsentry/
 |   +-- dist/                          # Pre-built artifacts (shipped with pip)
 +-- tests/                             # Public Python regression suite
 ```
+
+Old gateway implementation module paths such as `clawsentry.gateway.policy_engine`
+remain available through lazy aliases for compatibility, but new code should use
+the grouped paths shown above.
 
 ---
 

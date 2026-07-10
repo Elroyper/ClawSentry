@@ -8,12 +8,13 @@ import re
 import sys
 import tempfile
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from clawsentry.gateway.models import RiskLevel, SkillRegistryRecord
-from clawsentry.gateway.skill_trust import (
+from clawsentry.gateway.trust.skill_trust import (
     AdmissionScanner,
     POLICY_FINGERPRINT,
     apply_trust_list_state,
@@ -21,7 +22,7 @@ from clawsentry.gateway.skill_trust import (
     record_with_skill_trust_grade,
     transition_trust_list_state,
 )
-from clawsentry.gateway.skill_trust_lifecycle import (
+from clawsentry.gateway.trust.lifecycle import (
     apply_expired_lifecycle_windows,
     apply_lifecycle_transition,
 )
@@ -36,6 +37,100 @@ def _sha256_text(value: str) -> str:
     import hashlib
 
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _markdown_text_fence(text: str) -> str:
+    longest = 0
+    current = 0
+    for char in text:
+        if char == "`":
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}text\n{text}\n{fence}"
+
+
+def _append_register_dir_fspr_replay(
+    *,
+    skills_dir: Path,
+    registry: Path,
+    metadata: Path,
+    framework: str,
+    scope: str,
+    allowed_runtime_parents: list[Path] | None,
+    json_mode: bool,
+    bundle: dict[str, Any],
+    elapsed_ms: float,
+) -> None:
+    replay_path = os.environ.get("CS_FSPR_REVIEW_REPLAY_PATH", "").strip()
+    if not replay_path:
+        return
+    try:
+        path = Path(replay_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+        call_index = existing.count("### FSPR Call ") + 1
+        prompt = json.dumps(
+            {
+                "command": "skill-trust register-dir",
+                "skills_dir": str(skills_dir),
+                "registry": str(registry),
+                "metadata": str(metadata),
+                "framework": framework,
+                "scope": scope,
+                "allowed_runtime_parents": [
+                    str(parent) for parent in (allowed_runtime_parents or [])
+                ],
+                "json_mode": json_mode,
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        response = json.dumps(
+            {
+                "schema_version": bundle.get("schema_version"),
+                "record_count": len(bundle.get("records") or []),
+                "preflight_action_count": len(bundle.get("preflight_actions") or []),
+                "records": bundle.get("records") or [],
+                "metadata_records": bundle.get("metadata_records") or [],
+                "metadata_by_normalized_name": bundle.get("metadata_by_normalized_name") or {},
+                "raw_metadata_by_skill": bundle.get("raw_metadata_by_skill") or {},
+                "preflight_actions": bundle.get("preflight_actions") or [],
+            },
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        chunk = "\n".join(
+            [
+                f"### FSPR Call {call_index}: skill_trust_register_dir",
+                "",
+                "- role: skill_trust_register_dir",
+                "- status: ok",
+                f"- elapsed_ms: {round(float(elapsed_ms), 3)}",
+                "- structured_output_requested: false",
+                "",
+                "#### Prompt",
+                "",
+                _markdown_text_fence(prompt),
+                "",
+                "#### Response",
+                "",
+                _markdown_text_fence(response),
+                "",
+            ]
+        )
+        with path.open("a", encoding="utf-8") as handle:
+            if existing and not existing.endswith("\n"):
+                handle.write("\n")
+            if existing:
+                handle.write("\n")
+            handle.write(chunk)
+    except Exception:
+        return
 
 
 def _registry_lock(path: Path) -> threading.RLock:
@@ -662,6 +757,7 @@ def run_skill_trust_register_dir(
 ) -> int:
     if not skills_dir.is_dir():
         raise ValueError(f"skills-dir must be a directory: {skills_dir}")
+    started_at = time.monotonic()
     bundle = build_skill_trust_bundle(
         skills_dir,
         framework=framework,
@@ -700,6 +796,17 @@ def run_skill_trust_register_dir(
     }
     _write_registry(registry, registry_payload)
     _write_json(metadata, metadata_payload)
+    _append_register_dir_fspr_replay(
+        skills_dir=skills_dir,
+        registry=registry,
+        metadata=metadata,
+        framework=framework,
+        scope=scope,
+        allowed_runtime_parents=allowed_runtime_parents,
+        json_mode=json_mode,
+        bundle=bundle,
+        elapsed_ms=(time.monotonic() - started_at) * 1000.0,
+    )
     written_payload = _read_registry(registry)
     result = {
         "registry": str(registry),

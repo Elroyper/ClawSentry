@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from clawsentry.adapters.codex_adapter import CodexAdapter
 
 
@@ -198,6 +200,92 @@ class TestCodexAdapter:
         assert event.payload["arguments"]["command"] == "rm -rf /tmp/unsafe"
         assert event.payload["command"] == "rm -rf /tmp/unsafe"
         assert event.framework_meta.normalization.raw_event_type == "PreToolUse"
+
+    def test_normalize_native_pretooluse_backfills_workdir_from_transcript(self, tmp_path):
+        adapter = CodexAdapter()
+        call_id = "call-workdir"
+        transcript = tmp_path / "session.jsonl"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": call_id,
+                        "arguments": json.dumps(
+                            {
+                                "cmd": "mkdir LLM",
+                                "workdir": "/root/papers/all",
+                            }
+                        ),
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        event = adapter.normalize_native_hook_event(
+            {
+                "session_id": "sess-codex-native",
+                "turn_id": "turn-123",
+                "transcript_path": str(transcript),
+                "cwd": "/root",
+                "hook_event_name": "PreToolUse",
+                "model": "gpt-5.4",
+                "permission_mode": "workspace-write",
+                "tool_name": "Bash",
+                "tool_input": {"command": "mkdir LLM"},
+                "tool_use_id": call_id,
+            }
+        )
+
+        assert event is not None
+        assert event.payload["cwd"] == "/root"
+        assert event.payload["arguments"]["workdir"] == "/root/papers/all"
+        assert event.payload["arguments"]["working_directory"] == "/root/papers/all"
+        assert event.payload["working_directory"] == "/root/papers/all"
+
+    def test_normalize_native_pretooluse_preserves_target_path_with_backfilled_workdir(self, tmp_path):
+        adapter = CodexAdapter()
+        call_id = "call-target-path"
+        transcript = tmp_path / "session.jsonl"
+        transcript.write_text(
+            json.dumps(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "call_id": call_id,
+                        "arguments": {
+                            "target_path": "cache.json",
+                            "workdir": "/root/papers/all",
+                        },
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        event = adapter.normalize_native_hook_event(
+            {
+                "session_id": "sess-codex-native",
+                "turn_id": "turn-123",
+                "transcript_path": str(transcript),
+                "cwd": "/root",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Write",
+                "tool_input": {"target_path": "cache.json", "content": "{}"},
+                "tool_use_id": call_id,
+            }
+        )
+
+        assert event is not None
+        assert event.payload["target_path"] == "cache.json"
+        assert event.payload["working_directory"] == "/root/papers/all"
+        assert event.payload["arguments"]["target_path"] == "cache.json"
 
     def test_normalize_native_user_prompt_submit_is_observation_only_prompt_event(self):
         adapter = CodexAdapter()

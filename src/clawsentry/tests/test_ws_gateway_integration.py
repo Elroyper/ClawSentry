@@ -841,7 +841,7 @@ class TestRunGatewayConfig:
 
     def test_gateway_with_custom_detection_config(self):
         """Verify SupervisionGateway accepts and uses custom DetectionConfig."""
-        from clawsentry.gateway.detection_config import DetectionConfig
+        from clawsentry.gateway.config.detection_config import DetectionConfig
         config = DetectionConfig(threshold_high=1.0)
         gw = SupervisionGateway(
             trajectory_db_path=":memory:",
@@ -852,7 +852,7 @@ class TestRunGatewayConfig:
     def test_build_detection_config_from_env_reads_cs_vars(self, monkeypatch):
         """CS_* env vars must be read by build_detection_config_from_env."""
         monkeypatch.setenv("CS_THRESHOLD_HIGH", "1.23")
-        from clawsentry.gateway.detection_config import build_detection_config_from_env
+        from clawsentry.gateway.config.detection_config import build_detection_config_from_env
         config = build_detection_config_from_env()
         assert config.threshold_high == 1.23
 

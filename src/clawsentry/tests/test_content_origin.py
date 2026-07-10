@@ -15,13 +15,13 @@ import os
 import pytest
 
 from clawsentry.adapters.a3s_adapter import infer_content_origin
-from clawsentry.gateway.detection_config import (
+from clawsentry.gateway.config.detection_config import (
     DetectionConfig,
     build_detection_config_from_env,
 )
-from clawsentry.gateway.injection_detector import score_layer1
-from clawsentry.gateway.post_action_analyzer import PostActionAnalyzer
-from clawsentry.gateway.risk_snapshot import (
+from clawsentry.gateway.analysis.injection_detector import score_layer1
+from clawsentry.gateway.analysis.post_action_analyzer import PostActionAnalyzer
+from clawsentry.gateway.analysis.risk_snapshot import (
     SessionRiskTracker,
     compute_risk_snapshot,
 )

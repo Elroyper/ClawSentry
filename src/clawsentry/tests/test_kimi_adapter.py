@@ -142,12 +142,22 @@ class TestKimiHookOutput:
             "PostToolUse",
         ) is None
 
-    def test_fallback_policy_fails_open(self):
+    def test_fallback_fail_closed_policy_fails_open(self):
         assert decision_to_kimi_hook_output(
             {
                 "action": "block",
                 "reason": "gateway down",
                 "metadata": {"risk_level": "high", "policy_id": "fallback-fail-closed"},
+            },
+            "PreToolUse",
+        ) is None
+
+    def test_fallback_defer_policy_fails_open(self):
+        assert decision_to_kimi_hook_output(
+            {
+                "action": "defer",
+                "reason": "gateway unavailable",
+                "metadata": {"risk_level": "high", "policy_id": "fallback-defer"},
             },
             "PreToolUse",
         ) is None

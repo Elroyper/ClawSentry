@@ -6,7 +6,7 @@ import tempfile
 import pytest
 
 from clawsentry.gateway.models import RiskLevel
-from clawsentry.gateway.pattern_matcher import (
+from clawsentry.gateway.rules.pattern_matcher import (
     AttackPattern,
     PatternMatcher,
     _parse_pattern,
@@ -764,7 +764,7 @@ class TestFPSuppressionCompanion:
     """C1: 误报抑制测试需要伴随正向测试证明模式本身能触发。"""
 
     def test_path_traversal_detected_on_non_whitelisted_path(self):
-        from clawsentry.gateway.pattern_matcher import PatternMatcher
+        from clawsentry.gateway.rules.pattern_matcher import PatternMatcher
 
         matcher = PatternMatcher()
         results = matcher.match(
@@ -780,7 +780,7 @@ class TestZeroWidthCharPattern:
     """M3: ASI01-003 零宽字符注入模式验证。"""
 
     def test_zero_width_space_detected(self):
-        from clawsentry.gateway.pattern_matcher import PatternMatcher
+        from clawsentry.gateway.rules.pattern_matcher import PatternMatcher
 
         matcher = PatternMatcher()
         results = matcher.match(
@@ -792,7 +792,7 @@ class TestZeroWidthCharPattern:
         assert "ASI01-003" in pattern_ids
 
     def test_bom_character_detected(self):
-        from clawsentry.gateway.pattern_matcher import PatternMatcher
+        from clawsentry.gateway.rules.pattern_matcher import PatternMatcher
 
         matcher = PatternMatcher()
         results = matcher.match(

@@ -694,9 +694,10 @@ L1 不仅产生自己的判决，还决定是否将事件升级到 L2 语义分�
 
 | 触发原因 | 条件 | 来源 |
 |---------|------|------|
-| `medium_pre_action` | `event_type == PRE_ACTION` 且 L1 风险等级 == `MEDIUM` | `policy_engine._automatic_l2_trigger_reason` |
+| `contextual_review_required` | L1 snapshot 带有 contextual analyzer 必须复核的信号 | `policy_engine._automatic_l2_trigger_reason` |
 | `fspr_package_review` / `runtime_binding_identity_conflict` | Skill Trust routing intent 请求 L2/L3 review | 同上 |
 | `key_domain_event` | 事件文本匹配 `KEY_DOMAIN_PATTERN`（`prod`/`production`/`credential`/`secret`/`token`/`password`/`key`） | `semantic_analyzer.KEY_DOMAIN_PATTERN` |
+| `medium_pre_action` | `event_type == PRE_ACTION` 且 L1 风险等级 == `MEDIUM` | `policy_engine._automatic_l2_trigger_reason` |
 | `manual_l2_escalation` | `DecisionContext.session_risk_summary` 含手动升级标志 | `semantic_analyzer.has_manual_l2_escalation_flag` |
 
 ### 自动触发的抑制条件
@@ -704,7 +705,9 @@ L1 不仅产生自己的判决，还决定是否将事件升级到 L2 语义分�
 | 抑制条件 | 行为 |
 |---------|------|
 | `requested_tier == L1` 且 `rule_hits` 含 `disabled_capability_equivalent` | 自动触发原因被清空 → 不升级 L2，输出 `DEFER` 由 operator review |
-| `mode == "benchmark"` 且 `benchmark_l2_auto_enabled == false` 且原因 ∈ {`medium_pre_action`, `key_domain_event`} | 不调用 L2，写入 `l2_l3_summary.disabled_reason = "benchmark_auto_l2_disabled"` |
+| `mode == "benchmark"` 且任一 benchmark 自动 L2 开关开启，触发原因为 `medium_pre_action`，同时 L1 authority 为 `allow_or_audit`、effect 仅含安全只读/枚举/环境探测目标 | 自动触发原因被清空 → 不升级 L2，写入 `l2_l3_summary.status = "readonly_fast_path"` |
+| `mode == "benchmark"` 且触发原因为 `medium_pre_action`，但 `benchmark_l2_auto_enabled == false` 且 `benchmark_medium_l2_auto_enabled == false` | 不调用 L2，写入 `l2_l3_summary.disabled_reason = "benchmark_auto_l2_disabled"` |
+| `mode == "benchmark"` 且触发原因为 `key_domain_event`，但 `benchmark_l2_auto_enabled == false` 且 `benchmark_key_domain_l2_auto_enabled == false` | 不调用 L2，写入 `l2_l3_summary.disabled_reason = "benchmark_auto_l2_disabled"` |
 
 ### Tier 重写
 

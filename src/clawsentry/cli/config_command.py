@@ -14,8 +14,8 @@ from .dotenv_loader import (
     resolve_explicit_env_file,
 )
 from .initializers import FRAMEWORK_INITIALIZERS
-from clawsentry.gateway.detection_config import PRESETS
-from clawsentry.gateway.env_config import (
+from clawsentry.gateway.config.detection_config import PRESETS
+from clawsentry.gateway.config.env_config import (
     CONFIG_FIELDS,
     canonical_env_source_for,
     export_instruction,

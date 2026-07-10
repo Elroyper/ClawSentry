@@ -19,7 +19,7 @@ from clawsentry.gateway.models import (
     DecisionTier,
     EventType,
 )
-from clawsentry.gateway.policy_engine import make_fallback_decision
+from clawsentry.gateway.policy.engine import make_fallback_decision
 
 
 # ---------------------------------------------------------------------------

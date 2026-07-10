@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from clawsentry.cli.config_command import run_config_wizard
-from clawsentry.gateway.env_config import resolve_effective_config
+from clawsentry.gateway.config.env_config import resolve_effective_config
 
 
 def test_non_interactive_wizard_writes_env_template_without_project_file(tmp_path, monkeypatch):

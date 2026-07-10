@@ -16,15 +16,15 @@ from pathlib import Path
 
 import pytest
 
-from clawsentry.gateway.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
-from clawsentry.gateway.detection_config import DetectionConfig
-from clawsentry.gateway.llm_provider import AnthropicProvider, LLMProviderConfig, OpenAIProvider
+from clawsentry.gateway.analysis.agent_analyzer import AgentAnalyzer, AgentAnalyzerConfig
+from clawsentry.gateway.config.detection_config import DetectionConfig
+from clawsentry.gateway.llm.provider import AnthropicProvider, LLMProviderConfig, OpenAIProvider
 from clawsentry.gateway.models import RPC_VERSION
-from clawsentry.gateway.review_skills import SkillRegistry
-from clawsentry.gateway.review_toolkit import ReadOnlyToolkit
-from clawsentry.gateway.semantic_analyzer import CompositeAnalyzer, RuleBasedAnalyzer
+from clawsentry.gateway.review.skills import SkillRegistry
+from clawsentry.gateway.review.toolkit import ReadOnlyToolkit
+from clawsentry.gateway.analysis.semantic_analyzer import CompositeAnalyzer, RuleBasedAnalyzer
 from clawsentry.gateway.server import SupervisionGateway
-from clawsentry.gateway.trajectory_store import TrajectoryStore
+from clawsentry.gateway.storage.trajectory_store import TrajectoryStore
 
 
 def _truthy(value: str | None) -> bool:

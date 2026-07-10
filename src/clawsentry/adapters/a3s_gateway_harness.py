@@ -48,7 +48,7 @@ except ImportError:
         DecisionVerdict,
         RuntimeSkillRef,
     )
-    from clawsentry.gateway.skill_trust import load_skill_trust_runtime_metadata_bundle  # type: ignore[no-redef]
+    from clawsentry.gateway.trust.skill_trust import load_skill_trust_runtime_metadata_bundle  # type: ignore[no-redef]
 
 import time as _time
 
@@ -280,6 +280,32 @@ def _codex_payload_texts(payload: dict[str, Any]) -> list[str]:
     return texts
 
 
+def _codex_runtime_payload_texts(payload: dict[str, Any]) -> list[tuple[str, bool]]:
+    texts: list[tuple[str, bool]] = []
+    trusted_path_keys = ("command", "path", "file_path")
+    descriptive_keys = ("prompt", "instruction", "instructions", "input", "message", "query")
+
+    for source in (payload, payload.get("arguments")):
+        if not isinstance(source, dict):
+            continue
+        for key in trusted_path_keys:
+            value = source.get(key)
+            if not isinstance(value, str):
+                continue
+            if key == "command":
+                texts.append((_codex_skill_attribution_text(value), True))
+                generated_script_text = _codex_generated_script_attribution_text(value)
+                if generated_script_text:
+                    texts.append((generated_script_text, True))
+            else:
+                texts.append((value, True))
+        for key in descriptive_keys:
+            value = source.get(key)
+            if isinstance(value, str):
+                texts.append((value, False))
+    return texts
+
+
 def _codex_payload_cwd(payload: dict[str, Any]) -> str | None:
     for source in (payload, payload.get("arguments")):
         if not isinstance(source, dict):
@@ -361,13 +387,37 @@ def _codex_generated_script_attribution_text(command: str) -> str | None:
     return None
 
 
-def _direct_skill_name_texts(payload: dict[str, Any]) -> list[str]:
+def _direct_skill_name_texts(
+    payload: dict[str, Any],
+    *,
+    allow_activate_skill_name: bool = False,
+) -> list[str]:
     texts: list[str] = []
+    raw_meta = payload.get("_clawsentry_meta")
+    raw_tool_name = (
+        raw_meta.get("raw_tool_name")
+        if isinstance(raw_meta, dict) and isinstance(raw_meta.get("raw_tool_name"), str)
+        else None
+    )
+    tool_names = {
+        str(value).lower()
+        for value in (
+            payload.get("tool"),
+            payload.get("tool_name"),
+            payload.get("gemini_tool_name"),
+            raw_tool_name,
+        )
+        if isinstance(value, str) and value
+    }
     for source in (payload, payload.get("arguments")):
         if not isinstance(source, dict):
             continue
         for key in ("skill", "skill_name"):
             value = source.get(key)
+            if isinstance(value, str) and value:
+                texts.append(value)
+        if allow_activate_skill_name and "activate_skill" in tool_names:
+            value = source.get("name")
             if isinstance(value, str) and value:
                 texts.append(value)
     return texts
@@ -389,8 +439,10 @@ def _codex_runtime_skill_refs_from_payload(
     payload: dict[str, Any],
     *,
     known_skill_names: set[str] | None,
+    allow_activate_skill_name: bool = False,
 ) -> list[RuntimeSkillRef]:
-    texts = _codex_payload_texts(payload)
+    runtime_texts = _codex_runtime_payload_texts(payload)
+    texts = [text for text, _trusted_runtime_paths in runtime_texts]
     cwd = _codex_payload_cwd(payload)
     refs: list[RuntimeSkillRef] = []
     seen: set[tuple[str | None, str | None, str | None, str]] = set()
@@ -433,12 +485,14 @@ def _codex_runtime_skill_refs_from_payload(
             )
         )
 
+    framework_skill_prefix = r"(?:\.(?:codex|agents|gemini|claude)/)?skills/"
     path_token_pattern = _re.compile(
-        r"(?P<path>(?:~|/|\$|\.{1,2}/)?[^\s'\";|&)]*?(?:\.codex/|\.agents/)?skills/"
+        r"(?P<path>(?:~|/|\$|\.{1,2}/)?[^\s'\";|&)]*?" + framework_skill_prefix +
         r"(?P<name>[^/\s'\";|&)]+)(?:/[^\s'\";|&)]*)?)"
     )
     cd_skill_pattern = _re.compile(
-        r"(?:^|[;&|]\s*)cd\s+(?P<root>(?:~|/|\$|\.{1,2}/)?[^\s'\";|&)]*?(?:\.codex/|\.agents/)?skills/"
+        r"(?:^|[;&|]\s*)cd\s+(?P<root>(?:~|/|\$|\.{1,2}/)?[^\s'\";|&)]*?"
+        + framework_skill_prefix +
         r"(?P<name>[^/\s'\";|&)]+))(?P<tail>.*?)(?=$|[;&|]\s*cd\s+)",
         _re.S,
     )
@@ -446,37 +500,70 @@ def _codex_runtime_skill_refs_from_payload(
         r"\b(?:python3?|node|bash|sh)\b\s+(?P<script>(?:\./)?(?:scripts|references|data)/[^\s'\";|&)]+)"
     )
     dynamic_shell_pattern = _re.compile(r"\b(?:bash|sh|python3?|node)\s+-c\b")
-    for text_index, text in enumerate(texts):
+    for text_index, (text, trusted_runtime_paths) in enumerate(runtime_texts):
         text_source = f"text[{text_index}]"
-        for match in cd_skill_pattern.finditer(text):
-            raw_root = match.group("root").strip().strip("'\"")
-            if "$" in raw_root or "`" in raw_root:
-                continue
-            root_path = Path(raw_root).expanduser()
-            if not root_path.is_absolute():
-                if cwd is None:
+        cd_spans: list[tuple[int, int]] = []
+        if trusted_runtime_paths:
+            for match in cd_skill_pattern.finditer(text):
+                cd_spans.append(match.span("root"))
+                raw_root = match.group("root").strip().strip("'\"")
+                if "$" in raw_root or "`" in raw_root or "$(" in text:
+                    add_ref(
+                        name=match.group("name"),
+                        evidence_kind="dynamic_execution",
+                        text_source=text_source,
+                        confidence="low",
+                    )
                     continue
-                root_path = Path(cwd) / root_path
-            runtime_root = str(root_path.resolve(strict=False))
-            runtime_path = runtime_root
-            script_match = relative_script_pattern.search(match.group("tail") or "")
-            if script_match:
-                script_path = script_match.group("script").lstrip("./")
-                runtime_path = str((Path(runtime_root) / script_path).resolve(strict=False))
-            add_ref(
-                name=match.group("name"),
-                runtime_root_raw=runtime_root,
-                runtime_path_raw=runtime_path,
-                evidence_kind="shell_skill_path",
-                text_source=text_source,
-                confidence="high",
-            )
+                root_path = Path(raw_root).expanduser()
+                if ".." in root_path.parts:
+                    add_ref(
+                        name=match.group("name"),
+                        evidence_kind="path_fragment",
+                        text_source=text_source,
+                        confidence="low",
+                    )
+                    continue
+                if not root_path.is_absolute():
+                    if cwd is None:
+                        add_ref(
+                            name=match.group("name"),
+                            evidence_kind="path_fragment",
+                            text_source=text_source,
+                            confidence="low",
+                        )
+                        continue
+                    root_path = Path(cwd) / root_path
+                runtime_root = str(root_path.resolve(strict=False))
+                runtime_path = runtime_root
+                script_match = relative_script_pattern.search(match.group("tail") or "")
+                if script_match:
+                    script_path = script_match.group("script").lstrip("./")
+                    runtime_path = str((Path(runtime_root) / script_path).resolve(strict=False))
+                add_ref(
+                    name=match.group("name"),
+                    runtime_root_raw=runtime_root,
+                    runtime_path_raw=runtime_path,
+                    evidence_kind="shell_skill_path",
+                    text_source=text_source,
+                    confidence="high",
+                )
         for match in path_token_pattern.finditer(text):
+            if any(start <= match.start("path") < end for start, end in cd_spans):
+                continue
             raw_path = match.group("path").strip().strip("`'\"")
             name = match.group("name")
             name_end = match.start("name") - match.start("path") + len(name)
             raw_root = raw_path[:name_end]
-            if "$" in raw_path or "`" in raw_path or dynamic_shell_pattern.search(text):
+            path_parts = Path(raw_path).parts
+            has_parent_ref = ".." in path_parts
+            has_dynamic_ref = (
+                "$" in raw_path
+                or "`" in raw_path
+                or "$(" in text
+                or dynamic_shell_pattern.search(text) is not None
+            )
+            if has_dynamic_ref:
                 add_ref(
                     name=name,
                     evidence_kind="dynamic_execution",
@@ -484,11 +571,32 @@ def _codex_runtime_skill_refs_from_payload(
                     confidence="low",
                 )
                 continue
-            if raw_path.startswith(("/", "~")):
+            if not trusted_runtime_paths or has_parent_ref:
+                if any(ref.name == name and ref.runtime_root for ref in refs):
+                    continue
+                add_ref(
+                    name=name,
+                    runtime_path_raw=raw_path,
+                    evidence_kind="path_fragment",
+                    text_source=text_source,
+                    confidence="low",
+                )
+            elif raw_path.startswith(("/", "~")):
                 add_ref(
                     name=name,
                     runtime_root_raw=raw_root,
                     runtime_path_raw=raw_path,
+                    evidence_kind="shell_skill_path",
+                    text_source=text_source,
+                    confidence="high",
+                )
+            elif cwd is not None:
+                runtime_root = str((Path(cwd) / raw_root).resolve(strict=False))
+                runtime_path = str((Path(cwd) / raw_path).resolve(strict=False))
+                add_ref(
+                    name=name,
+                    runtime_root_raw=runtime_root,
+                    runtime_path_raw=runtime_path,
                     evidence_kind="shell_skill_path",
                     text_source=text_source,
                     confidence="high",
@@ -505,7 +613,10 @@ def _codex_runtime_skill_refs_from_payload(
                 )
 
     if known_skill_names:
-        for text in _direct_skill_name_texts(payload):
+        for text in _direct_skill_name_texts(
+            payload,
+            allow_activate_skill_name=allow_activate_skill_name,
+        ):
             if text in known_skill_names:
                 add_ref(
                     name=text,
@@ -626,6 +737,7 @@ def _enrich_skill_trust_from_runtime_bundle(
     runtime_refs = _codex_runtime_skill_refs_from_payload(
         payload,
         known_skill_names={str(name) for name in raw_by_skill},
+        allow_activate_skill_name=framework == "gemini-cli",
     )
     skill_names = [ref.name for ref in runtime_refs if ref.name]
     if not skill_names:
@@ -767,6 +879,22 @@ def _attach_adapter_response_metadata(adapter: Any, result: dict[str, Any]) -> N
     metadata = result.setdefault("metadata", {})
     if isinstance(metadata, dict):
         metadata.update(copy.deepcopy(response_metadata))
+
+
+def _diag_decision(adapter: Any, event: Any, result: dict[str, Any]) -> None:
+    metadata = result.get("metadata") if isinstance(result, dict) else None
+    metadata = metadata if isinstance(metadata, dict) else {}
+    _diag(
+        "decision: "
+        f"event={getattr(event, 'event_type', '?')} "
+        f"subtype={getattr(event, 'event_subtype', '?')} "
+        f"tool={getattr(event, 'tool_name', '?')} "
+        f"action={result.get('action', '?')} "
+        f"policy={metadata.get('policy_id', '?')} "
+        f"risk={metadata.get('risk_level', '?')} "
+        f"transport={metadata.get('gateway_transport', getattr(adapter, 'last_decision_response_metadata', {}).get('gateway_transport', '?'))} "
+        f"attempts={metadata.get('gateway_attempts', getattr(adapter, 'last_decision_response_metadata', {}).get('gateway_attempts', '?'))}"
+    )
 
 
 def _requested_effect_outcomes(decision_effects: dict[str, Any] | None) -> list[str]:
@@ -1117,6 +1245,7 @@ class A3SGatewayHarness:
             decision = await self.adapter.request_decision(evt)
             result = _decision_to_ahp_result(decision)
             _attach_adapter_response_metadata(self.adapter, result)
+            _diag_decision(self.adapter, evt, result)
             _record_inprocess_adapter_effect_result(
                 self.adapter,
                 evt,
@@ -1188,6 +1317,16 @@ class A3SGatewayHarness:
             for key in ("cwd", "working_directory", "permission_mode", "transcript_path"):
                 if key in msg:
                     payload[key] = msg[key]
+
+        # Map tool_response to output for POST_ACTION events
+        tool_response = msg.get("tool_response")
+        if tool_response is not None:
+            if isinstance(tool_response, str):
+                payload["output"] = tool_response
+            else:
+                import json
+                payload["output"] = json.dumps(tool_response, ensure_ascii=False)
+
         params["payload"] = payload
 
         # Lift session_id / agent_id to params level for _handle_event
@@ -1235,6 +1374,7 @@ class A3SGatewayHarness:
         )
         result = _decision_to_ahp_result(decision)
         _attach_adapter_response_metadata(self.adapter, result)
+        _diag_decision(self.adapter, evt, result)
         _record_inprocess_adapter_effect_result(
             self.adapter,
             evt,
@@ -1277,9 +1417,10 @@ class A3SGatewayHarness:
         decision = await self.adapter.request_decision(evt)
         result = _decision_to_ahp_result(decision)
         _attach_adapter_response_metadata(self.adapter, result)
+        _diag_decision(self.adapter, evt, result)
         event_name = str(msg.get("hook_event_name", ""))
         action = str(result.get("action", "continue"))
-        enforced = action in {"continue", "allow", "block"} and event_name in {
+        enforced = action in {"continue", "allow", "block", "defer"} and event_name in {
             "PreToolUse",
             "UserPromptSubmit",
             "Stop",
@@ -1327,6 +1468,7 @@ class A3SGatewayHarness:
         decision = await self.adapter.request_decision(evt)
         result = _decision_to_ahp_result(decision)
         _attach_adapter_response_metadata(self.adapter, result)
+        _diag_decision(self.adapter, evt, result)
         event_name = str(msg.get("hook_event_name", ""))
         can_enforce = event_name in {
             "BeforeAgent",
@@ -1365,8 +1507,9 @@ class A3SGatewayHarness:
 
             try:
                 result = await self._handle_event(params)
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
                 logger.exception("Failed handling AHP event")
+                _diag(f"dispatch error: ahp {type(exc).__name__}: {str(exc)[:240]}")
                 if req_id is None:
                     return None
                 return {
@@ -1446,8 +1589,15 @@ class A3SGatewayHarness:
                 )
             else:
                 result = await self._handle_event(params)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Failed handling native hook event")
+            _diag(
+                "dispatch error: native "
+                f"framework={native_framework or '?'} "
+                f"hook={msg.get('hook_event_name', '?')} "
+                f"tool={msg.get('tool_name', '?')} "
+                f"{type(exc).__name__}: {str(exc)[:240]}"
+            )
             if is_claude_code_hook or is_codex_native_hook or is_gemini_native_hook or is_kimi_native_hook:
                 return None  # allow on error (fail-open for hooks)
             return {"result": {"action": "continue", "reason": "harness internal error"}}
@@ -1624,8 +1774,9 @@ class A3SGatewayHarness:
         """Background dispatch to gateway. Errors are logged, not raised."""
         try:
             await self._handle_event(params)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.debug("Async dispatch failed (non-blocking)", exc_info=True)
+            _diag(f"dispatch error: async {type(exc).__name__}: {str(exc)[:240]}")
 
     async def _async_dispatch_codex_native(
         self,
@@ -1636,8 +1787,9 @@ class A3SGatewayHarness:
         """Background dispatch for Codex native hooks. Errors are non-blocking."""
         try:
             await self._handle_codex_native_hook(msg, project_meta=project_meta)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.debug("Codex async dispatch failed (non-blocking)", exc_info=True)
+            _diag(f"dispatch error: codex_async {type(exc).__name__}: {str(exc)[:240]}")
 
     async def _async_dispatch_kimi_native(
         self,
@@ -1648,8 +1800,9 @@ class A3SGatewayHarness:
         """Background dispatch for Kimi native hooks. Errors are non-blocking."""
         try:
             await self._handle_kimi_native_hook(msg, project_meta=project_meta)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.debug("Kimi async dispatch failed (non-blocking)", exc_info=True)
+            _diag(f"dispatch error: kimi_async {type(exc).__name__}: {str(exc)[:240]}")
 
     async def _async_dispatch_gemini_native(
         self,
@@ -1660,8 +1813,9 @@ class A3SGatewayHarness:
         """Background dispatch for Gemini native hooks. Errors are non-blocking."""
         try:
             await self._handle_gemini_native_hook(msg, project_meta=project_meta)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             logger.debug("Gemini async dispatch failed (non-blocking)", exc_info=True)
+            _diag(f"dispatch error: gemini_async {type(exc).__name__}: {str(exc)[:240]}")
 
     def _suppress_native_stderr(self) -> bool:
         """Return whether hook stderr must stay empty for the host protocol."""
@@ -1669,6 +1823,18 @@ class A3SGatewayHarness:
             str(getattr(self.adapter, "source_framework", "") or "").lower()
             in {"gemini-cli", "kimi-cli"}
         )
+
+    def _should_exit_2_for_native_block(self, response: dict[str, Any] | None) -> bool:
+        """Kimi CLI treats hook process exit code 2 as a hard block."""
+        if not response:
+            return False
+        native_framework = str(getattr(self.adapter, "source_framework", "") or "").lower()
+        if native_framework != "kimi-cli":
+            return False
+        hook_output = response.get("hookSpecificOutput")
+        if not isinstance(hook_output, dict):
+            return False
+        return hook_output.get("permissionDecision") == "deny"
 
     def _log_hook_stderr(self, msg: str) -> None:
         """Emit stderr diagnostics unless the host treats stderr as hook output."""
@@ -1704,6 +1870,8 @@ class A3SGatewayHarness:
                 _diag(f"response: {json.dumps(response, ensure_ascii=False) if response else 'None (allow)'}")
                 if response is not None:
                     print(json.dumps(response, ensure_ascii=False), flush=True)
+                    if self._should_exit_2_for_native_block(response):
+                        raise SystemExit(2)
         except Exception as exc:
             _diag(f"run_stdio fatal: {exc}")
             raise
