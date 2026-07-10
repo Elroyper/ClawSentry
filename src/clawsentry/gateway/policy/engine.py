@@ -541,6 +541,12 @@ class L1PolicyEngine:
         effective_config = config if config is not None else self._config
         start = time.monotonic()
 
+        # Track whether POST_ACTION contamination forced an L2 upgrade — when
+        # True, the subsequent benchmark_auto_l2_disabled guard is bypassed so
+        # the contamination-driven upgrade actually fires L2 instead of being
+        # silently demoted back to L1 by benchmark mode's auto-L2 disable.
+        contamination_upgraded = False
+
         # Check for POST_ACTION contamination and upgrade tier if needed
         if event.event_type == EventType.PRE_ACTION:
             contamination = self._session_tracker.get_contamination_status(event.session_id)
@@ -551,6 +557,7 @@ class L1PolicyEngine:
                     # Upgrade next PRE_ACTION to L2, then clear
                     if requested_tier == DecisionTier.L1:
                         requested_tier = DecisionTier.L2
+                        contamination_upgraded = True
                         if context is None:
                             context = DecisionContext()
                         if not hasattr(context, 'context_hints') or context.context_hints is None:
@@ -565,6 +572,7 @@ class L1PolicyEngine:
                     # Upgrade all subsequent PRE_ACTIONs in the session
                     if requested_tier == DecisionTier.L1:
                         requested_tier = DecisionTier.L2
+                        contamination_upgraded = True
                         if context is None:
                             context = DecisionContext()
                         if not hasattr(context, 'context_hints') or context.context_hints is None:
@@ -614,7 +622,11 @@ class L1PolicyEngine:
         ):
             readonly_fast_path_trigger = automatic_l2_trigger
             automatic_l2_trigger = None
-        if _benchmark_l2_auto_disabled(effective_config, automatic_l2_trigger):
+        _bench_disabled = (
+            not contamination_upgraded
+            and _benchmark_l2_auto_disabled(effective_config, automatic_l2_trigger)
+        )
+        if _bench_disabled:
             snapshot = l1_snapshot.model_copy(update={
                 "l2_l3_summary": {
                     "disabled_reason": "benchmark_auto_l2_disabled",
