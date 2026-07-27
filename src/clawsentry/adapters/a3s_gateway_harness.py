@@ -61,6 +61,12 @@ def _runtime_root_path_hash(path: str) -> str:
     return "sha256:" + hashlib.sha256(path.encode("utf-8")).hexdigest()
 
 
+def _logical_runtime_path(path: str | Path) -> str:
+    """Normalize runtime metadata without resolving host-level path aliases."""
+
+    return os.path.abspath(os.path.normpath(os.path.expanduser(str(path))))
+
+
 def _monitoring_disabled_by_env() -> bool:
     raw = os.environ.get("CS_PROJECT_ENABLED", os.environ.get("CS_ENABLED", "true"))
     return str(raw).strip().lower() in {"0", "false", "no", "off"}
@@ -312,7 +318,7 @@ def _codex_payload_cwd(payload: dict[str, Any]) -> str | None:
             continue
         value = source.get("cwd")
         if isinstance(value, str) and value.strip() and not any(marker in value for marker in ("$", "`")):
-            return str(Path(value).expanduser().resolve(strict=False))
+            return _logical_runtime_path(value)
     return None
 
 
@@ -460,10 +466,10 @@ def _codex_runtime_skill_refs_from_payload(
         runtime_path = None
         root_hash = None
         if runtime_root_raw and not any(marker in runtime_root_raw for marker in ("$", "`")):
-            runtime_root = str(Path(runtime_root_raw).expanduser().resolve(strict=False))
+            runtime_root = _logical_runtime_path(runtime_root_raw)
             root_hash = _runtime_root_path_hash(runtime_root)
         if runtime_path_raw and not any(marker in runtime_path_raw for marker in ("$", "`")):
-            runtime_path = str(Path(runtime_path_raw).expanduser().resolve(strict=False))
+            runtime_path = _logical_runtime_path(runtime_path_raw)
         key = (name, runtime_root, runtime_path, evidence_kind)
         if key in seen:
             return
@@ -534,12 +540,12 @@ def _codex_runtime_skill_refs_from_payload(
                         )
                         continue
                     root_path = Path(cwd) / root_path
-                runtime_root = str(root_path.resolve(strict=False))
+                runtime_root = _logical_runtime_path(root_path)
                 runtime_path = runtime_root
                 script_match = relative_script_pattern.search(match.group("tail") or "")
                 if script_match:
                     script_path = script_match.group("script").lstrip("./")
-                    runtime_path = str((Path(runtime_root) / script_path).resolve(strict=False))
+                    runtime_path = _logical_runtime_path(Path(runtime_root) / script_path)
                 add_ref(
                     name=match.group("name"),
                     runtime_root_raw=runtime_root,
@@ -591,8 +597,8 @@ def _codex_runtime_skill_refs_from_payload(
                     confidence="high",
                 )
             elif cwd is not None:
-                runtime_root = str((Path(cwd) / raw_root).resolve(strict=False))
-                runtime_path = str((Path(cwd) / raw_path).resolve(strict=False))
+                runtime_root = _logical_runtime_path(Path(cwd) / raw_root)
+                runtime_path = _logical_runtime_path(Path(cwd) / raw_path)
                 add_ref(
                     name=name,
                     runtime_root_raw=runtime_root,

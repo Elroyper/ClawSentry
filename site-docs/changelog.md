@@ -7,6 +7,28 @@ hide:
 
 本页只保留公开使用者需要看到的发布摘要。详细开发记录和内部进度说明保留在开发仓库文档中。
 
+## v0.8.7 {#v087}
+
+*2026-07-28*
+
+<div class="cs-pill-row">
+<span class="cs-pill cs-pill--release">Runtime Supervision Hardening</span>
+</div>
+
+### 改进
+
+- **间接注入分析** — 对嵌套、序列化工具输出生成有界分析视图，并将 post-action contamination 证据保留到后续决策。
+- **上下文驱动升级** — contamination 与 L2 不确定结果可以进入预期的 L2/L3 路径，不再被 benchmark 自动路由或单纯的结构化输出解析失败静默降级。
+- **统一策略证据** — 跨工具写入内容、敏感值外传、task artifact scope 与 approval effect binding 共享归一化证据和 anti-bypass 边界。
+- **可维护实现** — Gateway 模块按职责拆分，公开 API inventory、文档与 Web UI 样式结构同步刷新。
+
+### 边界
+
+- 不同 Agent host 的同步阻断能力并不等价；各集成页继续明确区分 enforcement、approval gate 与 observation-only 路径。
+- ClawSentry 是 defense-in-depth 组件，不能替代操作系统隔离、最小权限凭据或高影响操作的人类审批。
+
+---
+
 ## v0.8.6 {#v086}
 
 *2026-05-31*

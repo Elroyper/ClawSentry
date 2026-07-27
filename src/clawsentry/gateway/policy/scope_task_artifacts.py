@@ -124,6 +124,10 @@ _BROAD_ABSOLUTE_PREFIX_ROOTS = frozenset({
     "/var",
     "/workspace",
 })
+_KNOWN_PLATFORM_PATH_ALIASES = (
+    ("/tmp", "/private/tmp"),
+    ("/home", "/system/volumes/data/home"),
+)
 _PROFILE_REVIEWABLE_HARD_ROLES = frozenset({
     "future_execution.artifact",
 })
@@ -1268,7 +1272,7 @@ def _path_is_canonically_unsafe(normalized_path: str) -> bool:
                 marker in resolved for marker in _CONTROL_ORACLE_MARKERS
             ):
                 return True
-            if path.is_symlink():
+            if path.is_symlink() and not _is_known_platform_path_alias(lowered, resolved):
                 return True
             stat_result = path.stat()
             if stat_result.st_nlink > 1 and path.is_file():
@@ -1291,11 +1295,24 @@ def _path_is_canonically_unsafe(normalized_path: str) -> bool:
                         marker in resolved_parent for marker in _CONTROL_ORACLE_MARKERS
                     ):
                         return True
-                    if parent.is_symlink():
+                    if parent.is_symlink() and not _is_known_platform_path_alias(
+                        str(parent).replace("\\", "/").lower(),
+                        resolved_parent,
+                    ):
                         return True
                 except (OSError, RuntimeError, ValueError):
                     return True
     return False
+
+
+def _is_known_platform_path_alias(logical_path: str, resolved_path: str) -> bool:
+    logical = posixpath.normpath(str(logical_path or "").replace("\\", "/")).lower()
+    resolved = posixpath.normpath(str(resolved_path or "").replace("\\", "/")).lower()
+    return any(
+        (logical == alias or logical.startswith(alias + "/"))
+        and (resolved == target or resolved.startswith(target + "/"))
+        for alias, target in _KNOWN_PLATFORM_PATH_ALIASES
+    )
 
 
 def _has_path_traversal(path: str) -> bool:

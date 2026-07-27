@@ -358,6 +358,12 @@ def _runtime_root_path_hash(path: str | None) -> str | None:
     return _sha256(str(path).encode("utf-8"))
 
 
+def _logical_runtime_path(path: str | Path) -> str:
+    """Normalize declared runtime metadata without following host path aliases."""
+
+    return os.path.abspath(os.path.normpath(os.path.expanduser(str(path))))
+
+
 def _env_bool(name: str) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -733,10 +739,10 @@ def _records_for_ref(
 
 
 def _runtime_root_matches(record: SkillTrustMetadataRecord, runtime_root: str) -> tuple[str | None, str | None]:
-    if record.source_root_path and runtime_root == str(Path(record.source_root_path).expanduser().resolve(strict=False)):
+    if record.source_root_path and runtime_root == _logical_runtime_path(record.source_root_path):
         return "verified_source", "source root matched"
     for allowed in record.allowed_runtime_roots:
-        if runtime_root == str(Path(allowed).expanduser().resolve(strict=False)):
+        if runtime_root == _logical_runtime_path(allowed):
             return "verified_mirror", "allowed runtime mirror root matched"
     return None, None
 
@@ -744,8 +750,8 @@ def _runtime_root_matches(record: SkillTrustMetadataRecord, runtime_root: str) -
 def _runtime_path_within_root(runtime_path: str | None, runtime_root: str) -> bool:
     if not runtime_path:
         return True
-    root = Path(runtime_root).expanduser().resolve(strict=False)
-    path = Path(runtime_path).expanduser().resolve(strict=False)
+    root = Path(_logical_runtime_path(runtime_root))
+    path = Path(_logical_runtime_path(runtime_path))
     return path == root or root in path.parents
 
 
@@ -836,7 +842,7 @@ def bind_runtime_skill_refs(
     for ref in runtime_refs:
         candidates = _records_for_ref(bundle, ref)
         runtime_root = (
-            str(Path(ref.runtime_root).expanduser().resolve(strict=False))
+            _logical_runtime_path(ref.runtime_root)
             if ref.runtime_root
             else None
         )
@@ -1167,7 +1173,7 @@ def _allowed_runtime_roots_for_skill(
         parent_text = str(parent).strip()
         if not parent_text:
             continue
-        roots.append(str((Path(parent_text).expanduser() / skill_dir_name).resolve(strict=False)))
+        roots.append(_logical_runtime_path(Path(parent_text).expanduser() / skill_dir_name))
     return list(dict.fromkeys(roots))
 
 

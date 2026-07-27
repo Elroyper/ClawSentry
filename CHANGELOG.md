@@ -4,9 +4,27 @@
 
 ## [Unreleased]
 
-### 待办
+暂无未发布变更。
 
-- 下一轮用户反馈与回归验证后补充。
+## [0.8.7] — 2026-07-28
+
+### 改进
+
+- **Indirect-injection analysis** — 对嵌套和序列化工具输出生成有界、折叠的分析视图，并将 post-action contamination 证据保留到后续 pre-action 决策。
+- **Context-sensitive escalation** — contamination 驱动的 L2 upgrade 可以绕过 benchmark auto-L2 disable；L2 不确定结果、规则 pending reasons 与 L3 review 使用一致的升级语义。
+- **Policy-boundary hardening** — 跨工具 write-content 等价效果、敏感值外传、task-artifact scope 和 approval-effect binding 统一使用归一化 evidence 与 anti-bypass 边界。
+- **Structured-response resilience** — L2/L3 provider 输出采用有界宽容解析，避免仅因结构化响应轻微漂移而把有效 review 静默降级为 parse failure。
+- **Gateway maintainability** — Gateway 实现按 analysis、config、core、effects、policy、runtime、storage、telemetry、trust 与 L3 等职责模块拆分，同时保留兼容 import surface。
+
+### 文档
+
+- 将公开 README 重构为适合研究发布的正式说明，明确研究范围、决策模型、host capability 边界、复现方式、引用说明和 responsible-use 约束。
+- 刷新在线首页、公开 changelog、API inventory 与 release metadata 到 `v0.8.7`。
+
+### 边界
+
+- 各 Agent host 的同步阻断、approval gate 与 observation-only 能力继续分别陈述，不将监控能力表述为等价的 pre-action enforcement。
+- ClawSentry 仍是 defense-in-depth 组件，不替代操作系统隔离、最小权限凭据或高影响操作的人类审批。
 
 ## [0.8.6] — 2026-05-31
 
@@ -1788,6 +1806,7 @@
 [0.6.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.6
 [0.6.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.7
 [0.6.8]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.6.8
+[0.8.7]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.8.7
 [0.8.6]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.8.6
 [0.8.5]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.8.5
 [0.8.4]: https://github.com/Elroyper/ClawSentry/releases/tag/v0.8.4

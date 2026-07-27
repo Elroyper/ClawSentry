@@ -18,7 +18,7 @@ hide:
 { .tagline-sub }
 
 <div class="cs-pill-row" markdown>
-<span class="cs-version-badge">v0.8.6</span>
+<span class="cs-version-badge">v0.8.7</span>
 <span class="cs-pill">stable public docs</span>
 <span class="cs-pill">6 frameworks</span>
 <span class="cs-pill">sync_decision.1.0</span>
@@ -31,8 +31,8 @@ hide:
 
 </div>
 
-!!! tip "v0.8.6 — Skill Trust compatibility cleanup"
-    本版本收口首次使用 skill 包审查的公开输出命名和兼容路径。Gateway 检测规则、severity、verdict 和 policy routing 不变。[查看完整更新日志 →](changelog.md)
+!!! tip "v0.8.7 — Runtime supervision hardening"
+    本版本增强嵌套工具输出的间接注入分析、上下文驱动的 L2/L3 升级，以及跨工具 effect 和敏感值外传的统一策略证据。[查看完整更新日志 →](changelog.md)
 
 ---
 

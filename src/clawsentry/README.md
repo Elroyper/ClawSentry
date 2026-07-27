@@ -6,7 +6,7 @@
 
 **Core goal**: Eliminate cross-framework policy duplication and observability fragmentation through a "protocol-first, decision-centralized" approach to agent security governance.
 
-**Current release highlight (v0.8.6)**: Skill Trust first-use review compatibility cleanup; detector rules, severity, verdicts, and Gateway policy routing are unchanged.
+**Current release highlight (v0.8.7)**: stronger indirect-injection analysis, context-sensitive L2/L3 escalation, normalized policy-boundary evidence, and a consolidated modular Gateway implementation.
 
 ---
 

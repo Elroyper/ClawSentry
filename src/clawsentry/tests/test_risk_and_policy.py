@@ -2329,7 +2329,7 @@ class TestSC3D6LabelFix:
     """H6: SC-3 label should be cleared when D6 forces upgrade."""
 
     def test_sc3_cleared_on_d6_upgrade(self):
-        """When D6 >= 2.0 bumps LOW to MEDIUM, short_circuit_rule should be cleared.
+        """When D6 >= 2.0 upgrades LOW, short_circuit_rule should be cleared.
 
         Payload is crafted to score exactly D6=2.0 via Layer 1:
           - 1 strong pattern (<script>): +0.8
@@ -2337,7 +2337,8 @@ class TestSC3D6LabelFix:
           Total: 2.0 >= 2.0 threshold → forces LOW → MEDIUM upgrade.
         """
         # d1=0 (read_file), d2=0 (path=/tmp/safe.txt), d3=0 (non-bash) → SC-3 fires first
-        # But D6=2.0 should clear sc_rule and bump to MEDIUM
+        # D6 must clear the read-only SC-3 label and upgrade to at least MEDIUM.
+        # Additional serialized-content signals may conservatively raise HIGH.
         event = _evt(
             tool_name="read_file",
             payload={
@@ -2353,8 +2354,8 @@ class TestSC3D6LabelFix:
         snap = compute_risk_snapshot(event, None, tracker)
         assert snap.dimensions.d6 >= 2.0, \
             f"Expected D6 >= 2.0 for this payload, got {snap.dimensions.d6}"
-        assert snap.risk_level == RiskLevel.MEDIUM, \
-            f"Expected MEDIUM after D6 upgrade, got {snap.risk_level}"
+        assert snap.risk_level in {RiskLevel.MEDIUM, RiskLevel.HIGH}, \
+            f"Expected MEDIUM or HIGH after D6 upgrade, got {snap.risk_level}"
         assert snap.short_circuit_rule is None, \
             f"SC-3 label should be cleared on D6 upgrade, got {snap.short_circuit_rule}"
 

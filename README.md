@@ -2,28 +2,56 @@
 
 # ClawSentry
 
-AHP (Agent Harness Protocol) reference implementation — a unified security supervision gateway for AI agent runtimes.
+**Runtime safety supervision for tool-using AI agents.**
+
+ClawSentry is the reference implementation of the Agent Harness Protocol
+(AHP), a framework-independent interface for mediating AI-agent actions at
+runtime. It normalizes events from heterogeneous agent hosts, evaluates them
+through a progressive decision pipeline, and returns auditable
+`allow` / `block` / `modify` / `defer` decisions before or after tool
+execution, according to the enforcement capabilities of each host.
 
 <p align="center">
   <img src="site-docs/assets/architecture-overview.png" alt="ClawSentry Architecture Overview" width="820">
 </p>
 
-## Features
+> **Project status.** ClawSentry is a research artifact and beta-quality
+> reference implementation. Its policy decisions complement, but do not
+> replace, operating-system isolation, least-privilege credentials, or
+> human approval for consequential actions.
 
-- **Three-tier progressive decision**: L1 rule engine (<1 ms) → L2 semantic analysis (<3 s) → L3 review agent (<30 s)
-- **Six-dimensional risk scoring (D1–D6)**: command danger / path sensitivity / command patterns / session history / trust level / **injection detection**
-- **D6 injection detection**: 3-layer analysis — heuristic regex + Canary Token leak + pluggable EmbeddingBackend (vector similarity)
-- **Post-action security fence**: non-blocking post-tool analysis — indirect injection, data exfiltration, secret exposure, obfuscation (4 response tiers)
-- **25 built-in attack patterns (v1.1)**: OWASP ASI01–ASI05, covering supply chain, container escape, reverse shell, staged exfiltration
-- **Multi-step attack trajectory detection**: 5 built-in sequences with sliding-window analysis, SSE `trajectory_alert` broadcast
-- **Self-evolving pattern library (E-5)**: auto-extract candidates from high-risk events, CANDIDATE→EXPERIMENTAL→STABLE lifecycle, confidence scoring, REST API feedback loop
-- **Tunable detection pipeline**: `DetectionConfig` frozen dataclass with explicit `CS_` / project-level overrides, including high-level L3 routing and trigger controls
-- **Skill Trust and policy traceability**: registry/preflight controls for local skill packages, first-use admission policies, compound/taint evidence, capability narrowing, and policy drift reports
-- **Six-framework support with explicit boundaries**: a3s-code (explicit SDK transport) + OpenClaw (WS approval + webhook) + Claude Code (host hooks) + Codex CLI (session-log watcher + default managed `PreToolUse(Bash)` preflight / `PermissionRequest(Bash|apply_patch|Edit|Write|mcp__.*)` approval gate / async compact observation via `clawsentry start --framework codex`) + Gemini CLI (native hooks; real provider `BeforeTool` deny smoke proven for `run_shell_command`) + Kimi CLI (native hooks; real E2E proven for prompt deny, safe Shell observation, and dangerous Shell `PreToolUse` deny; no native modify/defer parity)
-- **Real-time monitoring**: SSE streaming, `clawsentry watch` CLI, React/TypeScript web dashboard
-- **Production security**: Bearer token auth, HMAC webhook signatures, UDS chmod 0o600, SSL/TLS, rate limiting
-- **Session enforcement**: auto-escalate after N high-risk events with configurable cooldown
-- **Public Python and Web UI regression coverage**, with release-time CI/build evidence
+## Research Scope
+
+ClawSentry studies runtime mediation for agentic systems in which security
+decisions must remain portable across hosts with different hook, approval,
+and observation capabilities. The implementation focuses on five properties:
+
+- **Protocol-first supervision** — host-specific events are normalized into a
+  common AHP decision contract instead of duplicating policy in every agent
+  runtime.
+- **Progressive analysis** — deterministic L1 rules handle clear cases first;
+  L2 semantic analysis and L3 bounded review are invoked only when additional
+  context is required.
+- **Action-bound evidence** — decisions retain normalized effects, provenance,
+  session context, and policy reasons for audit and replay.
+- **Capability-aware enforcement** — each integration states which events can
+  be blocked synchronously and which are observation-only.
+- **Pre- and post-action coverage** — the gateway combines pre-execution
+  mediation with post-action analysis for indirect injection, exfiltration,
+  secret exposure, and obfuscation signals.
+
+## Decision Pipeline
+
+| Stage | Role | Operational property |
+|---|---|---|
+| **L1 Policy Engine** | Deterministic effect normalization, D1–D6 risk scoring, anti-bypass and policy checks | Always on; intended for sub-millisecond decisions |
+| **L2 Semantic Analyzer** | Context-sensitive analysis with rule-based or pluggable LLM providers | Invoked for ambiguous or policy-selected events |
+| **L3 Review Agent** | Bounded multi-turn review with a read-only toolkit and review-skill dispatch | Optional; reserved for cases requiring additional evidence |
+| **Post-action Analyzer** | Non-blocking analysis of tool results and session contamination | Produces findings and influences subsequent decisions |
+
+The gateway also provides Skill Trust controls for local skill packages,
+multi-step trajectory analysis, session enforcement, SSE telemetry, a CLI
+watcher, and a React/TypeScript operations dashboard.
 
 ## Installation
 
@@ -35,70 +63,25 @@ pip install clawsentry[all]      # everything
 
 Requires Python >= 3.11.
 
-## What's New in v0.8.6
+## What's New in v0.8.7
 
-- **Skill Trust compatibility cleanup**: first-use skill package review output naming and compatibility paths are cleaned up for a simpler public contract.
-- **Documentation refresh**: public docs and release status are refreshed for v0.8.6.
-- **Runtime behavior unchanged**: detector rules, severity, verdicts, and Gateway policy routing are unchanged.
+This release consolidates the runtime hardening and architectural work merged
+after `v0.8.6`:
 
-## What's New in v0.8.5
+- **Indirect-injection coverage** — serialized and nested tool outputs are
+  flattened into bounded analysis views, with post-action escalation retained
+  for contamination-driven follow-up decisions.
+- **Context-sensitive escalation** — contamination and uncertain L2 outcomes
+  reach their intended review path without being silently demoted by benchmark
+  auto-routing controls or parser-only failures.
+- **Policy-boundary hardening** — cross-tool write-content equivalence,
+  secret-value egress signals, task-artifact scope, and approval-effect binding
+  share normalized evidence across enforcement paths.
+- **Maintainable public surface** — the gateway has a modular package layout,
+  generated API inventory, refreshed documentation, and an updated Web UI
+  stylesheet organization.
 
-- **Content evidence and FSPR debug infrastructure**: Gateway read-content evidence, FSPR real-package scanning, provider microbench tooling, and corpus utilities are now part of the mainline.
-- **Benchmark runner hardening**: benchmark runners gained reviewer routing, proxy handling, parallel execution support, retry controls, technical rerun helpers, and raw rejudge support.
-- **Clearer user paths**: install, quickstart, integrations, configuration, CLI, API reference, deployment, troubleshooting, and changelog remain the primary public entry points.
-
-## What's New in v0.8.2
-
-- **Post-action provenance validator removed**: artifact label scanning and `CS_SKILL_TRUST_PROVENANCE_*` configuration have been removed from the runtime and docs.
-- **Post-action scoring retained**: the existing post-action output risk scorer remains available; completed decisions are not revisited through artifact label claims.
-- **Skill Trust core retained**: runtime binding, `skill_use_ledger`, FSPR evidence-only review, and runtime mirror content verification remain in place.
-
-## What's New in v0.8.1
-
-- **First-use review routing split**: FSPR is evidence-only and returns `admission_recommendation`; executable allow/defer/block/L2/L3 routing is generated by Gateway policy from `ReviewRoutingIntent`.
-- **Fail-closed provider contract**: FSPR provider responses that include legacy action/tier routing fields are treated as contract drift and degraded instead of being trusted.
-- **Clear first-use policy controls**: first-use admission configuration now uses `skill_trust_first_use_*_policy` / `CS_SKILL_TRUST_FIRST_USE_*_POLICY`, separating operator policy from provider review evidence.
-
-## What's New in v0.8.0
-
-- **Skill Trust runtime binding control plane**: Gateway binds observed skill paths, native skill names, allowed mirrors, runner contracts, and Gateway-owned metadata into explicit runtime trust statuses.
-- **Skill-use ledger**: replay-safe skill-use ledger records observed allow/block/defer skill use for runtime binding, replay, and review evidence.
-- **FSPR and lifecycle controls**: first-use package review emits bounded package evidence while Gateway policy derives action/review routing; allowlist/greylist/blacklist/revoke/disable/restore/override mutations go through auditable lifecycle API/CLI.
-
-## What's New in v0.7.5
-
-- **Cross-CLI Skill Trust runtime binding**: Kimi CLI, Claude Code, Gemini CLI, Codex, and a3s-code attach Skill Trust runtime metadata from real skill paths and project context into Gateway evaluation.
-- **Prompt-hook parity and replay hardening**: Claude Code `UserPromptSubmit` uses prompt-block response semantics, and session replay keeps Skill Trust metadata hash/label-only.
-- **Benchmark mode cleanup**: benchmark-mode docs separate unattended CI behavior from normal production operation.
-
-## What's New in v0.7.4
-
-- **L3 multi-turn by default**: L3 AgentAnalyzer now uses multi-turn review unless `CS_L3_MULTI_TURN=false`, `0`, `no`, or `off` explicitly requests legacy single-turn mode.
-- **Benchmark Docker alignment**: unattended benchmark profiles set `CS_L3_MULTI_TURN=true`, matching the public runtime default for those runs.
-- **Docs and config refresh**: env-var docs, L3 docs, and benchmark notes now describe multi-turn as the default path.
-
-## What's New in v0.7.3
-
-- **L2/L3 shared evidence path**: L2 semantic analysis now emits a redacted evidence capsule that L3 review prompts and audit metadata can reuse.
-- **Triggered L3 review prompt**: L3 reviews are organized around trigger reason, policy intent, skill context, review skill manifest, evidence, and operator next steps.
-- **Expanded review skills**: prompt-injection transcript, data-staging exfil chain, dependency supply-chain, persistence, and skill-trust audit skills are available as manifest entries.
-
-## What's New in v0.7.2
-
-- **Anti-bypass L1 capability-equivalence enforcement**: denied and pending risky effects are normalized into redacted action summaries, so equivalent follow-up attempts cannot bypass policy by changing tool, shell syntax, or execution wrapper.
-- **Approval effect binding**: defer approvals are bound to the approved effect and fail closed if the resolved action drifts.
-- **Replay evidence**: the anti-bypass L1 replay fixture covers 14 cases with decision match, evidence, fallback, rule, and schema-sync coverage at `1.0`.
-
-## What's New in v0.7.1
-
-- **Public release metadata correction**: the public release surface now reports the public repository validation count consistently and keeps the online documentation focused on install, integration, operations, and Benchmark mode usage.
-
-## What's New in v0.7.0
-
-- **Runtime safety controls**: Skill Trust registry/preflight, AHP policy replay, deterministic compound/taint evidence, capability narrowing, redacted agent feedback, and policy drift traceability are now on the mainline path.
-- **Skill Trust first-use control**: local skill packages can be scanned and registered with `clawsentry skill-trust`, then handled through Gateway-owned admission policies and review routing.
-- **Generalized persistence evidence**: startup/bootstrap/autoload/reentry and related persistence-write patterns are represented through `rule_hits` and `taint_flow_summary`, instead of a case-specific runtime switch.
-- **Benchmark mode**: non-interactive safety-test runs can use deterministic defer handling and temporary Codex homes through the `clawsentry benchmark` commands.
+See [CHANGELOG.md](CHANGELOG.md) for the complete version history.
 
 ## Quick Start
 
@@ -255,6 +238,39 @@ Full documentation is available at **https://elroyper.github.io/ClawSentry/**
 - [L2 Semantic Analysis](https://elroyper.github.io/ClawSentry/decision-layers/l2-semantic/)
 - [Configuration Reference](https://elroyper.github.io/ClawSentry/configuration/env-vars/)
 - [REST & SSE API](https://elroyper.github.io/ClawSentry/api/decisions/)
+
+## Reproducibility and Validation
+
+The public repository contains the runtime source, public regression tests,
+documentation sources, deployment examples, and package metadata used for a
+release. A local validation run can be reproduced with:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest src/clawsentry/tests/ -q --tb=short
+python scripts/docs_api_inventory.py
+python -m build
+```
+
+Provider-backed and host-native integration checks require the corresponding
+CLI/runtime and credentials; they are skipped unless explicitly enabled. The
+public documentation distinguishes tested enforcement paths from
+observation-only or host-dependent paths.
+
+## Citation
+
+Citation metadata for the associated paper will be added after the
+double-anonymous review period. During review, please cite the anonymous
+artifact URL supplied with the manuscript. For software-specific references,
+record the release tag and commit SHA used in the evaluation.
+
+## Security and Responsible Use
+
+ClawSentry is a defense-in-depth component, not a complete sandbox. Deploy it
+with least-privilege credentials, host isolation, authenticated gateway
+endpoints, and human approval for irreversible or externally consequential
+actions. Please report security-sensitive issues privately before public
+disclosure.
 
 ## Key Environment Variables
 
