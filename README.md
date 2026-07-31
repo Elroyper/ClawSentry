@@ -15,6 +15,14 @@ execution, according to the enforcement capabilities of each host.
   <img src="site-docs/assets/architecture-overview.png" alt="ClawSentry Architecture Overview" width="820">
 </p>
 
+## Paper
+
+This repository is the official implementation accompanying
+**“ClawSentry: A Progressive Multi-Tier Security Gateway for Safeguarding
+Autonomous LLM Agents”** (2026), by Kai Wang, Zeming Wei, BiaoJie Zeng,
+Chang Jin, An Wang, Xiaokun Luan, Zhixiao Lin, Chao Yang, Jingjing Qu,
+Xia Hu, and Xingcheng Xu.
+
 > **Project status.** ClawSentry is a research artifact and beta-quality
 > reference implementation. Its policy decisions complement, but do not
 > replace, operating-system isolation, least-privilege credentials, or
@@ -259,10 +267,21 @@ observation-only or host-dependent paths.
 
 ## Citation
 
-Citation metadata for the associated paper will be added after the
-double-anonymous review period. During review, please cite the anonymous
-artifact URL supplied with the manuscript. For software-specific references,
-record the release tag and commit SHA used in the evaluation.
+If ClawSentry or AHP contributes to your work, please cite the accompanying
+preprint:
+
+```bibtex
+@misc{wang2026clawsentry,
+  title  = {ClawSentry: A Progressive Multi-Tier Security Gateway for Safeguarding Autonomous LLM Agents},
+  author = {Kai Wang and Zeming Wei and BiaoJie Zeng and Chang Jin and An Wang and Xiaokun Luan and Zhixiao Lin and Chao Yang and Jingjing Qu and Xia Hu and Xingcheng Xu},
+  year   = {2026},
+  note   = {arXiv preprint}
+}
+```
+
+GitHub-compatible citation metadata is available in
+[`CITATION.cff`](CITATION.cff). For software-specific references, also record
+the release tag and commit SHA used in the evaluation.
 
 ## Security and Responsible Use
 
