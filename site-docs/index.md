@@ -19,7 +19,7 @@ hide:
 
 <div class="cs-pill-row" markdown>
 <span class="cs-version-badge">v0.8.7</span>
-<span class="cs-pill">stable public docs</span>
+<span class="cs-pill">v0.8.7 live</span>
 <span class="cs-pill">6 frameworks</span>
 <span class="cs-pill">sync_decision.1.0</span>
 </div>
