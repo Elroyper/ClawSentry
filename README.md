@@ -15,14 +15,6 @@ execution, according to the enforcement capabilities of each host.
   <img src="site-docs/assets/architecture-overview.png" alt="ClawSentry Architecture Overview" width="820">
 </p>
 
-## Paper
-
-This repository is the official implementation accompanying
-**“ClawSentry: A Progressive Multi-Tier Security Gateway for Safeguarding
-Autonomous LLM Agents”** (2026), by Kai Wang, Zeming Wei, BiaoJie Zeng,
-Chang Jin, An Wang, Xiaokun Luan, Zhixiao Lin, Chao Yang, Jingjing Qu,
-Xia Hu, and Xingcheng Xu.
-
 > **Project status.** ClawSentry is a research artifact and beta-quality
 > reference implementation. Its policy decisions complement, but do not
 > replace, operating-system isolation, least-privilege credentials, or
